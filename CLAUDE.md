@@ -1,8 +1,8 @@
 # Working in this repository
 
-**BackStage** — an open-source SessionBoard alternative for AI Engineer–style conferences.
-See [`README.md`](README.md) for what it does. Unrelated to Spotify's Backstage, which is
-why the npm scope cannot be `@backstage` and is deliberately still unchosen (R29).
+**Podium** — an open-source SessionBoard alternative for AI Engineer–style conferences.
+See [`README.md`](README.md) for what it does. The npm scope is **not** `@podium`, which an
+unrelated micro-frontend framework holds; use `@podiumconf/*` (R29).
 
 ## The domain model is the specification
 

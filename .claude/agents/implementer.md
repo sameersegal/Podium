@@ -49,8 +49,8 @@ field and document it later", do not pick a reasonable default — when any of t
   open today, so this halt fires only on a question added after this was written. The
   resolutions you will lean on most: **R16** (D1 behind a repository layer), **R13**
   (`Proposal`/`Session` stay separate, presented as one record), **R22** (14-day draft
-  abandonment), **R23** (password login defaults) and **R29** (the product is *BackStage*;
-  the npm scope cannot be `@backstage`, which Spotify holds, and is not yet chosen).
+  abandonment), **R23** (password login defaults) and **R29** (the product is *Podium*; the
+  npm scope is `@podiumconf/*`, never `@podium`, which an unrelated project holds).
 - The request would require writing a field marked `D` (derived), or storing a counter the
   model says is computed.
 - The request conflicts with an invariant. An invariant is not a guideline. If the feature is

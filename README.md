@@ -1,10 +1,11 @@
-# BackStage
+# Podium
 
 An open-source alternative to SessionBoard, scoped to the jobs an **AI Engineer–style
 conference** actually has to get done — not a full clone.
 
-> Unrelated to [Backstage](https://backstage.io), Spotify's developer portal. The repository
-> is still named `kms`.
+> Unrelated to podium.com (lead management) and to
+> [podium-lib](https://podium-lib.io) (micro-frontends), both of which hold the obvious
+> namespaces. The repository is still named `kms`.
 
 Six capabilities:
 

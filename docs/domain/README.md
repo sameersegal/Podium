@@ -1,6 +1,6 @@
 # Domain Model
 
-This directory is the **normative specification** of **BackStage**. Code implements this
+This directory is the **normative specification** of **Podium**. Code implements this
 model; when the two disagree, one of them is a bug and it must be resolved explicitly —
 never silently.
 

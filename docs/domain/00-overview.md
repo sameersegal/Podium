@@ -2,7 +2,7 @@
 
 ## What this system is for
 
-**BackStage** is an open-source alternative to SessionBoard, scoped deliberately to the jobs
+**Podium** is an open-source alternative to SessionBoard, scoped deliberately to the jobs
 an **AI Engineer–style conference** actually has to get done. It is not a general
 event-management suite: there is no ticketing, no badge printing, no expo floor CRM, no
 attendee app.

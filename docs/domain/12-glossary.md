@@ -5,12 +5,12 @@ words with these meanings. Where a common synonym exists, it is listed so it can
 deliberately avoided.
 
 **Speaker-facing email is sent as the event, not as the product.** Somebody who submitted to
-AI Engineer World's Fair gets mail from AI Engineer World's Fair. *BackStage* belongs on the
+AI Engineer World's Fair gets mail from AI Engineer World's Fair. *Podium* belongs on the
 login screen and the invoice, not in a rejection letter.
 
 | Term | Meaning | Not to be confused with |
 |---|---|---|
-| **BackStage** | The product these documents specify (R29). | Backstage, Spotify's developer portal — unrelated |
+| **Podium** | The product these documents specify (R29). | podium.com and podium-lib — both unrelated |
 | **Organization** | The body that runs the conferences. One per deployment. | Sponsor (a company that pays), Venue |
 | **Event** | One conference occurrence — "AI Engineer World's Fair 2026". | *Domain event*; always qualify when both are in play |
 | **Event day** | One calendar day of an event, an explicit record. | A date computed from `starts_on` |
