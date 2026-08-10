@@ -44,6 +44,13 @@ model disagree, that is a defect in one of them — resolve it explicitly, never
 - **Every reaction to a domain event must be idempotent on the event id.** At-least-once
   delivery is assumed everywhere.
 
+## Writing code
+
+Use the [`implementer`](.claude/agents/implementer.md) agent for any work that builds or
+changes application code. It validates the request against `docs/domain/` before starting and
+stops if the model does not cover it, and it carries the platform rules (Cloudflare services,
+context-shaped layout, integration tests, migrations over destructive changes).
+
 ## Skills
 
 Two project skills in [`.claude/skills/`](.claude/skills) do the work the rules above
@@ -57,6 +64,9 @@ describe, so it happens the same way every time:
   [`model_inventory.py`](.claude/skills/domain-drift/scripts/model_inventory.py) extracts
   entities, fields, enums, invariants, events and state machines from `docs/domain/`;
   `--check` exits non-zero on a defect and is ready to run in CI.
+
+The two close a loop around the `implementer` agent: it validates against the model before
+building, `domain-drift` checks the model against what was actually built afterwards.
 
 ## Current state
 
