@@ -50,7 +50,9 @@ model disagree, that is a defect in one of them — resolve it explicitly, never
 Use the [`implementer`](.claude/agents/implementer.md) agent for any work that builds or
 changes application code. It validates the request against `docs/domain/` before starting and
 stops if the model does not cover it, and it carries the platform rules (Cloudflare services,
-context-shaped layout, integration tests, migrations over destructive changes).
+event-driven by default, context-shaped layout, responsive on phone and desktop, profiled
+against performance budgets, structured PII-free instrumentation, integration tests, migrations
+over destructive changes).
 
 ## Skills
 
