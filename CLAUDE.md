@@ -44,6 +44,13 @@ model disagree, that is a defect in one of them — resolve it explicitly, never
 - **Every reaction to a domain event must be idempotent on the event id.** At-least-once
   delivery is assumed everywhere.
 
+## Writing code
+
+Use the [`implementer`](.claude/agents/implementer.md) agent for any work that builds or
+changes application code. It validates the request against `docs/domain/` before starting and
+stops if the model does not cover it, and it carries the platform rules (Cloudflare services,
+context-shaped layout, integration tests, migrations over destructive changes).
+
 ## Current state
 
 Domain model in review; no application code exists yet. Do not scaffold an implementation
