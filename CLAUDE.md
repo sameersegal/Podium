@@ -51,6 +51,23 @@ changes application code. It validates the request against `docs/domain/` before
 stops if the model does not cover it, and it carries the platform rules (Cloudflare services,
 context-shaped layout, integration tests, migrations over destructive changes).
 
+## Skills
+
+Two project skills in [`.claude/skills/`](.claude/skills) do the work the rules above
+describe, so it happens the same way every time:
+
+- **`domain-expert`** — answers "how does this work / who can do that / what happens at the
+  deadline" from the model, in the model's own vocabulary, for a reader who isn't writing the
+  code. Also turns a rough feature idea into a requirement precise enough to build.
+- **`domain-drift`** — checks model against code after a change and produces the model diff
+  that belongs in the same commit. Its
+  [`model_inventory.py`](.claude/skills/domain-drift/scripts/model_inventory.py) extracts
+  entities, fields, enums, invariants, events and state machines from `docs/domain/`;
+  `--check` exits non-zero on a defect and is ready to run in CI.
+
+The two close a loop around the `implementer` agent: it validates against the model before
+building, `domain-drift` checks the model against what was actually built afterwards.
+
 ## Current state
 
 Domain model in review; no application code exists yet. Do not scaffold an implementation
