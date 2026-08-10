@@ -25,6 +25,7 @@ erDiagram
 
 ## TaskDefinition
 
+<!-- entity: TaskDefinition -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `tdf_` |
@@ -97,6 +98,7 @@ give up and reopen the spreadsheet:
 
 ## TaskInstance
 
+<!-- entity: TaskInstance -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `tsk_` |
@@ -104,7 +106,8 @@ give up and reopen the spreadsheet:
 | `definition_id` | `ref(TaskDefinition)` | Y | |
 | `definition_version` | `int` | Y | frozen at materialisation (INV-07-1) |
 | `definition_key` | `slug` | Y | denormalised, so reporting survives definition retirement |
-| `title` / `instructions` / `requirement_type` / `config` | *snapshot* | Y | copied at materialisation |
+| `title` / `requirement_type` / `config` | *snapshot* | Y | copied at materialisation |
+| `instructions` | *snapshot* | N | copied at materialisation; null when the definition has none |
 | `subject_type` | `enum(session, speaker, sponsor)` | Y | |
 | `subject_id` | `ulid` | Y | |
 | `session_id` | `ref(Session)` | N | denormalised when the subject is or belongs to a session |
@@ -158,6 +161,7 @@ time; the reminder scheduler is what runs on a timer, not the state.
 Append-only: a resubmission after `changes_requested` is a new version, so the back-and-forth
 is visible.
 
+<!-- entity: TaskSubmission -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `tsb_` |
@@ -176,6 +180,7 @@ in a dispute, and it is why the document version is captured rather than just a 
 
 ## Reminders
 
+<!-- entity: TaskReminderRule -->
 | TaskReminderRule field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | |
@@ -186,6 +191,7 @@ in a dispute, and it is why the document version is captured rather than just a 
 | `escalate_to` | `enum(none, primary_speaker, sponsor_primary_contact, organizer)` | N | who gets cc'd on late reminders |
 | `only_if_status` | `enum(...)[]` | N | default: any non-terminal status |
 
+<!-- entity: TaskReminderLog -->
 | TaskReminderLog field | Type | Req | Notes |
 |---|---|---|---|
 | `task_instance_id` | `ref(TaskInstance)` | Y | |

@@ -41,6 +41,7 @@ erDiagram
 
 ## Organization
 
+<!-- entity: Organization -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `org_` |
@@ -59,6 +60,7 @@ erDiagram
 
 ## Person
 
+<!-- entity: Person -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `per_` |
@@ -83,6 +85,7 @@ because a wrong merge exposes one person's proposals to another.
 
 ## AuthIdentity
 
+<!-- entity: AuthIdentity -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `aid_` |
@@ -102,6 +105,7 @@ One per person, org-scoped, owned and edited by the person. This is J4: the thin
 shows up next to their talk. Field-level visibility matters — a speaker will happily give
 you a phone number for logistics and be furious if it appears on the website.
 
+<!-- entity: SpeakerProfile -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `spk_` |
@@ -123,6 +127,7 @@ you a phone number for logistics and be furious if it appears on the website.
 
 ### ProfileLink
 
+<!-- entity: ProfileLink -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `lnk_` |
@@ -146,6 +151,7 @@ at World's Fair and a chair at Summit, with no relationship between the two.
 
 ### RoleGrant
 
+<!-- entity: RoleGrant -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `grt_` |
@@ -190,6 +196,7 @@ cancelled, not orphaned.
 Covers all "come join this" flows: staff invites, reviewer invites, co-speaker invites,
 sponsor contact invites. One entity, one expiry policy, one audit trail.
 
+<!-- entity: Invitation -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `inv_` |

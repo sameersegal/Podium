@@ -82,6 +82,7 @@ Additional handling:
 One entity for every uploaded file — headshots, slides, logos, signed documents, task
 attachments.
 
+<!-- entity: Asset -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ast_` |
@@ -103,6 +104,7 @@ short-lived signed URLs.
 
 ## Audit log
 
+<!-- entity: AuditLog -->
 | Field | Type | Notes |
 |---|---|---|
 | `id` | `ulid` | prefix `aud_` |

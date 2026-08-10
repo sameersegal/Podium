@@ -32,6 +32,7 @@ erDiagram
 The company. Org-scoped and long-lived — the same sponsor comes back next year, and
 carrying their record forward is half the value of having events be plural.
 
+<!-- entity: Sponsor -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `spo_` |
@@ -52,6 +53,7 @@ carrying their record forward is half the value of having events be plural.
 
 Per event, because the packages change every year.
 
+<!-- entity: SponsorshipTier -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `tir_` |
@@ -69,6 +71,7 @@ What a tier grants by default. Applying a tier to a sponsorship copies these int
 `Entitlement` rows — a copy, not a reference, because deals get negotiated and the copy is
 then edited without rewriting the tier for everyone else.
 
+<!-- entity: TierEntitlementTemplate -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | |
@@ -83,6 +86,7 @@ then edited without rewriting the tier for everyone else.
 
 The link between a sponsor and one event — the deal for that year.
 
+<!-- entity: Sponsorship -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `snp_` |
@@ -104,6 +108,7 @@ territory it should not occupy. `contract_reference` is the seam.
 
 A countable right. This is the entity that makes sponsor sessions tractable.
 
+<!-- entity: Entitlement -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ent_` |
@@ -138,6 +143,7 @@ stateDiagram-v2
 
 ## SponsorContact
 
+<!-- entity: SponsorContact -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `sct_` |

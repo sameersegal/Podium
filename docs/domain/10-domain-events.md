@@ -44,6 +44,29 @@ Storage: events are persisted in an append-only log with the same retention as t
 log. That is what makes webhook replay, "why did this speaker get that email", and
 after-the-fact debugging possible.
 
+### DomainEventRecord
+
+The stored form of the envelope. `actor` and `subject` are flattened into columns so the
+log can be queried by actor or subject without unpacking JSON.
+
+<!-- entity: DomainEventRecord -->
+| Field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `evn_`; the consumer's idempotency key |
+| `type` | `string` | Y | from the catalogue below |
+| `version` | `int` | Y | per type, starts at 1 |
+| `occurred_at` | `timestamptz` | Y | when the fact became true |
+| `org_id` | `ref(Organization)` | Y | |
+| `event_id` | `ref(Event)` | N | null for org-level facts |
+| `actor_type` | `enum(person, api_key, system, integration)` | Y | |
+| `actor_id` | `ulid` | N | |
+| `actor_display` | `string` | N | captured at the time |
+| `subject_type` | `string` | Y | webhook ordering is guaranteed per subject only |
+| `subject_id` | `ulid` | Y | |
+| `data` | `json` | Y | type-specific payload |
+| `correlation_id` | `string` | N | groups one request or batch |
+| `causation_id` | `ref(DomainEventRecord)` | N | the event that caused this one |
+
 ## Catalogue
 
 `data` columns list the type-specific payload. All events also carry the envelope above.
@@ -175,6 +198,7 @@ onboarding materialisation, speaker notification and every external integration 
 | `schedule.rolled_back` | publication | `publication_id, restored_version, rolled_back_from_version` |
 | `session.time_changed` | session | `session_id, from, to, publication_id` |
 | `session.room_changed` | session | `session_id, from_room, to_room, publication_id` |
+| `embed_config.created` | embed | `embed_config_id, event_id, format, allowed_origins` |
 
 `session.time_changed` and `session.room_changed` fire **only on publication**, not on
 every drag in the planning UI. Speakers should hear about a change when it is real.

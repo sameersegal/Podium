@@ -31,6 +31,7 @@ An optional grid. Some conferences run a strict grid (every talk 20 minutes, on 
 half-hour, all rooms aligned); others place sessions freely. Both must work, so the grid is
 a convenience for placement and validation, not a requirement.
 
+<!-- entity: TimeSlot -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `slt_` |
@@ -44,6 +45,7 @@ a convenience for placement and validation, not a requirement.
 
 ## Placement
 
+<!-- entity: Placement -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `plc_` |
@@ -89,6 +91,7 @@ knowing anything.
 `error`-severity conflicts block **publication**, not placement. You may build a broken
 draft schedule; you may not publish one without an explicit, recorded override.
 
+<!-- entity: ScheduleConflict -->
 | ScheduleConflict field | Type | Notes |
 |---|---|---|
 | `id` | `ulid` | derived read model, recomputed on placement change |
@@ -106,6 +109,7 @@ into the snapshot — session content, speaker public profile fields, sponsor br
 and time — so that later edits to live records cannot silently rewrite what is on the
 website, and so the embed can be served from cache with a version stamp.
 
+<!-- entity: SchedulePublication -->
 | SchedulePublication field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `pub_` |
@@ -120,6 +124,7 @@ website, and so the embed can be served from cache with a version stamp.
 | `content_etag` | `string` | D | hash of the snapshot; the embed and API cache key |
 | `session_count` | `int` | D | |
 
+<!-- entity: PublishedSession -->
 | PublishedSession field | Type | Notes |
 |---|---|---|
 | `publication_id` / `session_id` | `ref(...)` | |
@@ -135,6 +140,7 @@ website, and so the embed can be served from cache with a version stamp.
 | `assets` | `json` | public slides/recording links, respecting `public_from` |
 | `registration_url` / `capacity` | | |
 
+<!-- entity: PublishedSpeaker -->
 | PublishedSpeaker field | Notes |
 |---|---|
 | `publication_id` / `person_id` | |
@@ -146,6 +152,7 @@ website, and so the embed can be served from cache with a version stamp.
 
 ### Diffs
 
+<!-- entity: ScheduleDiffEntry -->
 | ScheduleDiffEntry field | Type | Notes |
 |---|---|---|
 | `publication_id` | `ref(SchedulePublication)` | the newer publication |
@@ -174,6 +181,7 @@ are immutable snapshots, rollback is just pointing `live` at an earlier version.
 
 ## The embed (J10)
 
+<!-- entity: EmbedConfig -->
 | EmbedConfig field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `emb_` |

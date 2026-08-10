@@ -26,6 +26,7 @@ erDiagram
 
 ## Event
 
+<!-- entity: Event -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `evt_` |
@@ -62,6 +63,7 @@ stateDiagram-v2
 `EventDay` exists so the schedule grid, day tabs and per-day publication are not derived by
 date arithmetic across timezone boundaries:
 
+<!-- entity: EventDay -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `day_` |
@@ -77,6 +79,7 @@ A thematic lane. At AI Engineer events these are the recognisable ones: Agents, 
 RAG, Infra, Leadership. Tracks matter here beyond labelling — reviewer pools, track leads,
 quotas and schedule columns are all per-track.
 
+<!-- entity: Track -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `trk_` |
@@ -92,6 +95,7 @@ quotas and schedule columns are all per-track.
 
 ## SessionFormat
 
+<!-- entity: SessionFormat -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `fmt_` |
@@ -111,6 +115,7 @@ quotas and schedule columns are all per-track.
 
 ## Venue and Room
 
+<!-- entity: Venue -->
 | Venue field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ven_` |
@@ -120,6 +125,7 @@ quotas and schedule columns are all per-track.
 | `map_url` | `string` | N | |
 | `timezone` | `string` | N | defaults to the event timezone |
 
+<!-- entity: Room -->
 | Room field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `rom_` |
@@ -140,6 +146,7 @@ deadline, and a sponsor session intake that opens later and is only visible to s
 Modelling this as plural avoids the usual mess of one form with a "are you a sponsor?"
 branch at the top.
 
+<!-- entity: CallForProposals -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `cfp_` |
@@ -172,18 +179,35 @@ stateDiagram-v2
   closed --> archived: archive event
 ```
 
-### CfpFormatOption / CfpTrackOption
+### CfpFormatOption
 
-Which formats and tracks this CFP accepts, with per-CFP overrides.
+Which formats this CFP accepts, with per-CFP overrides.
 
+<!-- entity: CfpFormatOption -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | |
 | `cfp_id` | `ref(CallForProposals)` | Y | |
-| `session_format_id` \| `track_id` | `ref(...)` | Y | |
+| `session_format_id` | `ref(SessionFormat)` | Y | |
 | `is_available` | `bool` | Y | |
 | `max_proposals_per_person` | `int` | N | narrower than the CFP-wide cap |
 | `closes_at_override` | `timestamptz` | N | e.g. workshops close two weeks earlier |
+| `sort_order` | `int` | Y | |
+
+### CfpTrackOption
+
+Which tracks this CFP accepts. Same shape, so a CFP can narrow formats and tracks
+independently.
+
+<!-- entity: CfpTrackOption -->
+| Field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | |
+| `cfp_id` | `ref(CallForProposals)` | Y | |
+| `track_id` | `ref(Track)` | Y | |
+| `is_available` | `bool` | Y | |
+| `max_proposals_per_person` | `int` | N | narrower than the CFP-wide cap |
+| `closes_at_override` | `timestamptz` | N | |
 | `sort_order` | `int` | Y | |
 
 ## The multi-step submission form
@@ -195,6 +219,7 @@ that changing the form mid-CFP does not corrupt drafts.
 
 ### SubmissionForm
 
+<!-- entity: SubmissionForm -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `frm_` |
@@ -211,6 +236,7 @@ read against the version they were submitted under.
 
 ### FormStep
 
+<!-- entity: FormStep -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `stp_` |
@@ -227,6 +253,7 @@ A conventional four-step shape, which the seed data should ship:
 
 ### FormField
 
+<!-- entity: FormField -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `fld_` |

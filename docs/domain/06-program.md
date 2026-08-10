@@ -37,6 +37,7 @@ erDiagram
 
 ## Session
 
+<!-- entity: Session -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ses_` |
@@ -70,11 +71,14 @@ erDiagram
 | `cancellation_reason` | `text` | N | |
 | `onboarding_progress` | `int` | D | 0–100 across this session's task instances |
 | `blocking_tasks_outstanding` | `int` | D | count of incomplete `is_blocking` tasks (INV-06-5) |
+| `publication_override_reason` | `text` | N | set when a chair knowingly publishes past a blocking task (INV-06-5) |
+| `content_diverged` | `bool` | D | session content differs from the linked proposal; surfaced on the program board, never notified (INV-06-9) |
 | `published_at` | `timestamptz` | N | first time it appeared in a publication snapshot |
 | `created_at` / `updated_at` | `timestamptz` | Y | |
 
 ## SessionSpeaker
 
+<!-- entity: SessionSpeaker -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ssp_` |
@@ -99,6 +103,7 @@ forgotten and a former speaker keeps portal access.
 
 ## SessionRelation
 
+<!-- entity: SessionRelation -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | |
@@ -113,6 +118,7 @@ room and in order.
 
 ## SessionAsset
 
+<!-- entity: SessionAsset -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | |

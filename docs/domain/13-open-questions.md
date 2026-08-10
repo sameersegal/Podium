@@ -158,3 +158,27 @@ decided.
 | R4 | Speaker and sponsor contact are relationships, not roles | Access ends when the relationship ends, in the same transaction |
 | R5 | Decisions are provisional until explicitly published | Prevents the "saved a dropdown, emailed 400 rejections" failure |
 | R6 | The public schedule is an immutable versioned snapshot | Makes the embed cacheable, diffs computable, rollback trivial |
+| R7 | Entity tables carry an `<!-- entity: Name -->` anchor | Invisible when rendered; makes the doc↔code diff exact instead of heuristic |
+| R8 | Derived fields get no database column, except on materialised read models | A stored counter is a counter that will disagree with the rows it summarises |
+
+## Corrections found while implementing
+
+The model was trial-implemented once, as a domain layer with a doc↔code drift checker, to
+find out where it did not hold up. That code is not merged; it lives on
+`claude/sessionboard-domain-implementation` and is the reference for what the checks in
+[`README.md`](README.md#keeping-code-and-model-in-sync) would look like in practice.
+
+The exercise surfaced five places where the model contradicted itself. All are fixed here;
+recorded because each was a real gap, not a typo.
+
+| # | Gap | Fix |
+|---|---|---|
+| C1 | `Review.status` prose required a `superseded` state that the enum did not list | Added `superseded` to the enum |
+| C2 | INV-05-11 allowed accepting without quorum "with a recorded reason", but `Decision` had nowhere to record it | Added `Decision.quorum_waived_reason` |
+| C3 | INV-06-5 allowed a chair to publish past a blocking task, with no field for the override; INV-06-9 said divergence is "surfaced" without saying where | Added `Session.publication_override_reason` and `Session.content_diverged` |
+| C4 | `TaskInstance` snapshotted `instructions` as required, but `TaskDefinition.instructions` is optional | Split the row; `instructions` is nullable on the instance |
+| C5 | `08-scheduling-and-publication.md` promised `embed_config.created`, which was missing from the event catalogue | Added it to the catalogue |
+
+One structural change came with them: `CfpFormatOption` and `CfpTrackOption` shared a single
+table with a `session_format_id | track_id` cell. They are now two tables, because one row
+cannot describe two entities.

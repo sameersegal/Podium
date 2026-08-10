@@ -31,6 +31,7 @@ Rounds are plural on purpose: a screening pass over 900 submissions with two lig
 reviewers each, then a deep round on the surviving 200, then a chairs' shortlist meeting.
 Modelling one round forces organizers to fake the others in spreadsheets.
 
+<!-- entity: ReviewRound -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `rnd_` |
@@ -59,6 +60,7 @@ stateDiagram-v2
 
 ## Rubric and RubricCriterion
 
+<!-- entity: Rubric -->
 | Rubric field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `rub_` |
@@ -69,6 +71,7 @@ stateDiagram-v2
 | `overall_scale` | `enum(none, recommendation, numeric)` | Y | whether reviewers give a holistic verdict on top of criteria |
 | `requires_comment` | `bool` | Y | force at least one written comment |
 
+<!-- entity: RubricCriterion -->
 | Criterion field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `crt_` |
@@ -84,6 +87,7 @@ stateDiagram-v2
 
 ## ReviewAssignment
 
+<!-- entity: ReviewAssignment -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `asg_` |
@@ -102,6 +106,7 @@ the same conflict three times is how conflicts stop being declared.
 
 ## Review
 
+<!-- entity: Review -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `rvw_` |
@@ -113,10 +118,11 @@ the same conflict three times is how conflicts stop being declared.
 | `comments_for_committee` | `text` | N | never visible to the submitter (INV-05-7) |
 | `comments_for_speaker` | `text` | N | released only with a published decision |
 | `flags` | `enum(off_topic, product_pitch, duplicate, needs_coi_check, exceptional, code_of_conduct_concern)[]` | N | |
-| `status` | `enum(draft, submitted, stale)` | Y | |
+| `status` | `enum(draft, submitted, stale, superseded)` | Y | `superseded` is set when an edit creates a newer version (INV-05-3) |
 | `reviewed_content_hash` | `string` | Y | `Proposal.content_hash` at submit time (INV-05-8) |
 | `submitted_at` / `updated_at` | `timestamptz` | N/Y | |
 
+<!-- entity: CriterionScore -->
 | CriterionScore field | Type | Req | Notes |
 |---|---|---|---|
 | `review_id` | `ref(Review)` | Y | |
@@ -131,6 +137,7 @@ staleness in the queue rather than discovering it during the decision meeting.
 
 ## ConflictOfInterest
 
+<!-- entity: ConflictOfInterest -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `coi_` |
@@ -152,6 +159,7 @@ employer's domain once and are excluded from every proposal by their colleagues.
 
 ## Discussion
 
+<!-- entity: ReviewComment -->
 | ReviewComment field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `rcm_` |
@@ -171,6 +179,7 @@ committee discussion to submitters is a reliable way to end up on social media.
 
 A derived read model, recomputed when a review is submitted, superseded, or goes stale.
 
+<!-- entity: ProposalScore -->
 | Field | Type | Notes |
 |---|---|---|
 | `proposal_id` / `round_id` | `ref(...)` | key |
@@ -192,6 +201,7 @@ surfacing them is more useful than any auto-ranking.
 The authoritative selection record. `Proposal.status` is downstream of this, not parallel
 to it.
 
+<!-- entity: Decision -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `dec_` |
@@ -211,6 +221,7 @@ to it.
 | `notification_id` | `ref(NotificationDelivery)` | N | |
 | `confirmation_deadline` | `timestamptz` | N | copied onto the proposal on accept |
 | `supersedes_decision_id` | `ref(Decision)` | N | waitlist → accept keeps both records |
+| `quorum_waived_reason` | `text` | N | required when accepting without quorum (INV-05-11) |
 
 **Provisional vs published** is the most important distinction in this file. Chairs decide
 over days, in meetings, changing their minds. Nothing reaches a speaker until the chair

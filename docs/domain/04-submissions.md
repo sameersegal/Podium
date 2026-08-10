@@ -22,6 +22,7 @@ erDiagram
 
 ## Proposal
 
+<!-- entity: Proposal -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `prp_` |
@@ -75,6 +76,7 @@ before?". [INV-02-7](02-event-configuration.md) keeps the two in step.
 
 ## ProposalAnswer
 
+<!-- entity: ProposalAnswer -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | |
@@ -90,6 +92,7 @@ deleted**, and excluded from validation and from committee views. A submitter wh
 
 ## ProposalSpeaker
 
+<!-- entity: ProposalSpeaker -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `psp_` |
@@ -114,6 +117,7 @@ printed programs.
 Multi-step forms need resume. Keeping it in its own row means autosave writes do not churn
 the proposal record or its `updated_at`.
 
+<!-- entity: DraftProgress -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `proposal_id` | `ref(Proposal)` | Y | primary key |
@@ -130,6 +134,7 @@ An append-only record of content changes, needed for three concrete things: show
 reviewers "this changed since you scored it", letting a chair see what was edited during a
 `changes_requested` round, and disputes.
 
+<!-- entity: ProposalRevision -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | |

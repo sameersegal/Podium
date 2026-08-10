@@ -30,6 +30,7 @@ Design rules the model must support:
 
 ## ApiKey
 
+<!-- entity: ApiKey -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `key_` |
@@ -65,6 +66,7 @@ titles and times, not personal data, and the default should reflect that.
 
 ## Webhook
 
+<!-- entity: Webhook -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `whk_` |
@@ -80,6 +82,7 @@ titles and times, not personal data, and the default should reflect that.
 | `consecutive_failures` | `int` | Y | |
 | `created_by_person_id` | `ref(Person)` | Y | |
 
+<!-- entity: WebhookDelivery -->
 | WebhookDelivery field | Type | Notes |
 |---|---|---|
 | `id` | `ulid` | prefix `whd_` |
@@ -107,6 +110,7 @@ Delivery contract:
 The core never imports a vendor SDK. An `Integration` is an installed adapter implementing
 one or more capability contracts; the core calls the contract.
 
+<!-- entity: Integration -->
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `itg_` |
@@ -158,6 +162,7 @@ Templates and delivery are core; transport is a plugin. This is what makes every
 speaker-facing message auditable — "did they get the acceptance email?" is a query, not a
 guess.
 
+<!-- entity: NotificationTemplate -->
 | NotificationTemplate field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ntp_` |
@@ -170,6 +175,7 @@ guess.
 | `is_active` | `bool` | Y | |
 | `version` | `int` | Y | |
 
+<!-- entity: NotificationDelivery -->
 | NotificationDelivery field | Type | Notes |
 |---|---|---|
 | `id` | `ulid` | prefix `ntd_` |
