@@ -1,7 +1,10 @@
-# KMS
+# BackStage
 
 An open-source alternative to SessionBoard, scoped to the jobs an **AI Engineer–style
 conference** actually has to get done — not a full clone.
+
+> Unrelated to [Backstage](https://backstage.io), Spotify's developer portal. The repository
+> is still named `kms`.
 
 Six capabilities:
 
@@ -25,5 +28,5 @@ sync with. Read it first:
 → **[`docs/domain/`](docs/domain/README.md)**
 
 Start with [`00-overview.md`](docs/domain/00-overview.md) for the jobs to be done, the
-bounded contexts and the master ERD; then
-[`13-open-questions.md`](docs/domain/13-open-questions.md) for what is still undecided.
+bounded contexts and the master ERD. Every open question is now resolved — the decisions and
+their reasoning are in [`13-open-questions.md`](docs/domain/13-open-questions.md).

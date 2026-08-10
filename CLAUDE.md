@@ -1,7 +1,8 @@
 # Working in this repository
 
-An open-source SessionBoard alternative for AI Engineer–style conferences. See
-[`README.md`](README.md) for what it does.
+**BackStage** — an open-source SessionBoard alternative for AI Engineer–style conferences.
+See [`README.md`](README.md) for what it does. Unrelated to Spotify's Backstage, which is
+why the npm scope cannot be `@backstage` and is deliberately still unchosen (R29).
 
 ## The domain model is the specification
 
@@ -73,10 +74,9 @@ building, `domain-drift` checks the model against what was actually built afterw
 Domain model in review; no application code exists yet. Do not scaffold an implementation
 unless asked.
 
-**One open question remains: Q2, the product name.** It fixes slugs, package names, the
-email sender identity and the embed script URL, so it wants settling before the first line
-of code. Everything else in [`13-open-questions.md`](docs/domain/13-open-questions.md) is
-decided and recorded as R1–R28; read the rationale there before reopening any of it.
+**Nothing is open.** All twenty-nine questions in
+[`13-open-questions.md`](docs/domain/13-open-questions.md) are decided and recorded as
+R1–R29; read the rationale there before reopening any of it.
 
 The decisions that most shape generated code:
 

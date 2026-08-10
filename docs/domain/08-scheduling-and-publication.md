@@ -330,6 +330,9 @@ Delivery requirements the model has to support:
 
 - **Serve from the snapshot, never from live tables.** The embed is public and will get
   hammered on day one; it must be a cache read keyed on `content_etag`.
+- **One `js_widget` asset mounts every `widget_type`**, exposing one global — named for the
+  product, not for a widget. A marketing team that has pasted a script tag into a CMS will
+  not repaste it when a second widget ships.
 - **Degrade gracefully.** `iframe` and `js_widget` both fall back to server-rendered HTML
   so the schedule survives a blocked script.
 - **ICS is a first-class output**, per event, per track, and per attendee-selected sessions.

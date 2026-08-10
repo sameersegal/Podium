@@ -4,14 +4,8 @@ Decisions the model deliberately leaves open, and scope consciously deferred. Ea
 recommendation, because "it depends" is not a useful handoff to an implementation agent.
 Resolve these before code generation; record the resolution here and in the affected file.
 
-One remains. Everything else has been decided and moved to [Resolved](#resolved) — read the
-rationale there before reopening any of it.
-
-## Q2 — Product name
-
-The docs say "the platform" throughout. A name affects slugs, package names, email
-sender identity and the embed script URL, so it is worth settling before the first line of
-code. No recommendation — this is yours.
+**Nothing is open.** All twenty-nine are resolved below. New questions belong above this
+line, in the same shape: the decision that is actually being asked for, and a recommendation.
 
 ---
 
@@ -50,6 +44,7 @@ decided.
 | R26 *(was Q19)* | A constraint solver produces the placement; a language model is a second pass over an already-feasible schedule | Room, time, speaker availability and series ordering are hard constraints with a well-understood shape, and a solver's output is explainable and reproducible — which is what matters when an organizer is deciding whether to accept 120 moves at once. The soft, unstated preferences ("keep the beginner talks out of the 9am slot") are the language model's job, and they are a refinement, not a schedule. |
 | R27 *(was Q20)* | No hard cap on custom fields; surface usage and offer an archive action | A field-management screen showing fill rate and last-used date per definition, an archive that retires a field while keeping its values, and a soft warning past roughly 25 definitions per subject type. The real guardrail is INV-11-11 — `pii` and `audience` mandatory at creation — because the failure that hurts is not two hundred fields, it is one free-text box with a passport number in it. |
 | R28 *(was Q21)* | Directory and segments in v1; the sourcing pipeline after the first event | The directory's value is immediate and its cost is a query over `Person`. The pipeline is a second product surface with its own board, cards, stages and history, and its value only appears during the run-up to a *second* event — by which point real usage will say whether it needs a kanban board or just a `ContactSegment` plus `next_action_at` on the roster. |
+| R29 *(was Q2)* | The product is called **BackStage** | Chosen by the product owner, after *Sessions* was considered and rejected for colliding with `Session`, the model's most-used entity. BackStage carries no such collision: nothing in the domain is named for it, so the name never has to be disambiguated from an identifier. One external collision does exist and is accepted — [Backstage](https://backstage.io), Spotify's developer portal, is a well-known project in the same open-source developer-tools space. The consequence is concrete rather than cosmetic: **the npm scope cannot be `@backstage`**, which Spotify holds, and this model deliberately does not pick the replacement. Speaker-facing email is sent as the *event*, never as the product ([`12`](12-glossary.md)). |
 
 ## Corrections found while implementing
 
