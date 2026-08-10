@@ -73,12 +73,22 @@ building, `domain-drift` checks the model against what was actually built afterw
 Domain model in review; no application code exists yet. Do not scaffold an implementation
 unless asked.
 
-Seven open questions were resolved against an external functional rubric and are recorded as
-R9–R15 in [`13-open-questions.md`](docs/domain/13-open-questions.md) — including the
-`Proposal`/`Session` split, which stays. [`15-conformance-map.md`](docs/domain/15-conformance-map.md)
-traces that rubric onto the model; it is non-normative and nothing should cite it as a
-requirement.
+**One open question remains: Q2, the product name.** It fixes slugs, package names, the
+email sender identity and the embed script URL, so it wants settling before the first line
+of code. Everything else in [`13-open-questions.md`](docs/domain/13-open-questions.md) is
+decided and recorded as R1–R28; read the rationale there before reopening any of it.
 
-Q3 (D1 or Postgres) is still open and still changes the shape of what gets generated, so it
-should be settled before code generation. Q16 (password login default) and Q21 (whether the
-sourcing pipeline is v1) are the other two worth settling early.
+The decisions that most shape generated code:
+
+- **R16 — D1, behind a repository layer**, with Postgres via Hyperdrive as a documented
+  escape hatch. No D1-specific SQL in the domain layer.
+- **R13 — `Proposal` and `Session` stay separate**, and are presented to users as one
+  session record.
+- **R23 — password login** off in production config, on in the default seed and wherever no
+  `email` integration is active.
+- **R28 — the sourcing pipeline is not in v1.** The speaker directory and segments in
+  [`14`](docs/domain/14-speaker-crm.md) are; the kanban board follows the first event.
+- **R24 — AI first-pass review ships behind an org setting, default off.**
+
+[`15-conformance-map.md`](docs/domain/15-conformance-map.md) traces an external functional
+rubric onto the model; it is non-normative and nothing should cite it as a requirement.

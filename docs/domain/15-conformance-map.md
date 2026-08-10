@@ -68,7 +68,7 @@ Legend: ✅ modelled · ⚠ modelled differently, deliberately · ⛔ out of sco
 | ABS-11 | Co-authors persist with role labels | `ProposalSpeaker.speaker_role`, INV-04-5 ✅ |
 | ABS-12 | Reviewer conflict-of-interest / recusal | `ConflictOfInterest`, `decline_reason`, INV-05-4 ✅ |
 | ABS-13 | Export scores to CSV/XLSX | **`Export(subject = review_results)`**, INV-11-12 ✅ *(added)* |
-| ABS-14 | AI first-pass score with rationale and human override | **`Review.author_kind = ai`**, INV-05-16/17, Q17 ✅ *(added)* |
+| ABS-14 | AI first-pass score with rationale and human override | **`Review.author_kind = ai`**, INV-05-16/17, R24 ✅ *(added; org setting, default off)* |
 
 ## 03 — Speaker Management
 
@@ -121,7 +121,7 @@ Legend: ✅ modelled · ⚠ modelled differently, deliberately · ⛔ out of sco
 | AIA-05 | Room double-booking blocked or flagged | `ROOM_DOUBLE_BOOKED` ✅ |
 | AIA-06 | Move a session; conflicts clear | `placement.moved` + recompute ✅ |
 | AIA-07 | Publish the agenda; data reaches the public surface | `SchedulePublication` ✅ |
-| AIA-08 | One-action assisted placement | **`AutoPlaceRun`**, INV-08-15, Q19 ✅ *(added)* |
+| AIA-08 | One-action assisted placement | **`AutoPlaceRun`**, INV-08-15, R26 ✅ *(added; solver first)* |
 
 ## 06 — Public Widgets
 
@@ -154,7 +154,7 @@ Legend: ✅ modelled · ⚠ modelled differently, deliberately · ⛔ out of sco
 | CRM-04 | Custom fields or tags on contacts | `Person.tags`, `CustomFieldDefinition` ✅ *(added)* |
 | CRM-05 | CSV import of contacts | `BulkImport` ✅ *(added)* |
 | CRM-06 | Duplicate detection and merge | `PersonMergeCandidate` + person merge, INV-01-9 ✅ |
-| CRM-07 | Kanban sourcing pipeline with staged columns | `SourcingPipeline`, `PipelineStage`, `ProspectCard` ✅ *(added, see Q21)* |
+| CRM-07 | Kanban sourcing pipeline with staged columns | `SourcingPipeline`, `PipelineStage`, `ProspectCard` ✅ *(added; deferred past v1 by R28)* |
 | CRM-08 | Card notes and timestamped stage history | `ProspectStageTransition`, INV-14-4 ✅ *(added)* |
 | CRM-09 | Saved segments | `ContactSegment`, INV-14-1 ✅ *(added)* |
 | CRM-10 | Push a contact into an event without re-entry | *Conversion*, INV-14-5 ✅ *(added)* |
@@ -169,7 +169,7 @@ mail provider, and a support engineer reproducing a problem. It produced two mod
 that stand on their own merits:
 
 - `AuthIdentity.provider = password` with `credential_hash` (INV-01-12), so a role can be
-  signed into without mail delivery. See Q16.
+  signed into without mail delivery. See R23 for the default.
 - `Invitation.accept_url` returned once on creation (INV-01-15), and the outbox
   (INV-09-12), so provisioning never dead-ends at "check your email".
 

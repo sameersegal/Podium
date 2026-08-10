@@ -141,6 +141,14 @@ Whether the proposal comes from a solver or a language model is an implementatio
 behind one interface; `rationale` per placement is required either way, because an
 organizer accepting 120 moves needs to be able to spot the four that are wrong.
 
+**A constraint solver produces the schedule; a language model refines one** (R26 in
+[`13-open-questions.md`](13-open-questions.md)). Room, time, speaker availability and
+series ordering are hard constraints with a well-understood shape, and a solver's output is
+explainable and reproducible — which is exactly what an organizer needs when deciding
+whether to accept 120 moves at once. The soft, unstated preferences ("keep the beginner
+talks out of the 9am slot") are the language model's job, as a second pass over an already
+feasible schedule rather than the thing that produces one.
+
 ## Publication
 
 A publication is an **immutable snapshot**. Publishing copies everything the public sees
@@ -213,6 +221,11 @@ qualifying change for events that would rather trade the audit trail for immedia
 setting rather than the default because the failure it enables — a half-finished
 rearrangement going live at 2am — is worse and less reversible than a stale page. Rollback
 (below) is what makes either choice survivable.
+
+The default is off and the staleness indicator has to be loud enough that it does not
+matter (R25 in [`13-open-questions.md`](13-open-questions.md)) — which is the real weight
+on `PendingPublicationChanges` above. Revisit after one real event: if the published
+schedule routinely drifts by days, the default was wrong and the data will say so.
 
 ### Diffs
 

@@ -46,9 +46,11 @@ field and document it later", do not pick a reasonable default — when any of t
   (this has happened before — see "Corrections found while implementing" in
   [`13-open-questions.md`](../../docs/domain/13-open-questions.md)).
 - The request depends on an unresolved open question in `13-open-questions.md` whose answer
-  changes the shape of the code. **Q3** (D1 vs Postgres) and **Q11** (the `Proposal`/`Session`
-  split) are the two that change everything downstream; **Q2** (product name) fixes package
-  names, slugs, sender identity and the embed URL; **Q15** needs an actual number.
+  changes the shape of the code. Only **Q2** (product name) is still open, and it fixes
+  package names, slugs, sender identity and the embed URL. The resolutions you will lean on
+  most are **R16** (D1 behind a repository layer), **R13** (`Proposal`/`Session` stay
+  separate, presented as one record), **R22** (14-day draft abandonment) and **R23**
+  (password login defaults).
 - The request would require writing a field marked `D` (derived), or storing a counter the
   model says is computed.
 - The request conflicts with an invariant. An invariant is not a guideline. If the feature is

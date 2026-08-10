@@ -117,7 +117,7 @@ one or more capability contracts; the core calls the contract.
 | `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | |
 | `plugin_key` | `string` | Y | `email.resend`, `email.sendgrid`, `chat.slack`, `crm.hubspot`, `calendar.google`, `analytics.ai_evaluator` |
-| `capability` | `enum(email, sms, chat, calendar, crm, storage, video, analytics, identity)` | Y | |
+| `capability` | `enum(email, sms, chat, calendar, crm, storage, video, analytics, identity, ticketing)` | Y | |
 | `display_name` | `string` | Y | |
 | `config` | `json` | Y | non-secret settings (sender name, channel id, list id) |
 | `secret_ref` | `string` | Y | pointer into the secret store; **never the secret itself** (INV-09-3) |
@@ -155,6 +155,16 @@ so sponsor fulfilment status is visible to the sales side without a manual expor
 **`storage`** — `presign_upload(...)`, `presign_download(...)`, `delete(...)`. Default
 implementation is object storage; the contract exists so self-hosters can point elsewhere.
 **`identity`** — OIDC discovery for orgs that want SSO for staff and reviewers.
+**`ticketing`** — `get_capacity(session) -> {sold, remaining}`, and nothing else.
+
+That one method is the entire integration, deliberately (R19 in
+[`13-open-questions.md`](13-open-questions.md)). Workshop capacity is already modelled
+(`capacity_policy`, `registration_url` in [`02`](02-event-configuration.md)) but
+registration lives in a ticketing system, and the only thing the platform actually needs
+back is whether a workshop is full — on the schedule, in real time. The count is cached
+into the publication snapshot so the public page does not call the provider per render.
+**Attendees are not modelled.** Importing an entire bounded context to compute one integer
+is how a conference tool becomes a ticketing system nobody asked it to be.
 
 ## Notifications
 
@@ -298,7 +308,7 @@ model depends on these choices.
 |---|---|---|
 | API + SSR | Workers | one Worker per surface, shared domain package |
 | Portal / public site | Workers Assets or Pages | |
-| Relational store | D1, or Postgres via Hyperdrive | D1 is plausible at conference scale; the model is portable either way — see [Q3](13-open-questions.md) |
+| Relational store | D1, behind a repository layer | Settled in [R16](13-open-questions.md): D1 handles conference scale, and Postgres via Hyperdrive stays a documented escape hatch. No D1-specific SQL in the domain layer. |
 | Assets (headshots, slides, logos) | R2 + presigned uploads | `storage` capability |
 | Published snapshot cache | KV or Cache API, keyed on `content_etag` | the embed never touches the database |
 | Webhook + email delivery | Queues with retry/DLQ | maps directly onto `WebhookDelivery` |

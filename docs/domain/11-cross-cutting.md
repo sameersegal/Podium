@@ -34,6 +34,20 @@ each file.
 - Recurring rules (reminder offsets) are computed in the recipient's timezone where known,
   falling back to the event's.
 
+## Language
+
+Multi-language is **deferred, with the seams left in place** (R20 in
+[`13-open-questions.md`](13-open-questions.md)). `Person.locale`
+([`01`](01-identity-and-access.md)), `Session.language` ([`06`](06-program.md)) and
+`NotificationTemplate.locale` ([`09`](09-api-and-integrations.md)) all exist and are
+honoured where they already are: a session's language is displayed, and a template is
+selected by locale.
+
+What is *not* modelled is translated session content, localised form fields, and RTL in the
+embed. Those are a real project rather than a field, and the reason the `locale` columns
+stay is that they cost nothing now and are expensive to retrofit — a template table without
+a locale key is a table every row of which has to be rewritten later.
+
 ## Lifecycle fields
 
 Every persisted entity carries `created_at` and `updated_at`. Entities that can be removed
@@ -198,6 +212,15 @@ someone eventually puts a passport number in it.
 **Adding a field is deciding its PII class.** `pii` and `audience` are required at creation,
 not defaulted, in keeping with the project's rule that redaction is default-on. A custom
 field with `pii = true` is redacted everywhere the built-in PII fields are.
+
+**Proliferation is surfaced, not capped** (R27 in
+[`13-open-questions.md`](13-open-questions.md)). Every product that ships custom fields
+eventually has a customer with two hundred of them, half unused. There is no hard limit;
+instead a field-management screen shows **fill rate and last-used date per definition**,
+`status = archived` retires a field while keeping its values, and passing roughly 25
+definitions per `subject_type` earns a soft warning. Creation is already restricted to
+chairs and admins. The guardrail that actually matters is INV-11-11 — the damage is not two
+hundred fields, it is one free-text box with a passport number in it.
 
 ## Bulk import and export
 

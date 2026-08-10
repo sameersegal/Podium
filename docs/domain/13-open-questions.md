@@ -4,148 +4,14 @@ Decisions the model deliberately leaves open, and scope consciously deferred. Ea
 recommendation, because "it depends" is not a useful handoff to an implementation agent.
 Resolve these before code generation; record the resolution here and in the affected file.
 
+One remains. Everything else has been decided and moved to [Resolved](#resolved) — read the
+rationale there before reopening any of it.
+
 ## Q2 — Product name
 
 The docs say "the platform" throughout. A name affects slugs, package names, email
 sender identity and the embed script URL, so it is worth settling before the first line of
 code. No recommendation — this is yours.
-
-## Q3 — D1 or Postgres?
-
-D1 is the native fit and almost certainly handles conference scale (thousands of proposals,
-tens of thousands of task instances). The pressure points are the review aggregate
-recomputation and the organizer onboarding board, both of which want real analytical
-queries.
-
-**Recommendation: start on D1** behind a repository layer, with Postgres-via-Hyperdrive as a
-documented escape hatch. Avoid D1-specific SQL in the domain layer so switching stays a
-week, not a rewrite.
-
-## Q5 — Do sponsor sessions get scored at all?
-
-Currently: `requires_review = false` on the format, with a compliance pass via
-`changes_requested`.
-
-**Recommendation: a lightweight one-criterion rubric** ("is this a technical talk or a
-product pitch?") run by one organizer. It gives the "please rework this" conversation an
-evidence base, which is much easier than having it from opinion.
-
-## Q6 — Waitlist mechanics
-
-Modelled as a `Decision.outcome` with promotion via a superseding decision. Not modelled:
-ranked waitlist position, automatic promotion on a withdrawal, expiry of waitlist status.
-
-**Recommendation: defer.** Add `waitlist_rank` to `Decision` when the first event actually
-runs a waitlist; automatic promotion is a bad idea regardless — the chair should choose the
-replacement.
-
-## Q8 — Ticketing integration depth
-
-Workshop capacity is modelled (`capacity_policy`, `registration_url`) but registration lives
-elsewhere. The gap: knowing a workshop is full, on the schedule, in real time.
-
-**Recommendation: a `ticketing` capability contract** with one method
-(`get_capacity(session) -> {sold, remaining}`) and a cached count in the publication
-snapshot. Do not model attendees.
-
-## Q9 — Multi-language
-
-`Person.locale`, `Session.language` and `NotificationTemplate.locale` exist. Not modelled:
-translated session content, localised form fields, RTL in the embed.
-
-**Recommendation: defer**, but keep `locale` on templates so the seam exists.
-
-## Q13 — Code of conduct incidents
-
-`Review.flags` includes `code_of_conduct_concern` and stops there. A real incident workflow
-(reports, investigation, speaker removal, retention rules) is a sensitive domain of its own.
-
-**Recommendation: out of scope, deliberately, and say so.** Half-modelling this is worse
-than not modelling it: an incomplete incident record in a general-purpose tool with broad
-staff read access is a liability. Keep the flag as a routing signal to an off-platform
-process.
-
-## Q15 — Draft abandonment timeout for entitlement holds
-
-[`03`](03-sponsorship.md) says a hold is released when a draft is "abandoned past a
-timeout", without naming it.
-
-**Recommendation: 14 days of no activity, with a warning email at 7.** Configurable per
-event. This one needs a number before the code is written, because the alternative is
-someone inventing one in an if-statement.
-
-## Q16 — Is password login on or off by default?
-
-[`01`](01-identity-and-access.md) adds `provider = password` behind
-`settings.auth.password_login_enabled`, defaulted off in favour of email OTP and OAuth.
-That default is right for a hosted conference org and wrong for every other consumer of the
-product — a self-hoster with no mail provider, a CI suite, an evaluation harness, a demo.
-
-**Recommendation: off by default in production configuration, on in the shipped default
-seed and in any deployment without an active `email` integration.** A deployment that can
-neither send mail nor accept a password is a deployment nobody can sign into, and that
-failure mode is worse than the marginal risk of password auth on a conference tool.
-Whatever is chosen, INV-01-15 stands: an invitation link must always be retrievable
-on-screen.
-
-## Q17 — Ship AI evaluation in v1?
-
-[`05`](05-review-and-selection.md) now models `Review.author_kind = ai` with mandatory
-rationale, no quorum contribution and a human override. The model is cheap; the feature is
-not, and a bad first-pass score anchors a committee even when everyone knows it is a
-machine's.
-
-**Recommendation: model it now, ship it behind an org setting, default off.** The
-guardrails (never counts toward quorum, always labelled, always overridable) are worth
-having in the model before anyone is tempted to add it in a hurry. Whether a committee
-turns it on is their call, and the ones who do will mostly use it to triage a first cut of
-900 submissions rather than to decide anything.
-
-## Q18 — Auto-publish: default, opt-in, or never?
-
-[`08`](08-scheduling-and-publication.md) adds `PendingPublicationChanges` plus an
-`auto_publish` setting, default off. The tension is real in both directions: manual publish
-means the public page can silently lag reality; auto-publish means a half-finished
-rearrangement can go live unattended.
-
-**Recommendation: keep the default off, and make the staleness indicator loud enough that
-it does not matter.** Revisit after one event with real data on how far behind the
-published schedule actually drifts — if the answer is "days", the default is wrong.
-
-## Q19 — Assisted placement: solver or model?
-
-[`08`](08-scheduling-and-publication.md) specifies `AutoPlaceRun` as a proposal with a
-per-placement `rationale`, and deliberately does not say how the proposal is computed.
-
-**Recommendation: a constraint solver first.** Room, time, speaker availability and series
-ordering are hard constraints with a well-understood shape, and a solver's output is
-explainable and reproducible in a way that matters when an organizer is deciding whether to
-accept 120 moves. A language model is the better fit for the soft, unstated preferences
-("keep the beginner talks out of the 9am slot"), which is a second pass over a feasible
-schedule rather than the thing that produces one.
-
-## Q20 — Who governs custom field proliferation?
-
-[`11`](11-cross-cutting.md) adds `CustomFieldDefinition`, restricted to chairs and admins.
-Every product that ships custom fields eventually has a customer with two hundred of them,
-half unused, several containing data that should never have been typed into a free-text box.
-
-**Recommendation: no hard cap, but surface usage.** A field-management screen showing
-fill rate and last-used date per definition, and an archive action that keeps values while
-retiring the field. Consider a soft warning past ~25 definitions per subject type. The
-`pii` and `audience` flags being mandatory at creation is the guardrail that actually
-matters.
-
-## Q21 — Does the sourcing pipeline belong in v1?
-
-[`14`](14-speaker-crm.md) models the cross-event directory, segments and a kanban sourcing
-pipeline. The directory is unarguable — it is `Person` with a view over it. The pipeline is
-a second product surface with its own board, cards, stages and history.
-
-**Recommendation: directory and segments in v1; pipeline after the first event.** The
-directory's value is immediate and its cost is a query; the pipeline's value only appears
-during the run-up to a *second* event, by which point real usage will say whether it is a
-kanban board or just a `ContactSegment` plus `next_action_at` on the roster.
 
 ---
 
@@ -171,6 +37,19 @@ decided.
 | R13 *(was Q11)* | `Proposal` and `Session` stay separate — and are presented as one record | The split survives contact with the full workflow: the organizer edits a session's title and abstract after acceptance, restores a prior version, and gates it behind content approval, all while the review record stays frozen against what was actually reviewed. What the split must *not* do is leak into the UI as two rows a user has to reconcile; the programme surface shows one "session record" whose provenance is a proposal. Modelled separately, presented as one. |
 | R14 *(was Q12)* | `content_diverged` is a derived flag and a board filter, never a notification | Confirmed and now specified in [`06`](06-program.md) alongside `content_status`. Divergence between a session and its decision snapshot is the normal case after any copy-edit; alerting on the normal case trains people to dismiss alerts. |
 | R15 *(was Q14)* | The public speaker directory is derived from `PublishedSpeaker`, in two presentations | No new entity, as originally recommended — but it is *two* widgets over that data, not one: a `speakers_list` directory ordered by surname with job title, company and per-speaker session lists, and a `speaker_gallery` photo grid. Both drill into a detail view. `is_listed = false` removes a speaker from both while leaving them credited on their own session, which the model had assumed and now states. See [`08`](08-scheduling-and-publication.md). |
+| R16 *(was Q3)* | D1, behind a repository layer, with Postgres-via-Hyperdrive as a documented escape hatch | D1 is the native fit and handles conference scale. The pressure points — review aggregate recomputation and the organizer onboarding board — are read models, not transactional paths, so they can move without the domain layer noticing. No D1-specific SQL in the domain layer, so switching stays a week rather than a rewrite. |
+| R17 *(was Q5)* | Sponsor sessions get a one-criterion compliance rubric, run by one organizer | `requires_review = false` on the format stays: this is not selection, and a sponsor session is not competing for a slot it already owns. But "please rework this" is a much easier conversation from a recorded judgement than from an opinion, so the compliance pass gets a rubric with one criterion — technical talk or product pitch — and `changes_requested` remains its outcome. See [`05`](05-review-and-selection.md). |
+| R18 *(was Q6)* | Waitlist stays a `Decision.outcome`; ranked position, auto-promotion and expiry are not modelled | Promotion is a superseding decision, which is the whole mechanism. Automatic promotion on a withdrawal is a bad idea independent of scheduling effort — the chair should choose the replacement, because the best-scoring waitlisted proposal is rarely the one that fills the hole. Add `waitlist_rank` when an event actually runs a ranked waitlist. |
+| R19 *(was Q8)* | A `ticketing` capability contract with one method; attendees are not modelled | The gap worth closing is knowing a workshop is full, on the schedule, in real time — `get_capacity(session) -> {sold, remaining}`, cached into the publication snapshot. Registration stays where it already lives. Modelling attendees to answer a capacity question would import an entire bounded context to compute one integer. |
+| R20 *(was Q9)* | Multi-language deferred; the `locale` seams stay | `Person.locale`, `Session.language` and `NotificationTemplate.locale` are cheap to keep and expensive to retrofit. Translated session content, localised form fields and RTL in the embed are a real project and not this one. |
+| R21 *(was Q13)* | Code-of-conduct incidents are out of scope, deliberately | `Review.flags = code_of_conduct_concern` is a routing signal to an off-platform process and nothing more. Half-modelling this is worse than not modelling it: an incomplete incident record sitting in a general-purpose tool with broad staff read access is a liability, and the people who handle these need a process the CFP tool cannot see. |
+| R22 *(was Q15)* | An entitlement hold is released after 14 days of no activity, with a warning email at 7 | Configurable per event. The number matters less than its existing — the alternative is someone inventing one inside an if-statement, where nobody will find it. |
+| R23 *(was Q16)* | Password login off in production configuration, on in the shipped default seed and wherever no `email` integration is active | A deployment that can neither send mail nor accept a password is a deployment nobody can sign into, and that failure mode is worse than the marginal risk of password auth on a conference tool. The obligations are unchanged: Argon2id, no plaintext, per-identity rate limiting. INV-01-15 stands regardless — an invitation link must always be retrievable on-screen. |
+| R24 *(was Q17)* | AI evaluation is modelled now and ships behind an org setting, default off | The guardrails belong in the model before anyone is tempted to add the feature in a hurry: never counts toward quorum, always labelled, always overridable. A bad first-pass score anchors a committee even when everyone knows it came from a machine, so the committees that turn it on will mostly use it to triage a first cut of 900 submissions rather than to decide anything. |
+| R25 *(was Q18)* | Auto-publish stays off by default, and the staleness indicator has to be loud enough that it does not matter | Manual publish means the public page can silently lag reality; auto-publish means a half-finished rearrangement goes live unattended. `PendingPublicationChanges` is what makes the first failure non-silent, which is why it carries the weight here. Revisit after one real event: if the published schedule routinely drifts by days, the default is wrong. |
+| R26 *(was Q19)* | A constraint solver produces the placement; a language model is a second pass over an already-feasible schedule | Room, time, speaker availability and series ordering are hard constraints with a well-understood shape, and a solver's output is explainable and reproducible — which is what matters when an organizer is deciding whether to accept 120 moves at once. The soft, unstated preferences ("keep the beginner talks out of the 9am slot") are the language model's job, and they are a refinement, not a schedule. |
+| R27 *(was Q20)* | No hard cap on custom fields; surface usage and offer an archive action | A field-management screen showing fill rate and last-used date per definition, an archive that retires a field while keeping its values, and a soft warning past roughly 25 definitions per subject type. The real guardrail is INV-11-11 — `pii` and `audience` mandatory at creation — because the failure that hurts is not two hundred fields, it is one free-text box with a passport number in it. |
+| R28 *(was Q21)* | Directory and segments in v1; the sourcing pipeline after the first event | The directory's value is immediate and its cost is a query over `Person`. The pipeline is a second product surface with its own board, cards, stages and history, and its value only appears during the run-up to a *second* event — by which point real usage will say whether it needs a kanban board or just a `ContactSegment` plus `next_action_at` on the roster. |
 
 ## Corrections found while implementing
 

@@ -131,6 +131,13 @@ support engineer reproducing a speaker's problem. Every one of those is a real u
 password login, off by default per org (`settings.auth.password_login_enabled`), with the
 usual obligations: Argon2id, no storage of the plaintext, and rate limiting per identity.
 
+**What "off by default" means, precisely** (R23 in
+[`13-open-questions.md`](13-open-questions.md)). Off in production configuration; **on** in
+the shipped default seed, and **on** in any deployment with no active `email` integration.
+A deployment that can neither send mail nor accept a password is a deployment nobody can
+sign into, and that failure mode is worse than the marginal risk of password auth on a
+conference tool.
+
 Whatever the org enables, **at least one non-inbox path to every role must exist**. Where
 password login is disabled, an invitation or magic link must be retrievable *in the product*
 — a copyable link on the invite screen, or an organizer-visible outbox of sent messages —

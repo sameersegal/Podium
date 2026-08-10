@@ -143,6 +143,20 @@ participate in the weighted aggregate ("Accept" = 5, "Maybe" = 3, "Reject" = 1).
 `score` is omitted the criterion is reported as a histogram and excluded from the mean —
 some verdicts genuinely are not numbers and averaging them invents precision.
 
+### The sponsor compliance rubric
+
+Sponsor sessions are not selected — they hold a slot the sponsor already bought, and
+`requires_review = false` on the format stays true ([`02`](02-event-configuration.md)).
+They are still *checked*, and that check gets a rubric of exactly one criterion: **is this a
+technical talk or a product pitch?** A `select` with anchored option descriptions, run by
+one organizer, with `changes_requested` as its outcome (R17 in
+[`13-open-questions.md`](13-open-questions.md)).
+
+One criterion is the whole design. "Please rework this" is a conversation an organizer has
+to have with somebody who has paid, and having it from a recorded judgement against a
+written anchor is a different conversation from having it from an opinion. Scaling it up to
+a real scorecard would imply the session is competing for a slot it already owns.
+
 ## ReviewAssignment
 
 <!-- entity: ReviewAssignment -->
@@ -229,6 +243,13 @@ The rules that make it safe to have at all:
 `AiEvaluator` configuration (which model, which rubric, what prompt persona, which scope of
 proposals) is an `Integration` with `capability = analytics`; the core calls the contract
 and stores the result. See [`09`](09-api-and-integrations.md).
+
+**Shipped behind `Organization.settings.review.ai_evaluation_enabled`, default off**
+(R24 in [`13-open-questions.md`](13-open-questions.md)). The guardrails above are worth
+having in the model before anyone adds the feature in a hurry, but a bad first-pass score
+anchors a committee even when everyone in the room knows it came from a machine. The
+committees that turn it on will mostly use it to triage a first cut of 900 submissions,
+not to decide anything.
 
 ## Progress and chasing
 
@@ -397,6 +418,14 @@ stateDiagram-v2
   superseded --> [*]
 ```
 
+**The waitlist is the outcome and the superseding decision, and nothing more** (R18 in
+[`13-open-questions.md`](13-open-questions.md)). Ranked position, automatic promotion on a
+withdrawal, and expiry of waitlist status are all deliberately unmodelled. Auto-promotion is
+the one worth naming: the highest-scoring waitlisted proposal is rarely the one that fills
+the specific hole a withdrawal leaves — wrong track, wrong length, wrong room. The chair
+chooses the replacement. Add `Decision.waitlist_rank` when an event actually runs a ranked
+waitlist.
+
 Publishing a batch, in one transaction per proposal: set `Decision.status = published`,
 move `Proposal.status`, stamp `confirmation_deadline` on accepts, and enqueue exactly one
 notification per proposal. Re-running a publish is idempotent on `decision.id` — nobody gets
@@ -417,6 +446,13 @@ Rules stated here because "we all knew that" is not enforceable:
   COI is refused outright, not merely logged.
 - Reviewer identities are never exposed to submitters, in any state, through any API
   response or event payload.
+
+**`code_of_conduct_concern` is a routing signal and nothing more** (R21 in
+[`13-open-questions.md`](13-open-questions.md)). It tells a chair that something needs to
+reach the event's incident process; it does not open a case, hold evidence, or record an
+outcome, and the platform deliberately models none of those. An incomplete incident record
+sitting in a general-purpose tool with broad staff read access is a liability, and the
+people who handle these need a process this tool cannot see.
 
 ## Invariants
 

@@ -124,8 +124,8 @@ product vocabulary, not jargon, and using them teaches the shared language.
 > The edges worth knowing: an unspent slot is forfeited only when the entitlement's
 > `expires_at` passes, and the sponsor contact is nudged before that (`entitlement.expiring_soon`)
 > rather than the slot silently vanishing. Nothing is deleted — the record stays, so "why
-> does Acme have three slots?" is still answerable afterwards. How long an abandoned draft
-> holds its slot is still undecided (Q15).
+> does Acme have three slots?" is still answerable afterwards. An abandoned draft holds its
+> slot for 14 days of no activity, with a warning at 7 — configurable per event (R22).
 >
 > Status: modelled, not built.
 > `docs/domain/03-sponsorship.md`.

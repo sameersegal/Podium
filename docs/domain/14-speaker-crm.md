@@ -98,6 +98,13 @@ targeting a `dynamic` segment resolves it at send time, which is the behaviour a
 
 ## Sourcing pipeline
 
+> **Not in v1** (R28 in [`13-open-questions.md`](13-open-questions.md)). The directory and
+> segments above ship first; the pipeline lands after the first event has run. It is
+> specified here because the decision to defer it is only defensible if the thing being
+> deferred is understood — and because real usage during the run-up to a *second* event is
+> what will say whether this needs a kanban board or just a `ContactSegment` plus
+> `next_action_at` on the roster.
+
 Between "we should ask her" and "she has accepted" there is a conversation that takes
 weeks, involves several people, and currently lives in a shared document. A proposal record
 cannot represent it — there is nothing to propose yet, and inventing a placeholder proposal

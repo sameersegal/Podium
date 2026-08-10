@@ -131,6 +131,12 @@ rejected, or abandoned past a timeout. `consumed_count` is therefore derived fro
 proposals pointing at the entitlement, never a hand-maintained counter — the standard way
 this class of bug appears.
 
+**Abandoned means 14 days without activity on the draft, with a warning email at 7**
+(`Event.settings.sponsorship.draft_abandonment_days`, R22 in
+[`13-open-questions.md`](13-open-questions.md)). The number is configurable per event and
+belongs in settings rather than in a condition somewhere, because a hold that expires on a
+rule nobody can find is indistinguishable from a hold that expired by accident.
+
 ```mermaid
 stateDiagram-v2
   [*] --> available: entitlement granted
