@@ -34,6 +34,7 @@ class and share one downstream program model.
 | J9 | Place sessions in rooms and time slots without clashes | Organizer | Scheduling |
 | J10 | Publish a schedule the marketing site can embed, and update it safely | Organizer | Publication |
 | J11 | Pull program data into other systems, and react to changes | Integrator | API, Domain Events |
+| J12 | Find and cultivate the speakers for next year's programme | Organizer | Speaker CRM, Identity |
 
 ## Bounded contexts
 
@@ -56,11 +57,18 @@ flowchart TB
     SCH["Scheduling & Publication<br/><i>Placement, Snapshot, Embed</i>"]
   end
 
+  subgraph crossevent["Across events"]
+    CRM["Speaker CRM<br/><i>Directory, Segment, Pipeline</i>"]
+  end
+
   subgraph platform["Platform"]
-    API["API & Integrations<br/><i>ApiKey, Webhook, Plugin</i>"]
+    API["API & Integrations<br/><i>ApiKey, Webhook, Campaign, Plugin</i>"]
     EVT["Domain Event Bus"]
   end
 
+  IAM <--> CRM
+  CRM -->|"push contact to event"| IAM
+  PRG -.->|"who spoke, and how it went"| CRM
   IAM --> CFG
   IAM --> SUB
   CFG --> SUB
@@ -92,6 +100,8 @@ flowchart TB
 | Program | Onboarding | Customer/supplier | Session creation materialises task instances from definitions. |
 | Program | Scheduling | Customer/supplier | Only confirmed sessions may be placed. |
 | Scheduling | Public read model | Published language | The published snapshot is the only thing the outside world sees. |
+| Identity | Speaker CRM | Shared kernel | The directory *is* `Person` at org scope. The CRM adds segments and a sourcing pipeline over it; it never forks the person record. |
+| Speaker CRM | Identity | Customer/supplier | Pushing a contact into an event creates an `EventParticipant`. Nothing is copied — the org profile stays the source of truth. |
 | everything | Domain events | Published language | The event catalogue is the stable integration contract. |
 
 ## The spine: proposal → session → schedule
@@ -144,6 +154,14 @@ erDiagram
   PERSON ||--o| SPEAKER_PROFILE : has
   PERSON ||--o{ ROLE_GRANT : holds
   PERSON ||--o{ AUTH_IDENTITY : "authenticates via"
+  PERSON ||--o{ PERSON_NOTE : "noted about"
+  PERSON ||--o{ EVENT_PARTICIPANT : "rostered on"
+  EVENT ||--o{ EVENT_PARTICIPANT : rosters
+  ORGANIZATION ||--o{ CONTACT_SEGMENT : saves
+  ORGANIZATION ||--o{ SOURCING_PIPELINE : runs
+  SOURCING_PIPELINE ||--o{ PIPELINE_STAGE : "ordered into"
+  PIPELINE_STAGE ||--o{ PROSPECT_CARD : holds
+  PROSPECT_CARD }o--|| PERSON : about
 
   EVENT ||--o{ TRACK : has
   EVENT ||--o{ SESSION_FORMAT : offers
@@ -181,18 +199,25 @@ erDiagram
   PROPOSAL ||--o| SESSION : becomes
   SESSION ||--o{ SESSION_SPEAKER : credits
   SESSION_SPEAKER }o--|| PERSON : is
+  SESSION ||--o{ SESSION_REVISION : "history of"
   SESSION ||--o{ TASK_INSTANCE : requires
   TASK_DEFINITION ||--o{ TASK_INSTANCE : materialises
   TASK_INSTANCE ||--o{ TASK_SUBMISSION : receives
   TASK_SUBMISSION ||--o{ ASSET : attaches
+  ASSET ||--o| ASSET : supersedes
+  ASSET ||--o{ ASSET_COMMENT : "discussed in"
 
   SESSION ||--o| PLACEMENT : "placed at"
   PLACEMENT }o--|| ROOM : in
   SCHEDULE_PUBLICATION ||--o{ PUBLISHED_SESSION : contains
+  EVENT ||--o{ EMBED_CONFIG : exposes
 
   ORGANIZATION ||--o{ API_KEY : issues
   ORGANIZATION ||--o{ WEBHOOK : registers
   ORGANIZATION ||--o{ INTEGRATION : installs
+  ORGANIZATION ||--o{ CAMPAIGN : sends
+  CAMPAIGN ||--o{ NOTIFICATION_DELIVERY : produces
+  ORGANIZATION ||--o{ CUSTOM_FIELD_DEFINITION : defines
 ```
 
 ## Actors
@@ -207,7 +232,7 @@ erDiagram
 | **Speaker** | Submitted or is credited on a proposal/session | *Relationship*, not a grant — derived from `ProposalSpeaker` / `SessionSpeaker` |
 | **Sponsor contact** | Named contact for a sponsor | `SponsorContact` record |
 | **Integrator** | A machine calling the API | `ApiKey` scopes |
-| **Public** | Anyone reading the schedule | No authentication; sees published snapshot only |
+| **Public** | Anyone reading the schedule or the open CFP | No authentication; sees the published snapshot and `PublicCfp` only |
 
 Note the deliberate asymmetry: *speaker* and *sponsor contact* are **relationships**, not
 roles. You are a speaker of a session because you are on it, not because someone granted
@@ -219,3 +244,15 @@ classic bug where a speaker's access outlives their session.
 Ticketing and registration; attendee accounts; a mobile app; a sponsor lead-capture CRM;
 a payments ledger (sponsorship *contracts* are modelled, money is not); a session
 recording/video pipeline (only the link to one); a general CMS for the conference website.
+
+Two clarifications, since both have near neighbours that *are* in scope:
+
+- **No attendee accounts, but attendees can build a personal schedule.** Starring sessions
+  and exporting them to a calendar is client-side over the published snapshot — no login,
+  no `Attendee` entity, no personal data reaching the platform. See
+  [`08`](08-scheduling-and-publication.md) and R11 in
+  [`13`](13-open-questions.md).
+- **No sponsor CRM, but there is a *speaker* CRM.** [`14`](14-speaker-crm.md) is an
+  org-level database of the people the organization programmes — sourcing, notes, history.
+  Sponsor pipeline management belongs to whatever system holds the contracts;
+  `Sponsorship.contract_reference` is the seam.

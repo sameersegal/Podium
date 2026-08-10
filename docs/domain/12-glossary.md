@@ -23,7 +23,11 @@ deliberately avoided.
 | **Primary speaker** | The one who confirms on the session's behalf and is the default assignee for session-level tasks. | Co-speaker, Moderator |
 | **Placeholder person** | A `Person` created from a name and email by someone else, who has never signed in. | Deactivated person |
 | **Person merge** | Deliberately collapsing duplicate people into one, repointing all references. | Deletion |
-| **Speaker profile** | The living, person-owned public profile. Snapshotted at publication. | Person (the identity record) |
+| **Merge candidate** | A surfaced possible duplicate, scored and awaiting a human decision. Never merged automatically. | Person merge |
+| **Speaker profile** | The living, person-owned public profile, editable by staff except for its visibility settings. Snapshotted at publication. | Person (the identity record) |
+| **Event participant** | A person's membership of one event's roster, with its own status and portal access. Grants no content access. | Speaker, Role grant |
+| **Person note** | An internal, attributed, append-only note about a person. Never visible to its subject. | Review comment |
+| **Custom field** | An organizer-defined field on a person, participant, session or sponsor, with a declared type, PII class and audience. | Form field (a CFP question) |
 | **Sponsor** | A company. Long-lived, org-scoped, returns each year. | Sponsorship |
 | **Sponsorship** | One sponsor's deal for one event. | Sponsor, Tier |
 | **Tier** | A named sponsorship package for an event (Diamond, Gold). | Entitlement |
@@ -32,7 +36,10 @@ deliberately avoided.
 | **Sponsor contact** | A named person acting for a sponsor. A relationship, revocable. | Sponsor manager (a staff role) |
 | **Speaker nomination** | The onboarding task where a sponsor names the human who will present. | Speaker invitation |
 | **Review round** | One pass over a scoped set of proposals with one rubric. Events run several. | Review |
-| **Rubric / criterion** | The scoring scheme and its weighted dimensions. | Recommendation |
+| **Reviewer pool** | The set of people enrolled in one round. Membership of one round's pool implies nothing about another's. | Reviewer role grant |
+| **Rubric / criterion** | The scoring scheme and its weighted dimensions. A criterion is `numeric`, `select`, `text` or `boolean`. | Recommendation |
+| **Effective score** | The number a criterion score contributes to the aggregate, or null where it contributes none. Never treated as zero. | Value |
+| **AI review** | A `Review` with `author_kind = ai`. Always labelled, always overridable, never counts toward quorum. | Review |
 | **Recommendation** | A reviewer's holistic verdict (`strong_accept` … `strong_reject`). | Decision |
 | **Quorum** | `target_reviews_per_proposal` submitted reviews. | Consensus |
 | **Disagreement** | Normalised standard deviation across reviews. The chair's triage signal. | Conflict |
@@ -49,11 +56,19 @@ deliberately avoided.
 | **Placement** | A session's room and time. Times live here, not on the session. | Session, Time slot |
 | **Time slot** | An optional grid cell an event may align placements to. | Placement |
 | **Schedule conflict** | A computed clash — room, speaker, duration, AV. Surfaced loudly; blocks publication, not placement. | Conflict of interest |
+| **Content status** | Editorial sign-off on a session's words — `draft`, `in_review`, `approved`, `changes_requested`. Gates publication. | Session status (whether it is happening) |
+| **Session revision** | An append-only content snapshot of a session. Restoring one writes a new revision forward. | Proposal revision |
+| **Assisted placement** | A proposed set of placements produced in one action, for a human to accept or discard. Never applied automatically. | Placement |
 | **Publication** | An immutable, versioned snapshot of the public schedule. The only thing the outside world reads. | Placement, Draft schedule |
 | **Live publication** | The one currently served. Exactly one per event. | Superseded |
+| **Pending changes** | Working state that differs from the live publication and is therefore not yet public. | Diff |
 | **Diff** | The computed change list between consecutive publications; drives notifications and "what changed". | Revision |
 | **Content etag** | Hash of a publication's content; the cache key for embeds and public API. | Version |
-| **Embed** | A configured public view of a live publication for a specific site, with its own origins, filters and theme. | Publication |
+| **Embed** | A configured public view of a live publication for a specific site. Its `widget_type` is *what* it renders; its `format` is *how* it is delivered. | Publication |
+| **Slot key** | What a file is an instance of. Re-uploading into the same slot creates a version; the comment thread belongs to the slot, not the version. | Asset id |
+| **Campaign** | An organizer-composed bulk message to a criteria-defined audience. Resolved at send time, logged per recipient. | Notification template |
+| **Segment** | A saved contact query — `dynamic` (re-resolves) or `static` (a frozen list). The choice is explicit. | Filter |
+| **Prospect card** | A person being pursued for a future programme, on a sourcing pipeline. Not a proposal; there is nothing proposed yet. | Proposal |
 | **Domain event** | An immutable fact that happened, in the published catalogue. The integration contract. | Event (the conference) |
 | **Subject** | The primary entity a domain event is about; webhook ordering is per subject. | Actor |
 | **Actor** | Who or what caused an event: person, API key, system, integration. | Assignee |

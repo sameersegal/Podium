@@ -78,8 +78,13 @@ log can be queried by actor or subject without unpacking JSON.
 |---|---|---|---|
 | `person.created` | person | `person_id, full_name, email, source` | yes |
 | `person.merged` | person | `surviving_person_id, merged_person_id, merged_by` | yes |
+| `person.merge_candidate_detected` | person | `person_id, candidate_person_id, signals[], confidence` | yes |
 | `person.deactivated` | person | `person_id, reason` | |
-| `speaker_profile.updated` | person | `person_id, changed_fields[]` | |
+| `person_note.added` | person | `note_id, person_id, event_id, author_person_id` — **body never included** (INV-01-14) | |
+| `speaker_profile.updated` | person | `person_id, changed_fields[], edited_by_person_id, edited_by_role` | |
+| `event_participant.added` | person | `participant_id, event_id, person_id, kind, status, source` | yes |
+| `event_participant.status_changed` | person | `participant_id, event_id, person_id, from, to` | |
+| `event_participant.portal_invited` | person | `participant_id, event_id, person_id, invitation_id` | yes |
 | `role_grant.created` | person | `person_id, role, scope_type, scope_id, granted_by` | |
 | `role_grant.revoked` | person | `person_id, role, scope_type, scope_id, revoked_by` | |
 | `invitation.sent` | invitation | `invitation_id, kind, email, context_type, context_id, expires_at` | yes |
@@ -98,6 +103,7 @@ log can be queried by actor or subject without unpacking JSON.
 | `submission_form.published` | form | `form_id, cfp_id, version, changed_field_keys[]` |
 | `track.created` | track | `track_id, name, slug` |
 | `session_format.created` | format | `format_id, name, slug, default_duration_minutes` |
+| `room.created` | room | `room_id, venue_id, name, slug, capacity` |
 
 ### Sponsorship
 
@@ -141,9 +147,14 @@ is `open`.
 |---|---|---|
 | `review_round.opened` | round | `round_id, name, sequence, proposal_count, assignment_count` |
 | `review_round.closed` | round | `round_id, submitted_review_count, missing_review_count` |
-| `review_assignment.created` | assignment | `assignment_id, round_id, proposal_id, reviewer_person_id, due_at` |
+| `review_round_reviewer.added` | round | `round_id, person_id, pool_role, track_ids[], max_assignments` |
+| `review_round_reviewer.removed` | round | `round_id, person_id, removed_by` |
+| `review_assignment.created` | assignment | `assignment_id, round_id, proposal_id, reviewer_person_id, due_at, assigned_by` |
 | `review_assignment.declined` | assignment | `assignment_id, reason` |
-| `review.submitted` | review | `review_id, proposal_id, round_id, recommendation, overall_score, has_quorum` |
+| `review_assignment.reminded` | assignment | `assignment_id, reviewer_person_id, reminder_count, trigger, triggered_by_person_id` |
+| `review.submitted` | review | `review_id, proposal_id, round_id, author_kind, recommendation, overall_score, has_quorum` |
+| `review.ai_generated` | review | `review_id, proposal_id, round_id, ai_evaluator_key, ai_model, overall_score` |
+| `review.overridden` | review | `review_id, superseded_review_id, proposal_id, overridden_by_person_id` |
 | `review.stale` | review | `review_id, proposal_id, previous_hash, current_hash` |
 | `conflict_of_interest.declared` | coi | `coi_id, reviewer_person_id, subject_type, subject_id, reason, source` |
 | `decision.recorded` | decision | `decision_id, proposal_id, outcome, decided_by` |
@@ -164,6 +175,9 @@ onboarding materialisation, speaker notification and every external integration 
 | `session.updated` | session | `session_id, changed_fields[]` |
 | `session.cancelled` | session | `session_id, reason, was_published` |
 | `session.delivered` | session | `session_id` |
+| `session.content_approved` | session | `session_id, approved_by_person_id, revision_number` |
+| `session.content_approval_revoked` | session | `session_id, changed_fields[], changed_by_person_id` |
+| `session.content_restored` | session | `session_id, revision_number, restored_from_revision_id, restored_by_person_id` |
 | `session_speaker.confirmed` | session | `session_id, person_id, speaker_role` |
 | `session_speaker.declined` | session | `session_id, person_id, reason` |
 | `session_speaker.replaced` | session | `session_id, outgoing_person_id, incoming_person_id, transferred_task_count` |
@@ -193,6 +207,8 @@ onboarding materialisation, speaker notification and every external integration 
 | `placement.moved` | placement | `placement_id, session_id, from: {room_id, starts_at}, to: {room_id, starts_at}` |
 | `placement.removed` | placement | `placement_id, session_id` |
 | `schedule.conflict_detected` | event | `code, severity, placement_ids[], detail` |
+| `schedule.auto_place_proposed` | event | `run_id, strategy, proposed_count, unplaceable_count, conflicts_introduced` |
+| `schedule.auto_place_applied` | event | `run_id, applied_session_ids[], skipped_session_ids[]` |
 | `schedule.published` | publication | `publication_id, version, session_count, content_etag, override_reasons` |
 | `schedule.changed` | publication | `publication_id, version, diff: [{change_type, session_id, before, after}]` |
 | `schedule.rolled_back` | publication | `publication_id, restored_version, rolled_back_from_version` |
@@ -213,8 +229,39 @@ every drag in the planning UI. Speakers should hear about a change when it is re
 | `webhook.disabled` | webhook | `webhook_id, consecutive_failures` |
 | `integration.installed` | integration | `integration_id, plugin_key, capability` |
 | `integration.health_changed` | integration | `integration_id, status, last_error` |
-| `notification.sent` | notification | `notification_id, template_key, recipient_person_id, channel` |
+| `notification.sent` | notification | `notification_id, template_key, recipient_person_id, channel, campaign_id` |
 | `notification.bounced` | notification | `notification_id, recipient_email, bounce_type` |
+| `campaign.created` | campaign | `campaign_id, event_id, channel, template_id, recipient_count` |
+| `campaign.sent` | campaign | `campaign_id, recipient_count, sent, suppressed, failed` |
+| `campaign.recipient_failed` | campaign | `campaign_id, person_id, reason` |
+
+### Content and bulk operations
+
+| Type | Subject | `data` | PII |
+|---|---|---|---|
+| `asset.uploaded` | asset | `asset_id, slot_key, version, purpose, filename, size_bytes, uploaded_by_person_id` | |
+| `asset.version_superseded` | asset | `asset_id, superseded_asset_id, slot_key, version` | |
+| `asset.scan_completed` | asset | `asset_id, scan_status` | |
+| `asset_comment.added` | asset | `comment_id, asset_id, slot_key, author_person_id, parent_id` | |
+| `custom_field.defined` | custom_field | `definition_id, subject_type, key, type, pii, audience` | |
+| `bulk_import.completed` | import | `import_id, subject, row_count, created_count, updated_count, skipped_count, error_count` | |
+| `export.ready` | export | `export_id, subject, format, row_count, byte_size, expires_at` | |
+
+### Speaker CRM
+
+| Type | Subject | `data` | PII |
+|---|---|---|---|
+| `contact_segment.created` | segment | `segment_id, name, kind, member_count` | |
+| `contact_segment.updated` | segment | `segment_id, changed_fields[], member_count` | |
+| `sourcing_pipeline.created` | pipeline | `pipeline_id, event_id, name, stage_names[]` | |
+| `prospect.enrolled` | prospect | `card_id, pipeline_id, person_id, stage_id, event_id, score` | yes |
+| `prospect.stage_changed` | prospect | `card_id, from_stage_id, to_stage_id, to_stage_kind, moved_by_person_id, days_in_previous_stage` | |
+| `prospect.converted` | prospect | `card_id, person_id, event_id, participant_id` | yes |
+| `prospect.stalled` | prospect | `card_id, person_id, stage_id, days_in_stage, next_action_at` | |
+
+`prospect.*` payloads never carry `rationale`, `score` commentary or note bodies
+(INV-14-6) — the card's private judgement about a person does not leave the organization,
+whatever `include_pii` says.
 
 ## Reaction map
 
@@ -238,6 +285,14 @@ keeping it in one table is what stops it from becoming folklore.
 | `session.cancelled` | Cancel tasks; release placement and entitlement; queue schedule diff | Onboarding, Scheduling, Sponsorship |
 | `entitlement.expiring_soon` | Nudge the sponsor contact | Notifications |
 | `task_instance.overdue` | Reminder with escalation | Notifications |
+| `decision.published` (accept) | Add or confirm the speaker's `EventParticipant` row | Identity |
+| `session_speaker.replaced` | Recompute both people's roster rows | Identity |
+| `session.updated` (content fields) | Write a `SessionRevision`; revoke content approval; recompute `content_diverged` | Program |
+| `session.content_approved` | Recompute publication readiness | Program, Scheduling |
+| `asset.uploaded` | Supersede the previous version in the slot; complete the file-request task once scanned clean | Cross-cutting, Onboarding |
+| `person.created` | Detect merge candidates | Identity |
+| `prospect.converted` | Create the `EventParticipant` with `source = crm_push` | Identity, Speaker CRM |
+| `campaign.sent` | Append to the communications history | Notifications |
 
 Every reaction must be **idempotent on `DomainEvent.id`** — the same event may be delivered
 twice, and "create session" running twice is exactly the bug this rule exists to prevent.

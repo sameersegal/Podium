@@ -39,11 +39,12 @@ erDiagram
 | `config` | `json` | Y | shape depends on `requirement_type`, below |
 | **Who it lands on** | | | |
 | `subject_type` | `enum(session, speaker, sponsor)` | Y | what the task is *about* |
-| `assignee_rule` | `enum(each_speaker, primary_speaker_only, submitter, sponsor_primary_contact, sponsor_speaker_wrangler, named_organizer)` | Y | who must do it |
+| `assignee_rule` | `enum(each_speaker, primary_speaker_only, submitter, sponsor_primary_contact, sponsor_speaker_wrangler, named_organizer, named_people, each_participant)` | Y | who must do it |
 | `assignee_person_id` | `ref(Person)` | N | for `named_organizer` |
+| `assignee_person_ids` | `ref(Person)[]` | N | for `named_people` — one instance each (INV-07-12) |
 | **When it applies** | | | |
 | `applies_to` | `json` | N | filter: `{origins, format_ids, track_ids, attendance_modes, speaker_roles}` — empty = everything |
-| `trigger` | `enum(on_session_created, on_session_confirmed, on_speaker_confirmed, on_task_completed, manual)` | Y | |
+| `trigger` | `enum(on_session_created, on_session_confirmed, on_speaker_confirmed, on_participant_added, on_participant_confirmed, on_task_completed, manual)` | Y | |
 | `trigger_task_key` | `slug` | N | for `on_task_completed` |
 | **When it is due** | | | |
 | `due_rule` | `enum(fixed_date, relative_to_event_start, relative_to_session_start, relative_to_assignment, none)` | Y | |
@@ -95,6 +96,28 @@ give up and reopen the spreadsheet:
 | `tech-check` | scheduling | primary_speaker | −3d | no |
 | `nominate-speaker` | speaker_nomination | sponsor_speaker_wrangler | −60d | yes |
 | `sponsor-logo` | file_upload | sponsor_primary_contact | −60d | no |
+
+### Ad-hoc tasks are the same machinery
+
+Not every obligation is worth a template. "Sign the speaker release form, both of you, by
+15 April" is a thing an organizer types once, and forcing it through a definition-rule-
+trigger ceremony is how a workflow engine gets abandoned for a spreadsheet.
+
+An ad-hoc task is a `TaskDefinition` with `trigger = manual`, `assignee_rule =
+named_people`, and the chosen people in `assignee_person_ids`; materialising it immediately
+creates one `TaskInstance` each. The organizer's UI is a single form — title, instructions,
+type, due date, who — and the definition behind it is an implementation detail they never
+see. Two things are bought by not special-casing it: ad-hoc tasks appear on the same
+board, in the same completion stats and under the same reminder rules as templated ones;
+and an ad-hoc task that turns out to be needed every year is promoted to a real template by
+changing two fields rather than rebuilding it.
+
+`subject_type = speaker` with `each_participant` covers the roster-level case — onboarding
+that applies to a person because they are coming, not because of a particular talk
+(confirm participation, complete your profile, book your travel). Those materialise from
+`EventParticipant` ([`01`](01-identity-and-access.md)) and need no session to exist, which
+is what lets onboarding start the day someone is invited rather than the day their session
+record appears.
 
 ## TaskInstance
 
@@ -195,17 +218,31 @@ in a dispute, and it is why the document version is captured rather than just a 
 | TaskReminderLog field | Type | Req | Notes |
 |---|---|---|---|
 | `task_instance_id` | `ref(TaskInstance)` | Y | |
-| `rule_id` | `ref(TaskReminderRule)` | Y | |
+| `rule_id` | `ref(TaskReminderRule)` | N | null when `trigger = manual` |
+| `trigger` | `enum(scheduled, manual)` | Y | |
+| `triggered_by_person_id` | `ref(Person)` | N | required when `trigger = manual` |
 | `scheduled_for` / `sent_at` | `timestamptz` | Y/N | |
 | `notification_id` | `ref(NotificationDelivery)` | N | |
 | `suppressed_reason` | `enum(already_complete, quiet_hours, digest_batched, unsubscribed, duplicate)` | N | |
 
-Two rules that keep this from becoming spam, and therefore keep it working:
+Three rules that keep this from becoming spam, and therefore keep it working:
 
 - **Digest by default.** A person with five due tasks gets one email listing five tasks, not
   five emails. Batching is per assignee per day, in their timezone.
 - **Reminders are logged with a suppression reason**, so "did we chase them?" has an answer.
   Organizers ask this constantly and it is unanswerable in an email-only workflow.
+- **Manual nudges exist and are logged identically.** Scheduled reminders fire on offsets
+  somebody chose in January; the useful chase is the one prompted by looking at the board in
+  April and seeing four people stuck. An organizer selects the outstanding rows and sends
+  now: same templates, same digesting, same suppression rules, same log — with `trigger =
+  manual` and the person who pressed it recorded. A reminder system with no manual override
+  gets bypassed by a hand-written email, and then the record is gone.
+
+**The deliverables board is where both happen.** `OrganizerOnboardingBoard` is not only a
+report: it is filterable to exactly the set worth chasing (incomplete, overdue, by task, by
+track, by speaker) and every filtered set is directly actionable — select all, remind. The
+filter and the action are the same screen, because a dashboard you have to translate into a
+recipient list by hand is a dashboard that gets exported to a spreadsheet.
 
 ## Materialisation
 
@@ -259,6 +296,13 @@ will be triggered by retried events.
   sponsor's tasks and their nominated speakers' task *status*, never payloads.
 - **INV-07-11** Moving a session's placement recomputes `due_at` for instances whose
   `due_rule` is `relative_to_session_start`, and reschedules pending reminders.
+- **INV-07-12** `assignee_rule = named_people` requires a non-empty `assignee_person_ids`
+  and materialises exactly one instance per listed person. `each_participant` resolves
+  against `EventParticipant` rows whose `status = confirmed`, independently of whether the
+  person has a session.
+- **INV-07-13** A manually triggered reminder records `trigger = manual` and
+  `triggered_by_person_id`, and is subject to the same suppression and digest rules as a
+  scheduled one. Reminders are never sent for terminal task instances.
 
 ## Emitted events
 

@@ -60,8 +60,15 @@ Fields treated as personal data, redacted from any response lacking `pii:read` /
 | Contact | `Person.email`, `AuthIdentity.email_at_provider`, `SpeakerProfile.phone`, `Invitation.email`, `NotificationDelivery.recipient_email` |
 | Sensitive personal | `SpeakerProfile.dietary_notes`, `SpeakerProfile.accessibility_notes`, `SessionSpeaker.travel_status` and any travel/visa task payload |
 | Free-text answers | any `ProposalAnswer` whose `FormField.pii` is true |
+| Custom fields | any `custom_field_values` entry whose `CustomFieldDefinition.pii` is true |
 | Task payloads | any `TaskSubmission.payload` for a definition in category `travel` or `legal` |
+| Communications | `CampaignRecipient.resolved_email`, rendered message bodies in the outbox |
 | Technical | IP addresses and user agents in `AuditLog` and acknowledgement records |
+
+Separately from PII, two categories are **never visible to their subject** at any permission
+level: `PersonNote` bodies (INV-01-14) and review data for a proposal the reader submitted
+or is credited on (INV-11-7). These are not redaction rules that a scope can unlock — they
+are absent from the surface entirely.
 
 Additional handling:
 
@@ -97,10 +104,163 @@ attachments.
 | `uploaded_by_person_id` | `ref(Person)` | Y | |
 | `purpose` | `enum(headshot, slides, logo, document, task_attachment, cover_image, other)` | Y | |
 | `expires_at` | `timestamptz` | N | for time-limited documents |
+| **Versioning** | | | |
+| `slot_key` | `string` | Y | what this file *is* an instance of: `task:tsk_01H…`, `session:ses_01H…:slides`, `person:per_01H…:headshot` |
+| `version` | `int` | Y | monotonic within `slot_key`, starting at 1 |
+| `supersedes_asset_id` | `ref(Asset)` | N | the previous version in the same slot |
+| `is_latest` | `bool` | D | no other non-deleted asset in this `slot_key` has a higher `version` (INV-11-9) |
+| `created_at` | `timestamptz` | Y | the version's timestamp, shown in the version list |
 
 Uploads are direct-to-storage via presigned URLs; the API never proxies file bytes. Public
 assets are served from a CDN path derived from `storage_key`; private assets only via
 short-lived signed URLs.
+
+**Re-uploading never overwrites.** A speaker uploading their deck a second time creates
+version 2 in the same `slot_key`; version 1 remains stored, listed and individually
+downloadable. Three reasons, all of which are somebody's bad afternoon: the new file is
+corrupt and the old one is the only copy; the AV team already built the running order
+against v1 and needs to see what changed; and "final_v3_ACTUAL.pdf" is what happens when a
+tool forces version control into the filename.
+
+Consumers read `is_latest` unless they ask otherwise — the published schedule, the bulk
+export and the session page all mean "the current one". The version list is a first-class
+surface wherever a file appears: every version with its number, uploader, timestamp and
+size, the current one marked, each individually retrievable.
+
+### AssetComment
+
+Deliverables are a conversation, not a drop box. "This is the draft, final on Friday" and
+"can you re-export at 16:9" are the two most common things anyone says about an uploaded
+file, and without somewhere to say them they are said in email, where the organizer
+collecting eighty decks cannot see them next to the file.
+
+<!-- entity: AssetComment -->
+| Field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `acm_` |
+| `asset_id` | `ref(Asset)` | Y | the specific version commented on |
+| `slot_key` | `string` | Y | denormalised, so the thread survives new versions (INV-11-10) |
+| `author_person_id` | `ref(Person)` | Y | |
+| `body` | `text` | Y | markdown |
+| `parent_id` | `ref(AssetComment)` | N | one level of threading |
+| `created_at` / `edited_at` / `deleted_at` | `timestamptz` | Y/N/N | |
+
+The thread belongs to the **slot**, not the version: uploading v2 does not orphan the
+comments on v1, and the conversation reads in order with the version changes interleaved.
+Comments are visible to everyone who can see the file — the uploading speaker and event
+staff — and to nobody else. There is no notification on a comment; the file's own reminder
+cadence is the chase mechanism, and a second one competing with it just trains people to
+mute both.
+
+### The files library
+
+`FilesLibrary` is the derived aggregate view over assets for an event: one row per
+`slot_key` with its latest version, filename, size, type, version count, uploader, upload
+date, comment count, and what it belongs to (session, speaker, sponsor, task). Filterable
+by kind, by session, by speaker and by missing-ness, because the question is almost always
+"whose slides are still not here".
+
+It is the same data a per-session Files tab shows, at a different altitude. Both exist;
+neither is the other's substitute.
+
+## Custom fields
+
+Every organization tracks something this model does not have a column for: shirt size,
+which agency represents them, whether they need a visa letter, which conference we met them
+at. The alternatives to modelling it are a `notes` field that nothing can filter on, or a
+schema change per customer.
+
+<!-- entity: CustomFieldDefinition -->
+| CustomFieldDefinition field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `cfd_` |
+| `org_id` | `ref(Organization)` | Y | |
+| `event_id` | `ref(Event)` | N | null = applies across every event |
+| `subject_type` | `enum(person, event_participant, session, sponsor)` | Y | what it hangs off |
+| `key` | `slug` | Y | unique per `(org, subject_type)`; immutable once values exist |
+| `label` | `string` | Y | |
+| `help_text` | `text` | N | |
+| `type` | `enum(short_text, long_text, number, date, single_select, multi_select, checkbox, url)` | Y | |
+| `options` | `json` | N | `[{value, label}]` for select types |
+| `is_required` | `bool` | Y | required at the surface that edits it, never retroactively |
+| `pii` | `bool` | Y | classified at creation; drives redaction (INV-11-11) |
+| `audience` | `enum(public, committee_only, organizer_only)` | Y | `public` may reach a publication snapshot |
+| `show_in_list` | `bool` | Y | whether it earns a column in the directory |
+| `is_filterable` | `bool` | Y | |
+| `sort_order` | `int` | Y | |
+| `status` | `enum(active, archived)` | Y | archived fields keep their values and stop being offered |
+
+Values live in `custom_field_values` on the subject, keyed by `key`. The definition owns the
+type, the validation, the PII classification and the visibility — which is the whole point:
+a free-text blob has none of those, so it can be neither filtered nor safely exported, and
+someone eventually puts a passport number in it.
+
+**Adding a field is deciding its PII class.** `pii` and `audience` are required at creation,
+not defaulted, in keeping with the project's rule that redaction is default-on. A custom
+field with `pii = true` is redacted everywhere the built-in PII fields are.
+
+## Bulk import and export
+
+Two operations the model previously left implicit, and both are load-bearing: a programme
+team arrives with last year's speakers in a spreadsheet, and leaves with this year's scores
+in one. Neither is a nice-to-have — the first is how the roster gets populated at all, and
+the second is how a committee meeting actually runs.
+
+Both are **jobs**, not request/response: a CSV of nine hundred contacts and a ZIP of two
+hundred slide decks each take longer than a request should live.
+
+| BulkImport field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `imp_` |
+| `org_id` / `event_id` | `ref(...)` | Y/N | |
+| `subject` | `enum(person, event_participant, session, sponsor)` | Y | what is being imported |
+| `source_asset_id` | `ref(Asset)` | Y | the uploaded file, retained for dispute |
+| `column_mapping` | `json` | Y | `{csv_header: field_key}`, confirmed by the operator before the run |
+| `dedupe_key` | `enum(email, reference, none)` | Y | default `email` for people |
+| `on_duplicate` | `enum(skip, update, create_anyway)` | Y | default `update` |
+| `status` | `enum(uploaded, mapping, validating, previewing, running, completed, completed_with_errors, failed, cancelled)` | Y | |
+| `row_count` / `created_count` / `updated_count` / `skipped_count` / `error_count` | `int` | D | |
+| `errors` | `json` | D | `[{row_number, column, message}]` — per row, never one summary failure |
+| `requested_by_person_id` | `ref(Person)` | Y | |
+| `created_at` / `completed_at` | `timestamptz` | Y/N | |
+
+The rules that make an import trustworthy rather than terrifying:
+
+- **Map, validate, preview, then run.** The operator sees what will be created, what will be
+  updated and what will be rejected, *before* anything is written. An import that begins on
+  upload is an import nobody dares run against real data.
+- **Errors are per row.** Row 412 has a malformed email; rows 1–411 and 413–900 still
+  import. A whole-file rejection over one bad cell means the operator edits the CSV and
+  re-uploads nine times.
+- **Deduplication is the default, not a checkbox.** People re-import the same file. Matching
+  on email and updating is right almost always, and the two exceptions are explicit.
+- **The source file is kept**, so "where did this record come from" is answerable a year
+  later.
+
+| Export field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `exp_` |
+| `org_id` / `event_id` | `ref(...)` | Y/N | |
+| `subject` | `enum(review_results, proposals, sessions, speakers, participants, tasks, files, contacts, communications)` | Y | |
+| `format` | `enum(csv, xlsx, json, zip, ics)` | Y | `zip` for file bundles |
+| `filters` | `json` | N | the same criteria as the screen it was launched from |
+| `options` | `json` | N | e.g. `{grouping: session\|speaker, latest_versions_only: true}` for `zip` |
+| `include_pii` | `bool` | Y | requires the requester to hold `pii:read` (INV-11-12) |
+| `status` | `enum(queued, running, ready, failed, expired)` | Y | |
+| `result_asset_id` | `ref(Asset)` | N | the generated file |
+| `row_count` / `byte_size` | `int` | D | |
+| `expires_at` | `timestamptz` | Y | default 7 days; generated exports are not kept forever |
+| `requested_by_person_id` | `ref(Person)` | Y | |
+
+**An export is a read.** It carries exactly the permissions of the person who asked for it,
+evaluated at generation time: a reviewer exporting results gets their assigned proposals, a
+chair gets the round, and neither gets a column they could not see on screen. Round
+`anonymity` and PII redaction apply identically. The one thing an export must never be is a
+side door around the authorization matrix, which is precisely what it becomes when it is
+bolted on afterwards as "just a CSV endpoint".
+
+`zip` exports of `files` default to latest versions only, grouped one folder per session,
+which is what an AV team asks for.
 
 ## Audit log
 
@@ -145,6 +305,18 @@ PII export and erasure, and any organizer edit of submitter-owned content.
 | Record and publish decisions | ✎ | ✎ | ✎ | recommend | — | — | — | — | — | — |
 | Manage sponsors, tiers, entitlements | ✎ | ✎ | 👁 | — | — | 👁 | ✎ | 👁 (own) | — | — |
 | Create and edit sessions | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | 👁 | — |
+| Approve session content | ✎ | ✎ | ✎ | 👁 | — | ✎ | — | — | — | — |
+| Restore a session revision | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
+| Manage the event roster (`EventParticipant`) | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
+| Edit a speaker profile | ✎ | ✎ | ✎ | — | — | ✎ | — | — | O | — |
+| Set profile `visibility` / `is_listed` | — | — | — | — | — | — | — | — | O | — |
+| Read and write `PersonNote` | ✎ | ✎ | ✎ | 👁 | — | ✎ | ✎ (sponsor) | — | — | — |
+| Comment on an uploaded file | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | O | O | — |
+| Compose and send a campaign | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
+| Read the communications history | 👁 | 👁 | 👁 | — | — | 👁 | 👁 (sponsor) | — | O | — |
+| Import records in bulk | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
+| Request an export | ✎ | ✎ | ✎ | ✎ (track) | O | ✎ | ✎ (sponsor) | — | — | — |
+| Manage custom field definitions | ✎ | ✎ | ✎ | — | — | — | — | — | — | — |
 | Define onboarding tasks | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
 | Complete a task | ✎ | ✎ | ✎ | — | — | ✎ | ✎ | O | O | — |
 | Approve a task submission | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
@@ -207,3 +379,22 @@ the top.
 - **INV-11-7** A person may never read review data, scores, reviewer identities or committee
   discussion for a proposal they submitted or are credited on, regardless of role.
 - **INV-11-8** All public slugs are immutable once published; renames create redirects.
+- **INV-11-9** Uploading into an occupied `slot_key` creates a new `Asset` with
+  `version = max + 1` and `supersedes_asset_id` set. Prior versions are never overwritten,
+  and exactly one non-deleted asset per `slot_key` has `is_latest = true`.
+- **INV-11-10** `AssetComment` threads belong to a `slot_key` and survive new versions.
+  A comment is visible to exactly the people who may read the asset, and to no one else.
+- **INV-11-11** A `CustomFieldDefinition` must declare `pii` and `audience` at creation.
+  Values of `pii` fields are redacted wherever the fields in the PII table are; values of
+  fields whose `audience != public` never reach a publication snapshot or a public response.
+- **INV-11-12** An export is generated under the requesting person's permissions as
+  evaluated at generation time, honours `include_pii` only when they hold `pii:read`, and
+  can never contain a record or column that person could not read through the API.
+- **INV-11-13** A `BulkImport` writes nothing before the operator confirms its preview, and
+  reports failures per row; a malformed row never aborts the rows around it.
+
+## Emitted events
+
+`asset.uploaded`, `asset.version_superseded`, `asset.scan_completed`,
+`asset_comment.added`, `custom_field.defined`, `bulk_import.completed`, `export.ready`.
+Payloads in [`10-domain-events.md`](10-domain-events.md).

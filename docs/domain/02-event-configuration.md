@@ -288,6 +288,41 @@ Supported ops: `eq`, `neq`, `in`, `not_in`, `is_set`, `is_empty`, `gt`, `lt`. A 
 only reference fields in an *earlier* step or earlier in the same step (INV-02-8) — this
 keeps evaluation a single forward pass and makes "why is this field showing" answerable.
 
+## The public CFP surface
+
+The published schedule is not the only thing anonymous visitors read. A call for proposals
+is a **marketing page**: it is linked from the conference site, shared on social media, and
+opened by people who have no account and may never make one. If it demands a login before
+it will even show what the deadline is, submissions drop, and the people it filters out
+first are exactly the first-time speakers a good CFP is trying to reach.
+
+`PublicCfp` is therefore a read model of its own, served unauthenticated alongside — but
+separately from — the schedule snapshot. It is assembled live from configuration (there is
+nothing to snapshot; there is one current form by INV-02-5) and cached on the CFP's
+`updated_at`.
+
+| Field | Notes |
+|---|---|
+| `event` | name, slug, tagline, dates, timezone, logo URL, website URL |
+| `cfp` | name, slug, `intro_markdown`, `guidelines_url`, `opens_at`, `closes_at`, derived `status` |
+| `tracks` | available `CfpTrackOption`s: name, slug, description, colour |
+| `formats` | available `CfpFormatOption`s: name, slug, description, duration, `closes_at_override` |
+| `form` | the published `SubmissionForm`: steps, fields, types, options, `is_required`, `validation`, `visible_when` — **`audience = public` fields only** |
+| `max_proposals_per_person` / `allow_edit_after_submit` | so the page can state the rules it will later enforce |
+
+Two things the surface must get right, because both are visible failures:
+
+- **The closed state is content, not an error.** Past `closes_at`, `PublicCfp` still
+  renders — event branding, the deadline that passed, what happens next — and offers no way
+  to start a submission. A 404 on a link that is still circulating on social media reads as
+  a broken conference.
+- **The form is inspectable before signup.** Field labels, help text, dropdown options and
+  conditional behaviour are all public. A submitter deciding whether to bother must be able
+  to see what will be asked of them. Only *submitting* requires an account.
+
+`committee_only` and `organizer_only` fields never appear here (INV-02-12), which is what
+makes it safe to serve the form definition to the world.
+
 ## Invariants
 
 - **INV-02-1** All stored instants are UTC. Any time rendered to a human for an event is
@@ -314,8 +349,14 @@ keeps evaluation a single forward pass and makes "why is this field showing" ans
   proposal or session; they are archived (`is_public=false` plus `deleted_at`) instead.
 - **INV-02-11** An `Event` cannot become `active` without at least one `EventDay`, one
   `SessionFormat`, and — if `mode != online` — one `Room`.
+- **INV-02-12** `PublicCfp` is readable without authentication for a CFP whose `audience`
+  is `public` on an `active`, `public` event, in every derived `status` including `closed`.
+  It contains no `FormField` whose `audience != public`, and no field marked `pii`.
+- **INV-02-13** A CFP in derived `status = closed` accepts no new proposal and no edit to an
+  existing one, except where `Proposal.status = changes_requested`
+  ([`04`](04-submissions.md)) or the CFP's `grace_period_minutes` window is still open.
 
 ## Emitted events
 
 `event.created`, `event.activated`, `event.archived`, `cfp.opened`, `cfp.closed`,
-`submission_form.published`, `track.created`, `session_format.created`.
+`submission_form.published`, `track.created`, `session_format.created`, `room.created`.

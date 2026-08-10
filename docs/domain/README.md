@@ -22,6 +22,12 @@ never silently.
 | [`11-cross-cutting.md`](11-cross-cutting.md) | IDs, timestamps, soft delete, PII, audit, authorization matrix |
 | [`12-glossary.md`](12-glossary.md) | Ubiquitous language |
 | [`13-open-questions.md`](13-open-questions.md) | Unresolved decisions, deferred scope |
+| [`14-speaker-crm.md`](14-speaker-crm.md) | Cross-event speaker directory, segments, sourcing pipeline |
+| [`15-conformance-map.md`](15-conformance-map.md) | Non-normative: an external functional rubric traced onto the model |
+
+`14` is a bounded context, not a reference file. It is numbered after `13` so that the
+cross-links in `00`–`13` keep working; read it after `01`. `15` is a traceability aid and
+carries no requirements of its own.
 
 ## Conventions used throughout
 

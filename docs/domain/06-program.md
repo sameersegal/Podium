@@ -33,6 +33,7 @@ erDiagram
   SESSION ||--o{ TASK_INSTANCE : requires
   SESSION ||--o| PLACEMENT : "placed at"
   SESSION ||--o{ SESSION_RELATION : "related to"
+  SESSION ||--o{ SESSION_REVISION : "history of"
 ```
 
 ## Session
@@ -67,6 +68,9 @@ erDiagram
 | `registration_url` | `string` | N | external workshop signup |
 | **Lifecycle** | | | |
 | `status` | `enum(pending_confirmation, confirmed, scheduled, published, cancelled, delivered)` | Y | see state machine |
+| `content_status` | `enum(draft, in_review, approved, changes_requested)` | Y | editorial sign-off, orthogonal to `status` (INV-06-11) |
+| `content_approved_by_person_id` / `content_approved_at` | `ref(Person)` / `timestamptz` | N | who signed it off, and when |
+| `content_diverged` | `bool` | D | session content differs from its proposal's decision snapshot (INV-06-9) |
 | `visibility` | `enum(internal, public)` | Y | `internal` = never published, e.g. speaker briefings |
 | `cancellation_reason` | `text` | N | |
 | `onboarding_progress` | `int` | D | 0–100 across this session's task instances |
@@ -128,6 +132,73 @@ room and in order.
 | `uploaded_by_person_id` | `ref(Person)` | Y | |
 | `is_public` | `bool` | Y | slides usually go public *after* the talk |
 | `public_from` | `timestamptz` | N | |
+
+## Content approval
+
+`status` tracks whether a session is *happening*. `content_status` tracks whether its words
+are *fit to publish*. Conflating them is a mistake with a predictable ending: a confirmed,
+scheduled talk whose abstract is still the speaker's first draft goes live on the marketing
+site because "confirmed" was the only gate anyone could see.
+
+```mermaid
+stateDiagram-v2
+  [*] --> draft: session created
+  draft --> in_review: submitted for editorial review
+  in_review --> approved: organizer approves
+  in_review --> changes_requested: organizer sends it back
+  changes_requested --> in_review: revised and resubmitted
+  approved --> draft: content edited after approval (INV-06-12)
+  approved --> in_review: re-review requested
+```
+
+Two rules carry the weight:
+
+- **Approval gates publication.** A session with `content_status != approved` is not
+  included in a publication snapshot (INV-06-11). This is a second gate alongside blocking
+  onboarding tasks (INV-06-5): tasks answer "has the speaker done their part", approval
+  answers "have we done ours".
+- **Editing approved content revokes approval** (INV-06-12). Anything else means an approval
+  granted on Monday silently endorses Thursday's rewrite. The revocation is automatic and
+  the diff is visible, so re-approving is a glance rather than a re-read.
+
+`content_diverged` realises [R14](13-open-questions.md): it is set when the session's
+`title`, `abstract`, `description`, format, duration or track differ from the snapshot the
+decision was made against. It is a **filter on the programme board, not a notification** —
+divergence is normal and expected, and alerting on the normal case teaches people to
+dismiss alerts.
+
+## SessionRevision
+
+Programme content is edited by several people over months: the speaker tightens the
+abstract, an organizer cuts it to fit a card, marketing rewrites the title, somebody
+restores last week's version because the new one was worse. Without a history that is an
+argument nobody can win; with one it is a two-click revert.
+
+Append-only, mirroring `ProposalRevision` in [`04`](04-submissions.md) so the two read the
+same way.
+
+<!-- entity: SessionRevision -->
+| Field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `srv_` |
+| `session_id` | `ref(Session)` | Y | |
+| `revision_number` | `int` | Y | monotonic per session |
+| `changed_by_person_id` | `ref(Person)` | Y | |
+| `change_kind` | `enum(organizer_edit, speaker_edit, decision_import, restore, approval_change)` | Y | |
+| `diff` | `json` | Y | `{field: {from, to}}` |
+| `snapshot` | `json` | Y | full content snapshot, so restore never has to replay diffs |
+| `restored_from_revision_id` | `ref(SessionRevision)` | N | set when `change_kind = restore` |
+| `created_at` | `timestamptz` | Y | |
+
+**Restore is a forward operation.** Restoring revision 4 writes revision 9 whose content
+equals revision 4's snapshot, with `restored_from_revision_id` pointing back. History is
+never rewound, only extended — the record of the bad edit and of somebody undoing it are
+both facts worth keeping, and a restore that erased its own cause would be the one edit
+nobody could audit.
+
+Restore covers content fields only. It never changes `status`, `content_status`,
+placement, speakers or assets: those have their own lifecycles, and a text revert that
+silently unscheduled a talk would be a far worse surprise than the typo it fixed.
 
 ## Lifecycle
 
@@ -216,9 +287,20 @@ first-class signal is a small amount of code that changes how the program gets b
   organizers, not auto-merged.
 - **INV-06-10** A `replaced` speaker loses relationship-derived access to the session in the
   same transaction that records the replacement.
+- **INV-06-11** A session may not be included in a publication snapshot unless
+  `content_status = approved`. This gate is independent of INV-06-5; both must pass, and
+  either may be overridden only by a chair recording an explicit reason.
+- **INV-06-12** Editing any published content field (`title`, `subtitle`, `abstract`,
+  `description`, `track_id`, `session_format_id`, `duration_minutes`) of a session whose
+  `content_status = approved` returns it to `draft` and clears
+  `content_approved_by_person_id` / `content_approved_at`, in the same transaction.
+- **INV-06-13** Every change to a session's content fields writes exactly one
+  `SessionRevision` with a full `snapshot`. Restoring writes a new revision; no revision is
+  ever mutated or deleted.
 
 ## Emitted events
 
 `session.created`, `session.confirmed`, `session.updated`, `session.cancelled`,
-`session.delivered`, `session_speaker.confirmed`, `session_speaker.declined`,
+`session.delivered`, `session.content_approved`, `session.content_approval_revoked`,
+`session.content_restored`, `session_speaker.confirmed`, `session_speaker.declined`,
 `session_speaker.replaced`, `session_asset.uploaded`.

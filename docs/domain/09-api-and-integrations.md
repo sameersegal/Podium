@@ -116,7 +116,7 @@ one or more capability contracts; the core calls the contract.
 | `id` | `ulid` | Y | prefix `itg_` |
 | `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | |
-| `plugin_key` | `string` | Y | `email.resend`, `email.sendgrid`, `chat.slack`, `crm.hubspot`, `calendar.google` |
+| `plugin_key` | `string` | Y | `email.resend`, `email.sendgrid`, `chat.slack`, `crm.hubspot`, `calendar.google`, `analytics.ai_evaluator` |
 | `capability` | `enum(email, sms, chat, calendar, crm, storage, video, analytics, identity)` | Y | |
 | `display_name` | `string` | Y | |
 | `config` | `json` | Y | non-secret settings (sender name, channel id, list id) |
@@ -179,6 +179,7 @@ guess.
 | NotificationDelivery field | Type | Notes |
 |---|---|---|
 | `id` | `ulid` | prefix `ntd_` |
+| `campaign_id` | `ref(Campaign)` | set when the message came from a bulk send |
 | `template_key` / `template_version` | | |
 | `recipient_person_id` / `recipient_email` | | email captured as sent, since people change addresses |
 | `channel` / `integration_id` | | which provider actually sent it |
@@ -192,6 +193,101 @@ per-category for unsubscribes — with the deliberate exception that **transacti
 a speaker must receive are never suppressed by an unsubscribe**: acceptance, rejection,
 confirmation deadlines, and schedule changes for their own talk. Marketing preferences must
 not cost someone their slot.
+
+### Variables and preview
+
+`body_markdown` interpolates `{{variables}}` from a declared, validated set per
+`template_key` — `{{speaker.first_name}}`, `{{session.title}}`, `{{event.name}}`,
+`{{portal_url}}`, `{{task.due_at}}`. Two rules, both learned the hard way:
+
+- **Unknown variables fail at save time, not send time.** A template referencing
+  `{{talk_title}}` when the variable is `{{session.title}}` must be rejected when the
+  organizer writes it, while they are looking at it — not silently rendered as an empty
+  string into four hundred inboxes.
+- **Preview resolves against a real recipient.** The compose surface renders the message as
+  one named person will receive it, chosen from the actual recipient set. A preview showing
+  raw tokens proves nothing; the failure this catches is a variable that is valid but empty
+  for half the list.
+
+## Campaigns — organizer-composed bulk messaging
+
+Templated, system-triggered notifications cover the messages the platform knows to send.
+They do not cover the ones a human decides to send: *welcome to the programme*, *the venue
+has changed*, *we still need three of you to upload slides*, *would you speak next year*.
+
+Every organizer does this work. Without a first-class surface they do it from their own
+mail client against a copy-pasted address list, and the platform loses the record — which
+means "did we tell the speakers about the room change" becomes unanswerable, and the
+person who sent it is the only one who knows.
+
+<!-- entity: Campaign -->
+| Campaign field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `cmp_` |
+| `org_id` / `event_id` | `ref(...)` | Y/N | event-scoped for speaker comms, org-scoped for sourcing outreach |
+| `name` | `string` | Y | internal label |
+| `channel` | `enum(email, chat)` | Y | |
+| `template_id` | `ref(NotificationTemplate)` | N | null for a one-off composed message |
+| `subject` | `string` | N | |
+| `body_markdown` | `text` | Y | same `{{variables}}` and the same save-time validation |
+| `audience` | `json` | Y | the selection as *criteria*, not a frozen list: `{kind, event_id, participant_status[], track_ids, task_state, has_outstanding_tasks, person_ids[], segment_id}` |
+| `recipient_count` | `int` | D | resolved from `audience` at send time |
+| `status` | `enum(draft, scheduled, sending, sent, partially_failed, cancelled)` | Y | |
+| `scheduled_for` | `timestamptz` | N | |
+| `created_by_person_id` | `ref(Person)` | Y | |
+| `sent_at` | `timestamptz` | N | |
+| `stats` | `json` | D | `{queued, sent, delivered, bounced, suppressed, failed}` from its deliveries |
+
+<!-- entity: CampaignRecipient -->
+| CampaignRecipient field | Type | Notes |
+|---|---|---|
+| `campaign_id` / `person_id` | `ref(...)` | |
+| `resolved_email` | `string` | captured as sent |
+| `notification_id` | `ref(NotificationDelivery)` | the actual delivery |
+| `status` | mirrors the delivery | |
+| `suppressed_reason` | | why this recipient got nothing |
+
+```mermaid
+stateDiagram-v2
+  [*] --> draft: organizer composes
+  draft --> scheduled: schedule for later
+  draft --> sending: send now
+  scheduled --> sending: scheduled_for reached
+  scheduled --> cancelled: cancelled before send
+  sending --> sent: all recipients resolved
+  sending --> partially_failed: some deliveries failed
+  sent --> [*]
+  partially_failed --> [*]
+  cancelled --> [*]
+```
+
+Design points that matter:
+
+- **`audience` is criteria, resolved at send time.** "All confirmed speakers with an
+  outstanding task" is a query, and storing it as a query is what makes a scheduled campaign
+  correct when it fires rather than correct when it was written.
+- **A campaign is a batch of ordinary deliveries.** Each recipient gets a
+  `NotificationDelivery`, so bounces, suppression, quiet hours and the unsubscribe rules
+  apply unchanged, and one query answers "everything we ever sent this person".
+- **Sending is idempotent per `(campaign, person)`.** A retried send job never sends twice.
+- **Marketing suppression applies; transactional exemption does not.** A campaign is not a
+  decision notification, and INV-09-10's exemption is deliberately not extended to it.
+
+**`CommunicationsHistory`** is the read model over all of it: every `NotificationDelivery`
+for an event or a person, system-triggered and campaign alike, with template, subject,
+recipient, timestamp, status and the campaign that produced it. It is reachable from the
+event, from a person's record, and from a session — because the question is asked from all
+three directions.
+
+### The outbox
+
+Every deliverable message is also written to an organizer-readable outbox — the
+`CommunicationsHistory` above, plus the rendered body. This is not a debugging convenience:
+it is what makes an invitation retrievable when mail bounces, what lets support answer "what
+did we actually send her", and what makes the product operable in a deployment with no
+email provider configured at all. Where no `email` integration is active, messages are
+recorded as `queued` with `suppressed_reason = no_provider` and remain readable and
+copyable rather than being silently dropped (INV-09-12).
 
 ## Platform mapping (non-normative)
 
@@ -223,8 +319,12 @@ model depends on these choices.
   with event scope overriding org scope.
 - **INV-09-5** Without `pii:read` (or `include_pii`), every response and payload redacts the
   fields listed under PII in [`11-cross-cutting.md`](11-cross-cutting.md).
-- **INV-09-6** Public endpoints serve only from the `live` `SchedulePublication` and never
-  read live program tables.
+- **INV-09-6** Public endpoints serve programme data only from the `live`
+  `SchedulePublication` and never from live program tables. The two exceptions are
+  intake-side surfaces that have no snapshot to serve from and must be reachable before any
+  schedule exists: `PublicCfp` ([`02`](02-event-configuration.md), governed by INV-02-12)
+  and a public event landing page. Neither may expose a proposal, a review, a task, or any
+  field whose `audience != public`.
 - **INV-09-7** Every mutating request accepts `Idempotency-Key`; a repeat within 24h replays
   the stored response and performs no new writes.
 - **INV-09-8** Webhook payloads carry `DomainEvent.id`; consumers are told, in the docs and
@@ -235,9 +335,18 @@ model depends on these choices.
   are never suppressed by a marketing unsubscribe.
 - **INV-09-11** Revoking an API key or disabling an integration takes effect immediately;
   in-flight deliveries using it are cancelled, not drained.
+- **INV-09-12** Every message the platform intends to send writes a `NotificationDelivery`
+  before any provider call. A message that cannot be dispatched — no provider, provider
+  error, suppression — is recorded with its reason and remains readable in the outbox. No
+  intended message is ever silently dropped.
+- **INV-09-13** A `NotificationTemplate` or `Campaign` body referencing a variable outside
+  its `template_key`'s declared set is rejected at save time.
+- **INV-09-14** Campaign sending is idempotent per `(campaign_id, person_id)`; a recipient
+  receives at most one delivery per campaign regardless of retries.
 
 ## Emitted events
 
 `api_key.created`, `api_key.revoked`, `webhook.created`, `webhook.delivery_failed`,
 `webhook.disabled`, `integration.installed`, `integration.health_changed`,
-`notification.sent`, `notification.bounced`.
+`notification.sent`, `notification.bounced`, `campaign.created`, `campaign.sent`,
+`campaign.recipient_failed`.

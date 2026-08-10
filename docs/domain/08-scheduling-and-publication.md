@@ -102,6 +102,45 @@ draft schedule; you may not publish one without an explicit, recorded override.
 | `detail` | `json` | human-readable specifics |
 | `acknowledged_by_person_id` / `acknowledged_reason` | | an accepted, deliberate conflict |
 
+Conflicts are recomputed **on every placement write and surfaced without a page reload**
+(INV-08-14). A clash that only appears after a refresh is a clash the organizer created,
+navigated away from, and will now discover the week of the event. The whole value of
+computing them is the immediacy; a nightly conflict report is a list of things it is too
+late to fix cheaply.
+
+## Assisted placement
+
+Placing 120 sessions into four rooms across three days by hand is an afternoon, and the
+last third of it is done badly because the constraints stop fitting in one head.
+
+`AutoPlaceRun` proposes placements for unplaced sessions in one action. It is deliberately
+a **proposal**, not an edit: it computes a candidate set, scores it, and presents it for the
+organizer to accept wholesale, accept partially, or discard.
+
+| Field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `apr_` |
+| `event_id` | `ref(Event)` | Y | |
+| `scope` | `json` | N | `{session_ids, track_ids, event_day_ids, room_ids}` — empty = every unplaced confirmed session |
+| `strategy` | `enum(greedy_fill, balance_tracks, respect_preferences)` | Y | |
+| `proposed` | `json` | Y | `[{session_id, room_id, event_day_id, starts_at, ends_at, rationale}]` |
+| `conflicts_introduced` | `json` | D | conflicts the proposal would create, by code and severity |
+| `unplaceable` | `json` | D | `[{session_id, reason}]` — said out loud, never silently dropped |
+| `status` | `enum(proposed, applied, partially_applied, discarded)` | Y | |
+| `requested_by_person_id` | `ref(Person)` | Y | |
+| `applied_session_ids` | `ref(Session)[]` | N | |
+| `created_at` / `applied_at` | `timestamptz` | Y/N | |
+
+What it must honour: room capacity and AV against `Session.av_requirements`, speaker
+availability across overlapping slots, `SessionRelation.continues_in` ordering and room
+stickiness, track spread, and every existing `locked` placement. What it must not do is
+move anything a human already placed unless explicitly asked — the fastest way to lose
+trust in an assistant is to have it undo deliberate work.
+
+Whether the proposal comes from a solver or a language model is an implementation choice
+behind one interface; `rationale` per placement is required either way, because an
+organizer accepting 120 moves needs to be able to spot the four that are wrong.
+
 ## Publication
 
 A publication is an **immutable snapshot**. Publishing copies everything the public sees
@@ -150,6 +189,31 @@ website, and so the embed can be served from cache with a version stamp.
 | `links` | `is_public` profile links only |
 | `session_refs` | `ulid[]` |
 
+### Staleness must be visible, and publishing must be one click
+
+The snapshot model has one failure mode, and it is worth naming because it looks exactly
+like a bug: an organizer edits a title, looks at the public page, and sees the old one. The
+model is behaving correctly and the organizer is right to be alarmed — from where they are
+standing, the product lost their edit.
+
+Two obligations follow, and they are part of the model rather than the UI's problem:
+
+- **`PendingPublicationChanges`** (derived, per event) diffs the live working state against
+  the `live` publication and reports what is unpublished: added, removed, retitled,
+  re-timed, re-roomed and re-approved sessions, with a count. Every admin surface that
+  shows publishable content shows this count, and every edit to a published session says,
+  at the point of editing, that the change is not live yet.
+- **Publishing is a single, always-available action** with a preview of exactly that diff.
+  If publishing is buried, ceremonial, or feels risky, organizers stop doing it and the
+  public schedule drifts a week behind reality — which costs far more than the stale-cache
+  problem the snapshot was protecting against.
+
+Auto-publish (`Event.settings.publication.auto_publish`, default off) republishes on every
+qualifying change for events that would rather trade the audit trail for immediacy. It is a
+setting rather than the default because the failure it enables — a half-finished
+rearrangement going live at 2am — is worse and less reversible than a stale page. Rollback
+(below) is what makes either choice survivable.
+
 ### Diffs
 
 <!-- entity: ScheduleDiffEntry -->
@@ -188,15 +252,66 @@ are immutable snapshots, rollback is just pointing `live` at an earlier version.
 | `event_id` | `ref(Event)` | Y | |
 | `key` | `string` | Y | public, unguessable; appears in the embed URL |
 | `name` | `string` | Y | "Main site — full schedule" |
+| `widget_type` | `enum(sessions_list, speakers_list, agenda_grid, schedule_itinerary, speaker_gallery, session_detail)` | Y | *what* is rendered (INV-08-12) |
 | `allowed_origins` | `string[]` | Y | CORS + frame-ancestors allowlist (INV-08-6) |
 | `filters` | `json` | N | `{event_day_ids, track_ids, format_ids, sponsor_only}` — a track-specific widget |
-| `format` | `enum(js_widget, iframe, json, ics, rss)` | Y | |
+| `format` | `enum(js_widget, iframe, html, json, xml, ics, rss)` | Y | *how* it is delivered |
+| `fields` | `json` | N | per-`widget_type` field allowlist: `{show: [...], hide: [...]}` |
 | `theme` | `json` | N | `{mode, accent, font_stack, density, show_speakers, show_rooms, show_sponsor_labels}` |
 | `show_unpublished` | `bool` | Y | default false; a preview embed for staging sites |
 | `cache_ttl_seconds` | `int` | Y | default 300 |
 | `pinned_publication_id` | `ref(SchedulePublication)` | N | freeze the embed to a version |
 | `status` | `enum(active, disabled)` | Y | |
 | `created_by_person_id` | `ref(Person)` | Y | |
+
+### `widget_type` and `format` are different axes
+
+An embed answers two independent questions: *what content* and *in what wrapper*. A
+speakers gallery as a script tag and the same gallery as JSON are one configuration with
+two deliveries; a sessions list and an agenda grid over the same data are two different
+products. Collapsing them into one enum — the shape this model previously had — makes
+"give me the speaker list as JSON" inexpressible.
+
+The six widget types, each a distinct read over the live publication:
+
+| `widget_type` | Renders | Reads |
+|---|---|---|
+| `sessions_list` | A searchable, filterable card per session — title, snippet, day/time, room, speakers with title and company, track and format tags | `PublishedSession` |
+| `speakers_list` | A directory of speakers, ordered by surname, each with headshot, name, job title, company, and their sessions | `PublishedSpeaker` |
+| `agenda_grid` | A per-day grid, rooms across, time down, session blocks in position | `PublishedSession` + `Room` |
+| `schedule_itinerary` | The same day, as a chronological list under time headings — the mobile-shaped view of `agenda_grid` | `PublishedSession` |
+| `speaker_gallery` | A photo grid of speakers, name-searchable, opening to a detail panel | `PublishedSpeaker` |
+| `session_detail` | One session in full: abstract, full time range, room, speakers, assets | `PublishedSession` |
+
+Requirements that apply to every type, because they are the ones that are noticed when
+missing:
+
+- **Anonymous and complete.** Every type renders fully to a logged-out visitor. No account
+  wall, no partial content, no "sign in to see the schedule" (INV-08-13).
+- **Search and filter are client-side over the snapshot.** The payload already contains the
+  whole filtered set, so keyword search across titles *and speaker names*, and faceting by
+  track, format and room, are rendering concerns that need no round trip and no API key.
+- **Drill-down is part of the widget.** A speaker card that opens to their sessions and a
+  session block that opens to its abstract are the two interactions people actually
+  perform; a widget that only lists is a screenshot.
+- **Degrade gracefully.** A speaker with no headshot renders a fallback, not a broken grid.
+
+### Personal schedules, without attendee accounts
+
+[R11](13-open-questions.md) rules out attendee accounts, and that stays true — but "star the
+talks I want to see" is the single most-used interaction on a conference schedule, and
+refusing it is not a modelling position, it is a missing feature.
+
+It needs no server state. `schedule_itinerary` and `sessions_list` offer a select control
+per session; the selection lives in the visitor's browser (`localStorage`, keyed by the
+event slug), survives reloads, and is rendered as a "my schedule" filter over the same
+snapshot the widget already holds. Export is `format = ics` over the selected ids, which
+the ICS serialiser supports per-session already.
+
+No `Attendee` entity, no personal data reaching the platform, nothing to authenticate,
+nothing to erase under a GDPR request — and the feature works on a static marketing page.
+That is the version worth building; a server-side favourites list is a login screen, an
+accounts table and a privacy obligation in exchange for the same behaviour.
 
 Delivery requirements the model has to support:
 
@@ -235,9 +350,23 @@ Delivery requirements the model has to support:
   it appears as `session_cancelled` in the next publication's diff, so links do not 404.
 - **INV-08-11** `content_etag` changes if and only if the snapshot content changes, so
   caches never serve stale content and never miss unnecessarily.
+- **INV-08-12** An `EmbedConfig` renders exactly one `widget_type` in exactly one `format`.
+  A `format` a type cannot express (`ics` for `speaker_gallery`) is rejected at
+  configuration time, not at request time.
+- **INV-08-13** Every embed surface of a `public` event with a `live` publication is
+  readable by an unauthenticated request from an allowed origin, with no login prompt,
+  redirect or content gate. Personal-schedule state is client-side and never a
+  precondition for reading.
+- **INV-08-14** Placement writes recompute `ScheduleConflict` for the affected event
+  synchronously and return the resulting conflicts in the write's response, so the editing
+  surface reflects them without a reload.
+- **INV-08-15** `AutoPlaceRun` never mutates an existing placement. Applying a run creates
+  placements only for sessions that were unplaced when it was applied; anything placed in
+  the interim is reported as skipped.
 
 ## Emitted events
 
 `placement.created`, `placement.moved`, `placement.removed`, `schedule.conflict_detected`,
+`schedule.auto_place_proposed`, `schedule.auto_place_applied`,
 `schedule.published`, `schedule.rolled_back`, `schedule.changed` (carries the diff),
 `session.time_changed`, `session.room_changed`, `embed_config.created`.

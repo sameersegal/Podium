@@ -71,7 +71,14 @@ building, `domain-drift` checks the model against what was actually built afterw
 ## Current state
 
 Domain model in review; no application code exists yet. Do not scaffold an implementation
-unless asked — the open questions in
-[`13-open-questions.md`](docs/domain/13-open-questions.md) (notably Q3 on the datastore and
-Q11 on the `Proposal`/`Session` split) should be resolved first, since they change the shape
-of what gets generated.
+unless asked.
+
+Seven open questions were resolved against an external functional rubric and are recorded as
+R9–R15 in [`13-open-questions.md`](docs/domain/13-open-questions.md) — including the
+`Proposal`/`Session` split, which stays. [`15-conformance-map.md`](docs/domain/15-conformance-map.md)
+traces that rubric onto the model; it is non-normative and nothing should cite it as a
+requirement.
+
+Q3 (D1 or Postgres) is still open and still changes the shape of what gets generated, so it
+should be settled before code generation. Q16 (password login default) and Q21 (whether the
+sourcing pipeline is v1) are the other two worth settling early.
