@@ -1,4 +1,7 @@
-# Podium
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/podium-logo-horizontal-light.png">
+  <img src="brand/podium-logo-horizontal.png" alt="Podium" width="325">
+</picture>
 
 An open-source alternative to SessionBoard, scoped to the jobs an **AI Engineer–style
 conference** actually has to get done — not a full clone.
@@ -31,3 +34,8 @@ sync with. Read it first:
 Start with [`00-overview.md`](docs/domain/00-overview.md) for the jobs to be done, the
 bounded contexts and the master ERD. Every open question is now resolved — the decisions and
 their reasoning are in [`13-open-questions.md`](docs/domain/13-open-questions.md).
+
+## Brand
+
+Logos, the web icon set and the usage rules live in [`brand/`](brand/README.md). The contents
+of [`brand/web/`](brand/web) drop straight into a web app's public root once there is one.
