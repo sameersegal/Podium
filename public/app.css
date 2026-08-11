@@ -894,6 +894,182 @@ details.disclosure[open] > summary { margin-bottom: var(--sp-3); padding-bottom:
 .live-bar[hidden] { display: none; }
 .live-bar a { font-weight: 600; text-decoration: underline; }
 
+/* Admin UI reference panels — show available events/variables inline. */
+.admin-reference {
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-4);
+  margin-top: var(--sp-4);
+  font-size: var(--fs-sm);
+}
+
+.admin-reference .reference-header { margin-bottom: var(--sp-4); }
+.admin-reference .reference-header h3 { margin: 0 0 var(--sp-2); font-size: var(--fs-lg); }
+.admin-reference .reference-header p { margin: 0; }
+
+.admin-reference .reference-section {
+  margin-bottom: var(--sp-4);
+}
+
+.admin-reference h4 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.admin-reference .event-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.admin-reference .event-badges .badge {
+  font-size: var(--fs-xs);
+  padding: var(--sp-1) var(--sp-2);
+}
+
+.admin-reference .reference-examples {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.admin-reference .reference-examples p {
+  margin: var(--sp-2) 0;
+  line-height: 1.6;
+}
+
+.admin-reference .reference-examples code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: var(--fs-xs);
+  color: var(--indigo-dark);
+  font-weight: 600;
+}
+
+.admin-reference .event-detail {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.admin-reference .event-detail h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  font-family: ui-monospace, monospace;
+  font-size: var(--fs-sm);
+}
+
+.admin-reference .event-detail p {
+  margin: var(--sp-1) 0;
+}
+
+.admin-reference .field-list {
+  display: block;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: var(--sp-2);
+  margin: var(--sp-2) 0;
+  overflow-x: auto;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.admin-reference .var-list {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.admin-reference .var-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.admin-reference .var-item code {
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--indigo-dark);
+}
+
+.admin-reference .template-list {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.admin-reference .template-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+}
+
+.admin-reference .template-item strong {
+  display: block;
+  font-family: ui-monospace, monospace;
+  font-size: var(--fs-sm);
+  margin-bottom: var(--sp-1);
+  color: var(--indigo-dark);
+}
+
+.admin-reference .template-item p {
+  margin: var(--sp-1) 0;
+}
+
+.notice {
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  margin: var(--sp-3) 0;
+  font-size: var(--fs-sm);
+}
+
+.notice.warn {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-line);
+  color: var(--warn);
+}
+
+.reference-panel {
+  display: none;
+}
+
+.form-section {
+  display: contents;
+}
+
+@media (min-width: 64rem) {
+  .reference-panel {
+    display: block;
+  }
+
+  .admin-reference {
+    max-height: 600px;
+    overflow-y: auto;
+    position: sticky;
+    top: var(--sp-4);
+  }
+}
+
 @media print {
   .topbar, .subnav, .actions, .live-bar, .filter-bar, .bulk-actions, .daybar { display: none; }
   .card, .stat, .table-wrap { box-shadow: none; break-inside: avoid; }

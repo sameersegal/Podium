@@ -80,6 +80,12 @@ import {
   webhookDeliveryJson,
   webhookJson,
 } from "./views.js";
+import {
+  renderEventTypeReference,
+  renderEventPayloadReference,
+  renderTemplateVariableReference,
+  renderTemplateListReference,
+} from "./admin-ui-reference.js";
 
 const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
 
@@ -286,16 +292,23 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
 
 function webhookForm(w: Row | null, events: Row[]): SafeHtml {
   return html`
-    ${field({ name: "name", label: "Name", required: true, value: w ? str(w.name) : "" })}
-    ${field({ name: "url", label: "URL", type: "url", required: true, value: w ? str(w.url) : "", help: "Absolute https only." })}
-    ${field({
-      name: "event_types",
-      label: "Event types",
-      value: w ? parseJson<string[]>(w.event_types, []).join(", ") : "*",
-      help: "Comma-separated. `*` for everything, or a `noun.*` wildcard.",
-    })}
-    ${field({ name: "event_id", label: "Restrict to one event", type: "select", value: w ? str(w.event_id) : "", options: events.map((e) => ({ value: str(e.id), label: str(e.name) })) })}
-    ${field({ name: "include_pii", label: "Include personal data in payloads", type: "checkbox", value: w ? bool(w.include_pii) : false })}
+    <div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem; align-items: start;">
+      <div class="form-section">
+        ${field({ name: "name", label: "Name", required: true, value: w ? str(w.name) : "" })}
+        ${field({ name: "url", label: "URL", type: "url", required: true, value: w ? str(w.url) : "", help: "Absolute https only." })}
+        ${field({
+          name: "event_types",
+          label: "Event types",
+          value: w ? parseJson<string[]>(w.event_types, []).join(", ") : "*",
+          help: "Comma-separated. Use `*` for all events or patterns like `proposal.*` for all proposal events.",
+        })}
+        ${field({ name: "event_id", label: "Restrict to one event", type: "select", value: w ? str(w.event_id) : "", options: events.map((e) => ({ value: str(e.id), label: str(e.name) })) })}
+        ${field({ name: "include_pii", label: "Include personal data in payloads", type: "checkbox", value: w ? bool(w.include_pii) : false, help: "Enable to receive fields marked as PII in event payloads." })}
+      </div>
+      <div class="reference-panel">
+        ${renderEventTypeReference()}
+      </div>
+    </div>
   `;
 }
 
@@ -631,15 +644,20 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New template", active: "templates", width: "narrow" },
+        { title: "New template", active: "templates", width: "wide" },
         html`${pageHead("New template")}
-          ${card(html`<form method="post" action="/admin/templates/new" class="stack">
-            ${field({ name: "key", label: "Key", required: true, help: `One of: ${knownTemplateKeys().join(", ")} — or a custom key for a one-off variable set.` })}
-            ${field({ name: "subject", label: "Subject" })}
-            ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 10, required: true })}
-            ${field({ name: "locale", label: "Locale", value: "en" })}
-            <button type="submit">Create</button>
-          </form>`)}`,
+          <div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem;">
+            ${card(html`<form method="post" action="/admin/templates/new" class="stack">
+              ${field({ name: "key", label: "Key", required: true, help: "One of the known template keys, or a custom key for a one-off variable set." })}
+              ${field({ name: "subject", label: "Subject" })}
+              ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 10, required: true })}
+              ${field({ name: "locale", label: "Locale", value: "en" })}
+              <button type="submit">Create</button>
+            </form>`)}
+            <div class="reference-panel">
+              ${renderTemplateListReference()}
+            </div>
+          </div>`,
       ),
     );
   });
@@ -678,24 +696,31 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: str(t.key), active: "templates", width: "narrow" },
-        html`${pageHead(str(t.key), `Declared variables: ${templateVariableChoices(str(t.key)).join(", ")}`)}
-          ${canWrite
-            ? card(html`<form method="post" action="/admin/templates/${params.id}" class="stack">
-                ${field({ name: "subject", label: "Subject", value: strOrNull(t.subject) })}
-                ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 10, required: true, value: str(t.body_markdown) })}
-                ${field({ name: "is_active", label: "Active", type: "checkbox", value: bool(t.is_active) })}
-                <button type="submit">Save</button>
-              </form>`)
-            : raw("")}
-          ${card(
-              html`<form method="get" action="/admin/templates/${params.id}" class="inline-grid">
-                ${field({ name: "preview_person_id", label: "Preview as", type: "select", options: people.map((p) => ({ value: str(p.id), label: `${str(p.display_name) || str(p.full_name)} <${str(p.email)}>` })) })}
-                <button type="submit">Preview</button>
-              </form>`,
-              "Preview against a real recipient",
-            )}
-          ${preview}`,
+        { title: str(t.key), active: "templates", width: "wide" },
+        html`${pageHead(str(t.key))}
+          <div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem; align-items: start;">
+            <div>
+              ${canWrite
+                ? card(html`<form method="post" action="/admin/templates/${params.id}" class="stack">
+                    ${field({ name: "subject", label: "Subject", value: strOrNull(t.subject) })}
+                    ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 10, required: true, value: str(t.body_markdown) })}
+                    ${field({ name: "is_active", label: "Active", type: "checkbox", value: bool(t.is_active) })}
+                    <button type="submit">Save</button>
+                  </form>`)
+                : raw("")}
+              ${card(
+                  html`<form method="get" action="/admin/templates/${params.id}" class="inline-grid">
+                    ${field({ name: "preview_person_id", label: "Preview as", type: "select", options: people.map((p) => ({ value: str(p.id), label: `${str(p.display_name) || str(p.full_name)} <${str(p.email)}>` })) })}
+                    <button type="submit">Preview</button>
+                  </form>`,
+                  "Preview against a real recipient",
+                )}
+              ${preview}
+            </div>
+            <div class="reference-panel">
+              ${renderTemplateVariableReference(str(t.key))}
+            </div>
+          </div>`,
       ),
     );
   });
