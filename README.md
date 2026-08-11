@@ -24,7 +24,14 @@ contracts.
 
 ## Status
 
-**Implementation in progress, against a settled model.**
+**Built and running.** Every bounded context in the model is implemented end to end —
+domain rules, repository layer, HTTP surface and UI — with 411 tests, a clean model↔code
+drift check, and a seeded conference you can sign into in one command.
+
+What that covers, beyond the six capabilities above: sponsor sessions as first-class
+citizens with countable entitlements, an event roster, content approval and revision
+history, assisted placement, campaigns and an auditable outbox, bulk import and export, and
+a cross-event speaker directory.
 
 The domain model is the specification, and code implements it. Read it first:
 
@@ -40,8 +47,14 @@ with the corrections that building it surfaced. The shape the code took is descr
 
 ```bash
 npm install
-npm run dev          # resets local D1, applies migrations, seeds, starts on :8787
+npm run dev          # resets local D1, applies migrations, seeds, starts on :8787,
+                     # and publishes the seeded schedule so the public pages have content
 ```
+
+`npm run dev:lan` binds `0.0.0.0` to test from another machine, setting `PUBLIC_BASE_URL`
+to the LAN address so that invitation links and portal URLs in rendered messages point
+somewhere the other machine can actually reach. `node scripts/dev.mjs --no-reset` keeps
+whatever you have already entered.
 
 The seed ships one live event mid-flight — DevFlow Conf 2027, with proposals in every state,
 a review round with real scores, accepted sessions with onboarding under way, and a placed
@@ -67,14 +80,22 @@ the shipped seed, because a deployment nobody can sign into is worse than the ma
 | Organizer admin | `/admin` |
 | Embed | `/embed/dfc27-main-sessions` |
 
+One caveat while it is running: `npm run db:seed`, `npm run db:reset` and
+`wrangler d1 execute --local` write the same SQLite file the dev server holds open. Stop the
+server before running them, or just restart it — `npm run dev` reseeds anyway.
+
 ```bash
-npm test                  # unit + integration
+npm test                  # 411 tests: unit + integration
 npm run test:unit         # pure domain, no I/O
 npm run test:integration  # real local D1, KV, R2, Queues and Durable Objects
 npm run typecheck
-npm run drift             # model↔code consistency check
+npm run drift             # model↔code consistency check; non-zero exit on a defect
 node scripts/smoke.mjs    # walk every screen as each persona
 ```
+
+The integration suite applies every migration from scratch and then exercises the real
+bindings: idempotency replay, reaction idempotence on redelivery, PII redaction with and
+without `pii:read`, and the Durable Object serialising concurrent placement writes.
 
 ## Built on Cloudflare
 
@@ -96,5 +117,5 @@ everywhere.
 
 ## Brand
 
-Logos, the web icon set and the usage rules live in [`brand/`](brand/README.md). The contents
-of [`brand/web/`](brand/web) drop straight into a web app's public root once there is one.
+Logos, the web icon set and the usage rules live in [`brand/`](brand/README.md); the contents
+of [`brand/web/`](brand/web) are served from [`public/`](public).

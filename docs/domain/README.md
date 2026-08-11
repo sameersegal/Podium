@@ -106,11 +106,17 @@ The rules those checks encode:
 
 ## Status
 
-For review. No code has been merged yet.
+**Implemented.** Every context here is built, and the checks that keep the two sides honest
+run in one command: `npm run drift` reports 0 errors and 0 warnings, every invariant is
+cited by the code or the migration that enforces it, and the ones with behaviour are named
+in a test title.
 
-The model has been through one round of trial implementation, which is what the entity
-anchors and the corrections in
-[`13-open-questions.md`](13-open-questions.md#corrections-found-while-implementing) came
-from — building it surfaced five places where the model contradicted itself. Open decisions
-are collected in the same file rather than being resolved silently in the body of the
-model.
+Building it is also what improved this directory. The entity anchors and the corrections in
+[`13-open-questions.md`](13-open-questions.md#corrections-found-while-implementing) came out
+of a first trial implementation, which surfaced five places where the model contradicted
+itself; the real build added two more — C6 and C7 — and filled in seven `enum(...)`
+placeholders and three missing authorization rows. That is the loop working as intended: a
+model nobody has implemented is a model whose gaps nobody has found yet.
+
+Open decisions are collected in the same file rather than being resolved silently in the
+body of the model. There are none outstanding.

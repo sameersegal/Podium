@@ -104,6 +104,13 @@ targeting a `dynamic` segment resolves it at send time, which is the behaviour a
 > deferred is understood — and because real usage during the run-up to a *second* event is
 > what will say whether this needs a kanban board or just a `ContactSegment` plus
 > `next_action_at` on the roster.
+>
+> **Shipped ahead of that plan.** The board, cards, stages and transition history are built.
+> That is scope moving, not drift: everything below was already specified, so there was
+> nothing to invent. R28's reasoning still stands and its test is unchanged — if the run-up
+> to the second event shows the board is ceremony around what a segment plus a
+> `next_action_at` would do, remove the board and keep the directory and segments, which are
+> the parts whose value was never in question.
 
 Between "we should ask her" and "she has accepted" there is a conversation that takes
 weeks, involves several people, and currently lives in a shared document. A proposal record

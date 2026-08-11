@@ -73,24 +73,53 @@ building, `domain-drift` checks the model against what was actually built afterw
 
 ## Current state
 
-Domain model in review; no application code exists yet. Do not scaffold an implementation
-unless asked.
+**The product is built.** Every bounded context in `docs/domain/` is implemented end to end
+— domain rules, repository layer, HTTP surface and UI — and runs on Cloudflare. The layout,
+the unit of work, the URL map and where each cross-cutting rule is enforced are in
+[`docs/implementation.md`](docs/implementation.md); read that before adding code, so a rule
+that already has one home does not get a second one.
+
+```bash
+npm run dev        # reset, migrate, seed, serve on :8787, publish the seeded schedule
+npm test           # unit + integration against real local D1, KV, R2, Queues and DOs
+npm run typecheck
+npm run drift      # model↔code consistency; exits non-zero on a defect
+node scripts/smoke.mjs   # walk every screen as each persona
+```
+
+Keep these green. They are the contract, not a formality:
+
+- `npm run drift` reports **0 errors, 0 warnings**. A new `enum(...)` left unspelled or an
+  event promised but uncatalogued will break it, which is the point.
+- Every invariant is cited in the code or the migration that enforces it, and the ones with
+  behaviour are named in a test title.
+- `tests/unit/shared/unit-of-work.test.ts` fails the build if a mutating handler opens an
+  `AppContext` and never flushes it — the silent failure it catches is a write that lands
+  while every reaction that should have followed it never runs.
 
 **Nothing is open.** All twenty-nine questions in
 [`13-open-questions.md`](docs/domain/13-open-questions.md) are decided and recorded as
 R1–R29; read the rationale there before reopening any of it.
 
-The decisions that most shape generated code:
+The decisions that most shape the code, and how each one landed:
 
 - **R16 — D1, behind a repository layer**, with Postgres via Hyperdrive as a documented
-  escape hatch. No D1-specific SQL in the domain layer.
+  escape hatch. No D1-specific SQL above `packages/data/src/db.ts`.
 - **R13 — `Proposal` and `Session` stay separate**, and are presented to users as one
   session record.
 - **R23 — password login** off in production config, on in the default seed and wherever no
-  `email` integration is active.
-- **R28 — the sourcing pipeline is not in v1.** The speaker directory and segments in
-  [`14`](docs/domain/14-speaker-crm.md) are; the kanban board follows the first event.
-- **R24 — AI first-pass review ships behind an org setting, default off.**
+  `email` integration is active. The seed ships four personas with passwords for exactly
+  this reason.
+- **R24 — AI first-pass review ships behind an org setting, default off.** Built, off.
+- **R28 — the sourcing pipeline is not in v1.** Built anyway, ahead of that plan: the model
+  specifies it completely, so shipping it early is scope, not drift. Recorded under the R28
+  blockquote in [`14`](docs/domain/14-speaker-crm.md). If it should come back out, the
+  directory and segments stay and only the board goes.
+
+Corrections the build surfaced are recorded as C1–C7 in
+[`13-open-questions.md`](docs/domain/13-open-questions.md). C7 is the shape to copy when
+you hit another: an invariant required a state transition the diagram never drew, so the
+diagram gained the arrows rather than the invariant losing its teeth.
 
 [`15-conformance-map.md`](docs/domain/15-conformance-map.md) traces an external functional
 rubric onto the model; it is non-normative and nothing should cite it as a requirement.
