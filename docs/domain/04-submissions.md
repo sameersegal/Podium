@@ -85,10 +85,43 @@ before?". [INV-02-7](02-event-configuration.md) keeps the two in step.
 | `form_field_id` | `ref(FormField)` | Y | the exact field version answered |
 | `value` | `json` | Y | shape determined by field type; scalar, array, or `{asset_ids:[]}` |
 | `answered_at` | `timestamptz` | Y | |
+| `display` | `string?` | D | `value` resolved to what a reader sees; `null` when unanswered |
 
 Answers for fields that later become invisible (condition flipped) are **retained, not
 deleted**, and excluded from validation and from committee views. A submitter who toggles
 "I need travel support" off and on again should not have to retype the details.
+
+### An answer's value is not what a reader sees
+
+`value` is what `FormField.type` stores, and for four types that is an id rather than
+anything a person typed: `track_picker` and `format_picker` hold a `Track` / `SessionFormat`
+id, `speaker_list` holds `Person` ids, and `file` holds `{asset_ids:[…]}`. `single_select`
+and `multi_select` store an option's `value`, not its `label`, and `consent` stores a bool.
+Any surface that renders `value` to a person — the reviewer scorecard, the committee detail
+view, the submitter's own read view — shows a raw id, an option key, or `true`/`false`
+instead of a name.
+
+`display` is that answer resolved for a reader: a track's name, a format's name, the
+credited speakers' names joined by comma, an attached file's name (or a bare count where the
+name itself is withheld — see below), an option's label, "Yes"/"No" for a boolean. It is
+derived, not stored, because the labels it resolves against — a track's name, a person's
+display name — belong to those entities and move independently of the answer that references
+them. A reference that no longer resolves (a hard-deleted track, a person a reader may not
+see) renders as "(no longer available)", never as the id — an id is not a fallback a reader
+can act on, and showing one is the leak this rule exists to close.
+
+Under `double_blind` (05, "Fairness rules made explicit"), the `speaker_list` answer is
+dropped from what a reviewer's projection returns — it names the people the round exists to
+hide, and the roster is what `Proposal.speakers` already represents to a blind reviewer as
+"absent", so it would just be naming them a second way. A `file` answer's `display` falls
+back to a count with no filenames under `double_blind`, for the same reason a redacted
+answer isn't shown with a placeholder: `jane-doe-cv.pdf` identifies as surely as the name
+would. Every other reference-valued answer (track, format, option labels) resolves normally
+under any anonymity, because a track or a format names the *proposal*, not a person.
+`reviewableContentHash` still hashes `value`, never `display` — a track being renamed is not
+a change to the proposal, and (per INV-05-8, below) a co-speaker joining the roster under a
+blind round is not a change to what that round's reviewer scored either, since the roster was
+never part of what they saw.
 
 ## ProposalSpeaker
 

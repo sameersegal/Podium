@@ -20,7 +20,8 @@ import {
   type FormStepSpec,
 } from "@podiumconf/domain/event-config/types.js";
 import type { FieldError } from "@podiumconf/domain/shared/errors.js";
-import type { AnswerMap } from "@podiumconf/domain/submissions/answers.js";
+import { answerDisplay } from "@podiumconf/domain/submissions/answer-display.js";
+import { isBlank, type AnswerMap } from "@podiumconf/domain/submissions/answers.js";
 import { nextAction, type EditAffordance, type NextAction } from "@podiumconf/domain/submissions/types.js";
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
@@ -313,25 +314,22 @@ function speakerRosterBlock(
 /* Answer summary (review step)                                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The draft has not been saved as answers a reader would query, so this resolves
+ * pickers against the CFP's own options rather than through `referenceLabels` —
+ * same `answerDisplay` rule either way, so the review step and the read view
+ * cannot drift apart. Assets are not looked up here: mid-wizard, "2 files" is
+ * what the submitter needs to know, and `fileControl` says the same thing.
+ */
 function describeAnswer(f: FormFieldSpec, value: unknown, tracks: CfpTrackView[], formats: CfpFormatView[]): SafeHtml {
-  if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
-    return html`<span class="muted">Not answered</span>`;
-  }
-  if (f.type === "markdown") return markdown(String(value));
-  if (f.type === "checkbox" || f.type === "consent") return html`${value ? "Yes" : "No"}`;
+  if (f.type === "markdown" && !isBlank(value)) return markdown(String(value));
   const options = resolvedOptions(f, tracks, formats);
-  const labelOf = (v: unknown) => options.find((o) => o.value === String(v))?.label ?? String(v);
-  if (f.type === "multi_select" && Array.isArray(value)) return html`${value.map(labelOf).join(", ")}`;
-  if ((f.type === "single_select" || f.type === "track_picker" || f.type === "format_picker") && options.length) {
-    return html`${labelOf(value)}`;
-  }
-  if (f.type === "file") {
-    const ids = value && typeof value === "object" && Array.isArray((value as { asset_ids?: unknown }).asset_ids)
-      ? ((value as { asset_ids: unknown[] }).asset_ids as unknown[])
-      : [];
-    return html`${ids.length} file${ids.length === 1 ? "" : "s"}`;
-  }
-  return html`${String(value)}`;
+  const display = answerDisplay(
+    { type: f.type, options },
+    value,
+    Object.fromEntries(options.map((o) => [o.value, o.label])),
+  );
+  return display === null ? html`<span class="muted">Not answered</span>` : html`${display}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -533,7 +531,12 @@ export function proposalReadView(detail: ProposalDetail, next: NextAction, canEd
       <h3>${answers[0]?.step_title}</h3>
       ${table(
         ["Field", "Answer"],
-        answers.map((a) => html`<tr><td>${a.label}</td><td>${a.type === "markdown" ? markdown(String(a.value ?? "")) : Array.isArray(a.value) ? a.value.join(", ") : String(a.value ?? html`<span class="muted">Not answered</span>`)}</td></tr>`),
+        answers.map(
+          (a) => html`<tr>
+            <td>${a.label}</td>
+            <td>${a.type === "markdown" ? markdown(String(a.value ?? "")) : (a.display ?? html`<span class="muted">Not answered</span>`)}</td>
+          </tr>`,
+        ),
         "",
       )}
     </div>`,

@@ -144,7 +144,9 @@ function proposalBody(p: ReviewableProjection): SafeHtml {
       ${p.coi_disclosure ? html`<dt>Disclosed conflicts</dt><dd>${p.coi_disclosure}</dd>` : raw("")}
     </dl>
     ${p.answers.length
-      ? html`<dl class="kv">${p.answers.map((a) => html`<dt>${a.label}</dt><dd>${typeof a.value === "string" ? a.value : JSON.stringify(a.value)}</dd>`)}</dl>`
+      ? html`<dl class="kv">
+          ${p.answers.map((a) => html`<dt>${a.label}</dt><dd>${a.display ?? html`<span class="muted">Not answered</span>`}</dd>`)}
+        </dl>`
       : raw("")}
     ${p.speakers.length
       ? html`<h3>Speakers</h3>
