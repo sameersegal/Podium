@@ -10,7 +10,7 @@ import {
 import { redactRecord, stripNeverPublic, NEVER_PUBLIC_PROFILE_FIELDS } from "@podiumconf/domain/shared/pii.js";
 import { EVENT_TYPES, eventTypeMatches, isKnownEventType } from "@podiumconf/domain/events/catalogue.js";
 import { buildEvent, SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { contentHash, hashPassword, hashToken, verifyPassword, newToken } from "@podiumconf/domain/identity/credentials.js";
+import { beyondCpuBudget, contentHash, hashPassword, hashToken, needsRehash, verifyPassword, newToken } from "@podiumconf/domain/identity/credentials.js";
 
 describe("time (11-cross-cutting.md, Time)", () => {
   it("INV-02-1: renders an instant in the event timezone, not the viewer's", () => {
@@ -111,6 +111,28 @@ describe("credentials (INV-01-12, INV-01-7, INV-09-1)", () => {
 
   it("salts, so two identical passwords do not produce the same hash", () => {
     expect(hashPassword("same")).not.toBe(hashPassword("same"));
+  });
+
+  it("stays inside the 10 ms CPU an invocation gets on the free plan", () => {
+    // The regression this guards is a 503, not a slow page: a hash that costs
+    // more CPU than the plan allows takes the isolate down mid-sign-in. The
+    // bound is generous because CI is not the Worker; anything near it means
+    // the parameters have drifted back up, which is the thing to catch.
+    const start = performance.now();
+    verifyPassword("correct horse battery staple", hashPassword("correct horse battery staple"));
+    expect(performance.now() - start).toBeLessThan(20);
+  });
+
+  it("refuses a hash too costly to verify rather than blowing the CPU budget", () => {
+    // What the pre-existing production hashes look like: m=12 MiB, t=3.
+    const legacy = "$argon2id$v=19$m=12288,t=3,p=1$c2FsdHNhbHRzYWx0c2E=$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGE=";
+    expect(beyondCpuBudget(legacy)).toBe(true);
+    expect(beyondCpuBudget(hashPassword("current"))).toBe(false);
+  });
+
+  it("re-hashes a credential written with other parameters on next sign-in", () => {
+    expect(needsRehash("$argon2id$v=19$m=512,t=2,p=1$c2FsdHNhbHRzYWx0c2E=$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGE=")).toBe(true);
+    expect(needsRehash(hashPassword("current"))).toBe(false);
   });
 
   it("INV-01-7 / INV-09-1: tokens are stored hashed and the raw value is unrecoverable", () => {
