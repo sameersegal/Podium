@@ -8,3 +8,7 @@ dist/
 
 # Generated from wrangler.jsonc by `wrangler types`; regenerate rather than review
 worker-configuration.d.ts
+
+# Generated from wrangler.jsonc by scripts/deploy-config.mjs. Holds account-scoped
+# resource ids, so it is deliberately not shared with people who clone this repo.
+wrangler.production.jsonc

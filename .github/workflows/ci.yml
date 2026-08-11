@@ -1,0 +1,110 @@
+name: CI
+
+# Pull requests get the checks. Pushes to main get the checks and, only if they
+# all pass, a deploy to podiumstack.com.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, tests, model drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: npm ci
+
+      # worker-configuration.d.ts is generated, not committed (.gitignore), so
+      # a fresh checkout has no Env type and `tsc` fails without this. Reads
+      # wrangler.jsonc only — no Cloudflare credentials involved.
+      - name: Generate binding types
+        run: npx wrangler types
+
+      - run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      # @cloudflare/vitest-pool-workers runs workerd locally against real
+      # bindings; still no account credentials needed.
+      - name: Integration tests
+        run: npm run test:integration
+
+      # CLAUDE.md: the domain model is the specification, and a change that
+      # lands in code without landing in docs/domain/ is an incomplete commit.
+      # `--check` exits non-zero on drift, which is the point of running it here.
+      - name: Domain model drift
+        run: npm run drift
+
+  deploy:
+    name: Deploy to podiumstack.com
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    # Gate approvals, and the production secrets, on a GitHub Environment.
+    environment:
+      name: production
+      url: https://podiumstack.com
+
+    # Never two deploys at once: migrations and `wrangler deploy` are not safe
+    # to interleave. Not cancel-in-progress — a half-applied migration set is
+    # worse than a queued deploy.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PODIUM_HOSTNAME: ${{ vars.PODIUM_HOSTNAME }}
+      CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
+      CF_KV_CACHE_ID: ${{ secrets.CF_KV_CACHE_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # Migrations before the Worker: `migrations/` is append-only, so the new
+      # schema is always compatible with the currently-deployed code, while the
+      # reverse order leaves new code reading columns that do not exist yet.
+      - name: Apply D1 migrations
+        run: npm run deploy:migrate
+
+      - name: Deploy Worker
+        run: npm run deploy
+
+      # Fail the run if the deploy produced a site that does not answer. /login
+      # rather than / because it renders without an event or a session.
+      - name: Smoke check
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 \
+            --retry-all-errors --max-time 30 "https://${PODIUM_HOSTNAME}/login")
+          echo "GET /login -> $code"
+          test "$code" = "200"
