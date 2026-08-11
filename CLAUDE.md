@@ -115,11 +115,18 @@ The decisions that most shape the code, and how each one landed:
   specifies it completely, so shipping it early is scope, not drift. Recorded under the R28
   blockquote in [`14`](docs/domain/14-speaker-crm.md). If it should come back out, the
   directory and segments stay and only the board goes.
-- **R30 — server-rendered applicant side, client-rendered admin console.** Decided, not yet
-  built. Public, embeds, `/portal` and `/review` stay server-rendered and must survive
-  blocked scripts; `/admin` moves to a SPA over `/v1`. The one blocker is that `scheduling`
-  has no `/v1` surface, so placement endpoints go into [`09`](docs/domain/09-api-and-integrations.md)
-  before any of the console work starts.
+- **R30 — server-rendered applicant side, client-rendered admin console.** Under way. The
+  blocker is closed: `scheduling` now has a `/v1` surface, specified in
+  [`09`](docs/domain/09-api-and-integrations.md) under "Scheduling on the management
+  surface". The console is built and lives in `public/console/` — ES modules, no build step
+  — and owns two screens so far, `/admin/events/:eventId` and `/admin/cfps/:cfpId/form`. It
+  shares URLs with the screens it replaces and declines any request it does not own, so the
+  rest of `/admin` is still server-rendered and still works; `?nojs=1` reaches the
+  server-rendered version of a ported screen. See "The admin console" in
+  [`docs/implementation.md`](docs/implementation.md) before adding a screen — in particular
+  the two properties (`SameSite=Lax` + JSON as the CSRF defence, permissions recomputed per
+  request) the console now relies on. Public, embeds, `/portal` and `/review` stay
+  server-rendered and must survive blocked scripts.
 
 Corrections the build surfaced are recorded as C1–C8 in
 [`13-open-questions.md`](docs/domain/13-open-questions.md). C7 is the shape to copy when
