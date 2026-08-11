@@ -243,6 +243,74 @@ export interface TicketingPlugin extends PluginBase {
 }
 
 /* -------------------------------------------------------------------------- */
+/* sync — the two-way table mirror (09, "Two-way sync"; R31)                   */
+/* -------------------------------------------------------------------------- */
+
+export interface SyncFieldDescriptor {
+  external_field: string;
+  label: string;
+  /** The provider's own type name, shown when mapping. Opaque to the core. */
+  type: string;
+  /** A formula, rollup or autonumber. Offerable as a pull target, never a push one. */
+  read_only?: boolean;
+}
+
+export interface SyncTable {
+  external_table_id: string;
+  name: string;
+  fields: SyncFieldDescriptor[];
+}
+
+export interface SyncRecordInput {
+  /** Null creates; a value updates. The core owns the mapping, never the provider. */
+  external_id: string | null;
+  fields: Record<string, unknown>;
+}
+
+export interface SyncUpsertResult {
+  external_id: string;
+  error?: string | null;
+}
+
+export interface SyncChange {
+  external_id: string;
+  fields: Record<string, unknown>;
+  deleted?: boolean;
+}
+
+export interface SyncChangePage {
+  changes: SyncChange[];
+  /** Opaque; handed back on the next call. Null means "start from the beginning". */
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+/**
+ * A table-shaped, two-way mirror. Six methods, and none of them know what a
+ * proposal is — every rule that matters is core (09).
+ *
+ * Two shapes here are deliberate. `list_changes` takes a cursor so a provider
+ * with a real change feed can use it, but a provider without one may return
+ * every record: the core hash-compares regardless, because it has to for echo
+ * suppression (INV-09-19). And `handle_inbound_webhook` returns *which tables to
+ * go and read* rather than the changed data, because spreadsheet tools send a
+ * ping, and an out-of-order payload would be worse than a prompt to re-read.
+ */
+export interface SyncPlugin extends PluginBase {
+  capability: "sync";
+  /** Records per `upsert_records` call the provider will accept. Airtable: 10. */
+  batch_limit: number;
+  list_tables(ctx: PluginContext): Promise<SyncTable[]>;
+  describe_table(external_table_id: string, ctx: PluginContext): Promise<SyncTable>;
+  upsert_records(external_table_id: string, records: SyncRecordInput[], ctx: PluginContext): Promise<SyncUpsertResult[]>;
+  list_changes(external_table_id: string, cursor: string | null, ctx: PluginContext): Promise<SyncChangePage>;
+  /** Erasure propagation (INV-09-22). Must tolerate an id that is already gone. */
+  delete_records(external_table_id: string, external_ids: string[], ctx: PluginContext): Promise<void>;
+  /** Null `external_table_ids` means "something changed, re-read everything". */
+  handle_inbound_webhook?(payload: unknown, ctx: PluginContext): Promise<{ external_table_ids: string[] | null }>;
+}
+
+/* -------------------------------------------------------------------------- */
 /* analytics — the AI evaluator seam (05, R24)                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -281,7 +349,8 @@ export type AnyPlugin =
   | StoragePlugin
   | IdentityPlugin
   | TicketingPlugin
-  | AnalyticsPlugin;
+  | AnalyticsPlugin
+  | SyncPlugin;
 
 /** Maps a capability to the plugin interface implementing it. */
 export interface PluginByCapability {
@@ -293,6 +362,7 @@ export interface PluginByCapability {
   identity: IdentityPlugin;
   ticketing: TicketingPlugin;
   analytics: AnalyticsPlugin;
+  sync: SyncPlugin;
   sms: never;
   video: never;
 }

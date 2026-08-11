@@ -13,6 +13,9 @@ import { API_SCOPES, type ApiScope } from "@podiumconf/domain/shared/authorizati
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumconf/domain/platform/types.js";
 import type { AudienceCriteria } from "@podiumconf/domain/platform/types.js";
+import { writableFields } from "@podiumconf/domain/platform/sync.js";
+import { activeMappings } from "./sync.js";
+import { schedulePull } from "./sync-delivery.js";
 import {
   applyDeliveryStatusUpdates,
   inboundWebhookUrl,
@@ -1313,13 +1316,38 @@ function registerInboundWebhookRoutes(router: Router<RequestContext>): void {
     // INV-09-11: a disabled integration stops accepting callbacks immediately.
     const resolved = await resolvePluginForIntegration(app, integration);
     if (!resolved) return json({ error: "integration_unavailable" }, { status: 409 });
-    if (resolved.plugin.capability !== "email") return json({ error: "capability_has_no_inbound" }, { status: 400 });
+
+    // Dispatched on the installed integration's capability, not on the shape of
+    // the payload: two providers can post the same JSON and mean different
+    // things, and the URL already names the one installation this concerns.
+    const capability = resolved.plugin.capability;
+    if (capability !== "email" && capability !== "sync") {
+      return json({ error: "capability_has_no_inbound" }, { status: 400 });
+    }
 
     let payload: unknown;
     try {
       payload = await req.json();
     } catch {
       return json({ error: "invalid_payload" }, { status: 400 });
+    }
+
+    if (capability === "sync") {
+      // A ping, not a payload (09). Airtable's automation webhook carries no
+      // signature we could verify uniformly and no ordering guarantee, so the
+      // only safe reading of it is "something changed, go and look" — and the
+      // cron sweep runs regardless, so a ping that never arrives costs latency
+      // rather than correctness.
+      const hint = (await resolved.plugin.handle_inbound_webhook?.(payload, resolved.ctx)) ?? { external_table_ids: null };
+      const wanted = hint.external_table_ids;
+      let scheduled = 0;
+      for (const mapping of await activeMappings(app, params.id)) {
+        if (wanted && !wanted.includes(str(mapping.external_table_id))) continue;
+        if (writableFields(str(mapping.subject)).length === 0) continue; // push-only (INV-09-23)
+        await schedulePull(ctx.env, app.orgId, str(mapping.id), "inbound");
+        scheduled++;
+      }
+      return json({ received: scheduled });
     }
 
     const updates = await resolved.plugin.handle_inbound_webhook(payload, resolved.ctx);

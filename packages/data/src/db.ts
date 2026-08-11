@@ -72,6 +72,9 @@ const ORG_SCOPED_TABLES = new Set([
   "domain_event_record",
   "event_participant",
   "speaker_profile",
+  "sync_mapping",
+  "external_record_link",
+  "sync_run",
 ]);
 
 /**
@@ -110,6 +113,7 @@ const VERSIONED_TABLES = new Set([
   "sponsor",
   "sponsorship",
   "submission_form",
+  "sync_mapping",
   "task_definition",
   "task_instance",
   "webhook",

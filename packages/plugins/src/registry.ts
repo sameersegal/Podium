@@ -13,6 +13,7 @@ import { chatSlackPlugin } from "./chat/slack.js";
 import { storageR2Plugin } from "./storage/r2.js";
 import { ticketingStubPlugin } from "./ticketing/stub.js";
 import { analyticsLocalEvaluatorPlugin } from "./analytics/local-evaluator.js";
+import { syncAirtablePlugin } from "./sync/airtable.js";
 
 export const PLUGINS: readonly AnyPlugin[] = [
   emailLogPlugin,
@@ -22,6 +23,7 @@ export const PLUGINS: readonly AnyPlugin[] = [
   storageR2Plugin,
   ticketingStubPlugin,
   analyticsLocalEvaluatorPlugin,
+  syncAirtablePlugin,
 ];
 
 const BY_KEY = new Map(PLUGINS.map((p) => [p.key, p]));
@@ -49,5 +51,5 @@ export const FALLBACK_PLUGINS: Partial<Record<Capability, string>> = {
 };
 
 export * from "./contracts.js";
-export { emailLogPlugin, emailResendPlugin, emailSendgridPlugin, chatSlackPlugin, storageR2Plugin, ticketingStubPlugin, analyticsLocalEvaluatorPlugin };
+export { emailLogPlugin, emailResendPlugin, emailSendgridPlugin, chatSlackPlugin, storageR2Plugin, ticketingStubPlugin, analyticsLocalEvaluatorPlugin, syncAirtablePlugin };
 export { signStorageUrl, verifyStorageUrl } from "./storage/r2.js";

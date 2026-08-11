@@ -80,6 +80,7 @@ log can be queried by actor or subject without unpacking JSON.
 | `person.created` | person | `person_id, full_name, email, source` | yes |
 | `person.merged` | person | `surviving_person_id, merged_person_id, merged_by` | yes |
 | `person.merge_candidate_detected` | person | `person_id, candidate_person_id, signals[], confidence` | yes |
+| `person.updated` | person | `person_id, changed_fields[], edited_by_person_id` — names only, never values | |
 | `person.deactivated` | person | `person_id, reason` | |
 | `person_note.added` | person | `note_id, person_id, event_id, author_person_id` — **body never included** (INV-01-14) | |
 | `speaker_profile.updated` | person | `person_id, changed_fields[], edited_by_person_id, edited_by_role` | |
@@ -322,7 +323,7 @@ Every row here is a real subscriber in a `contexts/<context>/reactions.ts`, regi
 | `schedule.changed` | Notify the speakers whose time or room actually moved | Notifications |
 | `asset.uploaded` | Scan the asset; complete the file-request task once scanned clean | Cross-cutting, Onboarding |
 | `entitlement.expiring_soon` | Nudge the sponsor contact | Notifications |
-| `proposal.*`, `session.*`, `person.*`, `speaker_profile.*`, `event_participant.*`, `sponsor*.*`, `entitlement.*`, `placement.*`, `prospect.*` | Mark the linked external record dirty, for the next debounced push | Platform |
+| `proposal.*`, `session.*`, `session_speaker.*`, `person.*`, `speaker_profile.*`, `event_participant.*`, `sponsor.*`, `sponsorship.*`, `entitlement.*`, `placement.*`, `decision.*`, `prospect.*` | Mark the linked external record dirty, for the next debounced push | Platform |
 | `person.deactivated` | Delete the person's external records on every mapping (INV-09-22) | Platform |
 | `*` | Fan out to every matching webhook | Platform |
 

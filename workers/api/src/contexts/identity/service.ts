@@ -1593,8 +1593,68 @@ export async function personRecord(ctx: AppContext, personId: string): Promise<P
 }
 
 /** Org-level labels that persist across events (01, `Person.tags`). */
+/** The directory fields staff may correct. `email` is absent deliberately — see below. */
+export const PERSON_EDITABLE_FIELDS = ["full_name", "display_name", "pronouns", "timezone", "locale"] as const;
+
+/**
+ * Correct a person's directory record.
+ *
+ * `email` is not here. It is unique per org (INV-01-1) and is what
+ * authentication resolves against, so changing it is an identity operation with
+ * its own path, not a field edit.
+ *
+ * Emits `person.updated` carrying **field names only**. A payload quoting the
+ * new value would put a name and a timezone into the webhook fan-out, where a
+ * different consumer's redaction rules apply (INV-11-4) — the same reason
+ * `speaker_profile.updated` has always carried `changed_fields[]` and nothing else.
+ */
+export async function updatePersonDetails(
+  ctx: AppContext,
+  personId: string,
+  patch: Record<string, unknown>,
+): Promise<string[]> {
+  const person = await getPerson(ctx, personId);
+  const update: Row = {};
+  const changed: string[] = [];
+
+  for (const f of PERSON_EDITABLE_FIELDS) {
+    if (!(f in patch)) continue;
+    const next = patch[f] === "" || patch[f] === undefined ? null : patch[f];
+    if (String(next ?? "") === String(person[f] ?? "")) continue;
+    update[f] = next;
+    changed.push(f);
+  }
+
+  if ("tags" in patch) {
+    const raw = patch.tags;
+    const list = Array.isArray(raw) ? raw : String(raw ?? "").split(",");
+    const clean = [...new Set(list.map((t) => String(t).trim().toLowerCase()).filter(Boolean))];
+    if (JSON.stringify(clean) !== JSON.stringify(parseJson<string[]>(person.tags, []))) {
+      update.tags = JSON.stringify(clean);
+      changed.push("tags");
+    }
+  }
+
+  if (changed.length === 0) return [];
+
+  update.updated_at = ctx.now();
+  await ctx.db.update("person", personId, update);
+
+  ctx.events.emit({
+    type: "person.updated",
+    subject: { type: "person", id: personId },
+    data: { person_id: personId, changed_fields: changed, edited_by_person_id: ctx.actor.id ?? null },
+  });
+  ctx.audit.record({
+    action: "person.update",
+    entity_type: "person",
+    entity_id: personId,
+    before: Object.fromEntries(changed.map((f) => [f, person[f] ?? null])),
+    after: Object.fromEntries(changed.map((f) => [f, update[f] ?? null])),
+  });
+  return changed;
+}
+
 export async function setPersonTags(ctx: AppContext, personId: string, tags: string[]): Promise<void> {
-  const clean = [...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
-  await ctx.db.update("person", personId, { tags: JSON.stringify(clean), updated_at: ctx.now() });
-  ctx.audit.record({ action: "person.tags_set", entity_type: "person", entity_id: personId, after: { tags: clean } });
+  await updatePersonDetails(ctx, personId, { tags });
 }

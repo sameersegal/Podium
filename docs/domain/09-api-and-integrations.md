@@ -226,15 +226,15 @@ declares three sets — what may be pushed, what may be accepted back, and which
 PII — and a mapping that names anything outside them is refused at save time (INV-09-17),
 while the field is still on the organizer's screen.
 
-Four subjects are **push-only, permanently** (INV-09-23), and the reasons are worth stating
-because each one is a real incident somewhere:
+Three subjects are **push-only, permanently**, and one is not a subject at all (INV-09-23).
+The reasons are worth stating, because each is a real incident somewhere:
 
-| Push-only | Why it can never be writable |
+| | Why |
 |---|---|
-| `Decision` | Publishing a decision emails every speaker (INV-05-10). A dropdown in a spreadsheet must not be able to send four hundred rejections at 2am. |
-| `Review` | Review data is *absent*, not redacted, for anyone credited on the proposal (INV-11-7). A grid cannot hold a value it must not display. |
-| `Entitlement` | `consumed_count` and `remaining` are derived from the proposals pointing at the entitlement ([`03`](03-sponsorship.md)). There is nothing to write. |
-| `Placement` | Placement writes serialise through one writer per event ([`08`](08-scheduling-and-publication.md)) precisely because concurrent edits produce conflicts no retry untangles. A spreadsheet row is the opposite of that discipline. |
+| `Decision` — push-only | Publishing a decision emails every speaker (INV-05-10). A dropdown in a spreadsheet must not be able to send four hundred rejections at 2am. `feedback_for_speaker` and `rationale` are not pushed either: one is a letter to a person and the other is the committee's private reasoning. |
+| `Entitlement` — push-only | `consumed_count` and `remaining` are derived from the proposals pointing at the entitlement ([`03`](03-sponsorship.md)). There is nothing to write. |
+| `Placement` — push-only | Placement writes serialise through one writer per event ([`08`](08-scheduling-and-publication.md)) precisely because concurrent edits produce conflicts no retry untangles. A spreadsheet row is the opposite of that discipline. |
+| `Review` — **not a subject** | Push-only would not be safe enough. Review data is *absent*, not redacted, for anyone credited on the proposal (INV-11-7), and reviewer identity is hidden unless the round is `open` — properties a spreadsheet cannot carry, since it has one visibility for everyone who opens it. A proposal's `status` and its `Decision` already say where it got to, which is what the grid is actually for. |
 
 The general form of the rule is simpler than the list: **sync what a human types, never what
 the system computes or what fires.** Derived fields are unwritable everywhere (INV-11-6), and
@@ -266,7 +266,7 @@ system hearing its own echo, and is dropped without a write, an event, or a run 
 | `org_id` | `ref(Organization)` | Y | |
 | `integration_id` | `ref(Integration)` | Y | must hold the `sync` capability |
 | `event_id` | `ref(Event)` | N | required for an event-scoped subject, null for an org-scoped one |
-| `subject` | `enum(proposal, session, person, event_participant, sponsor, sponsorship, entitlement, placement, prospect_card)` | Y | what this table mirrors |
+| `subject` | `enum(proposal, session, person, speaker_profile, event_participant, sponsor, sponsorship, entitlement, placement, decision, prospect_card)` | Y | what this table mirrors. `Review` is deliberately absent — see INV-09-23 |
 | `external_table_id` | `string` | Y | opaque to the core; an Airtable table id |
 | `external_table_name` | `string` | Y | for display, refreshed on health check |
 | `field_map` | `json` | Y | `[{field, external_field, direction}]`, validated against the subject's declared sets (INV-09-17) |
@@ -582,10 +582,12 @@ model depends on these choices.
 - **INV-09-22** Deactivating or erasing a `Person` deletes every external record linked to it
   on every mapping, active or not, before its links are dropped. A sync target is not a place
   personal data outlives its erasure.
-- **INV-09-23** `Decision`, `Review`, `Entitlement` and `Placement` are push-only: their
-  writable field set is empty and no mapping can configure otherwise. Each either notifies
-  people, is absent rather than redacted for some readers, is derived, or serialises through
-  a single writer — and a spreadsheet row satisfies none of those.
+- **INV-09-23** `Decision`, `Entitlement` and `Placement` are push-only: their writable field
+  set is empty and no mapping can configure otherwise, because each one either notifies
+  people, is derived, or serialises through a single writer. `Review` is not a sync subject
+  in either direction: its visibility differs per reader (INV-11-7, and reviewer identity
+  under the round's `anonymity`), and an external table has one visibility for everyone who
+  can open it.
 
 ## Emitted events
 

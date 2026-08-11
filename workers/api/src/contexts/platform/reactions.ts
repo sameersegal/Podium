@@ -11,9 +11,13 @@ import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
 import { eventTypeMatches, liveEventTypes } from "@podiumconf/domain/events/catalogue.js";
 import { kickFromRoom, pokeRooms } from "@podiumconf/data/live.js";
+import { SYNC_DIRTY_EVENT_TYPES, SYNC_DIRTY_RULES } from "@podiumconf/domain/platform/sync.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { queueNotification } from "./notifications.js";
 import { scheduleWebhookDelivery } from "./service.js";
+import { activeMappings, markDirty } from "./sync.js";
+import { scheduleErase, schedulePush } from "./sync-delivery.js";
+import { adapterFor } from "./sync-subjects.js";
 
 function contextFor(env: Env, ev: DomainEvent): AppContext {
   return new AppContext({
@@ -234,6 +238,77 @@ export const PLATFORM_REACTIONS: Reaction[] = [
         return;
       }
       await pokeRooms(env, [ev]);
+    },
+  },
+
+  {
+    /**
+     * Mark the linked external records dirty — 09, "Two-way sync".
+     *
+     * Does no provider work: it flips links to `pending_push` and enqueues one
+     * debounced sweep per mapping, so a decision batch over four hundred
+     * proposals coalesces into a handful of API calls instead of four hundred.
+     *
+     * One fact can dirty several subjects. A speaker changing their name moves
+     * `person`, and also every grid showing `full_name` as a derived column —
+     * the sessions table, the roster, the pipeline. `SYNC_DIRTY_RULES` names
+     * those rows explicitly, because a derived column nobody refreshes is a
+     * column that quietly shows last month's value.
+     */
+    name: "platform.sync_fanout",
+    types: SYNC_DIRTY_EVENT_TYPES,
+    async handle(ev, env) {
+      const app = contextFor(env, ev);
+      const data = ev.data as Record<string, unknown>;
+      const touched = new Set<string>();
+
+      for (const rule of SYNC_DIRTY_RULES) {
+        if (!eventTypeMatches(rule.pattern, ev.type)) continue;
+
+        let ids: string[] = [];
+        if (rule.from.kind === "subject") {
+          ids = [ev.subject.id];
+        } else if (rule.from.kind === "data") {
+          const id = strOrNull(data[rule.from.key]);
+          ids = id ? [id] : [];
+        } else {
+          const adapter = adapterFor(rule.subject);
+          // A `person`-sourced rule reads the person id off the subject, which
+          // is where 10's naming rule puts it: the subject of "a profile was
+          // updated" is the person, not the profile.
+          ids = adapter.byPerson ? await adapter.byPerson(app, ev.subject.id) : [];
+        }
+
+        for (const id of ids) {
+          if (await markDirty(app, rule.subject, id, ev.event_id ?? null)) touched.add(rule.subject);
+        }
+      }
+
+      if (touched.size > 0) {
+        for (const mapping of await activeMappings(app)) {
+          if (touched.has(str(mapping.subject))) {
+            await schedulePush(env, ev.org_id, str(mapping.id), "event");
+          }
+        }
+      }
+      await app.flush();
+    },
+  },
+
+  {
+    /**
+     * INV-09-22 — erasure propagates to every mirror.
+     *
+     * Separate from the fanout above because it is the opposite operation: not
+     * "push the current value" but "this data must stop existing in a system we
+     * do not control". It runs over inactive mappings too, and the delivery
+     * handler throws if a provider refuses, so a failed erasure retries and
+     * surfaces rather than being reported as done.
+     */
+    name: "platform.sync_erasure",
+    types: ["person.deactivated"],
+    async handle(ev, env) {
+      await scheduleErase(env, ev.org_id, ev.subject.id);
     },
   },
 ];
