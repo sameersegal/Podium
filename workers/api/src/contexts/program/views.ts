@@ -789,17 +789,6 @@ export function sessionDetailView(d: DetailInput): SafeHtml {
 /* Portal — the speaker's own sessions                                        */
 /* -------------------------------------------------------------------------- */
 
-export function portalSessionListView(sessions: (Row & { reference: string })[]): SafeHtml {
-  const rows = sessions.map(
-    (s) => html`<tr>
-      <td><a href="/portal/sessions/${str(s.id)}"><strong>${str(s.title)}</strong></a><br><span class="small muted mono">${str(s.reference)}</span></td>
-      <td>${badge(str(s.status))}</td>
-      <td>${badge(str(s.my_confirmation_status ?? ""))}</td>
-    </tr>`,
-  );
-  return html`${pageHead("My sessions", "Everything you are credited on.")}${table(["Session", "Status", "Your confirmation"], rows, "You are not credited on any sessions yet.")}`;
-}
-
 export function portalSessionDetailView(input: {
   session: Row;
   myPersonId: string;

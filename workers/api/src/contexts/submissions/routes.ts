@@ -52,18 +52,17 @@ import {
   type ProposalRow,
 } from "./service.js";
 import {
-  dashboardView,
   newProposalPickerView,
   nextAction,
+  portalHomeView,
   proposalReadView,
-  proposalsListView,
   renderWizardPage,
   resolveStepKey,
   speakerRoster,
   wizardSteps,
   type StepPageData,
 } from "./wizard.js";
-import { openCallsFor, proposalDetail, proposalQueue, submitterDashboard, submittableEntitlements } from "./views.js";
+import { openCallsFor, proposalDetail, proposalQueue, sessionRecords, submitterDashboard, submittableEntitlements } from "./views.js";
 
 const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
 const WARN = (message: string) => ({ "set-cookie": flashCookie("warn", message) });
@@ -187,16 +186,20 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
     "/portal",
     portalRoute(async (_req, ctx, _params, person) => {
       const dash = await submitterDashboard(ctx.app(), person.id);
-      return htmlResponse(portalPage(ctx, { title: "My dashboard", active: "dashboard" }, dashboardView(dash)));
+      // R13 — one list of session records, not a Proposals tab and a Sessions
+      // tab holding the same talks at different points in their lives.
+      return htmlResponse(
+        portalPage(ctx, { title: "My sessions", active: "sessions" }, portalHomeView(dash, sessionRecords(dash))),
+      );
     }),
   );
 
+  // The two halves of R13's split used to be two tabs. Their URLs stay
+  // reachable — they are in the model's URL map and in sent email — and land on
+  // the one list.
   router.get(
     "/portal/proposals",
-    portalRoute(async (_req, ctx, _params, person) => {
-      const dash = await submitterDashboard(ctx.app(), person.id);
-      return htmlResponse(portalPage(ctx, { title: "My proposals", active: "proposals" }, proposalsListView(dash.proposals)));
-    }),
+    portalRoute(async () => redirect("/portal", 303)),
   );
 
   router.get(

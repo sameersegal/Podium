@@ -74,6 +74,8 @@ export interface DashboardProposal {
   /** Only ever `Decision.feedback_for_speaker`, and only once published (INV-04-11). */
   feedback_for_speaker: string | null;
   submitted_at: string | null;
+  /** Set once the proposal became a `Session` (R13). The two are one record to its owner. */
+  session_id: string | null;
 }
 
 export interface DashboardInvitation {
@@ -125,7 +127,7 @@ export async function submitterDashboard(app: AppContext, personId: string): Pro
   const [proposalRows, invitationRows, sessionRows, taskRows, profileRows, linkRows] = await Promise.all([
     app.db.raw<Row>(
       `SELECT p.id, p.reference, p.title, p.status, p.origin, p.event_id, p.cfp_id, p.form_id,
-              p.submitter_person_id, p.submitted_at, p.confirmation_deadline, p.decision_id,
+              p.submitter_person_id, p.submitted_at, p.confirmation_deadline, p.decision_id, p.session_id,
               e.name AS event_name, e.slug AS event_slug, e.timezone AS event_timezone, e.status AS event_status,
               c.name AS cfp_name, c.opens_at, c.closes_at, c.closed_early_at, c.published_at,
               c.grace_period_minutes, c.late_submission_policy, c.allow_edit_after_submit, c.withdraw_allowed_until,
@@ -241,6 +243,7 @@ export async function submitterDashboard(app: AppContext, personId: string): Pro
       is_submitter: str(r.submitter_person_id) === personId,
       feedback_for_speaker: decisionPublished ? strOrNull(r.feedback_for_speaker) : null,
       submitted_at: strOrNull(r.submitted_at),
+      session_id: strOrNull(r.session_id),
     });
   }
 
@@ -314,6 +317,147 @@ function profileCompletenessOf(profile: Row | null, linkCount: number): number {
     linkCount > 0,
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+/* -------------------------------------------------------------------------- */
+/* One record, as its owner sees it                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * R13: `Proposal` and `Session` stay separate in the model **and are presented
+ * to users as one session record**. The split earns its keep — the organizer
+ * edits a session's title after acceptance while the review record stays frozen
+ * against what was actually reviewed — but R13 is explicit that it "must not
+ * leak into the UI as two rows a user has to reconcile", which is exactly what
+ * the portal was doing: a Proposals tab and a Sessions tab, the same talk in
+ * both, and no way to tell from either which half was current.
+ *
+ * This is the join that closes that. One row per talk, carrying whichever
+ * halves exist, with one status spanning the whole arc from a half-finished
+ * draft to a slot with a room number on it.
+ */
+export interface SessionRecord {
+  key: string;
+  title: string;
+  reference: string;
+  event_name: string;
+  event_timezone: string;
+  /** Where the talk actually is, across both halves of the split. */
+  stage: string;
+  tone: "ok" | "warn" | "err" | "info" | "";
+  /** Where "open this" goes: the wizard for a draft, the session once there is one. */
+  href: string;
+  proposal: DashboardProposal | null;
+  session: DashboardSession | null;
+  /** This talk's outstanding tasks, so a speaker does not read a second list to find them. */
+  tasks: DashboardTask[];
+  next_action: NextAction | null;
+  starts_at: string | null;
+  room_name: string | null;
+  percent_complete: number | null;
+}
+
+const PROPOSAL_STAGE: Record<string, { label: string; tone: SessionRecord["tone"] }> = {
+  draft: { label: "Draft", tone: "" },
+  submitted: { label: "Submitted", tone: "info" },
+  in_review: { label: "In review", tone: "info" },
+  changes_requested: { label: "Changes requested", tone: "warn" },
+  accepted: { label: "Accepted", tone: "ok" },
+  waitlisted: { label: "Waitlisted", tone: "warn" },
+  rejected: { label: "Not accepted", tone: "" },
+  withdrawn: { label: "Withdrawn", tone: "" },
+  expired: { label: "Expired", tone: "" },
+};
+
+const SESSION_STAGE: Record<string, { label: string; tone: SessionRecord["tone"] }> = {
+  pending_confirmation: { label: "Awaiting your confirmation", tone: "warn" },
+  confirmed: { label: "Confirmed", tone: "ok" },
+  scheduled: { label: "Scheduled", tone: "ok" },
+  published: { label: "On the public schedule", tone: "ok" },
+  delivered: { label: "Delivered", tone: "" },
+  cancelled: { label: "Cancelled", tone: "err" },
+};
+
+/**
+ * Merge the two halves into one list.
+ *
+ * A talk can exist as a proposal alone (not yet decided), as both (accepted),
+ * or as a session alone — an invited speaker or a sponsor session that never
+ * went through a call has no proposal, and dropping those would hide the talks
+ * whose owners are least likely to know where else to look.
+ */
+export function sessionRecords(dash: SubmitterDashboard): SessionRecord[] {
+  const sessionsById = new Map(dash.sessions.map((s) => [s.id, s]));
+  const tasksBySession = new Map<string, DashboardTask[]>();
+  for (const t of dash.tasks) {
+    if (!t.session_id) continue;
+    tasksBySession.set(t.session_id, [...(tasksBySession.get(t.session_id) ?? []), t]);
+  }
+
+  const records: SessionRecord[] = [];
+  const claimed = new Set<string>();
+
+  for (const p of dash.proposals) {
+    const session = p.session_id ? (sessionsById.get(p.session_id) ?? null) : null;
+    if (session) claimed.add(session.id);
+    records.push(recordOf(p, session, session ? (tasksBySession.get(session.id) ?? []) : []));
+  }
+
+  for (const s of dash.sessions) {
+    if (claimed.has(s.id)) continue;
+    records.push(recordOf(null, s, tasksBySession.get(s.id) ?? []));
+  }
+
+  // Anything asking something of the speaker first, then the rest newest-first.
+  const weight = (r: SessionRecord) => (r.tone === "err" ? 0 : r.tone === "warn" ? 1 : r.tone === "ok" ? 2 : 3);
+  return records.sort((a, b) => weight(a) - weight(b) || a.title.localeCompare(b.title));
+}
+
+function recordOf(p: DashboardProposal | null, s: DashboardSession | null, tasks: DashboardTask[]): SessionRecord {
+  // The session's status wins where there is one: it is the later half of the
+  // arc, and a proposal frozen at `accepted` says less than "confirmed, Room B".
+  // The one exception is a speaker who has not answered yet — that is a
+  // question being asked of them and outranks everything else on the row.
+  const stage = s
+    ? s.confirmation_status === "pending" && s.status === "pending_confirmation"
+      ? SESSION_STAGE.pending_confirmation
+      : (SESSION_STAGE[s.status] ?? { label: humaniseStatus(s.status), tone: "" as const })
+    : p
+      ? (PROPOSAL_STAGE[p.status] ?? { label: humaniseStatus(p.status), tone: "" as const })
+      : { label: "Unknown", tone: "" as const };
+
+  const overdue = tasks.some((t) => t.overdue);
+  const blocking = tasks.some((t) => t.is_blocking);
+  const tone: SessionRecord["tone"] = overdue ? "err" : blocking && stage.tone !== "err" ? "warn" : stage.tone;
+
+  return {
+    key: p ? p.id : s!.id,
+    title: (p?.title || s?.title) ?? "Untitled",
+    reference: (p?.reference || s?.reference) ?? "",
+    event_name: (p?.event_name || s?.event_name) ?? "",
+    event_timezone: (p?.event_timezone || s?.event_timezone) ?? "UTC",
+    stage: stage.label,
+    tone,
+    // A draft opens where it was left; anything with a session opens on the
+    // session, which is the half that is current once one exists.
+    href: s ? `/portal/sessions/${s.id}` : `/portal/proposals/${p!.id}`,
+    proposal: p,
+    session: s,
+    tasks,
+    // The proposal's next action is computed from `Proposal.status`, which
+    // freezes at `accepted` — so a talk that is confirmed and on the schedule
+    // was still being told to confirm by a date that has passed. Once the
+    // session half has moved on, it is the half with something to say.
+    next_action: s && s.status !== "pending_confirmation" ? null : (p?.next_action ?? null),
+    starts_at: s?.starts_at ?? null,
+    room_name: s?.room_name ?? null,
+    percent_complete: p?.percent_complete ?? null,
+  };
+}
+
+function humaniseStatus(value: string): string {
+  const s = value.replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /* -------------------------------------------------------------------------- */

@@ -52,7 +52,6 @@ import {
   loadBoard,
   newSessionFormView,
   portalSessionDetailView,
-  portalSessionListView,
   programBoardView,
   sessionDetailView,
 } from "./views.js";
@@ -399,17 +398,12 @@ function registerSessionDetailRoutes(router: Router<RequestContext>): void {
 /* -------------------------------------------------------------------------- */
 
 function registerPortalRoutes(router: Router<RequestContext>): void {
+  // R13 — a speaker's proposals and sessions are one list, at `/portal`. This
+  // URL is in the model's URL map and in email already sent, so it lands there
+  // rather than 404ing.
   router.get("/portal/sessions", async (_req, ctx) => {
-    const person = ctx.requirePerson();
-    const app = ctx.app();
-    const rows = await app.db.raw<Row>(
-      `SELECT s.*, ss.confirmation_status AS my_confirmation_status FROM session s
-         JOIN session_speaker ss ON ss.session_id = s.id
-        WHERE ss.person_id = ? AND ss.confirmation_status NOT IN ('withdrawn', 'replaced')
-        ORDER BY s.created_at DESC`,
-      [person.id],
-    );
-    return htmlResponse(portalPage(ctx, { title: "My sessions", active: "sessions" }, portalSessionListView(rows as (Row & { reference: string })[])));
+    ctx.requirePerson();
+    return redirect("/portal", 303);
   });
 
   router.get("/portal/sessions/:sessionId", async (_req, ctx, params) => {

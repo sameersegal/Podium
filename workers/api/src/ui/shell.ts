@@ -194,10 +194,12 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
 }
 
 export function portalPage(ctx: RequestContext, opts: { title: string; width?: "narrow" | "default" | "wide"; active?: string }, body: SafeHtml): SafeHtml {
+  // One tab for the reader's talks, not three. R13 keeps `Proposal` and
+  // `Session` separate in the model and presents them as one record; a
+  // Dashboard that summarised both plus a Proposals tab and a Sessions tab
+  // holding the same talks was the leak R13 says must not happen.
   const nav: NavItem[] = [
-    { href: "/portal", label: "Dashboard", current: opts.active === "dashboard" },
-    { href: "/portal/proposals", label: "Proposals", current: opts.active === "proposals" },
-    { href: "/portal/sessions", label: "Sessions", current: opts.active === "sessions" },
+    { href: "/portal", label: "My sessions", current: opts.active === "sessions" || opts.active === "proposals" || opts.active === "dashboard" },
     { href: "/portal/tasks", label: "Tasks", current: opts.active === "tasks" },
   ];
   // The reviewer surface is part of the portal, not a separate mode: without a

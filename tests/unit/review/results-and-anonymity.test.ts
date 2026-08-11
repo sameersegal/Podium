@@ -250,6 +250,8 @@ function scorecardHtml(
     aggregate: null,
     comments: [],
     discussionEnabled: false,
+    position: null,
+    now: "2027-01-01T00:00:00.000Z",
   });
   return String(view);
 }

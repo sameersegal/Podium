@@ -699,6 +699,59 @@ td > .badge + .badge, .badge + .badge { margin-left: var(--sp-1); }
 .urgency-warn { color: var(--warn); font-weight: 600; }
 .urgency-err { color: var(--err); font-weight: 600; }
 
+/* One talk in the speaker portal — R13's session record, which spans a
+   `Proposal`, the `Session` it became, and that session's outstanding tasks.
+   A card rather than a table row: five columns cannot hold "where it is, what
+   it is waiting on, when and where it runs, and what is still owed", and a
+   table that wraps them is a table nobody reads on a phone. */
+.record-head { display: flex; align-items: flex-start; gap: var(--sp-3); flex-wrap: wrap; }
+.record-head .grow { flex: 1; min-width: 12rem; }
+.record-head h3 { margin: 0 0 var(--sp-1); font-size: var(--fs-lg); }
+.record-head p { margin: 0; }
+.record-head > .badge { flex: none; }
+.record-tasks { list-style: none; margin: var(--sp-3) 0 0; padding: 0; border-top: 1px solid var(--line-2); }
+.record-tasks > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.record-tasks > li:last-child { border-bottom: 0; }
+.record-tasks > li > a { flex: 1; min-width: 10rem; }
+
+/* ---------- the reviewer's surface ---------- */
+
+/* "4 of 17", with the way back and the way on. A reviewer working a round is
+   doing one thing seventeen times, and every screen looked identical whether it
+   was the first or the last. */
+.review-queuebar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  font-size: var(--fs-md);
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--line);
+}
+.review-queuebar .spacer { flex: 1; }
+
+/* An overdue assignment is coloured on its own card, not only counted in the
+   round's progress line — "3 overdue" never said which three. */
+.card.review-overdue { border-color: var(--err-line); background: var(--err-soft); }
+
+/* Reading and scoring, side by side once there is room for both. Stacked, every
+   criterion cost a scroll up to the abstract and a scroll back. */
+.review-split { display: grid; gap: var(--sp-4); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 64rem) {
+  .review-split { grid-template-columns: minmax(0, 1fr) minmax(22rem, 26rem); }
+  /* Sticky rather than fixed, so a long rubric still scrolls; `max-height`
+     makes it its own scroller instead of running off the bottom. */
+  .review-scoring { position: sticky; top: var(--sp-3); max-height: calc(100vh - var(--sp-5)); overflow-y: auto; }
+}
+
 .muted { color: var(--muted); }
 .small { font-size: var(--fs-sm); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }

@@ -20,6 +20,7 @@ import {
   type FormStepSpec,
 } from "@podiumconf/domain/event-config/types.js";
 import type { FieldError } from "@podiumconf/domain/shared/errors.js";
+import { formatInZone } from "@podiumconf/domain/shared/time.js";
 import { answerDisplay } from "@podiumconf/domain/submissions/answer-display.js";
 import { isBlank, type AnswerMap } from "@podiumconf/domain/submissions/answers.js";
 import { nextAction, type EditAffordance, type NextAction } from "@podiumconf/domain/submissions/types.js";
@@ -28,7 +29,13 @@ import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import { visibleSteps, editAffordance, allFields } from "./service.js";
-import type { ProposalDetail, DashboardInvitation, DashboardSession, DashboardTask, SubmitterDashboard } from "./views.js";
+import type {
+  ProposalDetail,
+  DashboardInvitation,
+  DashboardTask,
+  SessionRecord,
+  SubmitterDashboard,
+} from "./views.js";
 import type { CfpWindow } from "./service.js";
 
 /* -------------------------------------------------------------------------- */
@@ -436,73 +443,146 @@ function reviewSummary(data: StepPageData): SafeHtml {
 /* Dashboard                                                                  */
 /* -------------------------------------------------------------------------- */
 
-export function dashboardView(dash: SubmitterDashboard): SafeHtml {
-  const proposalRows = dash.proposals.map(
-    (p) => html`<tr>
-      <td><a href="/portal/proposals/${p.id}"><strong>${p.title}</strong></a><br><span class="mono small muted">${p.reference}</span></td>
-      <td>${p.event_name}</td>
-      <td>${badge(p.status)}</td>
-      <td class="${urgencyClass(p.next_action.urgency)}">${p.next_action.label}</td>
-      <td class="right">${p.edit.editable ? html`<a class="btn secondary small" href="/portal/proposals/${p.id}">Continue</a>` : raw("")}</td>
-    </tr>`,
-  );
+/**
+ * `/portal` — one list of the reader's talks.
+ *
+ * It replaced a dashboard that summarised four other screens plus a Proposals
+ * tab and a Sessions tab holding the same talks at different points in their
+ * lives. R13 is explicit that the `Proposal`/`Session` split "must not leak
+ * into the UI as two rows a user has to reconcile", and two tabs was worse than
+ * two rows: the same talk appeared in both, and neither said which half was
+ * current.
+ *
+ * So: one row per talk, one status covering the whole arc, and each row
+ * carrying its own outstanding tasks rather than sending the reader to a task
+ * list to work out which talk they belong to.
+ */
+export function portalHomeView(dash: SubmitterDashboard, records: SessionRecord[]): SafeHtml {
+  const loose = dash.tasks.filter((t) => !t.session_id);
+  const needsYou = records.filter((r) => r.tone === "err" || r.tone === "warn").length;
 
-  const invitationRows = dash.invitations.map(
-    (i: DashboardInvitation) => html`<tr>
-      <td><strong>${i.title}</strong><br><span class="small muted">${i.event_name}</span></td>
-      <td>${badge(i.speaker_role)}</td>
-      <td class="right">
-        <form method="post" action="/portal/proposals/${i.proposal_id}/invitation/accept" class="inline-form">
-          <button type="submit" class="small">Accept</button>
-        </form>
-        <form method="post" action="/portal/proposals/${i.proposal_id}/invitation/decline" class="inline-form">
-          <button type="submit" class="small secondary">Decline</button>
-        </form>
-      </td>
-    </tr>`,
-  );
-
-  const sessionRows = dash.sessions.map(
-    (s: DashboardSession) => html`<tr>
-      <td><a href="/portal/sessions/${s.id}"><strong>${s.title}</strong></a><br><span class="mono small muted">${s.reference}</span></td>
-      <td>${s.event_name}</td>
-      <td>${badge(s.status)}</td>
-      <td>${s.starts_at ? `${s.starts_at} ${s.room_name ? `· ${s.room_name}` : ""}` : html`<span class="muted">Not scheduled yet</span>`}</td>
-    </tr>`,
-  );
-
-  const taskRows = dash.tasks.map(
-    (t: DashboardTask) => html`<tr>
-      <td>${t.title}</td>
-      <td>${t.event_name}</td>
-      <td class="${t.overdue ? "urgency-err" : ""}">${t.due_at ?? html`<span class="muted">No deadline</span>`}${t.overdue ? " (overdue)" : ""}</td>
-      <td>${badge(t.status)}</td>
-    </tr>`,
-  );
-
-  const overdue = dash.tasks.filter((t) => t.overdue).length;
-  // A zero state that only states the absence is a dead end. Where there is a
-  // next step it says so and links to it.
-  const noProposals = html`<p class="empty">You have not started a proposal yet.<br><a class="btn" href="/">Find an open call</a></p>`;
-
-  return html`${pageHead("My dashboard", "Everything you have outstanding across every event.")}
-    <div class="stats">
-      ${stat("proposals", dash.proposals.length, "/portal/proposals")}
-      ${stat("sessions", dash.sessions.length, "/portal/sessions")}
-      ${stat("open tasks", dash.tasks.length, "/portal/tasks")}
-      ${stat("overdue", overdue, "/portal/tasks")}
-      ${stat("profile complete", `${dash.profile.completeness}%`, "/portal/profile")}
-    </div>
-    ${proposalRows.length ? card(table(["Proposal", "Event", "Status", "Next action", ""], proposalRows), "My proposals") : card(noProposals, "My proposals")}
-    ${dash.invitations.length ? card(table(["Proposal", "Role", ""], invitationRows, ""), "Speaking invitations") : raw("")}
-    ${card(table(["Session", "Event", "Status", "When"], sessionRows, "Nothing confirmed yet."), "My sessions")}
-    ${card(table(["Task", "Event", "Due", "Status"], taskRows, "No open tasks."), "My tasks")}
+  return html`${pageHead(
+      "My sessions",
+      "Every talk you have submitted or are speaking at, from first draft to the schedule.",
+      html`<a class="btn" href="/portal/proposals/new">Start a proposal</a>`,
+    )}
+    ${dash.invitations.length ? invitationsCard(dash.invitations) : raw("")}
+    ${needsYou > 0
+      ? html`<p class="notice warn">${needsYou === 1 ? "One session needs something from you." : `${needsYou} sessions need something from you.`}</p>`
+      : raw("")}
+    ${records.length
+      ? joinHtml(records.map(recordCard))
+      : card(
+          html`<p class="empty">
+            You have not started a proposal yet.<br /><a class="btn" href="/">Find an open call</a>
+          </p>`,
+        )}
+    ${loose.length ? card(table(["Task", "Event", "Due", "Status"], loose.map(taskRow), ""), "Other tasks") : raw("")}
     ${card(
       html`<div class="progress-row">${progressBar(dash.profile.completeness)}<span class="small muted">${dash.profile.completeness}% complete</span></div>
-        <p class="small muted">${dash.profile.is_listed ? "Listed in the speaker directory." : "Not listed publicly."}</p>
+        <p class="small muted">
+          ${dash.profile.is_listed ? "Listed in the speaker directory." : "Not listed publicly."}
+        </p>
         <p class="actions"><a class="btn secondary" href="/portal/profile">Edit my profile</a></p>`,
-      "Profile",
+      "My speaker profile",
     )}`;
+}
+
+/**
+ * One talk, as a card rather than a table row: the things a speaker needs from
+ * it — where it is, what it is waiting on, when and where it runs, what is
+ * still owed — do not fit in five columns, and a table that wraps them is a
+ * table nobody reads on a phone.
+ */
+function recordCard(r: SessionRecord): SafeHtml {
+  // Rendered in the event's zone, never the reader's browser: a speaker in
+  // Berlin reading "09:00" about a San Francisco conference is the one time
+  // display error that makes someone miss their own talk (11, "Time").
+  const when =
+    r.starts_at !== null
+      ? html`<p class="meta">
+          ${formatInZone(r.starts_at, r.event_timezone)}${r.room_name ? ` · ${r.room_name}` : ""}
+          <span class="mono small muted"> ${r.event_timezone}</span>
+        </p>`
+      : raw("");
+  const draftProgress =
+    r.percent_complete !== null && r.proposal?.status === "draft"
+      ? html`<div class="progress-row">${progressBar(r.percent_complete)}<span class="small muted">${r.percent_complete}% complete</span></div>`
+      : raw("");
+
+  return card(
+    html`<div class="record-head">
+        <div class="grow">
+          <h3><a href="${r.href}">${r.title}</a></h3>
+          <p class="small muted">
+            <span class="mono">${r.reference}</span> · ${r.event_name}
+          </p>
+        </div>
+        <span class="badge ${r.tone}">${r.stage}</span>
+      </div>
+      ${when}
+      ${draftProgress}
+      ${r.next_action && r.next_action.label
+        ? html`<p class="${urgencyClass(r.next_action.urgency)}">${r.next_action.label}</p>`
+        : raw("")}
+      ${r.tasks.length
+        ? html`<ul class="record-tasks">
+            ${joinHtml(
+              r.tasks.map(
+                (t) => html`<li class="${t.overdue ? "urgency-err" : ""}">
+                  <a href="/portal/tasks/${t.id}">${t.title}</a>
+                  ${t.is_blocking ? html`<span class="badge warn">blocking</span>` : raw("")}
+                  <span class="small muted"
+                    >${t.due_at ? `due ${formatInZone(t.due_at, r.event_timezone)}` : "no deadline"}${t.overdue ? " · overdue" : ""}</span
+                  >
+                </li>`,
+              ),
+            )}
+          </ul>`
+        : raw("")}
+      <p class="actions">
+        <a class="btn secondary small" href="${r.href}">Open</a>
+        ${r.proposal && r.proposal.edit.editable
+          ? html`<a class="btn secondary small" href="/portal/proposals/${r.proposal.id}">Continue editing</a>`
+          : raw("")}
+        ${r.session && r.proposal ? html`<a class="btn secondary small" href="/portal/proposals/${r.proposal.id}">What was reviewed</a>` : raw("")}
+      </p>`,
+  );
+}
+
+function invitationsCard(invitations: DashboardInvitation[]): SafeHtml {
+  return card(
+    table(
+      ["Proposal", "Role", ""],
+      invitations.map(
+        (i) => html`<tr>
+          <td><strong>${i.title}</strong><br /><span class="small muted">${i.event_name}</span></td>
+          <td>${badge(i.speaker_role)}</td>
+          <td class="right">
+            <form method="post" action="/portal/proposals/${i.proposal_id}/invitation/accept" class="inline-form">
+              <button type="submit" class="small">Accept</button>
+            </form>
+            <form method="post" action="/portal/proposals/${i.proposal_id}/invitation/decline" class="inline-form">
+              <button type="submit" class="small secondary">Decline</button>
+            </form>
+          </td>
+        </tr>`,
+      ),
+      "",
+    ),
+    "Speaking invitations",
+  );
+}
+
+function taskRow(t: DashboardTask): SafeHtml {
+  return html`<tr>
+    <td><a href="/portal/tasks/${t.id}">${t.title}</a></td>
+    <td>${t.event_name}</td>
+    <td class="${t.overdue ? "urgency-err" : ""}">
+      ${t.due_at ? formatInZone(t.due_at, "UTC") : html`<span class="muted">No deadline</span>`}${t.overdue ? " (overdue)" : ""}
+    </td>
+    <td>${badge(t.status)}</td>
+  </tr>`;
 }
 
 function urgencyClass(u: NextAction["urgency"]): string {
@@ -512,19 +592,6 @@ function urgencyClass(u: NextAction["urgency"]): string {
 /* -------------------------------------------------------------------------- */
 /* Proposal list + read view                                                  */
 /* -------------------------------------------------------------------------- */
-
-export function proposalsListView(proposals: SubmitterDashboard["proposals"]): SafeHtml {
-  const rows = proposals.map(
-    (p) => html`<tr>
-      <td><a href="/portal/proposals/${p.id}"><strong>${p.title}</strong></a><br><span class="mono small muted">${p.reference}</span></td>
-      <td>${p.event_name}</td>
-      <td>${badge(p.status)}</td>
-      <td class="${urgencyClass(p.next_action.urgency)}">${p.next_action.label}</td>
-    </tr>`,
-  );
-  return html`${pageHead("My proposals", "Every proposal you submitted or are credited on, across every event.", html`<a class="btn" href="/portal/proposals/new">Start a proposal</a>`)}
-    ${table(["Proposal", "Event", "Status", "Next action"], rows, "You have not started a proposal yet.")}`;
-}
 
 export function proposalReadView(detail: ProposalDetail, next: NextAction, canEdit: boolean): SafeHtml {
   const p = detail.proposal;

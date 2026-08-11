@@ -191,8 +191,8 @@ export function pageHead(title: string, lede?: string | null, actions?: SafeHtml
   </div>`;
 }
 
-export function card(body: SafeHtml, title?: string): SafeHtml {
-  return html`<section class="card">${title ? html`<h2>${title}</h2>` : raw("")}${body}</section>`;
+export function card(body: SafeHtml, title?: string, opts: { className?: string } = {}): SafeHtml {
+  return html`<section class="card ${opts.className ?? ""}">${title ? html`<h2>${title}</h2>` : raw("")}${body}</section>`;
 }
 
 /**

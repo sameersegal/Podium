@@ -39,7 +39,7 @@ import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect, text } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, type SafeHtml } from "../../ui/html.js";
-import { pageHead } from "../../ui/layout.js";
+import { humanise, pageHead } from "../../ui/layout.js";
 import { adminPage, loadEvent, portalPage, type EventRef } from "../../ui/shell.js";
 import { personDisplayName } from "../identity/service.js";
 import {
@@ -356,15 +356,42 @@ export function registerReviewRoutes(router: Router<RequestContext>): void {
 /* Reviewer surface — /review                                                 */
 /* ========================================================================== */
 
+/**
+ * The reviewer's outstanding assignments, in the order the queue shows them.
+ *
+ * It exists so the scorecard can say "3 of 17" and offer the next one. A
+ * reviewer working through a round was being returned to `/review` after every
+ * submission and left to find their place again — which is the difference
+ * between reviewing seventeen proposals and reviewing four and giving up.
+ */
+async function outstandingQueue(app: AppContext, personId: string): Promise<string[]> {
+  const rows = await app.db.raw<Row>(
+    `SELECT id FROM review_assignment
+      WHERE reviewer_person_id = ? AND status IN ('assigned','accepted','in_progress')
+      ORDER BY (due_at IS NULL), due_at, assigned_at`,
+    [personId],
+  );
+  return rows.map((r) => str(r.id));
+}
+
 function registerReviewerRoutes(router: Router<RequestContext>): void {
   router.get("/review", async (_req, ctx) => {
     const person = ctx.requirePerson();
     const app = ctx.app();
+    // Track, format and duration come along so the queue can say what each
+    // proposal *is*. None of the three is blinded under any anonymity setting
+    // — R10 hides speaker names, co-speaker names and employers, not the shape
+    // of the talk — so joining them here is safe for every round at once.
     const assignmentRows = await app.db.raw<Row>(
-      `SELECT ra.*, rr.name AS round_name, p.reference AS proposal_reference, p.title AS proposal_title
+      `SELECT ra.*, rr.name AS round_name,
+              p.reference AS proposal_reference, p.title AS proposal_title,
+              p.requested_duration_minutes, p.audience_level,
+              t.name AS track_name, f.name AS format_name
          FROM review_assignment ra
          JOIN review_round rr ON rr.id = ra.round_id
          LEFT JOIN proposal p ON p.id = ra.proposal_id
+         LEFT JOIN track t ON t.id = COALESCE(p.assigned_track_id, p.track_id)
+         LEFT JOIN session_format f ON f.id = p.session_format_id
         WHERE ra.reviewer_person_id = ?
         ORDER BY (ra.due_at IS NULL), ra.due_at, ra.assigned_at`,
       [person.id],
@@ -373,12 +400,22 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
       assignment: r,
       round_name: str(r.round_name),
       proposal: r.proposal_reference ? { reference: str(r.proposal_reference), title: str(r.proposal_title) } : null,
+      meta: [
+        strOrNull(r.track_name),
+        strOrNull(r.format_name),
+        r.requested_duration_minutes ? `${num(r.requested_duration_minutes)} min` : null,
+        strOrNull(r.audience_level) ? humanise(str(r.audience_level)) : null,
+      ].filter((x): x is string => Boolean(x)),
     }));
     const roundIds = [...new Set(assignmentRows.map((r) => str(r.round_id)))];
     const progressByRound: Record<string, Awaited<ReturnType<typeof progressForReviewer>>> = {};
     for (const roundId of roundIds) progressByRound[roundId] = await progressForReviewer(app, roundId, person.id);
     return htmlResponse(
-      portalPage(ctx, { title: "My reviews", width: "wide", active: "reviews" }, reviewerDashboardView({ rows, progressByRound })),
+      portalPage(
+        ctx,
+        { title: "My reviews", width: "wide", active: "reviews" },
+        reviewerDashboardView({ rows, progressByRound, now: ctx.now }),
+      ),
     );
   });
 
@@ -412,10 +449,16 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
     const aggregate = canSeeOthers ? await proposalScoreFor(app, round.id, str(assignment.proposal_id)) : null;
     const comments = round.discussion_enabled && canSeeOthers ? await listComments(app, str(assignment.proposal_id), false) : [];
 
+    // Where this one sits in the queue, so the scorecard can be worked through
+    // rather than returned to.
+    const queue = await outstandingQueue(app, person.id);
+    const at = queue.indexOf(params.assignmentId);
+    const position = at >= 0 ? { index: at, total: queue.length, previous: queue[at - 1] ?? null, next: queue[at + 1] ?? null } : null;
+
     return htmlResponse(
       portalPage(
         ctx,
-        { title: proposal.title, width: "wide" },
+        { title: proposal.title, width: "wide", active: "reviews" },
         reviewerAssignmentView({
           assignment,
           roundName: round.name,
@@ -429,6 +472,8 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
           aggregate,
           comments,
           discussionEnabled: round.discussion_enabled,
+          position,
+          now: ctx.now,
         }),
       ),
     );
@@ -443,9 +488,18 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
     const input = await readInput(req);
     const draft = readReviewDraft(input, criteria);
     if (input.str("intent", "save") === "submit") {
+      // The next one is chosen *before* the write, because submitting removes
+      // this assignment from the outstanding queue and the reviewer's place in
+      // it goes with it.
+      const queue = await outstandingQueue(app, person.id);
+      const at = queue.indexOf(params.assignmentId);
+      const next = at >= 0 ? (queue[at + 1] ?? null) : null;
       await submitReview(app, params.assignmentId, draft);
       await app.flush();
-      return redirect("/review", 303, OK("Review submitted. Thank you."));
+      const remaining = Math.max(0, queue.length - 1);
+      return next
+        ? redirect(`/review/${next}`, 303, OK(`Review submitted. ${remaining} left in your queue.`))
+        : redirect("/review", 303, OK("Review submitted — that was the last one in your queue. Thank you."));
     }
     await saveReviewDraft(app, params.assignmentId, draft);
     await app.flush();

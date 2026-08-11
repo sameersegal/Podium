@@ -180,4 +180,60 @@ describe("the reviewer surface (INV-05-18)", () => {
     const res = await SELF.fetch("http://localhost/review", { redirect: "manual" });
     expect(res.status).toBe(401);
   });
+
+  /**
+   * A round is one job done N times, and the surface used to make the reviewer
+   * find their place again after each one: submitting returned them to
+   * `/review`, where their finished work sat mixed in with what was left.
+   */
+  it("says where in the queue an assignment sits, and offers the next one", async () => {
+    const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
+    const res = await SELF.fetch(`http://localhost/review/${ASSIGNMENT_A}`, { headers: { cookie } });
+    const body = await res.text();
+    expect(body).toContain("1 of 2 outstanding");
+    expect(body).toContain(`/review/${ASSIGNMENT_B}`);
+  });
+
+  it("hands a reviewer straight to the next outstanding assignment when they submit", async () => {
+    const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
+    const res = await SELF.fetch(`http://localhost/review/${ASSIGNMENT_A}`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        intent: "submit",
+        [`score_number_${CRITERION}`]: "4",
+        comments_for_committee: "Solid, well scoped.",
+      }),
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`/review/${ASSIGNMENT_B}`);
+  });
+
+  it("returns to the queue, and says so, when that was the last one", async () => {
+    const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
+    const res = await SELF.fetch(`http://localhost/review/${ASSIGNMENT_B}`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        intent: "submit",
+        [`score_number_${CRITERION}`]: "5",
+        comments_for_committee: "Also good.",
+      }),
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/review");
+    expect(res.headers.get("set-cookie") ?? "").toContain("last%20one");
+  });
+
+  it("separates what is still owed from what is finished", async () => {
+    const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
+    const res = await SELF.fetch("http://localhost/review", { headers: { cookie } });
+    const body = await res.text();
+    // Both are submitted by now, so the queue says so rather than listing them
+    // as work.
+    expect(body).toContain("Everything assigned to you is done.");
+    expect(body).toContain("2 already submitted");
+  });
 });
