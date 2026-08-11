@@ -18,7 +18,8 @@ import {
   type EventStatus,
   type FormSpec,
 } from "@podiumconf/domain/event-config/types.js";
-import { redactRecord } from "@podiumconf/domain/shared/pii.js";
+import { REDACTED, redactRecord } from "@podiumconf/domain/shared/pii.js";
+import { answerDisplay } from "@podiumconf/domain/submissions/answer-display.js";
 import { visibleAnswers, type AnswerMap } from "@podiumconf/domain/submissions/answers.js";
 import {
   canWithdraw,
@@ -28,6 +29,7 @@ import {
   type NextAction,
 } from "@podiumconf/domain/submissions/types.js";
 import { loadFormSpec } from "../event-config/views.js";
+import { referenceLabels } from "./answer-labels.js";
 import { answersOf, contentHashOf, revisionsOf, speakersOf } from "./service.js";
 
 /* -------------------------------------------------------------------------- */
@@ -327,6 +329,8 @@ export interface AnswerView {
   audience: string;
   pii: boolean;
   value: unknown;
+  /** `ProposalAnswer.display` — what a reader sees; `null` when unanswered. */
+  display: string | null;
   visible: boolean;
 }
 
@@ -363,6 +367,13 @@ export async function proposalDetail(
   const answers = await answersOf(app, proposalId);
   const visibleKeys = new Set(visibleSteps(form, answers).flatMap((s) => s.fields.map((f) => f.key)));
 
+  // The names behind `trk_…` / `fmt_…` / `per_…` / `ast_…`, in one pass over the
+  // whole form rather than a lookup per row while rendering.
+  const labels = await referenceLabels(
+    app,
+    form.steps.flatMap((s) => s.fields.map((f) => ({ type: f.type, value: answers[f.key] }))),
+  );
+
   const answer_views: AnswerView[] = [];
   for (const step of form.steps) {
     for (const field of step.fields) {
@@ -381,6 +392,9 @@ export async function proposalDetail(
         audience: field.audience,
         pii: field.pii,
         value: redacted,
+        // A redacted value has no display of its own — resolving it would print
+        // "(no longer available)" for a value that is present and withheld.
+        display: redacted === REDACTED ? REDACTED : answerDisplay(field, redacted, labels),
         // Retained but invisible answers are excluded from committee views.
         visible: visibleKeys.has(field.key),
       });

@@ -160,7 +160,7 @@ export function proposalAdminDetailView(data: AdminDetailData): SafeHtml {
           (a) => html`<tr class="${a.visible ? "" : "muted"}">
             <td>${a.label}</td>
             <td>${a.audience === "public" ? raw("") : badge(a.audience)}${a.pii ? badge("pii", "warn") : raw("")}${a.visible ? raw("") : html` <span class="small muted">(hidden by a later answer)</span>`}</td>
-            <td>${a.type === "markdown" ? markdown(String(a.value ?? "")) : Array.isArray(a.value) ? a.value.join(", ") : String(a.value ?? "—")}</td>
+            <td>${a.type === "markdown" ? markdown(String(a.value ?? "")) : (a.display ?? "—")}</td>
           </tr>`,
         ),
         "",
