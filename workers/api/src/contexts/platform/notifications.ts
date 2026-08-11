@@ -338,7 +338,15 @@ export async function attemptSend(app: AppContext, notificationId: string): Prom
         } catch (err) {
           console.warn("quiet-hours redelay failed", { notification_id: notificationId, error: String(err) });
         }
+        // Record it, or the outbox shows a bare `queued` with no reason — the
+        // one state that reads as "we lost it" when the truth is "it goes out
+        // at breakfast". Cleared below when the send actually proceeds.
+        await app.db.update("notification_delivery", notificationId, { suppressed_reason: "quiet_hours" });
         return { status: "queued", suppressed_reason: "quiet_hours" };
+      }
+      // Past the quiet window: the deferral no longer explains anything.
+      if (str(row.suppressed_reason) === "quiet_hours") {
+        await app.db.update("notification_delivery", notificationId, { suppressed_reason: null });
       }
     }
   }

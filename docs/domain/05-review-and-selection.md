@@ -451,7 +451,11 @@ Rules stated here because "we all knew that" is not enforceable:
   against (INV-05-4).
 - Under `double_blind`, reviewers do not see speaker names, bios, affiliations, links, or
   any answer whose field is flagged `pii`, and the proposal's `content_hash` covers only the
-  fields they can see.
+  fields they can see. "Bios" is not automatic: a bio reaches a reviewer as an ordinary
+  answer on the submission form, `public` rather than `pii` because it is published beside
+  the talk. The form says which answers name their speaker —
+  [`FormField.identifies_speaker`](02-event-configuration.md) — and the blind projection
+  drops those alongside the roster.
 - Under `double_blind`, sponsor sessions are still identifiable (the sponsor is the point) —
   so sponsor sessions are excluded from blind rounds by scope rather than pretending.
 - A chair may override any aggregate, but an override on a proposal where the chair has a

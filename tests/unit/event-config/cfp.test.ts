@@ -103,6 +103,7 @@ function field(over: Partial<FormSpec["steps"][number]["fields"][number]> = {}) 
     maps_to: "none" as const,
     audience: "public" as const,
     pii: false,
+    identifies_speaker: false,
     sort_order: 0,
     ...over,
   };

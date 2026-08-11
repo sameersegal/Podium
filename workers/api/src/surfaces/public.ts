@@ -14,7 +14,7 @@
  */
 
 import { str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { derivedCfpStatus, publicCfpView, renderPublicForm } from "../contexts/event-config/views.js";
+import { derivedCfpStatus, publicCfpView, renderPublicForm, withDuration } from "../contexts/event-config/views.js";
 import { buildIcs } from "../contexts/scheduling/ics.js";
 import { embedByKey, type EmbedConfigRow } from "../contexts/scheduling/views.js";
 import { buildSnapshot, liveSnapshot, snapshotById } from "../contexts/scheduling/publication.js";
@@ -36,7 +36,7 @@ import {
   widgetXml,
   type RenderOptions,
 } from "../contexts/scheduling/widgets.js";
-import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
+import { calendarDateInZone, formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json, text } from "../http/responses.js";
 import type { Router } from "../http/router.js";
@@ -73,16 +73,6 @@ function toRef(row: Row): EventRef {
     starts_on: str(row.starts_on),
     ends_on: str(row.ends_on),
   };
-}
-
-/**
- * "Talk (30 min)", not "Talk (30 min) (30 min)". A `SessionFormat.name` is free
- * text an organizer writes, and writing the duration into it is the obvious
- * thing to do — the seeded event does it for all six formats — so the duration
- * is appended only when the name has not already said it.
- */
-function withDuration(name: string, minutes: number): string {
-  return new RegExp(`\\b${minutes}\\s*(min|minute)`, "i").test(name) ? name : `${name} (${minutes} min)`;
 }
 
 async function assetUrl(ctx: RequestContext, assetId: string | null): Promise<string | null> {
@@ -136,26 +126,17 @@ function registerLandingRoutes(router: Router<RequestContext>): void {
             : raw("")}
           ${view.form
             ? card(
-                html`<p class="muted small">The form, inspectable before you sign up.</p>
-                  ${renderPublicForm(view.form, {
-                    tracks: view.tracks.map((t, i) => ({ id: String(i), track_id: String(i), name: t.name, slug: t.slug, description: t.description, color: t.color, closes_at_override: null, max_proposals_per_person: null, is_available: true, sort_order: i })),
-                    formats: view.formats.map((f, i) => ({
-                      id: String(i),
-                      session_format_id: String(i),
-                      name: f.name,
-                      slug: f.slug,
-                      description: f.description,
-                      default_duration_minutes: f.default_duration_minutes,
-                      min_duration_minutes: f.min_duration_minutes,
-                      max_duration_minutes: f.max_duration_minutes,
-                      max_speakers: 1,
-                      closes_at_override: f.closes_at_override,
-                      max_proposals_per_person: null,
-                      is_available: true,
-                      sort_order: i,
-                    })),
-                    disabled: true,
-                  })}
+                html`<p class="muted small">
+                    The form, inspectable before you sign up — try the dropdowns; nothing here is saved until you start a
+                    submission.
+                  </p>
+                  ${
+                    // No tracks/formats passed: `publicCfpView` already resolved every
+                    // picker against the real ids, and the conditional rules are keyed to
+                    // those same ids, so re-resolving here against a synthetic list would
+                    // stop "show when format is Workshop" from ever matching.
+                    renderPublicForm(view.form, {})
+                  }
                   ${view.cfp.status === "open"
                     ? html`<a class="btn" href="/login?next=${encodeURIComponent(`/portal/proposals/new?cfp=${view.cfp.slug}`)}">Start a submission</a>`
                     : raw("")}`,
@@ -251,7 +232,13 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
     if (!snapshot) return htmlResponse(publicPage(ctx, { title: "Schedule", event: ref, width: "wide" }, noPublicationYet(ref)));
 
-    const dayId = ctx.url.searchParams.get("day") ?? snapshot.event.days[0]?.id ?? null;
+    // Opening on a published day that happens to hold nothing reads as "this
+    // conference has no schedule". The day switcher still lists every day; the
+    // default is just the first one with something on it.
+    const dayWithSessions = snapshot.event.days.find((d) =>
+      snapshot.sessions.some((s) => s.starts_at && calendarDateInZone(s.starts_at, ref.timezone) === d.date),
+    );
+    const dayId = ctx.url.searchParams.get("day") ?? dayWithSessions?.id ?? snapshot.event.days[0]?.id ?? null;
     const opts = renderOpts(ref, true);
 
     return htmlResponse(
@@ -264,7 +251,24 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
           <div class="grid two">
             <section>
               <h2>Itinerary</h2>
-              ${dayId ? renderItinerary({ ...snapshot, sessions: snapshot.sessions.filter((s) => s.starts_at?.slice(0, 10) === snapshot.event.days.find((d) => d.id === dayId)?.date) }, opts) : renderItinerary(snapshot, opts)}
+              ${
+                // The day's `date` is a calendar date in the event's timezone;
+                // `starts_at` is an instant. Comparing the two by string slice
+                // buckets an evening session onto the following day.
+                dayId
+                  ? renderItinerary(
+                      {
+                        ...snapshot,
+                        sessions: snapshot.sessions.filter(
+                          (s) =>
+                            s.starts_at &&
+                            calendarDateInZone(s.starts_at, ref.timezone) === snapshot.event.days.find((d) => d.id === dayId)?.date,
+                        ),
+                      },
+                      opts,
+                    )
+                  : renderItinerary(snapshot, opts)
+              }
             </section>
             <section>
               <h2>Grid</h2>
