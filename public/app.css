@@ -38,14 +38,23 @@ h2 { font-size: 1.3rem; margin-top: 1.5rem; }
 h3 { font-size: 1.05rem; margin-top: 1.25rem; }
 p { margin: 0 0 .75rem; }
 
-/* ---------- chrome ---------- */
+/* ---------- chrome ----------
+ * Mobile first: what is written here is the phone layout, and the one
+ * breakpoint scale — 30rem (sm) · 48rem (md) · 64rem (lg) — only adds.
+ *
+ * Navigation is why the scale exists. Six primary tabs and up to fourteen
+ * section tabs wrap to five rows on a 390 px screen: chrome ate half the
+ * viewport before the page started. Each row collapses into one <details>
+ * (see `ui/layout.ts`) and unfolds again at the breakpoint where it fits —
+ * one set of markup, not a phone copy and a desktop copy.
+ */
 .topbar {
   background: var(--navy);
   color: #fff;
-  padding: .6rem 1.25rem;
+  padding: .5rem .9rem;
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: .75rem;
   flex-wrap: wrap;
 }
 .topbar a { color: #c7d2fe; text-decoration: none; font-weight: 500; }
@@ -53,7 +62,16 @@ p { margin: 0 0 .75rem; }
 .topbar .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: #fff; font-size: 1.05rem; }
 .topbar .brand img { height: 26px; width: auto; }
 .topbar .spacer { flex: 1; }
-.topbar .who { color: #e0e7ff; font-size: .88rem; font-weight: 500; }
+/* On a phone the account chip is an icon: a name is the widest thing in the
+   bar and the least useful — you know who you are signed in as. It is hidden
+   the way `.sr-only` hides things rather than with `display: none`, so the
+   button is still announced by name, and the menu it opens leads with the name
+   anyway. `md` gives the words back, truncated rather than wrapped so the chip
+   stays a fixed landmark. */
+.topbar .who {
+  color: #e0e7ff; font-size: .88rem; font-weight: 500;
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
 
 /* The tab you are on is filled, not underlined: on a dark bar an underline is
    easy to miss and easy to mistake for a hover state. */
@@ -61,6 +79,46 @@ p { margin: 0 0 .75rem; }
 .topbar .tabs a { padding: .3rem .6rem; border-radius: 999px; }
 .topbar .tabs a:hover { background: rgba(255, 255, 255, .12); text-decoration: none; color: #fff; }
 .topbar .tabs a[aria-current="page"] { background: #fff; color: var(--navy); text-decoration: none; }
+
+/* Both dropdowns hang from the bar rather than from the button that opened
+   them (`.topbar` is their containing block), so neither can be pushed off the
+   screen by where its button happened to land: on a 360 px phone the account
+   chip wraps to the start of a second line, and a panel anchored to it opened
+   60 px past the left edge of the viewport. */
+.topbar { position: relative; }
+.navmenu > .tabs, .usermenu .menu { position: absolute; left: .9rem; right: .9rem; top: calc(100% + .35rem); z-index: 30; }
+
+/* The collapsed primary tabs. A <details>, so it needs no script; the panel
+   keeps the bar's navy ground because the current tab is a white pill, which
+   only reads against it. */
+.navmenu > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 2.75rem;
+  padding: .25rem .7rem;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 999px;
+  color: #c7d2fe;
+  font-weight: 500;
+}
+.navmenu > summary::-webkit-details-marker { display: none; }
+.navmenu > summary:hover, .navmenu[open] > summary { background: rgba(255, 255, 255, .14); color: #fff; }
+.navmenu > .tabs {
+  flex-direction: column;
+  align-items: stretch;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: .3rem;
+  background: var(--navy);
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, .35);
+}
+/* 44 px of tappable height, not 44 px of text. */
+.navmenu > .tabs a { display: flex; align-items: center; min-height: 2.75rem; padding: .25rem .7rem; border-radius: 8px; }
 
 /* "Opens in a new tab", drawn. The words are there too, for a screen reader. */
 .ext { margin-left: .3rem; opacity: .7; vertical-align: -1px; }
@@ -70,12 +128,12 @@ p { margin: 0 0 .75rem; }
 }
 
 /* Account menu — a <details>, so it opens with scripts blocked (08). */
-.usermenu { position: relative; }
+.usermenu { flex: none; }
 .usermenu > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: .35rem; padding: .25rem .6rem; border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px; }
 .usermenu > summary::-webkit-details-marker { display: none; }
 .usermenu > summary::after { content: "▾"; color: #c7d2fe; font-size: .7rem; }
 .usermenu > summary:hover, .usermenu[open] > summary { background: rgba(255, 255, 255, .14); }
-.usermenu .menu { position: absolute; right: 0; top: calc(100% + .45rem); min-width: 13rem; z-index: 30; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 12px 32px rgba(15, 23, 42, .18); padding: .3rem; }
+.usermenu .menu { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 12px 32px rgba(15, 23, 42, .18); padding: .3rem; }
 .usermenu .menu-head { margin: 0 0 .25rem; padding: .4rem .6rem; font-weight: 600; font-size: .9rem; color: var(--navy); border-bottom: 1px solid var(--line); }
 .usermenu .menu a { display: block; padding: .45rem .6rem; border-radius: 6px; color: var(--ink); font-weight: 500; }
 .usermenu .menu a:hover { background: var(--indigo-soft); color: var(--indigo-dark); text-decoration: none; }
@@ -88,28 +146,43 @@ p { margin: 0 0 .75rem; }
   align-items: center;
   gap: .6rem;
   flex-wrap: wrap;
-  padding: .5rem 1.25rem;
+  padding: .45rem .9rem;
   background: var(--indigo-soft);
   border-bottom: 1px solid #dfe3fb;
 }
 .eventbar .name { font-size: 1.05rem; font-weight: 700; color: var(--navy); text-decoration: none; }
-.eventbar .meta { color: var(--muted); font-size: .85rem; }
-.eventbar .spacer { flex: 1; }
+.eventbar .meta { color: var(--muted); font-size: .82rem; }
+/* Wrapped onto its own line, "Public page" belongs under the dates it follows,
+   not pushed to the far edge by a spacer that is only there to right-align it
+   on a bar wide enough to hold everything. */
+.eventbar .spacer { display: none; }
 .eventbar a:not(.name) { font-size: .88rem; }
 
 .subnav {
   background: #fff;
   border-bottom: 1px solid var(--line);
-  padding: .5rem 1.25rem;
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
+  padding: 0 .9rem;
   font-size: .92rem;
 }
-.subnav a { text-decoration: none; color: var(--muted); padding: .15rem 0; }
-.subnav a[aria-current="page"] { color: var(--indigo-dark); font-weight: 600; border-bottom: 2px solid var(--indigo); }
+.subnav > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 2.75rem;
+  font-weight: 600;
+  color: var(--indigo-dark);
+}
+.subnav > summary::-webkit-details-marker { display: none; }
+.subnav > summary::after { content: "▾"; color: var(--muted); font-size: .8rem; }
+/* Two-up on anything wider than a small phone: fourteen sections stacked one
+   per line is a panel taller than the screen. */
+.subnav > nav { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0 .9rem; padding-bottom: .4rem; }
+.subnav a { text-decoration: none; color: var(--muted); display: flex; align-items: center; min-height: 2.75rem; }
+.subnav a[aria-current="page"] { color: var(--indigo-dark); font-weight: 600; }
 
-main { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+main { max-width: 1180px; margin: 0 auto; padding: 1.25rem .9rem 3rem; }
 main.wide { max-width: 1500px; }
 main.narrow { max-width: 720px; }
 
@@ -117,6 +190,65 @@ main.narrow { max-width: 720px; }
 .page-head .grow { flex: 1; min-width: 240px; }
 .page-head h1 { margin-bottom: .2rem; }
 .lede { color: var(--muted); margin: 0; }
+
+/*
+ * The chrome unfolds: each menu becomes the row it used to be, from the same
+ * markup, at the width where that row stops being a wall of wrapped links.
+ * Six primary tabs need about 850 px alongside the logo and the account menu,
+ * so they come back at `md`; fourteen section tabs need about 1180 px, so they
+ * wait for `lg` and wrap to a second row until they have it.
+ *
+ * The @supports guard is the safety net. A browser without `::details-content`
+ * keeps the button at every width — a menu that opens, one tap from every
+ * destination — rather than a navigation stranded half inside a closed panel.
+ */
+@media (min-width: 48rem) {
+  .topbar { padding: .6rem 1.25rem; gap: 1.25rem; }
+  .topbar .who { position: static; width: auto; height: auto; clip: auto; max-width: 9rem; text-overflow: ellipsis; }
+  .usermenu > summary > svg { display: none; }
+  /* Room for the account menu to hang off its own chip again. */
+  .usermenu { position: relative; }
+  .usermenu .menu { left: auto; right: 0; top: calc(100% + .45rem); min-width: 13rem; }
+  .eventbar { padding: .5rem 1.25rem; }
+  .eventbar .spacer { display: block; flex: 1; }
+  .subnav { padding: 0 1.25rem; }
+  main { padding: 1.5rem 1.25rem 4rem; }
+
+  @supports selector(::details-content) {
+    .usermenu > summary { min-height: 0; }
+    /* The tabs wrap inside their own row rather than pushing the account menu
+       onto a line of its own — a bar that fits in one line at 1280 px should
+       not restructure itself at 800 px, only take a second line of tabs. */
+    .topbar { flex-wrap: nowrap; }
+    .navmenu { display: contents; }
+    .navmenu > summary { display: none; }
+    .navmenu::details-content { content-visibility: visible; display: contents; }
+    .navmenu > .tabs {
+      position: static;
+      flex-direction: row;
+      align-items: center;
+      min-width: 0;
+      max-height: none;
+      overflow: visible;
+      padding: 0;
+      background: none;
+      border: 0;
+      box-shadow: none;
+    }
+    .navmenu > .tabs a { display: inline-block; min-height: 0; padding: .3rem .6rem; border-radius: 999px; }
+  }
+}
+
+@media (min-width: 64rem) {
+  @supports selector(::details-content) {
+    .subnav { padding: .5rem 1.25rem; }
+    .subnav > summary { display: none; }
+    .subnav::details-content { content-visibility: visible; display: contents; }
+    .subnav > nav { display: flex; flex-wrap: wrap; gap: 1rem; padding-bottom: 0; }
+    .subnav a { display: inline; min-height: 0; padding: .15rem 0; }
+    .subnav a[aria-current="page"] { border-bottom: 2px solid var(--indigo); }
+  }
+}
 
 /* ---------- surfaces ---------- */
 .card {
@@ -127,15 +259,18 @@ main.narrow { max-width: 720px; }
   margin-bottom: 1rem;
 }
 .card h2:first-child, .card h3:first-child { margin-top: 0; }
+/* `min(…, 100%)` rather than a bare track minimum: on a 320 px screen a 320 px
+   minimum is wider than the column it sits in, and the whole page inherits the
+   overflow. The minimum is a preference, not a floor. */
 .grid { display: grid; gap: 1rem; }
-.grid.two { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-.grid.three { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.grid.four { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); }
+.grid.three { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+.grid.four { grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); }
 
 /* `.stat` is rendered as an <a> whenever the number links somewhere (layout.ts),
    so it needs an explicit display — an inline element with this much padding
    overlaps the line above it rather than boxing. */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr)); gap: .75rem; margin-bottom: 1rem; }
 .stat { display: block; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: .9rem 1rem; }
 .stat:hover { border-color: var(--indigo); }
 .stat .n { font-size: 1.7rem; font-weight: 700; color: var(--navy); display: block; line-height: 1.1; }
@@ -261,9 +396,18 @@ button.small, .btn.small { padding: .3rem .55rem; font-size: .84rem; }
 details.disclosure { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: .6rem .9rem; margin-bottom: .75rem; }
 details.disclosure > summary { cursor: pointer; font-weight: 600; }
 
-.kv { display: grid; grid-template-columns: minmax(140px, max-content) 1fr; gap: .3rem .9rem; font-size: .92rem; }
+/* Label over value on a phone, two columns once there is room for both. The
+   values are answers, and an answer can be an id or a URL with nowhere to
+   break: `anywhere` is what keeps one of those from widening the grid past the
+   viewport and taking the whole page sideways with it. */
+.kv { display: grid; grid-template-columns: 1fr; gap: .15rem .9rem; font-size: .92rem; }
 .kv dt { color: var(--muted); }
-.kv dd { margin: 0; }
+.kv dd { margin: 0 0 .45rem; overflow-wrap: anywhere; }
+
+@media (min-width: 48rem) {
+  .kv { grid-template-columns: minmax(140px, max-content) 1fr; gap: .3rem .9rem; }
+  .kv dd { margin: 0; }
+}
 
 .timeline { list-style: none; padding: 0; margin: 0; }
 .timeline li { border-left: 2px solid var(--line); padding: 0 0 .9rem 1rem; margin-left: .4rem; position: relative; }
