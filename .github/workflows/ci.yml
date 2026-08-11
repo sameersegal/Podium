@@ -177,11 +177,18 @@ jobs:
 
       # Fail the run if the deploy produced a site that does not answer. /login
       # rather than / because it renders without an event or a session.
+      #
+      # Following redirects rather than asserting 200 on the first response: on
+      # a deployment with no Organization yet, /login legitimately 303s to
+      # /setup (01, "First-run setup"). What this step is for is proving the
+      # Worker is up and serving, and the end of the chain is where that shows.
       - name: Smoke check
         run: |
-          code=$(curl -sS -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 \
-            --retry-all-errors --max-time 30 "https://${PODIUM_HOSTNAME}/login")
-          echo "GET /login -> $code"
+          read -r code url < <(curl -sSL -o /dev/null \
+            -w '%{http_code} %{url_effective}' --retry 5 --retry-delay 5 \
+            --retry-all-errors --max-redirs 5 --max-time 30 \
+            "https://${PODIUM_HOSTNAME}/login")
+          echo "GET /login -> $code ($url)"
           test "$code" = "200"
 
   deploy-www:
