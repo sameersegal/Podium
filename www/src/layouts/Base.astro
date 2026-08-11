@@ -1,0 +1,83 @@
+---
+import "../styles/global.css";
+import { APP_URL, GITHUB_URL, SIGN_IN_URL, SITE_DESCRIPTION, SITE_TITLE } from "../consts";
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Skip the canonical tag and ask crawlers to stay away. For the 404 page. */
+  noindex?: boolean;
+}
+
+const { title, description = SITE_DESCRIPTION, noindex = false } = Astro.props;
+const pageTitle = title ? `${title} · ${SITE_TITLE}` : `${SITE_TITLE} — open-source conference program management`;
+
+// `build.format: "file"` in astro.config.mjs means Astro.url.pathname is
+// "/index.html", not "/". Emitting that verbatim would point every canonical
+// and og:url at a URL nobody links to. Strip it back to the address the page
+// is actually served at.
+const path = Astro.url.pathname.replace(/index\.html$/, "").replace(/\.html$/, "") || "/";
+
+// Absolute, because Open Graph consumers do not resolve relative URLs. `site`
+// is set in astro.config.mjs, so Astro.site is podiumstack.com at build time.
+const canonical = new URL(path, Astro.site).href;
+const ogImage = new URL("/og-image.png", Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+
+    {/* Canonical always points at the apex. www.podiumstack.com is bound as a
+        second custom domain on the same Worker rather than redirected — a
+        `_redirects` rule cannot match on hostname — so this tag is what stops
+        the two hostnames reading as duplicate content. */}
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
+
+    {/* Icon set and markup from brand/README.md. */}
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#6366F1" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    {!noindex && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={ogImage} />
+  </head>
+
+  <body>
+    <header class="topbar">
+      <div class="wrap">
+        <a class="brand" href="/">
+          <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" />
+        </a>
+        <a href={GITHUB_URL}>GitHub</a>
+        <a class="btn secondary" href={SIGN_IN_URL}>Sign in</a>
+      </div>
+    </header>
+
+    <slot />
+
+    <footer>
+      <div class="wrap">
+        <span>© 2026 Podium · Apache-2.0</span>
+        <span class="spacer"></span>
+        <nav>
+          <a href={GITHUB_URL}>Source</a>
+          <a href={`${GITHUB_URL}/blob/main/docs/domain/README.md`}>Domain model</a>
+          <a href={APP_URL}>app.podiumstack.com</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

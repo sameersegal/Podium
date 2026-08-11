@@ -1,0 +1,15 @@
+---
+import Base from "../layouts/Base.astro";
+import { SIGN_IN_URL } from "../consts";
+---
+
+<Base title="Not found" description="That page does not exist on podiumstack.com." noindex>
+  <div class="wrap notfound">
+    <h1>Not found</h1>
+    <p>
+      There is no page at this address. If you were looking for the app, it lives at
+      <a href={SIGN_IN_URL}>app.podiumstack.com</a>.
+    </p>
+    <p><a class="btn secondary" href="/">Back to the home page</a></p>
+  </div>
+</Base>

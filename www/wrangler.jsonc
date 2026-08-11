@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "podium-www",
+  "compatibility_date": "2025-07-01",
+
+  // An assets-only Worker: no `main`, and therefore no `assets.binding` either
+  // (wrangler rejects a binding without an entry point). Everything this
+  // deployment does — serve one built page, 301 the app's old paths to
+  // app.podiumstack.com — Cloudflare's asset worker already does, driven by
+  // `public/_redirects`, which Astro copies into `dist/` untouched. There is no
+  // script here, so there is no script to break.
+  //
+  // No D1, KV, R2, Queues or Durable Objects. That is the point: this site and
+  // the app share a repository and nothing else, and a copy fix on the landing
+  // page must never be able to touch the production database.
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+
+  // Committed with real hostnames, unlike the app's generated
+  // `wrangler.production.jsonc`. The reason that file is generated is that it
+  // holds account-scoped resource ids, and a clone that deploys it would
+  // silently target someone else's D1 (see scripts/deploy-config.mjs). There
+  // are no ids here — only two hostnames this project already owns publicly.
+  //
+  // Self-hosters: this is Podium's own marketing site, not part of what you get
+  // when you deploy Podium. `npm run deploy` in this directory will fail
+  // against your account, which is the correct outcome.
+  //
+  // `www` is a second custom domain rather than a redirect to the apex because
+  // a `_redirects` rule cannot match on hostname — its `from` must be a
+  // relative path. The canonical tag in src/layouts/Base.astro is what keeps
+  // the two hostnames from reading as duplicate content.
+  "routes": [
+    { "pattern": "podiumstack.com", "custom_domain": true },
+    { "pattern": "www.podiumstack.com", "custom_domain": true }
+  ],
+
+  "workers_dev": false,
+  "observability": { "enabled": true }
+}

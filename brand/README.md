@@ -19,9 +19,13 @@ Theme colour: `#6366F1`. Background: `#FFFFFF`.
 
 ## Web icon set — `brand/web/`
 
-Copy the whole directory's contents into the web app's public/static root when one exists;
-these files are already named and sized for it, and `site.webmanifest` references them at
-absolute paths (`/android-chrome-192x192.png` and so on).
+Copy the whole directory's contents into a web root; these files are already named and sized
+for it, and `site.webmanifest` references them at absolute paths
+(`/android-chrome-192x192.png` and so on). There are **two** such roots in this repository,
+and both hold copies — change the brand and you change both:
+
+- [`public/`](../public) — the app Worker's static assets
+- [`www/public/`](../www/public) — the marketing site at podiumstack.com
 
 - `favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png`, `favicon-48x48.png`
 - `apple-touch-icon.png` — 180×180, iOS home screen

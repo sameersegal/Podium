@@ -1,7 +1,17 @@
 name: CI
 
+# One workflow, two deployables that share a repository and nothing else.
+#
+#   the app          workers/, packages/, migrations/, tests/  -> the `podium` Worker
+#   the marketing site  www/                                   -> the `podium-www` Worker
+#
 # Pull requests get the checks. Pushes to main get the checks and, only if they
-# all pass, a deploy to podiumstack.com.
+# all pass, a deploy — of whichever of the two actually changed.
+#
+# Why the `changes` job rather than `on.push.paths`: path filters in `on:` are
+# workflow-level, so they would gate both deployables together. The whole point
+# of the split is that a copy fix on the landing page must not run a D1
+# migration against production, and that only holds if the filter is per job.
 
 on:
   push:
@@ -17,8 +27,71 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect what changed
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      www: ${{ steps.filter.outputs.www }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Needed to diff against the base commit; the default shallow clone
+          # does not contain it.
+          fetch-depth: 0
+
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Pick a base to diff against. A manual run has none, and the first
+          # push to a branch reports an all-zero `before` — both mean "assume
+          # everything changed". That is the safe direction to be wrong in: the
+          # cost is a redundant deploy, where the cost of the other direction is
+          # a change that silently never ships.
+          base=""
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$BASE_SHA"
+          elif [ "$EVENT" = "push" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          fi
+
+          app=false
+          www=false
+
+          if [ -z "$base" ]; then
+            echo "No usable base ref ($EVENT) — treating everything as changed."
+            app=true
+            www=true
+          else
+            files=$(git diff --name-only "$base" "$HEAD_SHA")
+            echo "Changed files:"
+            echo "$files" | sed 's/^/  /'
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                # This file gates both, so a change to it must run both.
+                .github/workflows/ci.yml) app=true; www=true ;;
+                www/*)                    www=true ;;
+                *)                        app=true ;;
+              esac
+            done <<< "$files"
+          fi
+
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "www=$www" >> "$GITHUB_OUTPUT"
+          echo "-> app=$app www=$www"
+
   check:
     name: Typecheck, tests, model drift
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,15 +130,17 @@ jobs:
         run: npm run drift
 
   deploy:
-    name: Deploy to podiumstack.com
-    needs: check
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    name: Deploy the app
+    needs: [changes, check]
+    if: needs.changes.outputs.app == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     # Gate approvals, and the production secrets, on a GitHub Environment.
     environment:
       name: production
-      url: https://podiumstack.com
+      # The app does not know its own hostname — see scripts/deploy-config.mjs.
+      # Neither does this workflow; it reads the one the deployment was given.
+      url: https://${{ vars.PODIUM_HOSTNAME }}
 
     # Never two deploys at once: migrations and `wrangler deploy` are not safe
     # to interleave. Not cancel-in-progress — a half-applied migration set is
@@ -108,3 +183,60 @@ jobs:
             --retry-all-errors --max-time 30 "https://${PODIUM_HOSTNAME}/login")
           echo "GET /login -> $code"
           test "$code" = "200"
+
+  deploy-www:
+    name: Deploy the marketing site
+    needs: changes
+    if: needs.changes.outputs.www == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    # Reuses the `production` environment for its two secrets. If that
+    # environment ever gains required reviewers, split this onto its own
+    # `production-www` holding the same secrets with no gate — a landing-page
+    # copy fix should not need an approval.
+    environment:
+      name: production
+      url: https://podiumstack.com
+
+    # Independent of deploy-production: nothing here touches D1, so there is no
+    # reason for a marketing deploy to queue behind an app deploy or vice versa.
+    concurrency:
+      group: deploy-www
+      cancel-in-progress: false
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    defaults:
+      run:
+        working-directory: www
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: www/package-lock.json
+
+      # Note what is absent: no typecheck of app code, no tests, and above all
+      # no `deploy:migrate`. This job cannot reach the production database.
+      - run: npm ci
+
+      - name: Build and deploy
+        run: npm run deploy
+
+      # Assert the redirect *target*, not merely that some 3xx came back. A
+      # `_redirects` rule that fails to parse is logged and skipped rather than
+      # failing the deploy, so "not a 200" is not enough to prove the file
+      # survived the trip.
+      - name: Smoke check
+        run: |
+          root=$(curl -sS -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 \
+            --retry-all-errors --max-time 30 https://podiumstack.com/)
+          loc=$(curl -sS -o /dev/null -w '%{redirect_url}' --max-time 30 https://podiumstack.com/login)
+          echo "GET / -> $root ; GET /login -> $loc"
+          test "$root" = "200"
+          test "$loc" = "https://app.podiumstack.com/login"

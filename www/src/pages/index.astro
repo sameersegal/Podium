@@ -1,0 +1,133 @@
+---
+import Base from "../layouts/Base.astro";
+import { DOMAIN_MODEL_URL, GITHUB_URL, SIGN_IN_URL } from "../consts";
+
+// Straight from the repo README's "six capabilities" list. If that list
+// changes, this one does too — it is the product's own description of itself,
+// not a marketing rewrite of it.
+const capabilities = [
+  {
+    title: "Multi-step submission forms",
+    body: "Abstracts from speakers, sessions from sponsors. Custom fields, saved drafts, and a deadline that actually closes.",
+  },
+  {
+    title: "Submitter portal",
+    body: "Track proposals, complete onboarding tasks, manage a public speaker profile — one place, one login.",
+  },
+  {
+    title: "Proposal evaluation",
+    body: "Rubrics, rounds, conflicts of interest and recorded decisions. Reviewers see what they should and nothing else.",
+  },
+  {
+    title: "Speaker onboarding",
+    body: "Define what accepted speakers must do — headshot, bio, slides, consent — and chase it to completion automatically.",
+  },
+  {
+    title: "Public schedule",
+    body: "An embeddable, versioned, cacheable schedule for your marketing site. Publish a snapshot; roll it back if you must.",
+  },
+  {
+    title: "APIs and webhooks",
+    body: "A scoped REST API and signed webhooks on every domain event, so the rest of your stack stays in sync.",
+  },
+];
+---
+
+<Base>
+  <div class="hero">
+    <div class="wrap">
+      <h1>Conference program management, open source.</h1>
+      <p class="lede">
+        An alternative to SessionBoard, scoped to the jobs an AI Engineer–style conference actually
+        has to get done — from the call for proposals to the schedule on the day. Not a full clone.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href={GITHUB_URL}>Get the source</a>
+        <a class="btn secondary" href={SIGN_IN_URL}>Sign in</a>
+      </div>
+
+      <div class="proof">
+        {/* Deliberately no test count. It was 411 when the README last said so
+            and 429 a week later, and a landing page that goes stale on every
+            commit is a landing page nobody updates. */}
+        <p>
+          Built and running. Every bounded context implemented end to end, an integration suite
+          that runs against real Cloudflare bindings, a model↔code drift check that fails the
+          build, and a seeded conference mid-flight you can sign into in one command.
+        </p>
+        <pre><code>git clone …/Podium
+npm install
+npm run dev</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2>Six capabilities</h2>
+      <p class="sub">The jobs a conference has to get done, in the order it has to do them.</p>
+      <div class="grid">
+        {
+          capabilities.map((c) => (
+            <div class="card">
+              <h3>{c.title}</h3>
+              <p>{c.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <h2>And the parts nobody demos</h2>
+      <p class="more">
+        Sponsor sessions as first-class citizens with countable entitlements. An event roster.
+        Content approval with revision history. Assisted placement that respects room capacity and
+        speaker clashes. Campaigns with an auditable outbox, so you can prove what was sent to whom.
+        Bulk import and export. And a cross-event speaker directory, because the compounding asset
+        a conference builds is not its schedule — it is the people it knows.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="two-col">
+        <div>
+          <h2>Run it yourself</h2>
+          <p>
+            Apache-2.0, and built for Cloudflare: Workers, D1 behind a repository layer, R2 for
+            assets, KV for published snapshots, Queues for domain events, Cron Triggers for the
+            sweeps, and one Durable Object per event so a schedule only ever has one writer.
+          </p>
+          <p>
+            It deploys to a Cloudflare account you own, with your data in your D1. There is no
+            hosted tier to be locked into.
+          </p>
+          <p><a href={GITHUB_URL}>Read the code →</a></p>
+        </div>
+
+        <div>
+          <h2>The model is the specification</h2>
+          <p>
+            Entities, enums, state machines, invariants, domain events and the authorization matrix
+            live in a normative domain model, and the code implements it. When the two disagree,
+            that is a defect in one of them — and a check in CI that fails the build.
+          </p>
+          <p>
+            Every open question is decided and written down, with the reasoning, including the ones
+            that were decided against.
+          </p>
+          <p><a href={DOMAIN_MODEL_URL}>Read the domain model →</a></p>
+        </div>
+      </div>
+
+      <p class="aside">
+        Unrelated to podium.com (lead management) and to <a href="https://podium-lib.io">podium-lib</a>{" "}
+        (micro-frontends), both of which hold the obvious namespaces.
+      </p>
+    </div>
+  </section>
+</Base>

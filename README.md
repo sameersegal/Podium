@@ -115,7 +115,21 @@ the reaction map in [`10-domain-events.md`](docs/domain/10-domain-events.md), an
 reaction is idempotent on `DomainEvent.id`, because at-least-once delivery is assumed
 everywhere.
 
+## The marketing site
+
+[`www/`](www) is the static site at [podiumstack.com](https://podiumstack.com) — an Astro
+build deployed as its own Worker, `podium-www`. It shares this repository with the app and
+nothing else: no imports from `packages/`, no bindings, and a separate job in
+[`ci.yml`](.github/workflows/ci.yml) that cannot reach the production database. The app runs
+at [app.podiumstack.com](https://app.podiumstack.com), and `www/public/_redirects` keeps every
+link that pointed at the apex before the split working.
+
+The app does not know either hostname. It reads `PUBLIC_BASE_URL`, which
+[`scripts/deploy-config.mjs`](scripts/deploy-config.mjs) sets from `PODIUM_HOSTNAME` at deploy
+time — which is what lets the same artifact serve your domain when you self-host.
+
 ## Brand
 
 Logos, the web icon set and the usage rules live in [`brand/`](brand/README.md); the contents
-of [`brand/web/`](brand/web) are served from [`public/`](public).
+of [`brand/web/`](brand/web) are served from both [`public/`](public) and
+[`www/public/`](www/public).

@@ -11,11 +11,12 @@
  * Why generated rather than hand-written: a standalone second config is a
  * complete copy, and copies drift. Change `compatibility_date` or add a binding
  * in `wrangler.jsonc` and production picks it up here for free — only the
- * fields that genuinely differ between a laptop and podiumstack.com are
- * overridden below.
+ * fields that genuinely differ between a laptop and production are overridden
+ * below.
  *
  * Required environment:
- *   PODIUM_HOSTNAME      apex the Worker serves, e.g. podiumstack.com
+ *   PODIUM_HOSTNAME      hostname the Worker serves. May be a comma-separated
+ *                        list; the first entry is canonical (see below).
  *   CF_D1_DATABASE_ID    `wrangler d1 create podium`
  *   CF_KV_CACHE_ID       `wrangler kv namespace create CACHE`
  *
@@ -83,7 +84,22 @@ function required(name) {
   return v;
 }
 
-const hostname = required("PODIUM_HOSTNAME");
+// A comma-separated list, because a Worker can answer on more than one
+// hostname and moving between them needs a window where it answers on both.
+// The first entry is canonical: it is what PUBLIC_BASE_URL is built from, and
+// therefore what every invitation accept_url, unsubscribe link, ICS URL and
+// embed snippet points at. The rest are aliases the Worker also serves.
+//
+// The app itself never learns any of this. It reads PUBLIC_BASE_URL and
+// nothing else, so the hostname is a deployment fact, not a property of the
+// code — which is what lets the same artifact serve a self-hoster's domain.
+const hostnames = required("PODIUM_HOSTNAME")
+  .split(",")
+  .map((h) => h.trim())
+  .filter(Boolean);
+if (hostnames.length === 0) throw new Error("PODIUM_HOSTNAME is set but empty");
+const canonicalHostname = hostnames[0];
+
 const config = JSON.parse(stripJsonComments(readFileSync(BASE, "utf8")));
 
 /* -------------------------------------------------------------------------- */
@@ -95,14 +111,24 @@ const config = JSON.parse(stripJsonComments(readFileSync(BASE, "utf8")));
 delete config.env;
 
 config.workers_dev = false;
-config.routes = [{ pattern: hostname, custom_domain: true }];
+
+// Careful: `wrangler deploy` does not merge custom domains, it replaces the
+// Worker's whole set (PUT /domains/records with override_scope: true), and in
+// CI — where stdout is not a TTY — it also passes override_existing_origin
+// without prompting. So whatever is listed here becomes the complete truth,
+// and a hostname served by a *different* Worker gets taken from it silently.
+//
+// Concretely: podiumstack.com belongs to the `podium-www` Worker (see
+// www/wrangler.jsonc). Adding it back to PODIUM_HOSTNAME would take the
+// marketing site down from a green build, with nothing in the log to say so.
+config.routes = hostnames.map((pattern) => ({ pattern, custom_domain: true }));
 
 config.vars = {
   ...config.vars,
   ENVIRONMENT: "production",
   // Invitation accept_urls (INV-01-15), unsubscribe links and the portal links
-  // inside email bodies are built from this. It must match the route above.
-  PUBLIC_BASE_URL: `https://${hostname}`,
+  // inside email bodies are built from this. It must be one of the routes above.
+  PUBLIC_BASE_URL: `https://${canonicalHostname}`,
 };
 
 const db = config.d1_databases?.find((d) => d.binding === "DB");
@@ -122,4 +148,6 @@ const banner = [
 ].join("\n");
 
 writeFileSync(OUT, banner + JSON.stringify(config, null, 2) + "\n");
-console.log(`✅ ${OUT} — ${hostname}, D1 ${db.database_id.slice(0, 8)}…, KV ${cache.id.slice(0, 8)}…`);
+console.log(
+  `✅ ${OUT} — ${hostnames.join(", ")}, D1 ${db.database_id.slice(0, 8)}…, KV ${cache.id.slice(0, 8)}…`,
+);

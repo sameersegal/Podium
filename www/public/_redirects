@@ -1,0 +1,43 @@
+# The app moved to app.podiumstack.com; this apex now serves the marketing
+# site. Everything below keeps a link that was emailed, embedded or bookmarked
+# when the app lived here working.
+#
+# Two things about this file's syntax that are easy to get wrong:
+#
+#   1. Exact paths are resolved by hash lookup and are free; every rule from
+#      the first wildcard onward is a regex evaluated in file order. So static
+#      rules go first.
+#   2. `/portal/*` compiles to ^/portal/(?<splat>.*)$ and therefore does NOT
+#      match a bare `/portal`. Every prefix needs a pair of rules.
+#
+# Query strings are carried across automatically, which is what makes the
+# signed `/unsubscribe?t=…&sig=…` links and `/login?next=/portal/tasks` survive.
+#
+# Status codes are 302 for now, deliberately. A 301 is cached by browsers
+# effectively forever, and moving the public event pages off the apex is a
+# decision worth being able to walk back. Promote these to 301 once the move
+# has soaked — it is a find-and-replace and a redeploy.
+
+# --- exact paths ---
+/login        https://app.podiumstack.com/login        302
+/signup       https://app.podiumstack.com/signup       302
+/logout       https://app.podiumstack.com/logout       302
+/setup        https://app.podiumstack.com/setup        302
+/unsubscribe  https://app.podiumstack.com/unsubscribe  302
+/embed.js     https://app.podiumstack.com/embed.js     302
+/portal       https://app.podiumstack.com/portal       302
+/admin        https://app.podiumstack.com/admin        302
+/review       https://app.podiumstack.com/review       302
+
+# --- prefixes ---
+/e/*          https://app.podiumstack.com/e/:splat          302
+/portal/*     https://app.podiumstack.com/portal/:splat     302
+/admin/*      https://app.podiumstack.com/admin/:splat      302
+/review/*     https://app.podiumstack.com/review/:splat     302
+/invite/*     https://app.podiumstack.com/invite/:splat     302
+/embed/*      https://app.podiumstack.com/embed/:splat      302
+
+# 308 rather than 302: these take POST/PUT/DELETE with bodies, and a 302 lets a
+# client downgrade the method to GET. 308 preserves both method and body.
+/files/*      https://app.podiumstack.com/files/:splat      308
+/v1/*         https://app.podiumstack.com/v1/:splat         308

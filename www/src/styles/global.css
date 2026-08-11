@@ -1,0 +1,160 @@
+/*
+ * The marketing site's only stylesheet.
+ *
+ * The tokens below are copied *by value* from the app's `public/app.css`, not
+ * imported from it. Visual continuity between podiumstack.com and the app is
+ * worth having; a build-time dependency on the app's stylesheet is not — that
+ * file is 225 lines of topbar, table and form chrome a landing page has no use
+ * for, and linking it would be exactly the coupling this site exists without.
+ * If the brand palette changes, both files change. That is the whole cost.
+ */
+:root {
+  --indigo: #6366f1;
+  --indigo-dark: #4338ca;
+  --indigo-soft: #eef2ff;
+  --navy: #1e1b4b;
+  --ink: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--card);
+  line-height: 1.6;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { line-height: 1.2; margin: 0 0 .5rem; color: var(--navy); letter-spacing: -0.02em; }
+p { margin: 0 0 1rem; }
+a { color: var(--indigo-dark); }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
+
+/* ---------- header ---------- */
+.topbar { background: var(--navy); }
+.topbar .wrap {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-block: .75rem;
+}
+.topbar .brand { display: flex; margin-right: auto; }
+.topbar .brand img { height: 28px; width: auto; display: block; }
+.topbar a { color: #c7d2fe; text-decoration: none; font-weight: 500; }
+.topbar a:hover { color: #fff; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-block;
+  padding: .55rem 1.1rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.btn.primary { background: var(--indigo); color: #fff; }
+.btn.primary:hover { background: var(--indigo-dark); color: #fff; }
+.btn.secondary { border-color: var(--line); color: var(--navy); background: var(--card); }
+.btn.secondary:hover { border-color: var(--indigo); color: var(--indigo-dark); }
+.topbar .btn.secondary { background: transparent; border-color: #4c46a3; color: #e0e7ff; }
+.topbar .btn.secondary:hover { border-color: #c7d2fe; color: #fff; }
+
+/* ---------- hero ---------- */
+.hero {
+  background: linear-gradient(170deg, var(--indigo-soft) 0%, var(--card) 70%);
+  border-bottom: 1px solid var(--line);
+  padding: 4rem 0 3.5rem;
+}
+.hero h1 { font-size: 2.75rem; max-width: 20ch; }
+.hero .lede { font-size: 1.15rem; color: var(--muted); max-width: 58ch; margin-bottom: 1.75rem; }
+.hero .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 2.25rem; }
+
+.proof {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1.5rem 2.5rem;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  max-width: 46rem;
+}
+.proof p { margin: 0; color: var(--muted); font-size: .95rem; }
+.proof pre {
+  margin: 0;
+  background: var(--navy);
+  color: #e0e7ff;
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+  font-size: .85rem;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+/* ---------- sections ---------- */
+section { padding: 3.5rem 0; }
+section > .wrap > h2 { font-size: 1.75rem; }
+section > .wrap > .sub { color: var(--muted); max-width: 60ch; margin-bottom: 2rem; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1rem;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.card h3 { font-size: 1.02rem; margin-bottom: .35rem; }
+.card p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+.band { background: var(--indigo-soft); border-block: 1px solid var(--line); }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 2.5rem; }
+
+.more { max-width: 64ch; color: var(--muted); }
+
+.aside {
+  font-size: .875rem;
+  color: var(--muted);
+  border-left: 3px solid var(--line);
+  padding-left: .9rem;
+  margin-top: 1.5rem;
+}
+
+/* ---------- footer ---------- */
+footer { background: var(--navy); color: #a5b4fc; padding: 2rem 0; font-size: .9rem; }
+footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.5rem; }
+footer a { color: #c7d2fe; text-decoration: none; }
+footer a:hover { color: #fff; text-decoration: underline; }
+footer .spacer { flex: 1; }
+footer nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+
+/* ---------- 404 ---------- */
+.notfound { padding: 6rem 0; text-align: center; }
+.notfound h1 { font-size: 2.25rem; }
+.notfound p { color: var(--muted); }
+
+@media (max-width: 40rem) {
+  .hero { padding: 2.5rem 0; }
+  /* No ch cap on a narrow screen — the viewport is already the constraint, and
+     "management," is a long enough word to touch the edge at 2rem. */
+  .hero h1 { font-size: 1.85rem; max-width: none; }
+  .hero .lede { font-size: 1.05rem; }
+  .proof { grid-template-columns: 1fr; }
+  section { padding: 2.5rem 0; }
+  .topbar .wrap { gap: .75rem; }
+  .topbar .brand img { height: 24px; }
+}
