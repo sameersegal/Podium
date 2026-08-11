@@ -3,8 +3,17 @@ dist/
 *.log
 .DS_Store
 
+# Astro's build cache and generated types in www/
+.astro/
+
 # Local Cloudflare state — D1, KV, R2 and Durable Object storage for `wrangler dev`
 .wrangler/
+
+# Local secret overrides `wrangler dev` loads automatically (e.g. a real
+# UNSUBSCRIBE_SECRET to exercise the production path locally). Never required
+# — see the comment in wrangler.jsonc — and never shared.
+.dev.vars
+.dev.vars.*
 
 # Generated from wrangler.jsonc by `wrangler types`; regenerate rather than review
 worker-configuration.d.ts

@@ -204,6 +204,13 @@ a speaker must receive are never suppressed by an unsubscribe**: acceptance, rej
 confirmation deadlines, and schedule changes for their own talk. Marketing preferences must
 not cost someone their slot.
 
+**The unsubscribe link needs no login** — clicking it from an inbox is the whole point — so it
+is a signed URL rather than an authenticated one: the email and category are HMAC-signed with
+a deployment secret, and the click is honoured only if the signature verifies. That secret is
+exactly the kind of credential INV-09-3 already governs, so it follows the same rule: it lives
+behind a Workers Secret, is never derived from a public or guessable configuration value (an
+`ENVIRONMENT` name, a hostname), and is never logged (INV-09-15).
+
 ### Variables and preview
 
 `body_markdown` interpolates `{{variables}}` from a declared, validated set per
@@ -353,6 +360,11 @@ model depends on these choices.
   its `template_key`'s declared set is rejected at save time.
 - **INV-09-14** Campaign sending is idempotent per `(campaign_id, person_id)`; a recipient
   receives at most one delivery per campaign regardless of retries.
+- **INV-09-15** A signed, no-login link (the unsubscribe link) is HMAC-signed with a
+  deployment secret held behind a Workers Secret, never derived from a public or guessable
+  configuration value such as an environment name, and never logged. Generating or verifying
+  one without that secret configured fails closed rather than falling back to a default an
+  attacker could reproduce.
 
 ## Emitted events
 

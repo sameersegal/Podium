@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { Env } from "@podiumconf/data/context.js";
 import { assertTemplateBody, validateTemplateBody, extractVariables } from "@podiumconf/domain/platform/rendering.js";
 import { declaredVariables, isTransactionalTemplate } from "@podiumconf/domain/platform/templates.js";
 import { decideSuppression } from "@podiumconf/domain/platform/suppression.js";
+import { unsubscribeUrl, verifyUnsubscribeSignature } from "@podiumconf/web/contexts/platform/notifications.js";
+
+function fakeEnv(overrides: Partial<Env> & { ENVIRONMENT: string }): Env {
+  // A reserved example domain, not the real deployment's. Nothing here asserts
+  // on the host, and a fixture that names a real hostname teaches the next
+  // reader that the app knows where it is served — it does not.
+  return { PUBLIC_BASE_URL: "https://podium.example", ...overrides } as unknown as Env;
+}
 
 describe("template variable validation (INV-09-13)", () => {
   it("INV-09-13: rejects a body referencing a variable outside the template_key's declared set at save time", () => {
@@ -82,5 +91,51 @@ describe("suppression with the transactional exemption (INV-09-10)", () => {
 
   it("an empty or malformed email is always suppressed — there is nowhere to send it", () => {
     expect(decideSuppression([], { email: "", category: "campaign", transactional: false }).suppressed).toBe(true);
+  });
+});
+
+describe("the unsubscribe link signing key (INV-09-15)", () => {
+  it("INV-09-15: fails closed in production when UNSUBSCRIBE_SECRET is not configured", async () => {
+    const env = fakeEnv({ ENVIRONMENT: "production" });
+    await expect(unsubscribeUrl(env, "speaker@example.com", "campaign")).rejects.toMatchObject({
+      invariant: "INV-09-15",
+      status: 500,
+    });
+    await expect(verifyUnsubscribeSignature(env, "speaker@example.com", "campaign", "anything")).rejects.toMatchObject({
+      invariant: "INV-09-15",
+    });
+  });
+
+  it("INV-09-15: a production deployment with UNSUBSCRIBE_SECRET set signs and verifies correctly", async () => {
+    const env = fakeEnv({ ENVIRONMENT: "production", UNSUBSCRIBE_SECRET: "a-real-deployment-secret" });
+    const url = await unsubscribeUrl(env, "speaker@example.com", "campaign");
+    const sig = new URL(url).searchParams.get("sig")!;
+    expect(await verifyUnsubscribeSignature(env, "speaker@example.com", "campaign", sig)).toBe(true);
+  });
+
+  it("INV-09-15: the previous defect — signing with the public ENVIRONMENT string itself — no longer verifies", async () => {
+    // This is exactly what made every production unsubscribe link forgeable:
+    // the HMAC key was `env.ENVIRONMENT`, i.e. the literal, publicly-known
+    // string "production". A signature built that way must not verify against
+    // the fixed implementation.
+    const env = fakeEnv({ ENVIRONMENT: "production", UNSUBSCRIBE_SECRET: "a-real-deployment-secret" });
+    const { hmacSha256Hex } = await import("@podiumconf/domain/identity/credentials.js");
+    const forgedSig = await hmacSha256Hex("production", "speaker@example.com.campaign");
+    expect(await verifyUnsubscribeSignature(env, "speaker@example.com", "campaign", forgedSig)).toBe(false);
+  });
+
+  it("dev and test deployments work with no secret configured at all", async () => {
+    for (const environment of ["development", "test", ""]) {
+      const env = fakeEnv({ ENVIRONMENT: environment });
+      const url = await unsubscribeUrl(env, "speaker@example.com", "campaign");
+      const sig = new URL(url).searchParams.get("sig")!;
+      expect(await verifyUnsubscribeSignature(env, "speaker@example.com", "campaign", sig)).toBe(true);
+    }
+  });
+
+  it("two different UNSUBSCRIBE_SECRET values produce different signatures for the same link", async () => {
+    const a = await unsubscribeUrl(fakeEnv({ ENVIRONMENT: "production", UNSUBSCRIBE_SECRET: "secret-a" }), "x@example.com", "campaign");
+    const b = await unsubscribeUrl(fakeEnv({ ENVIRONMENT: "production", UNSUBSCRIBE_SECRET: "secret-b" }), "x@example.com", "campaign");
+    expect(new URL(a).searchParams.get("sig")).not.toBe(new URL(b).searchParams.get("sig"));
   });
 });

@@ -28,6 +28,17 @@ export interface Env {
   SCHEDULE_DO: DurableObjectNamespace<any>;
   ENVIRONMENT: string;
   PUBLIC_BASE_URL: string;
+  /**
+   * HMAC key for signed, no-login links (today: unsubscribe — 09,
+   * "Suppression is global"; INV-09-15). A Workers Secret
+   * (`wrangler secret put UNSUBSCRIBE_SECRET`), not a var: `wrangler.jsonc`
+   * cannot declare a plain secret, and this is not an `Integration.secret_ref`
+   * (there is no `Integration` row it belongs to — see the comment on
+   * `unsubscribeSigningKey` in `contexts/platform/notifications.ts`). Optional
+   * on the type because it is genuinely absent outside production, where a
+   * documented dev default is used instead.
+   */
+  UNSUBSCRIBE_SECRET?: string;
 }
 
 export class CollectingEventSink implements EventSink {

@@ -13,7 +13,7 @@ import type { AppContext, Env } from "@podiumconf/data/context.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import { hmacSha256Hex } from "@podiumconf/domain/identity/credentials.js";
 import { newId } from "@podiumconf/domain/shared/ids.js";
-import { notFound } from "@podiumconf/domain/shared/errors.js";
+import { invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
 import { markdown } from "../../ui/html.js";
 import {
   categoryOf,
@@ -85,11 +85,43 @@ export async function baseVariables(app: AppContext, recipient: Row): Promise<Re
   };
 }
 
+/**
+ * The HMAC key for signed, no-login links (INV-09-15). Previously this was
+ * `env.ENVIRONMENT` itself — in production the literal, publicly-known string
+ * "production" — which let anyone forge an unsubscribe link for any address in
+ * any org. It is not routed through `resolveSecret`'s `Integration.secret_ref`
+ * indirection (`./service.js`): that exists so an admin can *choose* which
+ * Workers Secret an installed `Integration` points at, and there is no
+ * `Integration` row here to point from — this key protects a core platform
+ * mechanism, not a plugin credential. So it is typed directly on `Env`
+ * (`UNSUBSCRIBE_SECRET`) and set with `wrangler secret put`.
+ *
+ * Fails closed in production: `ENVIRONMENT === "production"` with no secret
+ * configured throws rather than silently signing with a guessable value —
+ * that silent fallback was the defect. Outside production (dev, test) a
+ * fixed, clearly-insecure default keeps `npm run dev` and the test suite
+ * working with no setup, per the project's rule that local dev needs none.
+ */
+function unsubscribeSigningKey(env: Env): string {
+  if (env.UNSUBSCRIBE_SECRET) return env.UNSUBSCRIBE_SECRET;
+  if (env.ENVIRONMENT === "production") {
+    throw invariantError(
+      "INV-09-15",
+      "unsubscribe_secret_missing",
+      "UNSUBSCRIBE_SECRET is not configured for this deployment. Set it with " +
+        "`wrangler secret put UNSUBSCRIBE_SECRET -c wrangler.production.jsonc` before any " +
+        "unsubscribe link can be generated or verified.",
+      undefined,
+      500,
+    );
+  }
+  return "podium-dev-unsubscribe-secret-insecure-do-not-use-in-production";
+}
+
 /** Signed, no-login link — 09: the exemption is for the message, not the click. */
 export async function unsubscribeUrl(env: Env, email: string, category: string): Promise<string> {
   const baseUrl = env.PUBLIC_BASE_URL || "http://localhost:8787";
-  const secret = env.ENVIRONMENT || "dev";
-  const sig = await hmacSha256Hex(secret, `${email}.${category}`);
+  const sig = await hmacSha256Hex(unsubscribeSigningKey(env), `${email}.${category}`);
   const url = new URL(`${baseUrl}/unsubscribe`);
   url.searchParams.set("email", email);
   url.searchParams.set("category", category);
@@ -98,8 +130,7 @@ export async function unsubscribeUrl(env: Env, email: string, category: string):
 }
 
 export async function verifyUnsubscribeSignature(env: Env, email: string, category: string, sig: string): Promise<boolean> {
-  const secret = env.ENVIRONMENT || "dev";
-  const expected = await hmacSha256Hex(secret, `${email}.${category}`);
+  const expected = await hmacSha256Hex(unsubscribeSigningKey(env), `${email}.${category}`);
   return expected === sig;
 }
 

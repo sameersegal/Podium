@@ -88,6 +88,20 @@
     "PUBLIC_BASE_URL": "http://localhost:8787"
   },
 
+  // ---------------------------------------------------------------------------
+  // UNSUBSCRIBE_SECRET (Workers Secret, not declared here — see
+  // packages/data/src/context.ts and contexts/platform/notifications.ts):
+  // the HMAC key for signed, no-login unsubscribe links (INV-09-15).
+  //
+  //   production   `wrangler secret put UNSUBSCRIBE_SECRET -c wrangler.production.jsonc`
+  //                required — generating or verifying a link throws without it.
+  //   dev / test   optional. A fixed, documented-insecure default is used so
+  //                `npm run dev` needs no setup. To exercise the real path
+  //                locally, put `UNSUBSCRIBE_SECRET=<anything>` in a `.dev.vars`
+  //                file (gitignored; `wrangler dev` loads it automatically —
+  //                no change needed in scripts/dev.mjs).
+  // ---------------------------------------------------------------------------
+
   "observability": { "enabled": true },
 
   "alias": {
