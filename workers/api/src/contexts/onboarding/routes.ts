@@ -214,7 +214,9 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Task definitions",
             "Definitions are templates; instances are the obligations they create. Editing one never rewrites what people already did.",
-            canWrite && defs.length === 0 ? actionForm(`/admin/events/${ref.id}/tasks/seed-defaults`, "Seed the default checklist") : raw(""),
+            canWrite && defs.length === 0
+              ? actionForm(`/admin/events/${ref.id}/tasks/seed-defaults`, "Seed the default checklist")
+              : html`<a class="btn secondary" href="/admin/events/${ref.id}/onboarding">View board</a>`,
           )}
           ${table(["Task", "Category", "Type", "Assignee", "Trigger", "Weight", "Status", ""], rows, "No task definitions yet.")}
           ${canWrite
@@ -444,7 +446,13 @@ function registerAdminBoardRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Onboarding board", event: ref, active: "onboarding", width: "wide" },
-        html`${pageHead("Onboarding board", "Every session and sponsor's obligations, filterable to exactly the set worth chasing. Select rows, then remind or waive.")}
+        html`${pageHead(
+            "Onboarding board",
+            "Every session and sponsor's obligations, filterable to exactly the set worth chasing. Select rows, then remind or waive.",
+            ctx.canWrite("task.define", { event_id: ref.id })
+              ? html`<a class="btn secondary" href="/admin/events/${ref.id}/tasks">Manage tasks</a>`
+              : undefined,
+          )}
           ${filterForm}
           <form method="post" action="/admin/events/${ref.id}/onboarding/remind" id="board-actions">
             ${canRemind || canWaive
