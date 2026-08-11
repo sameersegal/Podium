@@ -551,3 +551,161 @@ body.console-dragging .console-grip-btn { cursor: grabbing; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------- the agenda grid ---------- */
+
+/* Rooms across, time down, placements positioned absolutely by wall-clock
+   minute. The server-rendered version of this screen placed a session by typing
+   a start time into a form and reloading; this is what R30 bought. */
+.agenda-body { display: grid; gap: var(--sp-4); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 64rem) {
+  .agenda-body { grid-template-columns: minmax(0, 1fr) 19rem; }
+}
+
+.agenda-grid-wrap {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow-x: auto;
+  padding-bottom: var(--sp-3);
+}
+
+/* A time gutter plus one column per room. `--agenda-rooms` is set inline
+   because the count is data, not design. */
+.agenda-grid {
+  display: grid;
+  grid-template-columns: 3.5rem repeat(var(--agenda-rooms), minmax(10rem, 1fr));
+  min-width: min-content;
+}
+/* The gutter's header. It clips: a zone name is longer than the 3.5rem column
+   the time labels need, and left to overflow it printed across the first
+   room's name. */
+.agenda-corner {
+  padding: var(--sp-2) var(--sp-1);
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  position: sticky;
+  left: 0;
+  background: var(--card);
+  z-index: 3;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+.agenda-corner .mono { font-size: 10px; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; }
+.agenda-roomhead {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  border-left: 1px solid var(--line-2);
+  display: grid;
+  gap: 2px;
+  font-weight: 600;
+  font-size: var(--fs-md);
+  color: var(--navy);
+}
+
+.agenda-times { position: sticky; left: 0; border-right: 1px solid var(--line); background: var(--card); z-index: 2; }
+.agenda-hour {
+  position: absolute;
+  right: var(--sp-2);
+  transform: translateY(-.5em);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.agenda-col { position: relative; border-left: 1px solid var(--line-2); }
+.agenda-col.is-dropzone { background: var(--indigo-soft); }
+.agenda-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line-2); }
+
+.agenda-block {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  overflow: hidden;
+  display: grid;
+  gap: 1px;
+  align-content: start;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--indigo-line);
+  background: var(--indigo-soft);
+  color: var(--navy);
+  cursor: grab;
+  touch-action: none; /* the pointer stream is the drag's, not the scroller's */
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+}
+.agenda-block:hover { border-color: var(--indigo); }
+.agenda-block.is-dragging { opacity: .35; }
+.agenda-block.is-conflicted { border-color: var(--err-line); background: var(--err-soft); }
+.agenda-block-time { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+.agenda-block-title { font-weight: 600; }
+.agenda-block-meta { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.agenda-block-flag { position: absolute; right: 4px; bottom: 3px; color: var(--err); }
+.agenda-block-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 1px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  line-height: 0;
+  cursor: pointer;
+  opacity: 0;
+  border-radius: var(--radius-sm);
+}
+.agenda-block:hover .agenda-block-remove, .agenda-block-remove:focus-visible { opacity: 1; }
+.agenda-block-remove:hover { background: rgb(17 24 39 / .08); color: var(--err); }
+
+/* Where the card would land, at the snapped minute. Drawn from the same state
+   the drop will send, so the preview cannot disagree with the write. */
+.agenda-drop {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border: 2px dashed var(--indigo);
+  border-radius: var(--radius-sm);
+  background: rgb(99 102 241 / .12);
+  pointer-events: none;
+}
+.agenda-ghost-time { margin-left: var(--sp-2); opacity: .8; font-variant-numeric: tabular-nums; }
+
+.agenda-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.agenda-card {
+  display: grid;
+  gap: 1px;
+  padding: var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  cursor: grab;
+  touch-action: none;
+}
+.agenda-card:hover { border-color: var(--indigo-line); background: var(--indigo-soft); }
+.agenda-card.is-dragging { opacity: .35; }
+
+.console-card-err { border-color: var(--err-line); }
+
+/* The day switcher, as buttons rather than links: switching day is client-side
+   state, not a navigation, so there is no href to hang `aria-current` on. */
+.daybar button {
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-sm);
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.daybar button:hover { background: var(--indigo-soft); color: var(--indigo-dark); }
+.daybar button.current { background: var(--indigo); color: #fff; }
+
+/* The conflict list: the description is the part that should take the room, not
+   the code badge in front of it. */
+.console-list.conflict-list > li > :first-child { flex: none; min-width: 0; }
+.console-list.conflict-list > li > :nth-child(2) { flex: 1; min-width: 12rem; }

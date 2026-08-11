@@ -47,8 +47,8 @@ restating them:
 | Endpoint | Scope | Notes |
 |---|---|---|
 | `GET /v1/events/:eventId/schedule` | `schedule:read` | Days, rooms, slots, placements and the unplaced queue — the whole grid in one read, because a grid that fetches per-cell cannot be laid out before the last response lands |
-| `POST /v1/events/:eventId/placements` | `schedule:publish` | `place` |
-| `PATCH /v1/placements/:placementId` | `schedule:publish` | `move`; accepts any of `room_id`, `event_day_id`, `starts_at`, `ends_at` |
+| `POST /v1/events/:eventId/placements` | `schedule:publish` | `place`. Takes `starts_at`/`ends_at`, or `start_time` ("09:30") resolved against the day and the event's timezone |
+| `PATCH /v1/placements/:placementId` | `schedule:publish` | `move`; accepts any of `room_id`, `event_day_id`, `starts_at`/`start_time`, `ends_at`/`duration_minutes` |
 | `DELETE /v1/placements/:placementId` | `schedule:publish` | `remove` |
 | `GET /v1/events/:eventId/conflicts` | `schedule:read` | The current list, including acknowledgements |
 | `POST /v1/conflicts/:conflictId/acknowledge` | `schedule:publish` | Requires `reason`; an acknowledged conflict stays in the list rather than leaving it |
@@ -67,6 +67,12 @@ Two properties are load-bearing and are the reason this is a table rather than a
   response. A client that drops a card and then re-fetches to find out what it broke is a
   client that renders a wrong grid for one round trip; the response is what re-renders the
   cell.
+- **A wall clock is resolved here, not by the caller.** A grid drops a card at a time that
+  means 09:30 *in the event's zone*, and asking a browser to turn that into an instant means
+  asking it to reimplement zone arithmetic — DST edges included — for a zone that is not its
+  own. `starts_at` stays available for integrations that already hold an instant; everything
+  driving a grid sends `start_time` instead. A placement an hour out is a speaker in the
+  wrong room ([`11`](11-cross-cutting.md), "Time").
 
 ## ApiKey
 

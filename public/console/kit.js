@@ -185,6 +185,12 @@ function patchChildren(parent, oldCh, newCh, isSvg) {
     let ov = null;
     if (nv.key != null) {
       ov = byKey.get(nv.key) || null;
+      // Consumed on match, so two children that share a key cannot both claim
+      // the same DOM node — the second would then be *the same element* as the
+      // first, and the tree would silently lose a node. Duplicate keys in one
+      // parent are a bug in the view; this keeps them from becoming a bug in
+      // the renderer as well.
+      if (ov) byKey.delete(nv.key);
     } else {
       while (cursor < unkeyed.length) {
         const cand = unkeyed[cursor++];

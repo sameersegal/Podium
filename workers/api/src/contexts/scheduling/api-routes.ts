@@ -14,9 +14,10 @@
  * grid to find out what it broke.
  */
 
-import { str, type Row } from "@podiumconf/data/db.js";
+import { num, str, type Row } from "@podiumconf/data/db.js";
 import type { AutoPlaceStrategy } from "@podiumconf/domain/scheduling/types.js";
 import { notFound, validationError } from "@podiumconf/domain/shared/errors.js";
+import { addMinutes, zonedDateTimeToInstant } from "@podiumconf/domain/shared/time.js";
 import { runSerialised } from "../../durable/schedule.js";
 import type { RequestContext } from "../../http/context.js";
 import { readInput } from "../../http/input.js";
@@ -42,6 +43,40 @@ async function eventOfConflict(ctx: RequestContext, conflictId: string): Promise
   const row = await ctx.app().db.byId<Row>("schedule_conflict", conflictId);
   if (!row) throw notFound("Conflict", conflictId);
   return str(row.event_id);
+}
+
+/**
+ * A grid drops a card on a room and a time, and the time it means is the wall
+ * clock of the event's own zone. Converting that to an instant is this side's
+ * job, not the client's: the browser would have to reimplement
+ * `zonedDateTimeToInstant` — including the DST edges — against a zone that is
+ * not its own, and a placement an hour out is a speaker in the wrong room.
+ *
+ * So `starts_at` may be sent directly by an integration, or a caller may send
+ * `start_time` ("09:30") and let the day and the event's timezone resolve it.
+ * `duration_minutes` closes the same gap at the other end.
+ */
+async function resolveWindow(
+  ctx: RequestContext,
+  eventId: string,
+  eventDayId: string,
+  input: { starts_at: string | null; ends_at: string | null; start_time: string | null; duration_minutes: number | null },
+  fallbackDuration: number,
+): Promise<{ starts_at: string; ends_at: string }> {
+  if (input.starts_at && input.ends_at) return { starts_at: input.starts_at, ends_at: input.ends_at };
+
+  const app = ctx.app(eventId);
+  const day = await app.db.byId<Row>("event_day", eventDayId);
+  if (!day) throw notFound("Event day", eventDayId);
+  const event = await app.db.byId<Row>("event", eventId);
+  const timezone = event ? str(event.timezone, "UTC") : "UTC";
+
+  const startsAt = input.starts_at ?? (input.start_time ? zonedDateTimeToInstant(str(day.date), input.start_time, timezone) : null);
+  if (!startsAt) {
+    throw validationError("A placement needs a start.", [{ field_key: "start_time", message: "Give either starts_at or start_time." }]);
+  }
+  const minutes = input.duration_minutes ?? fallbackDuration;
+  return { starts_at: startsAt, ends_at: input.ends_at ?? addMinutes(startsAt, minutes > 0 ? minutes : 30) };
 }
 
 async function eventOfRun(ctx: RequestContext, runId: string): Promise<string> {
@@ -79,22 +114,31 @@ export function registerSchedulingApiRoutes(router: Router<RequestContext>): voi
   router.post("/v1/events/:eventId/placements", async (req, ctx, params) => {
     ctx.requireWrite("schedule.place", { event_id: params.eventId });
     const input = await readInput(req);
-    const startsAt = input.str("starts_at");
-    const endsAt = input.str("ends_at");
-    if (!startsAt || !endsAt) {
-      throw validationError("A placement needs a start and an end.", [
-        ...(startsAt ? [] : [{ field_key: "starts_at", message: "Required." }]),
-        ...(endsAt ? [] : [{ field_key: "ends_at", message: "Required." }]),
-      ]);
-    }
+    const sessionId = input.str("session_id");
+    const dayId = input.str("event_day_id");
+    // The session's own duration is the default length, so a drop only has to
+    // say where and when.
+    const session = await ctx.app(params.eventId).db.byId<Row>("session", sessionId);
+    const window = await resolveWindow(
+      ctx,
+      params.eventId,
+      dayId,
+      {
+        starts_at: input.optional("starts_at"),
+        ends_at: input.optional("ends_at"),
+        start_time: input.optional("start_time"),
+        duration_minutes: input.int("duration_minutes"),
+      },
+      session ? num(session.duration_minutes, 30) : 30,
+    );
     const result = await runSerialised(ctx.env, {
       command: {
         kind: "place",
-        session_id: input.str("session_id"),
+        session_id: sessionId,
         room_id: input.str("room_id"),
-        event_day_id: input.str("event_day_id"),
-        starts_at: startsAt,
-        ends_at: endsAt,
+        event_day_id: dayId,
+        starts_at: window.starts_at,
+        ends_at: window.ends_at,
         time_slot_id: input.optional("time_slot_id"),
         notes: input.optional("notes"),
       },
@@ -111,14 +155,31 @@ export function registerSchedulingApiRoutes(router: Router<RequestContext>): voi
     const eventId = await eventOfPlacement(ctx, params.placementId);
     ctx.requireWrite("schedule.place", { event_id: eventId });
     const input = await readInput(req);
+    const existing = await ctx.app(eventId).db.byId<Row>("placement", params.placementId);
+    const dayId = input.has("event_day_id") ? input.str("event_day_id") : str(existing?.event_day_id);
+    let window: { starts_at: string; ends_at: string } | null = null;
+    if (input.has("starts_at") || input.has("start_time")) {
+      const current = existing ? Math.max(1, Math.round((Date.parse(str(existing.ends_at)) - Date.parse(str(existing.starts_at))) / 60000)) : 30;
+      window = await resolveWindow(
+        ctx,
+        eventId,
+        dayId,
+        {
+          starts_at: input.optional("starts_at"),
+          ends_at: input.optional("ends_at"),
+          start_time: input.optional("start_time"),
+          duration_minutes: input.int("duration_minutes"),
+        },
+        current,
+      );
+    }
     const result = await runSerialised(ctx.env, {
       command: {
         kind: "move",
         placement_id: params.placementId,
         ...(input.has("room_id") ? { room_id: input.str("room_id") } : {}),
         ...(input.has("event_day_id") ? { event_day_id: input.str("event_day_id") } : {}),
-        ...(input.has("starts_at") ? { starts_at: input.str("starts_at") } : {}),
-        ...(input.has("ends_at") ? { ends_at: input.str("ends_at") } : {}),
+        ...(window ? { starts_at: window.starts_at, ends_at: window.ends_at } : {}),
       },
       orgId: ctx.orgId,
       eventId,

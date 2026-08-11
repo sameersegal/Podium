@@ -39,14 +39,15 @@ import { eventDashboard } from "./dashboard.js";
  * gets the server-rendered page (which will refuse them properly) rather than a
  * console that boots and then 403s on its first fetch.
  */
-const CONSOLE_PATHS: { segments: string[]; capability: "config.manage" | "cfp.configure" }[] = [
+const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
   { segments: ["admin", "events", ":eventId"], capability: "config.manage" },
+  { segments: ["admin", "events", ":eventId", "schedule"], capability: "schedule.place" },
   { segments: ["admin", "cfps", ":cfpId", "form"], capability: "cfp.configure" },
 ];
 
 interface ConsoleMatch {
   params: Record<string, string>;
-  capability: "config.manage" | "cfp.configure";
+  capability: Capability;
 }
 
 function matchConsolePath(pathname: string): ConsoleMatch | null {

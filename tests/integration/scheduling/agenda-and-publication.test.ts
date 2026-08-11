@@ -133,7 +133,11 @@ describe("the agenda builder", () => {
     const { results } = await env.DB.prepare("SELECT code, severity FROM schedule_conflict WHERE event_id = ?").bind(EVENT).all<{ code: string; severity: string }>();
     expect(results.some((r) => r.code === "ROOM_DOUBLE_BOOKED" && r.severity === "error")).toBe(true);
 
-    const page = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule`, { headers: { cookie } });
+    // `?nojs=1`: the admin console (R30) owns this URL now, and this assertion
+    // is about the server-rendered builder behind it. The console's own path to
+    // the same guarantee — conflicts in the write's response — is asserted over
+    // `/v1` at the foot of this file.
+    const page = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule?nojs=1`, { headers: { cookie } });
     expect(page.status).toBe(200);
     const html = await page.text();
     expect(html).toContain("Room double-booked");
