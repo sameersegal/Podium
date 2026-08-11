@@ -17,7 +17,7 @@ import {
 } from "@podiumconf/domain/identity/types.js";
 import { ROLES } from "@podiumconf/domain/shared/authorization.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, editLink, empty, field, formActions, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import type { MergeCandidateView, PersonRecord, RosterFilters, RosterRow, TeamRow } from "./service.js";
 
@@ -66,7 +66,6 @@ export interface TeamPageData {
 }
 
 export function teamView(data: TeamPageData): SafeHtml {
-  const roleOptions = ROLES.map((r) => ({ value: r, label: humanise(r) }));
 
   const grantRows = data.rows.map((r) => {
     const g = r.grant;
@@ -106,50 +105,54 @@ export function teamView(data: TeamPageData): SafeHtml {
 
   return html`
     ${pageHead("Team", "Staff and reviewers, and who granted them what. A role is a grant, and grants are scoped.")}
-    ${data.canWrite
-      ? html`<div class="grid two">
-          ${card(
-            html`<p class="small muted">
-                The link is shown on screen as soon as you create it, so a reviewer can be provisioned without waiting for mail.
-              </p>
-              <form method="post" action="/admin/team/invitations" class="stack">
-                ${field({ name: "email", label: "Email", type: "email", required: true })}
-                ${field({ name: "full_name", label: "Name", help: "Optional — they can write their own on the way in." })}
-                ${field({
-                  name: "kind",
-                  label: "Invitation kind",
-                  type: "select",
-                  required: true,
-                  value: "reviewer",
-                  options: INVITATION_KIND.filter((k) => k === "staff" || k === "reviewer").map((k) => ({ value: k, label: humanise(k) })),
-                })}
-                ${field({ name: "role", label: "Role to grant on acceptance", type: "select", required: true, value: "reviewer", options: roleOptions })}
-                ${field({ name: "scope", label: "Scope", type: "select", required: true, options: data.scopeOptions })}
-                ${field({ name: "expires_in_days", label: "Invitation expires in (days)", type: "number", value: 14, min: 1, max: 90 })}
-                ${submitButton("Create invitation")}
-              </form>`,
-            "Invite by email",
-          )}
-          ${card(
-            html`<form method="post" action="/admin/team/grants" class="stack">
-              ${field({ name: "email", label: "Their email", type: "email", required: true, help: "Someone who already has a record here." })}
-              ${field({ name: "role", label: "Role", type: "select", required: true, options: roleOptions })}
-              ${field({ name: "scope", label: "Scope", type: "select", required: true, options: data.scopeOptions })}
-              ${field({ name: "expires_at", label: "Expires", type: "date", help: "Reviewer grants often expire with the round." })}
-              ${submitButton("Grant role")}
-            </form>`,
-            "Grant a role to someone already here",
-          )}
-        </div>`
-      : raw("")}
     ${card(
       table(["Person", "Role", "Scope", "Granted by", "Expires", "State", ""], grantRows, "No role grants yet."),
       "Role grants",
+      { actions: data.canWrite ? addButton("/admin/team/grants/new", "Grant a role") : undefined },
     )}
     ${card(
       table(["Email", "Kind", "Role on acceptance", "Status", "Expires", ""], invitationRows, "No invitations have been sent."),
       "Invitations",
+      { actions: data.canWrite ? addButton("/admin/team/invitations/new", "Invite by email") : undefined },
     )}
+  `;
+}
+
+export function invitationFormView(d: { roleOptions: ScopeOption[]; scopeOptions: ScopeOption[] }): SafeHtml {
+  return html`
+    ${pageHead(
+      "Invite by email",
+      "The link is shown on screen as soon as you create it, so a reviewer can be provisioned without waiting for mail (INV-01-15).",
+    )}
+    ${card(html`<form method="post" action="/admin/team/invitations" class="stack">
+      ${field({ name: "email", label: "Email", type: "email", required: true })}
+      ${field({ name: "full_name", label: "Name", help: "Optional — they can write their own on the way in." })}
+      ${field({
+        name: "kind",
+        label: "Invitation kind",
+        type: "select",
+        required: true,
+        value: "reviewer",
+        options: INVITATION_KIND.filter((k) => k === "staff" || k === "reviewer").map((k) => ({ value: k, label: humanise(k) })),
+      })}
+      ${field({ name: "role", label: "Role to grant on acceptance", type: "select", required: true, value: "reviewer", options: d.roleOptions })}
+      ${field({ name: "scope", label: "Scope", type: "select", required: true, options: d.scopeOptions })}
+      ${field({ name: "expires_in_days", label: "Invitation expires in (days)", type: "number", value: 14, min: 1, max: 90 })}
+      ${formActions("Create invitation", "/admin/team")}
+    </form>`)}
+  `;
+}
+
+export function grantFormView(d: { roleOptions: ScopeOption[]; scopeOptions: ScopeOption[] }): SafeHtml {
+  return html`
+    ${pageHead("Grant a role", "For someone who already has a record here. A role is a grant, and grants are scoped.")}
+    ${card(html`<form method="post" action="/admin/team/grants" class="stack">
+      ${field({ name: "email", label: "Their email", type: "email", required: true, help: "Someone who already has a record here. Nobody? Invite them instead." })}
+      ${field({ name: "role", label: "Role", type: "select", required: true, options: d.roleOptions })}
+      ${field({ name: "scope", label: "Scope", type: "select", required: true, options: d.scopeOptions })}
+      ${field({ name: "expires_at", label: "Expires", type: "date", help: "Reviewer grants often expire with the round." })}
+      ${formActions("Grant role", "/admin/team")}
+    </form>`)}
   `;
 }
 
@@ -219,8 +222,8 @@ export function rosterView(d: RosterPageData): SafeHtml {
               ${str(r.participant.portal_access) === "none"
                 ? actionForm(`${base}/${str(r.participant.id)}/portal-invite`, "Invite to portal")
                 : raw("")}
-              <a class="small" href="/admin/people/${r.person_id}">Open</a>
               <a class="small" href="/admin/people/${r.person_id}#notes">Note</a>
+              ${editLink(`/admin/people/${r.person_id}`, "Open")}
             </div>`
           : raw("")}
       </td>
@@ -231,6 +234,10 @@ export function rosterView(d: RosterPageData): SafeHtml {
     ${pageHead(
       "Speakers and roster",
       "Who is on this event's roster, and where they are up to. Roster membership is administrative; speaking is still a relationship.",
+      d.canWrite
+        ? html`<a class="btn secondary" href="/admin/imports?subject=event_participant&event_id=${d.event.id}">Import a CSV</a>
+            ${addButton(`${base}/new`, "Add to roster")}`
+        : raw(""),
     )}
     <div class="stats">
       ${stat("on the roster", d.rows.length)}
@@ -278,40 +285,42 @@ export function rosterView(d: RosterPageData): SafeHtml {
     ${card(
       table(["Person", "Kind", "Status", "Source", "Sessions", "Onboarding", "Portal", ""], rows, "Nobody is on this roster yet."),
     )}
-    ${d.canWrite
-      ? card(
-          html`<form method="post" action="${base}" class="stack">
-              ${field({ name: "full_name", label: "Name", required: true })}
-              ${field({ name: "email", label: "Email", type: "email", required: true, help: "If we already know them, this finds them rather than making a second record." })}
-              ${field({
-                name: "kind",
-                label: "Why they are on this roster",
-                type: "select",
-                required: true,
-                value: "speaker",
-                options: PARTICIPANT_KIND.map((k) => ({ value: k, label: humanise(k) })),
-              })}
-              ${field({
-                name: "status",
-                label: "Status",
-                type: "select",
-                required: true,
-                value: "invited",
-                options: [
-                  { value: "prospect", label: "Prospect" },
-                  { value: "invited", label: "Invited" },
-                  { value: "confirmed", label: "Confirmed" },
-                ],
-              })}
-              ${submitButton("Add to roster")}
-            </form>
-            <p class="small muted">
-              Have a spreadsheet? <a href="/admin/imports?subject=event_participant&event_id=${d.event.id}">Import a CSV</a> instead —
-              it maps, validates and previews before writing anything.
-            </p>`,
-          "Add someone to this roster",
-        )
-      : raw("")}
+  `;
+}
+
+export function rosterAddFormView(event: EventRef): SafeHtml {
+  const base = `/admin/events/${event.id}/roster`;
+  return html`
+    ${pageHead("Add to roster", "Roster membership is administrative; speaking is still a relationship.")}
+    ${card(html`<form method="post" action="${base}" class="stack">
+      ${field({ name: "full_name", label: "Name", required: true })}
+      ${field({ name: "email", label: "Email", type: "email", required: true, help: "If we already know them, this finds them rather than making a second record." })}
+      ${field({
+        name: "kind",
+        label: "Why they are on this roster",
+        type: "select",
+        required: true,
+        value: "speaker",
+        options: PARTICIPANT_KIND.map((k) => ({ value: k, label: humanise(k) })),
+      })}
+      ${field({
+        name: "status",
+        label: "Status",
+        type: "select",
+        required: true,
+        value: "invited",
+        options: [
+          { value: "prospect", label: "Prospect" },
+          { value: "invited", label: "Invited" },
+          { value: "confirmed", label: "Confirmed" },
+        ],
+      })}
+      ${formActions("Add to roster", base)}
+    </form>`)}
+    <p class="small muted">
+      Have a spreadsheet? <a href="/admin/imports?subject=event_participant&event_id=${event.id}">Import a CSV</a> instead —
+      it maps, validates and previews before writing anything.
+    </p>
   `;
 }
 

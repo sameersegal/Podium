@@ -10,7 +10,7 @@ import type { FieldError } from "@podiumconf/domain/shared/errors.js";
 import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
 import { PROPOSAL_STATUS } from "@podiumconf/domain/submissions/types.js";
 import { html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, sortBar, table } from "../../ui/layout.js";
+import { actionForm, badge, card, editLink, empty, field, humanise, pageHead, sortBar, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import type { ProposalDetail, QueueFilters, QueueRow } from "./views.js";
 
@@ -77,6 +77,7 @@ export function proposalQueueView(data: QueuePageData): SafeHtml {
       <td>${badge(str(r.origin))}${r.sponsor_name ? html`<br><span class="small muted">${r.sponsor_name}</span>` : raw("")}</td>
       <td>${badge(str(r.status))}</td>
       <td class="small muted nowrap">${strOrNull(r.submitted_at) ? formatDateInZone(str(r.submitted_at), data.event.timezone) : "—"}</td>
+      <td class="right">${editLink(`/admin/proposals/${str(r.id)}`, "Open")}</td>
     </tr>`,
   );
 
@@ -124,7 +125,7 @@ export function proposalQueueView(data: QueuePageData): SafeHtml {
         <label class="checkline"><input type="checkbox" id="select-all"> Select all</label>
         <span class="muted small">Bulk actions appear here once review is open.</span>
       </div>
-      ${table(["", "Proposal", "Submitter", "Speakers", "Track", "Format", "Origin", "Status", "Submitted"], rows, "No proposals match these filters.")}
+      ${table(["", "Proposal", "Submitter", "Speakers", "Track", "Format", "Origin", "Status", "Submitted", ""], rows, "No proposals match these filters.")}
     </form>
     ${data.nextCursor ? html`<p><a href="${qs(url, { cursor: data.nextCursor })}">Next page →</a></p>` : raw("")}
     <script>

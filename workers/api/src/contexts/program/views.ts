@@ -16,7 +16,7 @@ import { isNonTerminalTask, onboardingProgress, type TaskInstanceStatus } from "
 import { contentDiverged, type ContentSnapshot } from "@podiumconf/domain/program/types.js";
 import { addDays } from "@podiumconf/domain/shared/time.js";
 import { versionField } from "../../http/concurrency.js";
-import { badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
+import { addButton, badge, card, editLink, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import type { EventRef } from "../../ui/shell.js";
 import { blockingTasksByEvent, readinessByEvent } from "../scheduling/program-link.js";
@@ -508,17 +508,18 @@ export function programBoardView(input: {
       <td>${badge(r.content_status)}</td>
       <td style="min-width:7rem">${progressBar(r.onboarding_progress)}${r.blocking_tasks_outstanding > 0 ? html`<span class="small muted">${r.blocking_tasks_outstanding} blocking</span>` : raw("")}</td>
       <td class="nowrap">${placementCell(r.placement)}</td>
+      <td class="right">${editLink(`/admin/sessions/${r.id}`, "Open")}</td>
     </tr>`,
   );
   return html`${pageHead(
       "Sessions",
       "The programme board — every session in this event, whether it came from the CFP, a sponsor, an invitation, or an organizer.",
-      canWrite ? html`<a class="btn" href="/admin/events/${event.id}/sessions/new">New session</a>` : raw(""),
+      canWrite ? addButton(`/admin/events/${event.id}/sessions/new`, "New session") : raw(""),
     )}
     ${healthTiles(event, health)}
     ${filterForm(event, filters, tracks, formats)}
     ${table(
-      ["Reference", "Title", "Speakers", "Track", "Format", "Origin", "Status", "Content", "Onboarding", "Placement"],
+      ["Reference", "Title", "Speakers", "Track", "Format", "Origin", "Status", "Content", "Onboarding", "Placement", ""],
       trs,
       "No sessions match these filters.",
     )}`;

@@ -57,7 +57,7 @@ import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, addForm, badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, editLink, empty, field, formActions, humanise, pageHead, stat, table } from "../../ui/layout.js";
 import { adminPage, toEventRef, type EventRef } from "../../ui/shell.js";
 import {
   activationCheck,
@@ -532,7 +532,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Events",
             "Every edition you run. An event holds its own days, tracks, formats, rooms and calls for proposals.",
-            ctx.canWrite("event.configure") ? html`<a class="btn" href="/admin/events/new">New event</a>` : raw(""),
+            ctx.canWrite("event.configure") ? addButton(`/admin/events/new`, "New event") : raw(""),
           )}
           ${table(["Event", "Dates", "Status", "Mode", "Visibility", "CFPs", ""], rows, "No events yet. Create the first one.")}`,
       ),
@@ -807,10 +807,10 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
                 "Start from the standard setup",
               )
             : raw("")}
-          ${daysSection(ref, row, days, canWrite)}
+          ${daysSection(ref, days, canWrite)}
           ${tracksSection(ref, tracks, canWrite)}
           ${formatsSection(ref, formats, canWrite)}
-          ${venueSection(ref, venue, rooms, tracks, canWrite)}`,
+          ${venueSection(ref, venue, rooms, canWrite)}`,
       ),
     );
   });
@@ -832,6 +832,58 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
   });
 
   /* days ------------------------------------------------------------------ */
+
+  /*
+   * Every row of every setup list is created and edited on its own page,
+   * reached from the section's "Add …" button or the row's "Edit" link. The
+   * `new` route is registered before the `:id` one — both are one dynamic
+   * segment deep and the router takes the first match (http/router.ts).
+   */
+
+  router.get("/admin/events/:eventId/days/new", async (_req, ctx, params) => {
+    ctx.requireWrite("config.manage", { event_id: params.eventId });
+    const { row, ref } = await loadEventFor(ctx, params.eventId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a day", event: ref, active: "setup", width: "narrow" },
+        html`${pageHead("Add a day", `Calendar dates in ${ref.timezone}.`)}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/days" class="stack">
+            ${dayFields(null, row)}
+            ${formActions("Add day", setupUrl(ref.id))}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/days/:dayId", async (_req, ctx, params) => {
+    ctx.requireRead("config.manage", { event_id: params.eventId });
+    const { row, ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const day = await app.db.byId<Row>("event_day", params.dayId);
+    if (!day || str(day.event_id) !== ref.id) throw notFound("Event day", params.dayId);
+    const canWrite = ctx.canWrite("config.manage", { event_id: ref.id });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Edit day", event: ref, active: "setup", width: "narrow" },
+        html`${pageHead(strOrNull(day.label) ?? str(day.date), `Calendar dates in ${ref.timezone}.`)}
+          ${card(
+            canWrite
+              ? html`<form method="post" action="/admin/events/${ref.id}/days/${str(day.id)}" class="stack">
+                  ${dayFields(day, row)}
+                  ${formActions("Save day", setupUrl(ref.id))}
+                </form>
+                ${actionForm(`/admin/events/${ref.id}/days/${str(day.id)}`, "Remove day", {
+                  className: "danger",
+                  confirm: "Remove this day?",
+                  hidden: { action: "delete" },
+                })}`
+              : html`<p>${str(day.date)} · ${str(day.label) || "no label"}</p>`,
+          )}`,
+      ),
+    );
+  });
 
   router.post("/admin/events/:eventId/days", async (req, ctx, params) => {
     ctx.requireWrite("config.manage", { event_id: params.eventId });
@@ -866,6 +918,51 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
 
   /* tracks ---------------------------------------------------------------- */
 
+  router.get("/admin/events/:eventId/tracks/new", async (_req, ctx, params) => {
+    ctx.requireWrite("config.manage", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a track", event: ref, active: "setup", width: "narrow" },
+        html`${pageHead("Add a track", "Reviewer pools, track leads, quotas and schedule columns are all per-track.")}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/tracks" class="stack">
+            ${trackFields(null)}
+            ${formActions("Add track", setupUrl(ref.id))}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/tracks/:trackId", async (_req, ctx, params) => {
+    ctx.requireRead("config.manage", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const track = await app.db.byId<Row>("track", params.trackId);
+    if (!track || str(track.event_id) !== ref.id) throw notFound("Track", params.trackId);
+    const canWrite = ctx.canWrite("config.manage", { event_id: ref.id });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `Edit ${str(track.name)}`, event: ref, active: "setup", width: "narrow" },
+        html`${pageHead(str(track.name), "Archiving keeps the track on anything already using it (INV-02-10).")}
+          ${card(
+            canWrite
+              ? html`<form method="post" action="/admin/events/${ref.id}/tracks/${str(track.id)}" class="stack">
+                  ${trackFields(track)}
+                  ${field({ name: "is_public", label: "Public", type: "checkbox", value: bool(track.is_public) })}
+                  ${formActions("Save track", setupUrl(ref.id))}
+                </form>
+                ${actionForm(`/admin/events/${ref.id}/tracks/${str(track.id)}`, "Archive track", {
+                  confirm: "Archive this track? Proposals and sessions that use it keep it.",
+                  hidden: { action: "archive" },
+                })}`
+              : html`<p>${str(track.name)} · ${str(track.description) || "no description"}</p>`,
+          )}`,
+      ),
+    );
+  });
+
   router.post("/admin/events/:eventId/tracks", async (req, ctx, params) => {
     ctx.requireWrite("config.manage", { event_id: params.eventId });
     const input = await readInput(req);
@@ -898,6 +995,51 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
 
   /* formats --------------------------------------------------------------- */
 
+  router.get("/admin/events/:eventId/formats/new", async (_req, ctx, params) => {
+    ctx.requireWrite("config.manage", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a session format", event: ref, active: "setup", width: "narrow" },
+        html`${pageHead("Add a session format", "What may be submitted, how long it runs and who may submit it.")}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/formats" class="stack">
+            ${formatFields(null)}
+            ${formActions("Add format", setupUrl(ref.id))}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/formats/:formatId", async (_req, ctx, params) => {
+    ctx.requireRead("config.manage", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const format = await app.db.byId<Row>("session_format", params.formatId);
+    if (!format || str(format.event_id) !== ref.id) throw notFound("Session format", params.formatId);
+    const canWrite = ctx.canWrite("config.manage", { event_id: ref.id });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `Edit ${str(format.name)}`, event: ref, active: "setup", width: "narrow" },
+        html`${pageHead(str(format.name), "Archiving keeps the format on anything already using it (INV-02-10).")}
+          ${card(
+            canWrite
+              ? html`<form method="post" action="/admin/events/${ref.id}/formats/${str(format.id)}" class="stack">
+                  ${formatFields(format)}
+                  ${field({ name: "is_public", label: "Public", type: "checkbox", value: bool(format.is_public) })}
+                  ${formActions("Save format", setupUrl(ref.id))}
+                </form>
+                ${actionForm(`/admin/events/${ref.id}/formats/${str(format.id)}`, "Archive format", {
+                  confirm: "Archive this format?",
+                  hidden: { action: "archive" },
+                })}`
+              : html`<p>${str(format.name)} · ${num(format.default_duration_minutes)} min</p>`,
+          )}`,
+      ),
+    );
+  });
+
   router.post("/admin/events/:eventId/formats", async (req, ctx, params) => {
     ctx.requireWrite("config.manage", { event_id: params.eventId });
     const input = await readInput(req);
@@ -928,6 +1070,81 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
   });
 
   /* venue and rooms -------------------------------------------------------- */
+
+  router.get("/admin/events/:eventId/venue", async (_req, ctx, params) => {
+    ctx.requireWrite("config.manage", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const venue = await app.db.first<Row>("venue", { event_id: ref.id });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: venue ? "Edit venue" : "Add a venue", event: ref, active: "setup", width: "narrow" },
+        html`${pageHead(venue ? str(venue.name) : "Add a venue", "One venue per event. Rooms belong to it.")}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/venue" class="stack">
+            <input type="hidden" name="venue_id" value="${venue ? str(venue.id) : ""}">
+            ${field({ name: "name", label: "Venue name", required: true, value: venue ? str(venue.name) : "" })}
+            ${field({ name: "address", label: "Address", type: "textarea", rows: 2, value: venue ? str(venue.address) : "" })}
+            ${field({ name: "map_url", label: "Map URL", type: "url", value: venue ? str(venue.map_url) : "" })}
+            ${field({ name: "timezone", label: "Timezone", value: venue ? str(venue.timezone) : "", help: `Defaults to the event timezone (${ref.timezone}).` })}
+            ${formActions(venue ? "Save venue" : "Add venue", setupUrl(ref.id))}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/rooms/new", async (_req, ctx, params) => {
+    ctx.requireWrite("config.manage", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const venue = await app.db.first<Row>("venue", { event_id: ref.id });
+    if (!venue) throw notFound("Venue");
+    const tracks = await app.db.select<Row>("track", { event_id: ref.id }, { orderBy: "sort_order, name" });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a room", event: ref, active: "setup", width: "narrow" },
+        html`${pageHead("Add a room", `A room in ${str(venue.name)}.`)}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/rooms" class="stack">
+            <input type="hidden" name="venue_id" value="${str(venue.id)}">
+            ${roomFields(null, tracks)}
+            ${formActions("Add room", setupUrl(ref.id))}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/rooms/:roomId", async (_req, ctx, params) => {
+    ctx.requireRead("config.manage", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const room = await app.db.byId<Row>("room", params.roomId);
+    if (!room) throw notFound("Room", params.roomId);
+    const venue = await app.db.byId<Row>("venue", str(room.venue_id));
+    if (!venue || str(venue.event_id) !== ref.id) throw notFound("Room", params.roomId);
+    const canWrite = ctx.canWrite("config.manage", { event_id: ref.id });
+    const tracks = await app.db.select<Row>("track", { event_id: ref.id }, { orderBy: "sort_order, name" });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `Edit ${str(room.name)}`, event: ref, active: "setup", width: "narrow" },
+        html`${pageHead(str(room.name), "Archiving keeps the room on anything already placed in it (INV-02-10).")}
+          ${card(
+            canWrite
+              ? html`<form method="post" action="/admin/events/${ref.id}/rooms/${str(room.id)}" class="stack">
+                  ${roomFields(room, tracks)}
+                  ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: bool(room.is_public) })}
+                  ${formActions("Save room", setupUrl(ref.id))}
+                </form>
+                ${actionForm(`/admin/events/${ref.id}/rooms/${str(room.id)}`, "Archive room", {
+                  confirm: "Archive this room?",
+                  hidden: { action: "archive" },
+                })}`
+              : html`<p>${str(room.name)}</p>`,
+          )}`,
+      ),
+    );
+  });
 
   router.post("/admin/events/:eventId/venue", async (req, ctx, params) => {
     ctx.requireWrite("config.manage", { event_id: params.eventId });
@@ -986,102 +1203,49 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
 
 /* setup sections ------------------------------------------------------------ */
 
-function editDetails(summary: string, body: SafeHtml): SafeHtml {
-  return html`<details class="row-edit"><summary>${summary}</summary>${body}</details>`;
+/*
+ * Four lists on one screen, all built the same way: a titled card whose head
+ * carries the "Add …" button, a table, and an "Edit" link on every row. The
+ * create form is a page of its own (`…/days/new`), never a disclosure folded in
+ * under the rows — a list and the form that adds to it are two different
+ * screens, and the setup screen is where that was least true.
+ */
+
+const setupUrl = (eventId: string) => `/admin/events/${eventId}/setup`;
+
+function dayFields(d: Row | null, event: Row): SafeHtml {
+  return html`
+    ${field({
+      name: "date",
+      label: "Date",
+      type: "date",
+      required: true,
+      value: d ? str(d.date) : "",
+      min: str(event.starts_on),
+      max: str(event.ends_on),
+    })}
+    ${field({ name: "label", label: "Label", value: d ? str(d.label) : "", placeholder: "Day 1 — Workshops" })}
+    ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: d ? bool(d.is_public) : true })}`;
 }
 
-function daysSection(ev: EventRef, row: Row, days: Row[], canWrite: boolean): SafeHtml {
-  const rows = days.map(
-    (d) => html`<tr>
-      <td><strong>${str(d.date)}</strong></td>
-      <td>${str(d.label) || html`<span class="muted">—</span>`}</td>
-      <td>${bool(d.is_public) ? badge("public", "ok") : badge("staff only", "warn")}</td>
-      <td class="right">
-        ${canWrite
-          ? editDetails(
-              "Edit",
-              html`<form method="post" action="/admin/events/${ev.id}/days/${str(d.id)}" class="inline-grid">
-                  ${field({ name: "date", label: "Date", type: "date", required: true, value: str(d.date) })}
-                  ${field({ name: "label", label: "Label", value: str(d.label) })}
-                  ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: bool(d.is_public) })}
-                  <button type="submit" class="small">Save</button>
-                </form>
-                ${actionForm(`/admin/events/${ev.id}/days/${str(d.id)}`, "Remove day", {
-                  className: "danger",
-                  confirm: "Remove this day?",
-                  hidden: { action: "delete" },
-                })}`,
-            )
-          : raw("")}
-      </td>
-    </tr>`,
-  );
-  return card(
-    html`<p class="muted">Days exist so the schedule grid and per-day publication are not derived by date arithmetic across timezone boundaries. Dates are calendar dates in <span class="mono">${ev.timezone}</span>.</p>
-      ${table(["Date", "Label", "Visibility", ""], rows, "No days yet.")}
-      ${canWrite
-        ? addForm("Add a day", html`<form method="post" action="/admin/events/${ev.id}/days" class="inline-grid">
-            ${field({ name: "date", label: "Date", type: "date", required: true, min: str(row.starts_on), max: str(row.ends_on) })}
-            ${field({ name: "label", label: "Label", placeholder: "Day 1 — Workshops" })}
-            ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: true })}
-            <button type="submit">Add day</button>
-          </form>`)
-        : raw("")}`,
-    "Days",
-  );
+function trackFields(t: Row | null): SafeHtml {
+  return html`
+    ${field({ name: "name", label: "Name", required: true, value: t ? str(t.name) : "", placeholder: "Agents" })}
+    ${field({ name: "slug", label: "Slug", value: t ? str(t.slug) : "", placeholder: "agents" })}
+    ${field({
+      name: "description",
+      label: "Description",
+      type: "textarea",
+      rows: 2,
+      value: t ? str(t.description) : "",
+      help: "Shown on the CFP form to guide submitters.",
+    })}
+    ${field({ name: "color", label: "Colour", type: "color", value: (t ? str(t.color) : "") || "#4b5563" })}
+    ${field({ name: "target_session_count", label: "Target sessions", type: "number", min: 0, value: t?.target_session_count ?? "" })}`;
 }
 
-function tracksSection(ev: EventRef, tracks: Row[], canWrite: boolean): SafeHtml {
-  const rows = tracks.map(
-    (t) => html`<tr>
-      <td>
-        ${str(t.color) ? raw(`<span class="swatch" style="background:${escapeHtml(str(t.color))}"></span>`) : raw("")}
-        <strong>${str(t.name)}</strong><br><span class="mono small muted">${str(t.slug)}</span>
-      </td>
-      <td>${str(t.description) || html`<span class="muted">—</span>`}</td>
-      <td>${t.target_session_count === null ? html`<span class="muted">—</span>` : num(t.target_session_count)}</td>
-      <td>${bool(t.is_public) ? badge("public", "ok") : badge("hidden")}</td>
-      <td class="right">
-        ${canWrite
-          ? editDetails(
-              "Edit",
-              html`<form method="post" action="/admin/events/${ev.id}/tracks/${str(t.id)}" class="inline-grid">
-                  ${field({ name: "name", label: "Name", required: true, value: str(t.name) })}
-                  ${field({ name: "slug", label: "Slug", value: str(t.slug) })}
-                  ${field({ name: "description", label: "Description", type: "textarea", rows: 2, value: str(t.description) })}
-                  ${field({ name: "color", label: "Colour", type: "color", value: str(t.color) || "#4b5563" })}
-                  ${field({ name: "target_session_count", label: "Target sessions", type: "number", min: 0, value: t.target_session_count })}
-                  ${field({ name: "is_public", label: "Public", type: "checkbox", value: bool(t.is_public) })}
-                  <button type="submit" class="small">Save</button>
-                </form>
-                ${actionForm(`/admin/events/${ev.id}/tracks/${str(t.id)}`, "Archive track", {
-                  confirm: "Archive this track? Proposals and sessions that use it keep it.",
-                  hidden: { action: "archive" },
-                })}`,
-            )
-          : raw("")}
-      </td>
-    </tr>`,
-  );
-  return card(
-    html`<p class="muted">Tracks are more than labels: reviewer pools, track leads, quotas and schedule columns are all per-track. Archiving keeps them on anything already using them.</p>
-      ${table(["Track", "Description", "Target", "Visibility", ""], rows, "No tracks yet.")}
-      ${canWrite
-        ? addForm("Add a track", html`<form method="post" action="/admin/events/${ev.id}/tracks" class="inline-grid">
-            ${field({ name: "name", label: "Name", required: true, placeholder: "Agents" })}
-            ${field({ name: "slug", label: "Slug", placeholder: "agents" })}
-            ${field({ name: "description", label: "Description", type: "textarea", rows: 2, help: "Shown on the CFP form to guide submitters." })}
-            ${field({ name: "color", label: "Colour", type: "color", value: "#4b5563" })}
-            ${field({ name: "target_session_count", label: "Target sessions", type: "number", min: 0 })}
-            <button type="submit">Add track</button>
-          </form>`)
-        : raw("")}`,
-    "Tracks",
-  );
-}
-
-function formatsSection(ev: EventRef, formats: Row[], canWrite: boolean): SafeHtml {
-  const formatFields = (f: Row | null) => html`
+function formatFields(f: Row | null): SafeHtml {
+  return html`
     ${field({ name: "name", label: "Name", required: true, value: f ? str(f.name) : "", placeholder: "Conference talk" })}
     ${field({ name: "slug", label: "Slug", value: f ? str(f.slug) : "" })}
     ${field({ name: "description", label: "Description", type: "textarea", rows: 2, value: f ? str(f.description) : "" })}
@@ -1100,52 +1264,10 @@ function formatsSection(ev: EventRef, formats: Row[], canWrite: boolean): SafeHt
     ${field({ name: "requires_review", label: "Requires review", type: "checkbox", value: f ? bool(f.requires_review) : true })}
     ${field({ name: "requires_recording_consent", label: "Requires recording consent", type: "checkbox", value: f ? bool(f.requires_recording_consent) : false })}
     ${field({ name: "capacity_policy", label: "Capacity policy", type: "select", required: true, value: f ? str(f.capacity_policy) : "open", options: opts(CAPACITY_POLICY) })}`;
-
-  const rows = formats.map(
-    (f) => html`<tr>
-      <td><strong>${str(f.name)}</strong><br><span class="mono small muted">${str(f.slug)}</span></td>
-      <td>
-        ${num(f.default_duration_minutes)} min${f.min_duration_minutes || f.max_duration_minutes
-          ? html` <span class="muted small">(${f.min_duration_minutes ?? "—"}–${f.max_duration_minutes ?? "—"})</span>`
-          : raw("")}
-      </td>
-      <td>${num(f.max_speakers, 1)}</td>
-      <td>${parseJson<string[]>(f.eligible_origins, []).map((o) => badge(o))}</td>
-      <td>${bool(f.requires_review) ? badge("reviewed", "info") : badge("no review")}</td>
-      <td>${badge(str(f.capacity_policy))}</td>
-      <td class="right">
-        ${canWrite
-          ? editDetails(
-              "Edit",
-              html`<form method="post" action="/admin/events/${ev.id}/formats/${str(f.id)}" class="inline-grid">
-                  ${formatFields(f)}
-                  ${field({ name: "is_public", label: "Public", type: "checkbox", value: bool(f.is_public) })}
-                  <button type="submit" class="small">Save</button>
-                </form>
-                ${actionForm(`/admin/events/${ev.id}/formats/${str(f.id)}`, "Archive format", {
-                  confirm: "Archive this format?",
-                  hidden: { action: "archive" },
-                })}`,
-            )
-          : raw("")}
-      </td>
-    </tr>`,
-  );
-  return card(
-    html`${table(["Format", "Duration", "Speakers", "Origins", "Review", "Capacity", ""], rows, "No session formats yet. An event needs at least one to go active.")}
-      ${canWrite
-        ? addForm("Add a session format", html`<form method="post" action="/admin/events/${ev.id}/formats" class="inline-grid">
-            ${formatFields(null)}
-            <button type="submit">Add format</button>
-          </form>`)
-        : raw("")}`,
-    "Session formats",
-  );
 }
 
-function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], tracks: Row[], canWrite: boolean): SafeHtml {
-  const trackOptions = tracks.map((t) => ({ value: str(t.id), label: str(t.name) }));
-  const roomFields = (r: Row | null) => html`
+function roomFields(r: Row | null, tracks: Row[]): SafeHtml {
+  return html`
     ${field({ name: "name", label: "Name", required: true, value: r ? str(r.name) : "", placeholder: "Golden Gate Ballroom" })}
     ${field({ name: "slug", label: "Slug", value: r ? str(r.slug) : "" })}
     ${field({ name: "capacity", label: "Capacity", type: "number", min: 0, value: r?.capacity ?? "", help: "Drives the over-capacity warning; never enforced." })}
@@ -1158,8 +1280,77 @@ function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], tracks: Row
       value: r ? parseJson<string[]>(r.av_capabilities, []) : [],
       help: "Matched against a session's AV requirements.",
     })}
-    ${field({ name: "default_track_id", label: "Home track", type: "select", value: r ? str(r.default_track_id) : "", options: trackOptions })}`;
+    ${field({
+      name: "default_track_id",
+      label: "Home track",
+      type: "select",
+      value: r ? str(r.default_track_id) : "",
+      options: tracks.map((t) => ({ value: str(t.id), label: str(t.name) })),
+    })}`;
+}
 
+function daysSection(ev: EventRef, days: Row[], canWrite: boolean): SafeHtml {
+  const rows = days.map(
+    (d) => html`<tr>
+      <td><strong>${str(d.date)}</strong></td>
+      <td>${str(d.label) || html`<span class="muted">—</span>`}</td>
+      <td>${bool(d.is_public) ? badge("public", "ok") : badge("staff only", "warn")}</td>
+      <td class="right">${canWrite ? editLink(`/admin/events/${ev.id}/days/${str(d.id)}`) : raw("")}</td>
+    </tr>`,
+  );
+  return card(
+    html`<p class="muted">Days exist so the schedule grid and per-day publication are not derived by date arithmetic across timezone boundaries. Dates are calendar dates in <span class="mono">${ev.timezone}</span>.</p>
+      ${table(["Date", "Label", "Visibility", ""], rows, "No days yet.")}`,
+    "Days",
+    { actions: canWrite ? addButton(`/admin/events/${ev.id}/days/new`, "Add day") : undefined },
+  );
+}
+
+function tracksSection(ev: EventRef, tracks: Row[], canWrite: boolean): SafeHtml {
+  const rows = tracks.map(
+    (t) => html`<tr>
+      <td>
+        ${str(t.color) ? raw(`<span class="swatch" style="background:${escapeHtml(str(t.color))}"></span>`) : raw("")}
+        <strong>${str(t.name)}</strong><br><span class="mono small muted">${str(t.slug)}</span>
+      </td>
+      <td>${str(t.description) || html`<span class="muted">—</span>`}</td>
+      <td>${t.target_session_count === null ? html`<span class="muted">—</span>` : num(t.target_session_count)}</td>
+      <td>${bool(t.is_public) ? badge("public", "ok") : badge("hidden")}</td>
+      <td class="right">${canWrite ? editLink(`/admin/events/${ev.id}/tracks/${str(t.id)}`) : raw("")}</td>
+    </tr>`,
+  );
+  return card(
+    html`<p class="muted">Tracks are more than labels: reviewer pools, track leads, quotas and schedule columns are all per-track. Archiving keeps them on anything already using them.</p>
+      ${table(["Track", "Description", "Target", "Visibility", ""], rows, "No tracks yet.")}`,
+    "Tracks",
+    { actions: canWrite ? addButton(`/admin/events/${ev.id}/tracks/new`, "Add track") : undefined },
+  );
+}
+
+function formatsSection(ev: EventRef, formats: Row[], canWrite: boolean): SafeHtml {
+  const rows = formats.map(
+    (f) => html`<tr>
+      <td><strong>${str(f.name)}</strong><br><span class="mono small muted">${str(f.slug)}</span></td>
+      <td>
+        ${num(f.default_duration_minutes)} min${f.min_duration_minutes || f.max_duration_minutes
+          ? html` <span class="muted small">(${f.min_duration_minutes ?? "—"}–${f.max_duration_minutes ?? "—"})</span>`
+          : raw("")}
+      </td>
+      <td>${num(f.max_speakers, 1)}</td>
+      <td>${parseJson<string[]>(f.eligible_origins, []).map((o) => badge(o))}</td>
+      <td>${bool(f.requires_review) ? badge("reviewed", "info") : badge("no review")}</td>
+      <td>${badge(str(f.capacity_policy))}</td>
+      <td class="right">${canWrite ? editLink(`/admin/events/${ev.id}/formats/${str(f.id)}`) : raw("")}</td>
+    </tr>`,
+  );
+  return card(
+    table(["Format", "Duration", "Speakers", "Origins", "Review", "Capacity", ""], rows, "No session formats yet. An event needs at least one to go active."),
+    "Session formats",
+    { actions: canWrite ? addButton(`/admin/events/${ev.id}/formats/new`, "Add session format") : undefined },
+  );
+}
+
+function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], canWrite: boolean): SafeHtml {
   const roomRows = rooms.map(
     (r) => html`<tr>
       <td><strong>${str(r.name)}</strong><br><span class="mono small muted">${str(r.slug)}</span></td>
@@ -1167,51 +1358,28 @@ function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], tracks: Row
       <td>${str(r.floor) || html`<span class="muted">—</span>`}</td>
       <td>${parseJson<string[]>(r.av_capabilities, []).map((c) => badge(c))}</td>
       <td>${bool(r.is_public) ? badge("public", "ok") : badge("staff only", "warn")}</td>
-      <td class="right">
-        ${canWrite
-          ? editDetails(
-              "Edit",
-              html`<form method="post" action="/admin/events/${ev.id}/rooms/${str(r.id)}" class="inline-grid">
-                  ${roomFields(r)}
-                  ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: bool(r.is_public) })}
-                  <button type="submit" class="small">Save</button>
-                </form>
-                ${actionForm(`/admin/events/${ev.id}/rooms/${str(r.id)}`, "Archive room", {
-                  confirm: "Archive this room?",
-                  hidden: { action: "archive" },
-                })}`,
-            )
-          : raw("")}
-      </td>
+      <td class="right">${canWrite ? editLink(`/admin/events/${ev.id}/rooms/${str(r.id)}`) : raw("")}</td>
     </tr>`,
   );
 
-  return card(
-    html`${canWrite
-        ? html`<form method="post" action="/admin/events/${ev.id}/venue" class="inline-grid">
-            <input type="hidden" name="venue_id" value="${venue ? str(venue.id) : ""}">
-            ${field({ name: "name", label: "Venue name", required: true, value: venue ? str(venue.name) : "" })}
-            ${field({ name: "address", label: "Address", type: "textarea", rows: 2, value: venue ? str(venue.address) : "" })}
-            ${field({ name: "map_url", label: "Map URL", type: "url", value: venue ? str(venue.map_url) : "" })}
-            ${field({ name: "timezone", label: "Timezone", value: venue ? str(venue.timezone) : "", help: `Defaults to the event timezone (${ev.timezone}).` })}
-            <button type="submit">${venue ? "Save venue" : "Add venue"}</button>
-          </form>`
-        : venue
-          ? html`<p><strong>${str(venue.name)}</strong> · ${str(venue.address)}</p>`
-          : empty("No venue yet.")}
-      <h3>Rooms</h3>
-      ${venue
-        ? html`${table(["Room", "Capacity", "Floor", "AV", "Visibility", ""], roomRows, "No rooms yet. An in-person or hybrid event needs at least one to go active.")}
-            ${canWrite
-              ? addForm("Add a room", html`<form method="post" action="/admin/events/${ev.id}/rooms" class="inline-grid">
-                  <input type="hidden" name="venue_id" value="${str(venue.id)}">
-                  ${roomFields(null)}
-                  <button type="submit">Add room</button>
-                </form>`)
-              : raw("")}`
-        : empty("Add the venue first — rooms belong to it.")}`,
-    "Venue and rooms",
+  const venueCard = card(
+    venue
+      ? html`<p><strong>${str(venue.name)}</strong>${str(venue.address) ? html` · ${str(venue.address)}` : raw("")}</p>
+          <p class="small muted">Timezone <span class="mono">${str(venue.timezone) || ev.timezone}</span>${str(venue.map_url) ? html` · <a href="${str(venue.map_url)}">Map</a>` : raw("")}</p>`
+      : empty("No venue yet."),
+    "Venue",
+    { actions: canWrite ? addButton(`/admin/events/${ev.id}/venue`, venue ? "Edit venue" : "Add venue") : undefined },
   );
+
+  const roomsCard = card(
+    venue
+      ? table(["Room", "Capacity", "Floor", "AV", "Visibility", ""], roomRows, "No rooms yet. An in-person or hybrid event needs at least one to go active.")
+      : empty("Add the venue first — rooms belong to it."),
+    "Rooms",
+    { actions: canWrite && venue ? addButton(`/admin/events/${ev.id}/rooms/new`, "Add room") : undefined },
+  );
+
+  return html`${venueCard}${roomsCard}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1255,7 +1423,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Calls for proposals",
             "An event may run several at once — a main call, a workshops call with its own deadline, and a sponsor intake that opens later.",
-            canWrite ? html`<a class="btn" href="/admin/events/${ref.id}/cfps/new">New call</a>` : raw(""),
+            canWrite ? addButton(`/admin/events/${ref.id}/cfps/new`, "New call") : raw(""),
           )}
           ${str(row.status) !== "active" || str(row.visibility) !== "public"
             ? html`<p class="notice warn">Public call pages need an <strong>active</strong>, <strong>public</strong> event. This event is ${str(row.status)} and ${str(row.visibility)}.</p>`
@@ -1542,20 +1710,95 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
             ? html`<p class="notice">This version is live. Cosmetic edits — label, help text, order — apply in place; anything else creates a new draft version automatically.</p>`
             : raw("")}
           ${versionList(versions, spec.id)}
-          ${joinHtml(spec.steps.map((step, i) => stepCard(params.cfpId, spec, step, i, tracks, formats, canWrite)))}
-          ${canWrite
-            ? card(
-                html`<form method="post" action="/admin/cfps/${params.cfpId}/form/steps" class="inline-grid">
-                  <input type="hidden" name="form_id" value="${spec.id}">
-                  ${field({ name: "title", label: "Step title", required: true, placeholder: "Sponsorship details" })}
-                  ${field({ name: "key", label: "Key", help: "Stable across versions. Derived from the title if blank." })}
-                  ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
-                  ${field({ name: "is_optional", label: "Submitters may skip this step", type: "checkbox" })}
-                  <button type="submit">Add step</button>
-                </form>`,
-                "Add a step",
-              )
-            : raw("")}`,
+          ${card(
+            spec.steps.length
+              ? html`<p class="muted">${spec.steps.length} step${spec.steps.length === 1 ? "" : "s"}, in the order an applicant meets them.</p>`
+              : empty("No steps on this form yet."),
+            "Steps",
+            { actions: canWrite ? addButton(`/admin/cfps/${params.cfpId}/form/steps/new`, "Add step") : undefined },
+          )}
+          ${joinHtml(spec.steps.map((step, i) => stepCard(params.cfpId, spec, step, i, tracks, formats, canWrite)))}`,
+      ),
+    );
+  });
+
+  router.get("/admin/cfps/:cfpId/form/steps/new", async (_req, ctx, params) => {
+    const { cfp, ref } = await loadCfpFor(ctx, params.cfpId);
+    ctx.requireWrite("cfp.configure", { event_id: ref.id });
+    const app = ctx.app(ref.id);
+    const spec = await builderForm(app, params.cfpId);
+    if (!spec) throw notFound("Submission form", params.cfpId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a step", event: ref, active: "cfp", width: "narrow" },
+        html`${pageHead("Add a step", `A new step on ${str(cfp.name)}, version ${spec.version}.`)}
+          ${card(html`<form method="post" action="/admin/cfps/${params.cfpId}/form/steps" class="stack">
+            <input type="hidden" name="form_id" value="${spec.id}">
+            ${field({ name: "title", label: "Step title", required: true, placeholder: "Sponsorship details" })}
+            ${field({ name: "key", label: "Key", help: "Stable across versions. Derived from the title if blank." })}
+            ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
+            ${field({ name: "is_optional", label: "Submitters may skip this step", type: "checkbox" })}
+            ${formActions("Add step", `/admin/cfps/${params.cfpId}/form`)}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/cfps/:cfpId/form/steps/:stepId/fields/new", async (_req, ctx, params) => {
+    const { ref } = await loadCfpFor(ctx, params.cfpId);
+    ctx.requireWrite("cfp.configure", { event_id: ref.id });
+    const app = ctx.app(ref.id);
+    const spec = await builderForm(app, params.cfpId);
+    const step = spec?.steps.find((s) => s.id === params.stepId);
+    if (!spec || !step) throw notFound("Form step", params.stepId);
+    const [tracks, formats] = await Promise.all([cfpTrackOptions(app, params.cfpId, true), cfpFormatOptions(app, params.cfpId, true)]);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a field", event: ref, active: "cfp", width: "narrow" },
+        html`${pageHead("Add a field", `A new question on “${step.title}”.`)}
+          ${card(html`<form method="post" action="/admin/cfps/${params.cfpId}/form/fields" class="stack">
+            <input type="hidden" name="form_id" value="${spec.id}">
+            <input type="hidden" name="step_id" value="${step.id}">
+            ${fieldFormControls(spec, step, tracks, formats, null, [])}
+            ${formActions("Add field", `/admin/cfps/${params.cfpId}/form`)}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/cfps/:cfpId/form/fields/:fieldId", async (_req, ctx, params) => {
+    const { ref } = await loadCfpFor(ctx, params.cfpId);
+    ctx.requireRead("cfp.configure", { event_id: ref.id });
+    const app = ctx.app(ref.id);
+    const canWrite = ctx.canWrite("cfp.configure", { event_id: ref.id });
+    const spec = await builderForm(app, params.cfpId);
+    const step = spec?.steps.find((s) => s.fields.some((f) => f.id === params.fieldId));
+    const formField = step?.fields.find((f) => f.id === params.fieldId);
+    if (!spec || !step || !formField) throw notFound("Form field", params.fieldId);
+    const [tracks, formats] = await Promise.all([cfpTrackOptions(app, params.cfpId, true), cfpFormatOptions(app, params.cfpId, true)]);
+    const options = resolvedOptions(formField, tracks, formats);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `Edit ${formField.label}`, event: ref, active: "cfp", width: "narrow" },
+        html`${pageHead(formField.label, `On “${step.title}”. Key ${formField.key}.`)}
+          ${card(
+            canWrite
+              ? html`<form method="post" action="/admin/cfps/${params.cfpId}/form/fields/${formField.id}" class="stack">
+                  ${fieldFormControls(spec, step, tracks, formats, formField, options)}
+                  ${formActions("Save field", `/admin/cfps/${params.cfpId}/form`)}
+                </form>
+                ${spec.status === "draft"
+                  ? actionForm(`/admin/cfps/${params.cfpId}/form/fields/${formField.id}`, "Delete field", {
+                      className: "danger",
+                      confirm: `Delete "${formField.label}"?`,
+                      hidden: { action: "delete" },
+                    })
+                  : html`<p class="small muted">Deleting a question on a published form would strand answers. Create a new draft version first.</p>`}`
+              : html`<p>${badge(formField.type)} ${formField.is_required ? badge("required", "warn") : raw("")}</p>`,
+          )}`,
       ),
     );
   });
@@ -1734,7 +1977,6 @@ function stepCard(
 ): SafeHtml {
   const draft = spec.status === "draft";
   const rows = step.fields.map((f) => {
-    const options = resolvedOptions(f, tracks, formats);
     const summary = f.visible_when
       ? f.visible_when.all
           .map((c) => {
@@ -1758,60 +2000,36 @@ function stepCard(
       <td class="small">${summary ? html`Shown when ${summary}` : html`<span class="muted">always shown</span>`}</td>
       <td class="right">
         ${canWrite
-          ? html`${actionForm(`/admin/cfps/${cfpId}/form/fields/${f.id}`, "▲", { hidden: { action: "up" } })}
+          ? html`<div class="row-actions">
+              ${actionForm(`/admin/cfps/${cfpId}/form/fields/${f.id}`, "▲", { hidden: { action: "up" } })}
               ${actionForm(`/admin/cfps/${cfpId}/form/fields/${f.id}`, "▼", { hidden: { action: "down" } })}
-              ${editDetails(
-                "Edit",
-                html`<form method="post" action="/admin/cfps/${cfpId}/form/fields/${f.id}" class="inline-grid">
-                    ${fieldFormControls(spec, step, tracks, formats, f, options)}
-                    <button type="submit" class="small">Save field</button>
-                  </form>
-                  ${draft
-                    ? actionForm(`/admin/cfps/${cfpId}/form/fields/${f.id}`, "Delete field", {
-                        className: "danger",
-                        confirm: `Delete "${f.label}"?`,
-                        hidden: { action: "delete" },
-                      })
-                    : html`<p class="small muted">Deleting a question on a published form would strand answers. Create a new draft version first.</p>`}`,
-              )}`
+              ${editLink(`/admin/cfps/${cfpId}/form/fields/${f.id}`)}
+            </div>`
           : raw("")}
       </td>
     </tr>`;
   });
 
   return card(
-    html`<div class="page-head">
-        <div class="grow">
-          <h2>Step ${index + 1} · ${step.title} ${step.is_optional ? badge("optional") : raw("")}</h2>
-          <p class="small mono muted">${step.key}</p>
-          ${step.description ? html`<p class="muted">${step.description}</p>` : raw("")}
-        </div>
-        ${canWrite
-          ? html`<div class="actions">
-              ${actionForm(`/admin/cfps/${cfpId}/form/steps/${step.id}`, "▲", { hidden: { action: "up" } })}
-              ${actionForm(`/admin/cfps/${cfpId}/form/steps/${step.id}`, "▼", { hidden: { action: "down" } })}
-            </div>`
-          : raw("")}
-      </div>
+    html`<p class="small mono muted">${step.key}</p>
+      ${step.description ? html`<p class="muted">${step.description}</p>` : raw("")}
       ${table(["Field", "Type", "Becomes", "Audience", "Shown when", ""], rows, "No fields on this step yet.")}
-      ${canWrite
-        ? html`<details class="add-field">
-            <summary><strong>Add a field to “${step.title}”</strong></summary>
-            <form method="post" action="/admin/cfps/${cfpId}/form/fields" class="inline-grid">
-              <input type="hidden" name="form_id" value="${spec.id}">
-              <input type="hidden" name="step_id" value="${step.id}">
-              ${fieldFormControls(spec, step, tracks, formats, null, [])}
-              <button type="submit">Add field</button>
-            </form>
-          </details>`
-        : raw("")}
-      ${canWrite && spec.status === "draft" && step.fields.length === 0
+      ${canWrite && draft && step.fields.length === 0
         ? actionForm(`/admin/cfps/${cfpId}/form/steps/${step.id}`, "Remove step", {
             className: "danger",
             confirm: `Remove the step "${step.title}"?`,
             hidden: { action: "delete" },
           })
         : raw("")}`,
+    `Step ${index + 1} · ${step.title}`,
+    {
+      actions: canWrite
+        ? html`${step.is_optional ? badge("optional") : raw("")}
+            ${actionForm(`/admin/cfps/${cfpId}/form/steps/${step.id}`, "▲", { hidden: { action: "up" } })}
+            ${actionForm(`/admin/cfps/${cfpId}/form/steps/${step.id}`, "▼", { hidden: { action: "down" } })}
+            ${addButton(`/admin/cfps/${cfpId}/form/steps/${step.id}/fields/new`, "Add field")}`
+        : undefined,
+    },
   );
 }
 

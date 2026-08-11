@@ -25,7 +25,7 @@ import { isBlank, type AnswerMap } from "@podiumconf/domain/submissions/answers.
 import { nextAction, type EditAffordance, type NextAction } from "@podiumconf/domain/submissions/types.js";
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import { visibleSteps, editAffordance, allFields } from "./service.js";
 import type { ProposalDetail, DashboardInvitation, DashboardSession, DashboardTask, SubmitterDashboard } from "./views.js";
@@ -520,10 +520,11 @@ export function proposalsListView(proposals: SubmitterDashboard["proposals"]): S
       <td>${p.event_name}</td>
       <td>${badge(p.status)}</td>
       <td class="${urgencyClass(p.next_action.urgency)}">${p.next_action.label}</td>
+      <td class="right"><a class="btn secondary small" href="/portal/proposals/${p.id}">Open</a></td>
     </tr>`,
   );
-  return html`${pageHead("My proposals", "Every proposal you submitted or are credited on, across every event.", html`<a class="btn" href="/portal/proposals/new">Start a proposal</a>`)}
-    ${table(["Proposal", "Event", "Status", "Next action"], rows, "You have not started a proposal yet.")}`;
+  return html`${pageHead("My proposals", "Every proposal you submitted or are credited on, across every event.", addButton(`/portal/proposals/new`, "Start a proposal"))}
+    ${table(["Proposal", "Event", "Status", "Next action", ""], rows, "You have not started a proposal yet.")}`;
 }
 
 export function proposalReadView(detail: ProposalDetail, next: NextAction, canEdit: boolean): SafeHtml {

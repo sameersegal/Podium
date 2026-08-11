@@ -17,7 +17,7 @@ import { str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import { PARTICIPANT_STATUS } from "@podiumconf/domain/identity/types.js";
 import type { DirectoryCriteria, StageSpec } from "@podiumconf/domain/crm/index.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
-import { badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
+import { addButton, badge, card, editLink, empty, field, formActions, humanise, pageHead, stat, table } from "../../ui/layout.js";
 import type { CardView, CrmDashboard, DirectoryRow, PipelineView, SegmentView } from "./service.js";
 
 /* -------------------------------------------------------------------------- */
@@ -94,6 +94,7 @@ export function directoryView(input: {
       <td>${r.event_count}</td>
       <td>${r.session_count}</td>
       <td class="small">${r.last_activity_at ? r.last_activity_at.slice(0, 10) : html`<span class="muted">—</span>`}</td>
+      <td class="right">${editLink(`/admin/people/${r.id}`, "Open")}</td>
     </tr>`,
   );
 
@@ -126,7 +127,7 @@ export function directoryView(input: {
     ${filterForm(criteria, facets, events)}
     <form method="post" action="/admin/contacts/bulk">
       ${Object.entries(criteria).map(([k, v]) => html`<input type="hidden" name="criteria.${k}" value="${String(v)}">`)}
-      ${table(["", "Name", "Email", "Job title", "Company", "Tags", "Events", "Sessions", "Last activity"], trs, "No contacts match these filters.")}
+      ${table(["", "Name", "Email", "Job title", "Company", "Tags", "Events", "Sessions", "Last activity", ""], trs, "No contacts match these filters.")}
       ${bulk}
     </form>`;
 }
@@ -205,40 +206,40 @@ export function segmentListView(segments: SegmentView[], canWrite: boolean): Saf
       <td class="small muted">${s.criteria_description}</td>
       <td>${s.member_count}</td>
       <td>${badge(str(s.visibility))}</td>
+      <td class="right">${canWrite ? editLink(`/admin/segments/${s.id}`, "Open") : raw("")}</td>
     </tr>`,
   );
   return html`${pageHead(
       "Segments",
       "Saved queries, so “AI infra people we have not asked since 2025” is rebuilt once, not slightly differently every time.",
-      canWrite ? html`<a class="btn" href="#new-segment">New segment</a>` : raw(""),
+      canWrite ? addButton("/admin/segments/new", "New segment") : raw(""),
     )}
-    ${table(["Name", "Kind", "Criteria", "Members", "Visibility"], rows, "No segments yet.")}
-    ${canWrite
-      ? card(
-          html`<form method="post" action="/admin/segments" class="stack" id="new-segment">
-            ${field({ name: "name", label: "Name", required: true })}
-            ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
-            ${field({
-              name: "kind",
-              label: "Kind",
-              type: "radio",
-              required: true,
-              value: "dynamic",
-              options: [
-                { value: "dynamic", label: "Dynamic", description: "Re-resolves the filter below on every read." },
-                { value: "static", label: "Static", description: "A frozen list — start it from the directory's checkboxes." },
-              ],
-              help: "Choose now, and deliberately. Converting one into the other later is a separate, recorded action — it never happens by itself.",
-            })}
-            ${field({ name: "q", label: "Search (dynamic only)" })}
-            ${field({ name: "company", label: "Company (dynamic only)" })}
-            ${field({ name: "tag", label: "Tag (dynamic only)" })}
-            ${field({ name: "spoken", label: "Has spoken (dynamic only)", type: "select", options: [{ value: "yes", label: "Has spoken" }, { value: "no", label: "Never spoken" }] })}
-            <button type="submit">Create segment</button>
-          </form>`,
-          "New segment",
-        )
-      : raw("")}`;
+    ${card(table(["Name", "Kind", "Criteria", "Members", "Visibility", ""], rows, "No segments yet."))}`;
+}
+
+export function segmentNewFormView(): SafeHtml {
+  return html`${pageHead("New segment", "Choose the kind deliberately: converting one into the other later is a separate, recorded action.")}
+    ${card(html`<form method="post" action="/admin/segments" class="stack">
+      ${field({ name: "name", label: "Name", required: true })}
+      ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
+      ${field({
+        name: "kind",
+        label: "Kind",
+        type: "radio",
+        required: true,
+        value: "dynamic",
+        options: [
+          { value: "dynamic", label: "Dynamic", description: "Re-resolves the filter below on every read." },
+          { value: "static", label: "Static", description: "A frozen list — start it from the directory's checkboxes." },
+        ],
+        help: "Choose now, and deliberately. Converting one into the other later is a separate, recorded action — it never happens by itself.",
+      })}
+      ${field({ name: "q", label: "Search (dynamic only)" })}
+      ${field({ name: "company", label: "Company (dynamic only)" })}
+      ${field({ name: "tag", label: "Tag (dynamic only)" })}
+      ${field({ name: "spoken", label: "Has spoken (dynamic only)", type: "select", options: [{ value: "yes", label: "Has spoken" }, { value: "no", label: "Never spoken" }] })}
+      ${formActions("Create segment", "/admin/segments")}
+    </form>`)}`;
 }
 
 export function segmentDetailView(input: { segment: SegmentView; members: DirectoryRow[]; canWrite: boolean }): SafeHtml {
@@ -276,10 +277,11 @@ export function pipelineListView(pipelines: Row[], canWrite: boolean): SafeHtml 
       <td><a href="/admin/pipelines/${str(p.id)}"><strong>${str(p.name)}</strong></a></td>
       <td>${badge(str(p.status), str(p.status) === "active" ? "ok" : "")}</td>
       <td>${strOrNull(p.event_id) ?? html`<span class="muted">standing</span>`}</td>
+      <td class="right">${canWrite ? editLink(`/admin/pipelines/${str(p.id)}`, "Open") : raw("")}</td>
     </tr>`,
   );
-  return html`${pageHead("Sourcing pipelines", "The conversation between “we should ask her” and “she has accepted.”", canWrite ? html`<a class="btn" href="/admin/pipelines/new">New pipeline</a>` : raw(""))}
-    ${table(["Pipeline", "Status", "Event"], rows, "No pipelines yet.")}`;
+  return html`${pageHead("Sourcing pipelines", "The conversation between “we should ask her” and “she has accepted.”", canWrite ? addButton("/admin/pipelines/new", "New pipeline") : raw(""))}
+    ${card(table(["Pipeline", "Status", "Event", ""], rows, "No pipelines yet."))}`;
 }
 
 export function pipelineNewFormView(events: Row[]): SafeHtml {
@@ -287,7 +289,7 @@ export function pipelineNewFormView(events: Row[]): SafeHtml {
     ${card(html`<form method="post" action="/admin/pipelines/new" class="stack">
       ${field({ name: "name", label: "Name", required: true, placeholder: "World's Fair 2027 keynotes" })}
       ${field({ name: "event_id", label: "Event (leave blank for a standing pipeline)", type: "select", options: events.map((e) => ({ value: str(e.id), label: str(e.name) })) })}
-      <button type="submit">Create pipeline</button>
+      ${formActions("Create pipeline", "/admin/pipelines")}
     </form>`)}`;
 }
 

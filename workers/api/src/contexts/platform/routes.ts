@@ -25,7 +25,7 @@ import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, editLink, empty, field, formActions, humanise, pageHead, stat, table } from "../../ui/layout.js";
 import { adminPage, toEventRef, type EventRef } from "../../ui/shell.js";
 import {
   createApiKey,
@@ -231,7 +231,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "API keys",
             "Scoped credentials for the management API. The secret is shown once, here, and never again.",
-            canWrite ? html`<a class="btn" href="/admin/api-keys/new">New API key</a>` : raw(""),
+            canWrite ? addButton(`/admin/api-keys/new`, "New API key") : raw(""),
           )}
           ${ctx.flash?.kind === "ok" && ctx.flash.message.startsWith("secret:")
             ? html`<p class="notice ok">Secret (copy it now — it will not be shown again): <span class="mono">${ctx.flash.message.slice(7)}</span></p>`
@@ -336,7 +336,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Webhooks",
             "Push domain events to another system, signed with HMAC-SHA256.",
-            canWrite ? html`<a class="btn" href="/admin/webhooks/new">New webhook</a>` : raw(""),
+            canWrite ? addButton(`/admin/webhooks/new`, "New webhook") : raw(""),
           )}
           ${table(["Webhook", "Event types", "Status", "Consecutive failures", ""], rows, "No webhooks yet.")}`,
       ),
@@ -580,35 +580,46 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Integrations", active: "integrations", width: "wide" },
-        html`${pageHead("Integrations", "Capability contracts — the core never imports a vendor SDK.")}
-          ${table(["Integration", "Capability", "Status", "Default", ""], rows, "Nothing installed. Without an active email integration, mail is recorded in the outbox and never sent.")}
-          ${canWrite
-            ? card(
-                // Choosing the plugin is its own step because each one asks for
-                // different `config_fields`, and this surface is server-rendered
-                // with no client framework to swap the form in place.
-                html`<form method="get" action="/admin/integrations/new" class="stack">
-                  ${field({
-                    name: "plugin_key",
-                    label: "Plugin",
-                    type: "select",
-                    required: true,
-                    options: plugins.map((p) => ({ value: String(p.key), label: `${String(p.display_name)} (${String(p.capability)})` })),
-                  })}
-                  <button type="submit">Continue</button>
-                </form>`,
-                "Install a plugin",
-              )
-            : raw("")}`,
+        html`${pageHead(
+            "Integrations",
+            "Capability contracts — the core never imports a vendor SDK.",
+            canWrite ? addButton("/admin/integrations/new", "Install a plugin") : raw(""),
+          )}
+          ${card(table(["Integration", "Capability", "Status", "Default", ""], rows, "Nothing installed. Without an active email integration, mail is recorded in the outbox and never sent."))}`,
       ),
     );
   });
 
   // Registered before `/admin/integrations/:id` — the router takes the first
   // pattern that matches, and `new` is not an integration id.
+  //
+  // Two steps on one route: with no `plugin_key` it asks which plugin, and
+  // with one it renders that plugin's own `config_fields`. Choosing is its own
+  // step because each plugin asks for different fields and this surface is
+  // server-rendered, with no client framework to swap the form in place.
   router.get("/admin/integrations/new", async (_req, ctx) => {
     ctx.requireWrite("org.configure");
     const pluginKey = ctx.url.searchParams.get("plugin_key") ?? "";
+    if (!pluginKey) {
+      const plugins = pluginOptionsJson();
+      return htmlResponse(
+        adminPage(
+          ctx,
+          { title: "Install a plugin", active: "integrations", width: "narrow" },
+          html`${pageHead("Install a plugin", "Which capability contract to fill. The next step asks for that plugin's own configuration.")}
+            ${card(html`<form method="get" action="/admin/integrations/new" class="stack">
+              ${field({
+                name: "plugin_key",
+                label: "Plugin",
+                type: "select",
+                required: true,
+                options: plugins.map((p) => ({ value: String(p.key), label: `${String(p.display_name)} (${String(p.capability)})` })),
+              })}
+              ${formActions("Continue", "/admin/integrations")}
+            </form>`)}`,
+        ),
+      );
+    }
     const plugin = availablePlugins().find((p) => p.key === pluginKey);
     if (!plugin) throw notFound("Plugin", pluginKey);
     return htmlResponse(
@@ -751,6 +762,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
         <td>${str(t.locale)}</td>
         <td>v${num(t.version, 1)}</td>
         <td>${bool(t.is_active) ? badge("active", "ok") : badge("inactive")}</td>
+        <td class="right">${canWrite ? editLink(`/admin/templates/${str(t.id)}`) : raw("")}</td>
       </tr>`,
     );
     return htmlResponse(
@@ -760,9 +772,9 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Message templates",
             "System-triggered messages. Unknown variables are rejected at save time.",
-            canWrite ? html`<a class="btn" href="/admin/templates/new">New template</a>` : raw(""),
+            canWrite ? addButton(`/admin/templates/new`, "New template") : raw(""),
           )}
-          ${table(["Key", "Channel", "Locale", "Version", "Status"], rows, "No org-level overrides yet — defaults from the catalogue are used.")}
+          ${card(table(["Key", "Channel", "Locale", "Version", "Status", ""], rows, "No org-level overrides yet — defaults from the catalogue are used."))}
           <p class="muted small">Known keys: ${knownTemplateKeys().join(", ")}</p>`,
       ),
     );
@@ -887,6 +899,7 @@ function registerCampaignRoutes(router: Router<RequestContext>): void {
         <td>${badge(str(c.channel))}</td>
         <td>${badge(str(c.status))}</td>
         <td class="small">${str(c.scheduled_for) || str(c.sent_at) || "—"}</td>
+        <td class="right">${editLink(`/admin/campaigns/${str(c.id)}`, "Open")}</td>
       </tr>`,
     );
     return htmlResponse(
@@ -896,9 +909,9 @@ function registerCampaignRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Campaigns",
             "Organizer-composed bulk messaging — every recipient gets an ordinary notification delivery, tracked in the outbox like any other.",
-            canWrite ? html`<a class="btn" href="/admin/events/${params.eventId}/campaigns/new">Compose</a>` : raw(""),
+            canWrite ? addButton(`/admin/events/${params.eventId}/campaigns/new`, "Compose") : raw(""),
           )}
-          ${table(["Name", "Channel", "Status", "Sent / scheduled"], rows, "No campaigns yet.")}`,
+          ${card(table(["Name", "Channel", "Status", "Sent / scheduled", ""], rows, "No campaigns yet."))}`,
       ),
     );
   });
@@ -1146,6 +1159,7 @@ function registerEventLogRoutes(router: Router<RequestContext>): void {
         <td class="mono small">${str(e.subject_type)}/${str(e.subject_id)}</td>
         <td class="small">${str(e.actor_type)}${e.actor_display ? ` · ${str(e.actor_display)}` : ""}</td>
         <td class="small">${e.correlation_id ? html`<a class="mono" href="/admin/event-log?correlation_id=${encodeURIComponent(str(e.correlation_id))}">${str(e.correlation_id)}</a>` : "—"}</td>
+        <td class="right">${editLink(`/admin/event-log/${str(e.id)}`, "Open")}</td>
       </tr>`,
     );
     const qs = (extra: Record<string, string>) => {
@@ -1172,7 +1186,7 @@ function registerEventLogRoutes(router: Router<RequestContext>): void {
                 ${type || subjectId || correlationId ? html`<a class="btn secondary" href="/admin/event-log">Clear</a>` : raw("")}
               </form>`,
             )}
-          ${table(["When", "Type", "Subject", "Actor", "Request"], rowsHtml, "No events recorded yet.")}
+          ${card(table(["When", "Type", "Subject", "Actor", "Request", ""], rowsHtml, "No events recorded yet."))}
           ${page.next_cursor ? html`<p><a href="/admin/event-log?${qs({ cursor: page.next_cursor })}">Older →</a></p>` : raw("")}`,
       ),
     );

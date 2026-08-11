@@ -14,19 +14,23 @@ import { DEFAULT_PROFILE_VISIBILITY, isAbsoluteHttps, normaliseEmail } from "@po
 import type { ParticipantKind, ParticipantSource, ParticipantStatus } from "@podiumconf/domain/identity/types.js";
 import { DomainError, forbidden, invariantError, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
 import { redactList, redactRecord } from "@podiumconf/domain/shared/pii.js";
-import type { Role, ScopeType } from "@podiumconf/domain/shared/authorization.js";
+import { ROLES, type Role, type ScopeType } from "@podiumconf/domain/shared/authorization.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html } from "../../ui/html.js";
+import { humanise } from "../../ui/layout.js";
 import { adminPage, loadEvent, portalPage } from "../../ui/shell.js";
 import { pageOf, pageRequest } from "./listing.js";
 import {
   acceptUrlPanel,
+  grantFormView,
+  invitationFormView,
   mergeConfirmView,
   personView,
   portalProfileView,
+  rosterAddFormView,
   rosterView,
   teamView,
   type ScopeOption,
@@ -64,6 +68,9 @@ import {
 // runs one way (crm/service → identity/service), so reading it here is not a
 // cycle.
 import { cardsForPerson, listSegments, listPipelines } from "../crm/service.js";
+
+/** The roles a grant form offers, in the order `ROLES` lists them. */
+const ROLE_OPTIONS: ScopeOption[] = ROLES.map((r) => ({ value: r, label: humanise(r) }));
 
 const VISIBILITY_KEYS = Object.keys(DEFAULT_PROFILE_VISIBILITY);
 
@@ -138,6 +145,26 @@ function registerTeamRoutes(router: Router<RequestContext>): void {
           canWrite: ctx.canWrite("org.configure") || ctx.canWrite("event.configure"),
         }),
       ),
+    );
+  });
+
+  router.get("/admin/team/invitations/new", async (_req, ctx) => {
+    if (!ctx.isStaff()) throw forbidden("The team screen is for event staff.");
+    const options = await scopeOptions(ctx);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Invite by email", active: "team", width: "narrow" },
+        invitationFormView({ roleOptions: ROLE_OPTIONS, scopeOptions: options }),
+      ),
+    );
+  });
+
+  router.get("/admin/team/grants/new", async (_req, ctx) => {
+    if (!ctx.isStaff()) throw forbidden("The team screen is for event staff.");
+    const options = await scopeOptions(ctx);
+    return htmlResponse(
+      adminPage(ctx, { title: "Grant a role", active: "team", width: "narrow" }, grantFormView({ roleOptions: ROLE_OPTIONS, scopeOptions: options })),
     );
   });
 
@@ -269,6 +296,17 @@ function registerRosterRoutes(router: Router<RequestContext>): void {
           canWrite: ctx.canWrite("roster.manage", { event_id: event.id }),
         }),
       ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/roster/new", async (_req, ctx, params) => {
+    ctx.eventId = params.eventId;
+    const event = await loadEvent(ctx, params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    ctx.eventId = event.id;
+    ctx.requireWrite("roster.manage", { event_id: event.id });
+    return htmlResponse(
+      adminPage(ctx, { title: "Add to roster", event, active: "roster", width: "narrow" }, rosterAddFormView(event)),
     );
   });
 

@@ -24,7 +24,7 @@ import { readInput } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, submitButton, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, editLink, empty, field, formActions, humanise, pageHead, progressBar, submitButton, table } from "../../ui/layout.js";
 import { adminPage, loadEvent } from "../../ui/shell.js";
 import { createInvitation, findOrCreatePerson, personDisplayName } from "../identity/service.js";
 import {
@@ -52,6 +52,7 @@ import {
   updateEntitlement,
   updateSponsor,
   updateSponsorship,
+  updateTier,
 } from "./service.js";
 
 const TYPE_OPTIONS = ENTITLEMENT_TYPE.map((t) => ({ value: t, label: humanise(t) }));
@@ -80,7 +81,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
         html`${pageHead(
           "Sponsors",
           "Companies, carried across events. The same sponsor comes back next year — that is half the value of having events be plural.",
-          html`<a class="btn" href="/admin/sponsors/new">Add a sponsor</a>`,
+          addButton(`/admin/sponsors/new`, "Add a sponsor"),
         )}
         ${table(
           ["Sponsor", "Slug", "Status", "Events", ""],
@@ -91,7 +92,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
               <td class="mono small">${str(s.slug)}</td>
               <td>${badge(str(s.status))}</td>
               <td>${byId.get(str(s.id)) ?? 0}</td>
-              <td><a class="small" href="/admin/sponsors/${str(s.id)}">Open</a></td>
+              <td class="right">${editLink(`/admin/sponsors/${str(s.id)}`)}</td>
             </tr>`,
           ),
           "No sponsors yet.",
@@ -146,6 +147,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
     const sponsor = await getSponsor(app, params.sponsorId);
     const contacts = await sponsorContacts(app, params.sponsorId);
     const includePii = ctx.includePii({ sponsor_id: params.sponsorId });
+    const canWrite = ctx.canWrite("sponsor.manage", { sponsor_id: params.sponsorId });
 
     const people = new Map<string, Row>();
     for (const c of contacts) {
@@ -192,7 +194,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
           "Details",
         )}
         ${card(
-          html`${table(
+          table(
             ["Person", "Role", "May submit", "Status", ""],
             contacts.map((c) => {
               const person = people.get(str(c.person_id));
@@ -202,7 +204,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
                 <td>${humanise(str(c.contact_role))}</td>
                 <td>${bool(c.can_submit_sessions) ? "Yes" : "No"}</td>
                 <td>${badge(str(c.status))}</td>
-                <td>${str(c.status) === "active"
+                <td class="right">${str(c.status) === "active"
                   ? actionForm(`/admin/sponsors/${params.sponsorId}/contacts/${str(c.id)}/revoke`, "Revoke", {
                       confirm: "Revoke this contact's access?",
                     })
@@ -210,19 +212,11 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
               </tr>`;
             }),
             "No contacts yet.",
-          )}
-          <form method="post" action="/admin/sponsors/${params.sponsorId}/contacts" class="stack">
-            <h3>Invite a contact</h3>
-            ${field({ name: "full_name", label: "Name", required: true })}
-            ${field({ name: "email", label: "Email", type: "email", required: true })}
-            ${field({ name: "contact_role", label: "Role", type: "select", required: true, value: "primary", options: ROLE_OPTIONS })}
-            ${field({ name: "can_submit_sessions", label: "May submit sessions", type: "checkbox", value: true })}
-            ${field({ name: "can_manage_contacts", label: "May manage other contacts", type: "checkbox" })}
-            ${submitButton("Invite contact")}
-          </form>`,
+          ),
           "Contacts",
+          { actions: canWrite ? addButton(`/admin/sponsors/${params.sponsorId}/contacts/new`, "Invite a contact") : undefined },
         )}
-        ${card(html`${table(["Event", "Status", "Entitlements used", "Contract", ""], rows, "No sponsorships yet.")}`, "Sponsorships")}
+        ${card(table(["Event", "Status", "Entitlements used", "Contract", ""], rows, "No sponsorships yet."), "Sponsorships")}
         ${card(
           html`<form method="post" action="/admin/sponsors/${params.sponsorId}/delete" class="stack"
                      onsubmit="return confirm('Remove this sponsor?')">
@@ -258,6 +252,27 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
     await softDeleteSponsor(app, params.sponsorId, input.str("reason", "removed by an organizer"));
     await app.flush();
     return redirect("/admin/sponsors", 303, { "set-cookie": flashCookie("ok", "Sponsor removed.") });
+  });
+
+  router.get("/admin/sponsors/:sponsorId/contacts/new", async (_req, ctx, params) => {
+    ctx.requireWrite("sponsor.manage", { sponsor_id: params.sponsorId });
+    const app = ctx.app();
+    const sponsor = await getSponsor(app, params.sponsorId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Invite a contact", active: "sponsors", width: "narrow" },
+        html`${pageHead("Invite a contact", `A named person at ${str(sponsor.name)}. The invitation link is shown once, on the next screen.`)}
+        ${card(html`<form method="post" action="/admin/sponsors/${params.sponsorId}/contacts" class="stack">
+          ${field({ name: "full_name", label: "Name", required: true })}
+          ${field({ name: "email", label: "Email", type: "email", required: true })}
+          ${field({ name: "contact_role", label: "Role", type: "select", required: true, value: "primary", options: ROLE_OPTIONS })}
+          ${field({ name: "can_submit_sessions", label: "May submit sessions", type: "checkbox", value: true })}
+          ${field({ name: "can_manage_contacts", label: "May manage other contacts", type: "checkbox" })}
+          ${formActions("Invite contact", `/admin/sponsors/${params.sponsorId}`)}
+        </form>`)}`,
+      ),
+    );
   });
 
   router.post("/admin/sponsors/:sponsorId/contacts", async (req, ctx, params) => {
@@ -317,45 +332,22 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
     const event = await loadEvent(ctx, params.eventId);
     if (!event) throw notFound("Event", params.eventId);
     const app = ctx.app(params.eventId);
+    const canWrite = ctx.canWrite("sponsor.manage", { event_id: params.eventId });
     const tiers = await app.db.select<Row>("sponsorship_tier", { event_id: params.eventId }, { orderBy: "sort_order, level DESC" });
-    const formats = await app.db.select<Row>("session_format", { event_id: params.eventId }, { orderBy: "sort_order" });
 
-    const blocks: SafeHtml[] = [];
+    const rows: SafeHtml[] = [];
     for (const tier of tiers) {
       const templates = await tierTemplates(app, str(tier.id));
-      blocks.push(
-        card(
-          html`<h2>${str(tier.name)} <span class="badge">level ${num(tier.level)}</span> ${bool(tier.is_public) ? raw("") : badge("private")}</h2>
-          ${str(tier.description ?? "") ? html`<p class="muted">${str(tier.description)}</p>` : raw("")}
-          ${table(
-            ["Entitlement", "Quantity", "Allowed formats", ""],
-            templates.map((t) => {
-              const allowed = parseJson<string[]>(t.allowed_format_ids, []);
-              return html`<tr>
-                <td>${humanise(str(t.entitlement_type))}</td>
-                <td>${num(t.quantity)}</td>
-                <td class="small">${allowed.length === 0
-                  ? "any"
-                  : allowed.map((id) => str(formats.find((f) => str(f.id) === id)?.name ?? id)).join(", ")}</td>
-                <td>${actionForm(`/admin/tier-templates/${str(t.id)}/delete`, "Remove", { confirm: "Remove this entitlement from the tier?" })}</td>
-              </tr>`;
-            }),
-            "This tier grants nothing yet.",
-          )}
-          <form method="post" action="/admin/events/${params.eventId}/tiers/${str(tier.id)}/templates" class="row-form">
-            ${field({ name: "entitlement_type", label: "Entitlement", type: "select", required: true, options: TYPE_OPTIONS, value: "session_slot" })}
-            ${field({ name: "quantity", label: "Quantity", type: "number", required: true, value: 1, min: 0 })}
-            ${field({
-              name: "allowed_format_ids",
-              label: "Allowed formats",
-              type: "multi_select",
-              help: "Leave empty for any format.",
-              options: formats.map((f) => ({ value: str(f.id), label: str(f.name) })),
-            })}
-            ${submitButton("Add to tier", "small")}
-          </form>`,
-        ),
-      );
+      rows.push(html`<tr>
+        <td><a href="/admin/events/${params.eventId}/tiers/${str(tier.id)}"><strong>${str(tier.name)}</strong></a>
+          ${str(tier.description ?? "") ? html`<div class="small muted">${str(tier.description)}</div>` : raw("")}</td>
+        <td>${num(tier.level)}</td>
+        <td>${bool(tier.is_public) ? badge("public", "ok") : badge("private")}</td>
+        <td class="small">${templates.length
+          ? templates.map((t) => `${humanise(str(t.entitlement_type))} ×${num(t.quantity)}`).join(" · ")
+          : html`<span class="muted">grants nothing yet</span>`}</td>
+        <td class="right">${canWrite ? editLink(`/admin/events/${params.eventId}/tiers/${str(tier.id)}`) : raw("")}</td>
+      </tr>`);
     }
 
     return htmlResponse(
@@ -365,21 +357,134 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
         html`${pageHead(
           "Sponsorship tiers",
           "Per event, because the packages change every year. Applying a tier to a sponsorship copies these into concrete entitlements — a copy, not a reference.",
+          canWrite ? addButton(`/admin/events/${params.eventId}/tiers/new`, "New tier") : raw(""),
         )}
-        ${blocks.length ? blocks : empty("No tiers yet.")}
+        ${card(table(["Tier", "Level", "Visibility", "Grants", ""], rows, "No tiers yet."))}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/tiers/new", async (_req, ctx, params) => {
+    ctx.eventId = params.eventId;
+    ctx.requireWrite("sponsor.manage", { event_id: params.eventId });
+    const event = await loadEvent(ctx, params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New tier", event, active: "sponsors", width: "narrow" },
+        html`${pageHead("New tier", "The package. What it grants is added to it once it exists.")}
+        ${card(html`<form method="post" action="/admin/events/${params.eventId}/tiers" class="stack">
+          ${field({ name: "name", label: "Tier name", required: true, placeholder: "Diamond" })}
+          ${field({ name: "slug", label: "Slug", help: "Leave blank to derive it." })}
+          ${field({ name: "level", label: "Level", type: "number", value: 0, help: "Higher is more prominent." })}
+          ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
+          ${field({ name: "is_public", label: "Show on the sponsor wall", type: "checkbox", value: true })}
+          ${formActions("Add tier", `/admin/events/${params.eventId}/tiers`)}
+        </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/tiers/:tierId", async (_req, ctx, params) => {
+    ctx.eventId = params.eventId;
+    ctx.requireRead("sponsor.manage", { event_id: params.eventId });
+    const event = await loadEvent(ctx, params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    const app = ctx.app(params.eventId);
+    const canWrite = ctx.canWrite("sponsor.manage", { event_id: params.eventId });
+    const tier = await app.db.byId<Row>("sponsorship_tier", params.tierId);
+    if (!tier || str(tier.event_id) !== params.eventId) throw notFound("Sponsorship tier", params.tierId);
+    const [templates, formats] = await Promise.all([
+      tierTemplates(app, params.tierId),
+      app.db.select<Row>("session_format", { event_id: params.eventId }, { orderBy: "sort_order" }),
+    ]);
+
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: str(tier.name), event, active: "sponsors", width: "wide" },
+        html`${pageHead(str(tier.name), `Level ${num(tier.level)}. What this tier grants is copied into a sponsorship when the tier is applied to it — a copy, not a reference.`)}
         ${card(
-          html`<form method="post" action="/admin/events/${params.eventId}/tiers" class="stack">
-            ${field({ name: "name", label: "Tier name", required: true, placeholder: "Diamond" })}
-            ${field({ name: "slug", label: "Slug", help: "Leave blank to derive it." })}
-            ${field({ name: "level", label: "Level", type: "number", value: 0, help: "Higher is more prominent." })}
-            ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
-            ${field({ name: "is_public", label: "Show on the sponsor wall", type: "checkbox", value: true })}
-            ${submitButton("Add tier")}
-          </form>`,
-          "New tier",
+          canWrite
+            ? html`<form method="post" action="/admin/events/${params.eventId}/tiers/${params.tierId}" class="stack">
+                ${field({ name: "name", label: "Tier name", required: true, value: str(tier.name) })}
+                ${field({ name: "level", label: "Level", type: "number", value: num(tier.level), help: "Higher is more prominent." })}
+                ${field({ name: "description", label: "Description", type: "textarea", rows: 2, value: strOrNull(tier.description) ?? "" })}
+                ${field({ name: "is_public", label: "Show on the sponsor wall", type: "checkbox", value: bool(tier.is_public) })}
+                ${formActions("Save tier", `/admin/events/${params.eventId}/tiers`)}
+              </form>`
+            : html`<p>${strOrNull(tier.description) ?? "No description."}</p>`,
+          "Details",
+        )}
+        ${card(
+          table(
+            ["Entitlement", "Quantity", "Allowed formats", ""],
+            templates.map((t) => {
+              const allowed = parseJson<string[]>(t.allowed_format_ids, []);
+              return html`<tr>
+                <td>${humanise(str(t.entitlement_type))}</td>
+                <td>${num(t.quantity)}</td>
+                <td class="small">${allowed.length === 0
+                  ? "any"
+                  : allowed.map((id) => str(formats.find((f) => str(f.id) === id)?.name ?? id)).join(", ")}</td>
+                <td class="right">${canWrite
+                  ? actionForm(`/admin/tier-templates/${str(t.id)}/delete`, "Remove", { confirm: "Remove this entitlement from the tier?" })
+                  : raw("")}</td>
+              </tr>`;
+            }),
+            "This tier grants nothing yet.",
+          ),
+          "Entitlements granted",
+          { actions: canWrite ? addButton(`/admin/events/${params.eventId}/tiers/${params.tierId}/templates/new`, "Add entitlement") : undefined },
         )}`,
       ),
     );
+  });
+
+  router.get("/admin/events/:eventId/tiers/:tierId/templates/new", async (_req, ctx, params) => {
+    ctx.eventId = params.eventId;
+    ctx.requireWrite("sponsor.manage", { event_id: params.eventId });
+    const event = await loadEvent(ctx, params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    const app = ctx.app(params.eventId);
+    const tier = await app.db.byId<Row>("sponsorship_tier", params.tierId);
+    if (!tier || str(tier.event_id) !== params.eventId) throw notFound("Sponsorship tier", params.tierId);
+    const formats = await app.db.select<Row>("session_format", { event_id: params.eventId }, { orderBy: "sort_order" });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add an entitlement", event, active: "sponsors", width: "narrow" },
+        html`${pageHead("Add an entitlement", `What ${str(tier.name)} grants. Sponsorships already on this tier are unaffected — applying the tier copies it.`)}
+        ${card(html`<form method="post" action="/admin/events/${params.eventId}/tiers/${params.tierId}/templates" class="stack">
+          ${field({ name: "entitlement_type", label: "Entitlement", type: "select", required: true, options: TYPE_OPTIONS, value: "session_slot" })}
+          ${field({ name: "quantity", label: "Quantity", type: "number", required: true, value: 1, min: 0 })}
+          ${field({
+            name: "allowed_format_ids",
+            label: "Allowed formats",
+            type: "multi_select",
+            help: "Leave empty for any format.",
+            options: formats.map((f) => ({ value: str(f.id), label: str(f.name) })),
+          })}
+          ${formActions("Add to tier", `/admin/events/${params.eventId}/tiers/${params.tierId}`)}
+        </form>`)}`,
+      ),
+    );
+  });
+
+  router.post("/admin/events/:eventId/tiers/:tierId", async (req, ctx, params) => {
+    ctx.eventId = params.eventId;
+    ctx.requireWrite("sponsor.manage", { event_id: params.eventId });
+    const input = await readInput(req);
+    const app = ctx.app(params.eventId);
+    await updateTier(app, params.tierId, {
+      name: input.str("name"),
+      level: input.int("level", 0) ?? 0,
+      description: input.optional("description"),
+      is_public: input.bool("is_public"),
+    });
+    await app.flush();
+    return redirect(`/admin/events/${params.eventId}/tiers`, 303, { "set-cookie": flashCookie("ok", "Tier saved.") });
   });
 
   router.post("/admin/events/:eventId/tiers", async (req, ctx, params) => {
@@ -433,9 +538,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
     const app = ctx.app(params.eventId);
 
     const rows = await sponsorshipsForEvent(app, params.eventId);
-    const tiers = await app.db.select<Row>("sponsorship_tier", { event_id: params.eventId }, { orderBy: "level DESC" });
-    const sponsors = await app.db.select<Row>("sponsor", {}, { orderBy: "name" });
-    const taken = new Set(rows.map((r) => str(r.sponsor.id)));
+    const canWrite = ctx.canWrite("sponsor.manage", { event_id: params.eventId });
 
     return htmlResponse(
       adminPage(
@@ -444,7 +547,8 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
         html`${pageHead(
           "Sponsorships",
           "Who has bought what, and how much of it they have used.",
-          html`<a class="btn secondary" href="/admin/events/${params.eventId}/tiers">Manage tiers</a>`,
+          html`<a class="btn secondary" href="/admin/events/${params.eventId}/tiers">Manage tiers</a>
+            ${canWrite ? addButton(`/admin/events/${params.eventId}/sponsorships/new`, "New sponsorship") : raw("")}`,
         )}
         ${table(
           ["Sponsor", "Tier", "Status", "Entitlements used", "Public", ""],
@@ -478,32 +582,49 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
             </tr>`,
           ),
           "No sponsorships for this event yet.",
-        )}
-        ${card(
-          html`<form method="post" action="/admin/events/${params.eventId}/sponsorships" class="stack">
-            ${field({
-              name: "sponsor_id",
-              label: "Sponsor",
-              type: "select",
-              required: true,
-              options: sponsors
-                .filter((s) => !taken.has(str(s.id)))
-                .map((s) => ({ value: str(s.id), label: str(s.name) })),
-              help: "One sponsorship per sponsor per event.",
-            })}
-            ${field({
-              name: "tier_id",
-              label: "Tier",
-              type: "select",
-              options: tiers.map((t) => ({ value: str(t.id), label: str(t.name) })),
-              help: "Leave blank for a bespoke deal. Choosing a tier copies its entitlements.",
-            })}
-            ${field({ name: "contract_reference", label: "Contract reference", help: "The id in your CRM. Money lives in that system, not this one." })}
-            ${field({ name: "public_from", label: "Public from", type: "datetime-local", help: "When the logo may appear publicly." })}
-            ${submitButton("Add sponsorship")}
-          </form>`,
-          "New sponsorship",
         )}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/sponsorships/new", async (_req, ctx, params) => {
+    ctx.eventId = params.eventId;
+    ctx.requireWrite("sponsor.manage", { event_id: params.eventId });
+    const event = await loadEvent(ctx, params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    const app = ctx.app(params.eventId);
+    const existing = await sponsorshipsForEvent(app, params.eventId);
+    const taken = new Set(existing.map((r) => str(r.sponsor.id)));
+    const [tiers, sponsors] = await Promise.all([
+      app.db.select<Row>("sponsorship_tier", { event_id: params.eventId }, { orderBy: "level DESC" }),
+      app.db.select<Row>("sponsor", {}, { orderBy: "name" }),
+    ]);
+
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New sponsorship", event, active: "sponsors", width: "narrow" },
+        html`${pageHead("New sponsorship", "One sponsorship per sponsor per event.")}
+        ${card(html`<form method="post" action="/admin/events/${params.eventId}/sponsorships" class="stack">
+          ${field({
+            name: "sponsor_id",
+            label: "Sponsor",
+            type: "select",
+            required: true,
+            options: sponsors.filter((s) => !taken.has(str(s.id))).map((s) => ({ value: str(s.id), label: str(s.name) })),
+            help: "Not listed? Add the sponsor first.",
+          })}
+          ${field({
+            name: "tier_id",
+            label: "Tier",
+            type: "select",
+            options: tiers.map((t) => ({ value: str(t.id), label: str(t.name) })),
+            help: "Leave blank for a bespoke deal. Choosing a tier copies its entitlements.",
+          })}
+          ${field({ name: "contract_reference", label: "Contract reference", help: "The id in your CRM. Money lives in that system, not this one." })}
+          ${field({ name: "public_from", label: "Public from", type: "datetime-local", help: "When the logo may appear publicly." })}
+          ${formActions("Add sponsorship", `/admin/events/${params.eventId}/sponsorships`)}
+        </form>`)}`,
       ),
     );
   });
@@ -558,6 +679,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
     const sponsorship = await getSponsorship(app, params.id);
     ctx.eventId = str(sponsorship.event_id);
     ctx.requireRead("sponsor.manage", { event_id: str(sponsorship.event_id), sponsor_id: str(sponsorship.sponsor_id) });
+    const canWrite = ctx.canWrite("sponsor.manage", { event_id: str(sponsorship.event_id), sponsor_id: str(sponsorship.sponsor_id) });
     const sponsor = await getSponsor(app, str(sponsorship.sponsor_id));
     const event = await loadEvent(ctx, str(sponsorship.event_id));
     const usage = await sponsorshipUsage(app, params.id);
@@ -580,8 +702,9 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
         html`${pageHead(
           `${str(sponsor.name)} — entitlements`,
           "A countable right, granted by a contract, consumed by a submission. Consumption is a hold, not a decrement: a draft already holds a slot.",
+          canWrite ? addButton(`/admin/sponsorships/${params.id}/entitlements/new`, "Grant an entitlement") : raw(""),
         )}
-        ${table(
+        ${card(table(
           ["Type", "Used / total", "State", "Allowed formats", "Deadlines", "Source", ""],
           usage.entitlements.map((e) => {
             const allowed = parseJson<string[]>(e.allowed_format_ids, []);
@@ -598,21 +721,13 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
                 ${!e.submission_deadline && !e.expires_at ? raw("—") : raw("")}
               </td>
               <td class="small">${humanise(str(e.source))}</td>
-              <td>
-                <form method="post" action="/admin/entitlements/${str(e.id)}" class="row-form">
-                  ${field({ name: "quantity", label: "Qty", type: "number", value: e.usage.quantity, min: 0 })}
-                  ${field({ name: "submission_deadline", label: "Submit by", type: "datetime-local", value: toLocal(strOrNull(e.submission_deadline)) })}
-                  ${field({ name: "expires_at", label: "Expires", type: "datetime-local", value: toLocal(strOrNull(e.expires_at)) })}
-                  ${field({ name: "reason", label: "Reason", placeholder: "Required for a quantity change" })}
-                  ${submitButton("Save", "small secondary")}
-                </form>
-              </td>
+              <td class="right">${canWrite ? editLink(`/admin/entitlements/${str(e.id)}`) : raw("")}</td>
             </tr>`;
           }),
           "Nothing granted yet.",
-        )}
+        ))}
         ${card(
-          html`${table(
+          table(
             ["Reference", "Title", "Status", "Counts as"],
             holders.map(
               (p) => html`<tr>
@@ -623,36 +738,79 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
               </tr>`,
             ),
             "No proposals against these entitlements yet.",
-          )}`,
+          ),
           "What is consuming them",
         )}
-        ${card(
-          html`<form method="post" action="/admin/sponsorships/${params.id}/entitlements" class="stack">
-            ${field({ name: "entitlement_type", label: "Entitlement", type: "select", required: true, options: TYPE_OPTIONS, value: "session_slot" })}
-            ${field({ name: "quantity", label: "Quantity", type: "number", required: true, value: 1, min: 0 })}
-            ${field({
-              name: "allowed_format_ids",
-              label: "Allowed formats",
-              type: "multi_select",
-              options: formats.map((f) => ({ value: str(f.id), label: str(f.name) })),
-              help: "Empty means any format.",
-            })}
-            ${field({ name: "submission_deadline", label: "Submission deadline", type: "datetime-local", help: "Usually later than the CFP." })}
-            ${field({ name: "expires_at", label: "Expires at", type: "datetime-local", help: "Unspent after this is forfeited — a nudge, not a hard delete." })}
-            ${field({ name: "notes", label: "Notes", help: "So “why does Acme have three slots?” is answerable." })}
-            ${submitButton("Grant entitlement")}
-          </form>`,
-          "Grant another",
-        )}
-        ${tiers.length
+        ${canWrite && tiers.length
           ? card(
-              html`<form method="post" action="/admin/sponsorships/${params.id}/apply-tier" class="row-form">
+              html`<form method="post" action="/admin/sponsorships/${params.id}/apply-tier" class="stack">
                 ${field({ name: "tier_id", label: "Tier", type: "select", required: true, options: tiers.map((t) => ({ value: str(t.id), label: str(t.name) })), value: strOrNull(sponsorship.tier_id) ?? "" })}
                 ${submitButton("Copy the tier's entitlements", "secondary")}
               </form>`,
               "Apply a tier",
             )
           : raw("")}`,
+      ),
+    );
+  });
+
+  router.get("/admin/sponsorships/:id/entitlements/new", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const sponsorship = await getSponsorship(app, params.id);
+    ctx.eventId = str(sponsorship.event_id);
+    ctx.requireWrite("sponsor.manage", { event_id: str(sponsorship.event_id), sponsor_id: str(sponsorship.sponsor_id) });
+    const sponsor = await getSponsor(app, str(sponsorship.sponsor_id));
+    const event = await loadEvent(ctx, str(sponsorship.event_id));
+    const formats = await app.db.select<Row>("session_format", { event_id: str(sponsorship.event_id) }, { orderBy: "sort_order" });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Grant an entitlement", event, active: "sponsors", width: "narrow" },
+        html`${pageHead("Grant an entitlement", `A countable right for ${str(sponsor.name)}, granted outside any tier.`)}
+        ${card(html`<form method="post" action="/admin/sponsorships/${params.id}/entitlements" class="stack">
+          ${field({ name: "entitlement_type", label: "Entitlement", type: "select", required: true, options: TYPE_OPTIONS, value: "session_slot" })}
+          ${field({ name: "quantity", label: "Quantity", type: "number", required: true, value: 1, min: 0 })}
+          ${field({
+            name: "allowed_format_ids",
+            label: "Allowed formats",
+            type: "multi_select",
+            options: formats.map((f) => ({ value: str(f.id), label: str(f.name) })),
+            help: "Empty means any format.",
+          })}
+          ${field({ name: "submission_deadline", label: "Submission deadline", type: "datetime-local", help: "Usually later than the CFP." })}
+          ${field({ name: "expires_at", label: "Expires at", type: "datetime-local", help: "Unspent after this is forfeited — a nudge, not a hard delete." })}
+          ${field({ name: "notes", label: "Notes", help: "So “why does Acme have three slots?” is answerable." })}
+          ${formActions("Grant entitlement", `/admin/sponsorships/${params.id}/entitlements`)}
+        </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/entitlements/:entitlementId", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const entitlement = await getEntitlement(app, params.entitlementId);
+    const sponsorship = await getSponsorship(app, str(entitlement.sponsorship_id));
+    ctx.eventId = str(sponsorship.event_id);
+    ctx.requireWrite("sponsor.manage", { event_id: str(sponsorship.event_id), sponsor_id: str(sponsorship.sponsor_id) });
+    const sponsor = await getSponsor(app, str(sponsorship.sponsor_id));
+    const event = await loadEvent(ctx, str(sponsorship.event_id));
+    const use = (await entitlementUsageFor(app, [entitlement])).get(params.entitlementId)!;
+    const back = `/admin/sponsorships/${str(entitlement.sponsorship_id)}/entitlements`;
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `Edit ${humanise(str(entitlement.entitlement_type))}`, event, active: "sponsors", width: "narrow" },
+        html`${pageHead(
+          `${humanise(str(entitlement.entitlement_type))} — ${str(sponsor.name)}`,
+          `${use.consumed_count} of ${use.quantity} used. A quantity change is recorded with its reason.`,
+        )}
+        ${card(html`<form method="post" action="/admin/entitlements/${params.entitlementId}" class="stack">
+          ${field({ name: "quantity", label: "Quantity", type: "number", value: use.quantity, min: 0 })}
+          ${field({ name: "submission_deadline", label: "Submission deadline", type: "datetime-local", value: toLocal(strOrNull(entitlement.submission_deadline)) })}
+          ${field({ name: "expires_at", label: "Expires at", type: "datetime-local", value: toLocal(strOrNull(entitlement.expires_at)) })}
+          ${field({ name: "reason", label: "Reason", help: "Required for a quantity change." })}
+          ${formActions("Save entitlement", back)}
+        </form>`)}`,
       ),
     );
   });

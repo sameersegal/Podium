@@ -37,7 +37,7 @@ import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, editLink, empty, field, formActions, humanise, pageHead, progressBar, table } from "../../ui/layout.js";
 import { adminPage, portalPage, toEventRef, type EventRef } from "../../ui/shell.js";
 import {
   activateTaskDefinition,
@@ -182,11 +182,7 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
     const { ref } = await loadEventFor(ctx, params.eventId);
     const app = ctx.app(ref.id);
     const canWrite = ctx.canWrite("task.define", { event_id: ref.id });
-    const [defs, tracks, formats] = await Promise.all([
-      listDefinitions(app, ref.id),
-      app.db.select<Row>("track", { event_id: ref.id }),
-      app.db.select<Row>("session_format", { event_id: ref.id }),
-    ]);
+    const defs = await listDefinitions(app, ref.id);
 
     const rows = defs.map(
       (d) => html`<tr>
@@ -199,9 +195,12 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
         <td>${badge(str(d.status), str(d.status) === "active" ? "ok" : str(d.status) === "retired" ? "err" : "")}</td>
         <td class="right">
           ${canWrite
-            ? html`${str(d.status) !== "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/activate`, "Activate") : raw("")}
+            ? html`<div class="row-actions">
+                ${str(d.status) !== "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/activate`, "Activate") : raw("")}
                 ${str(d.status) === "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/retire`, "Retire", { confirm: "Retire this task? Existing instances are unaffected." }) : raw("")}
-                ${str(d.status) === "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/rematerialise`, "Re-materialise", { confirm: "Apply this definition to every eligible existing session, speaker and sponsor now? Instances already materialised are left as-is." }) : raw("")}`
+                ${str(d.status) === "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/rematerialise`, "Re-materialise", { confirm: "Apply this definition to every eligible existing session, speaker and sponsor now? Instances already materialised are left as-is." }) : raw("")}
+                ${editLink(`/admin/events/${ref.id}/tasks/${str(d.id)}`)}
+              </div>`
             : raw("")}
         </td>
       </tr>`,
@@ -214,35 +213,62 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Task definitions",
             "Definitions are templates; instances are the obligations they create. Editing one never rewrites what people already did.",
-            canWrite && defs.length === 0 ? actionForm(`/admin/events/${ref.id}/tasks/seed-defaults`, "Seed the default checklist") : raw(""),
+            canWrite
+              ? html`${defs.length === 0 ? actionForm(`/admin/events/${ref.id}/tasks/seed-defaults`, "Seed the default checklist") : raw("")}
+                  <a class="btn secondary" href="/admin/events/${ref.id}/tasks/adhoc">New ad-hoc task</a>
+                  ${addButton(`/admin/events/${ref.id}/tasks/new`, "New definition")}`
+              : raw(""),
           )}
-          ${table(["Task", "Category", "Type", "Assignee", "Trigger", "Weight", "Status", ""], rows, "No task definitions yet.")}
-          ${canWrite
-            ? card(
-                html`<form method="post" action="/admin/events/${ref.id}/tasks" class="stack">
-                  ${definitionFields(null, tracks, formats)}
-                  <button type="submit">Create definition</button>
-                </form>`,
-                "New task definition",
-              )
-            : raw("")}
-          ${canWrite
-            ? card(
-                html`<p class="muted">Title, instructions, type, due date, who — the definition behind it is an implementation detail. Materialises immediately, one instance per named person.</p>
-                  <form method="post" action="/admin/events/${ref.id}/tasks/adhoc" class="stack">
-                    ${field({ name: "title", label: "Title", required: true, placeholder: "Sign the speaker release form" })}
-                    ${field({ name: "instructions", label: "Instructions", type: "textarea", rows: 2 })}
-                    ${field({ name: "requirement_type", label: "Type", type: "select", required: true, value: "acknowledgement", options: opts(REQUIREMENT_TYPE) })}
-                    ${field({ name: "due_rule", label: "Due", type: "select", required: true, value: "fixed_date", options: opts(DUE_RULE) })}
-                    ${field({ name: "due_date", label: "Due date", type: "date" })}
-                    ${field({ name: "assignee_person_ids", label: "Who (person ids, comma or newline separated)", type: "textarea", rows: 2, required: true })}
-                    ${field({ name: "is_blocking", label: "Blocking", type: "checkbox" })}
-                    ${field({ name: "requires_review", label: "Requires review", type: "checkbox" })}
-                    <button type="submit">Create ad-hoc task</button>
-                  </form>`,
-                "Ad-hoc task",
-              )
-            : raw("")}`,
+          ${card(table(["Task", "Category", "Type", "Assignee", "Trigger", "Weight", "Status", ""], rows, "No task definitions yet."))}`,
+      ),
+    );
+  });
+
+  // Both literals go in before "/admin/events/:eventId/tasks/:defId", which is
+  // the same shape and would otherwise swallow them (http/router.ts).
+  router.get("/admin/events/:eventId/tasks/new", async (_req, ctx, params) => {
+    ctx.requireWrite("task.define", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const [tracks, formats] = await Promise.all([
+      app.db.select<Row>("track", { event_id: ref.id }),
+      app.db.select<Row>("session_format", { event_id: ref.id }),
+    ]);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New task definition", event: ref, active: "onboarding", width: "narrow" },
+        html`${pageHead("New task definition", "A template. It creates instances once it is activated — creating it changes nothing on its own.")}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/tasks" class="stack">
+            ${definitionFields(null, tracks, formats)}
+            ${formActions("Create definition", `/admin/events/${ref.id}/tasks`)}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/tasks/adhoc", async (_req, ctx, params) => {
+    ctx.requireWrite("task.define", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New ad-hoc task", event: ref, active: "onboarding", width: "narrow" },
+        html`${pageHead(
+            "New ad-hoc task",
+            "Title, instructions, type, due date, who — the definition behind it is an implementation detail. Materialises immediately, one instance per named person.",
+          )}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/tasks/adhoc" class="stack">
+            ${field({ name: "title", label: "Title", required: true, placeholder: "Sign the speaker release form" })}
+            ${field({ name: "instructions", label: "Instructions", type: "textarea", rows: 2 })}
+            ${field({ name: "requirement_type", label: "Type", type: "select", required: true, value: "acknowledgement", options: opts(REQUIREMENT_TYPE) })}
+            ${field({ name: "due_rule", label: "Due", type: "select", required: true, value: "fixed_date", options: opts(DUE_RULE) })}
+            ${field({ name: "due_date", label: "Due date", type: "date" })}
+            ${field({ name: "assignee_person_ids", label: "Who (person ids, comma or newline separated)", type: "textarea", rows: 2, required: true })}
+            ${field({ name: "is_blocking", label: "Blocking", type: "checkbox" })}
+            ${field({ name: "requires_review", label: "Requires review", type: "checkbox" })}
+            ${formActions("Create ad-hoc task", `/admin/events/${ref.id}/tasks`)}
+          </form>`)}`,
       ),
     );
   });
@@ -305,7 +331,7 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
             ? card(
                 html`<form method="post" action="/admin/events/${ref.id}/tasks/${params.defId}" class="stack">
                   ${definitionFields(def, tracks, formats)}
-                  <button type="submit">Save</button>
+                  ${formActions("Save", `/admin/events/${ref.id}/tasks`)}
                 </form>`,
                 "Edit",
               )
@@ -318,18 +344,29 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
                   )
                 : empty("No reminder rules yet."),
               "Reminder rules",
-            )}
-          ${canWrite
-            ? card(
-                html`<form method="post" action="/admin/events/${ref.id}/tasks/${params.defId}/reminder-rules" class="inline-grid">
-                  ${field({ name: "offset_days", label: "Offset from due date (days)", type: "number", required: true, help: "Negative = before, positive = escalation after." })}
-                  ${field({ name: "channel", label: "Channel", type: "select", required: true, value: "email", options: opts(["email", "webhook"]) })}
-                  ${field({ name: "template_key", label: "Template key", value: "task.reminder" })}
-                  ${field({ name: "escalate_to", label: "Escalate to", type: "select", options: opts(["none", "primary_speaker", "sponsor_primary_contact", "organizer"]) })}
-                  <button type="submit">Add rule</button>
-                </form>`,
-              )
-            : raw("")}`,
+              { actions: canWrite ? addButton(`/admin/events/${ref.id}/tasks/${params.defId}/reminder-rules/new`, "Add rule") : undefined },
+            )}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/tasks/:defId/reminder-rules/new", async (_req, ctx, params) => {
+    ctx.requireWrite("task.define", { event_id: params.eventId });
+    const { ref } = await loadEventFor(ctx, params.eventId);
+    const app = ctx.app(ref.id);
+    const def = await getDefinition(app, params.defId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a reminder rule", event: ref, active: "onboarding", width: "narrow" },
+        html`${pageHead("Add a reminder rule", `A reminder on “${str(def.title)}”, timed relative to each instance's due date.`)}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/tasks/${params.defId}/reminder-rules" class="stack">
+            ${field({ name: "offset_days", label: "Offset from due date (days)", type: "number", required: true, help: "Negative = before, positive = escalation after." })}
+            ${field({ name: "channel", label: "Channel", type: "select", required: true, value: "email", options: opts(["email", "webhook"]) })}
+            ${field({ name: "template_key", label: "Template key", value: "task.reminder" })}
+            ${field({ name: "escalate_to", label: "Escalate to", type: "select", options: opts(["none", "primary_speaker", "sponsor_primary_contact", "organizer"]) })}
+            ${formActions("Add rule", `/admin/events/${ref.id}/tasks/${params.defId}`)}
+          </form>`)}`,
       ),
     );
   });

@@ -59,6 +59,7 @@ import {
   pipelineNewFormView,
   segmentDetailView,
   segmentListView,
+  segmentNewFormView,
 } from "./views.js";
 
 const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
@@ -184,6 +185,13 @@ function registerSegmentRoutes(router: Router<RequestContext>): void {
     const app = ctx.app();
     const segments = await listSegments(app);
     return htmlResponse(adminPage(ctx, { title: "Segments", active: "contacts" }, segmentListView(segments, ctx.canWrite("segment.manage"))));
+  });
+
+  // Before "/admin/segments/:segmentId" — the literal wins only if it is
+  // registered first (http/router.ts).
+  router.get("/admin/segments/new", async (_req, ctx) => {
+    requireCrmWrite(ctx);
+    return htmlResponse(adminPage(ctx, { title: "New segment", active: "contacts", width: "narrow" }, segmentNewFormView()));
   });
 
   router.post("/admin/segments", async (req, ctx) => {

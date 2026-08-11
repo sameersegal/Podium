@@ -109,7 +109,64 @@ const ORGANIZER_PATHS = (ctx) => [
   "/admin/audit",
   "/admin/event-log",
   "/portal",
+  // Every create form and every row-level edit page. These are the screens a
+  // list links to and nothing else does, so a walk that only opens lists would
+  // not notice one of them 500ing.
+  ...ADMIN_FORM_PATHS(ctx),
 ];
+
+/**
+ * The rule these all follow: a list's "Add …" button is a link to `…/new`, and
+ * every editable row links to that entity's own page. Both are ordinary GETs,
+ * so both belong in the walk.
+ */
+const ADMIN_FORM_PATHS = (ctx) =>
+  [
+    "/admin/events/new",
+    `/admin/events/${ctx.event_id}/days/new`,
+    ctx.day_id && `/admin/events/${ctx.event_id}/days/${ctx.day_id}`,
+    `/admin/events/${ctx.event_id}/tracks/new`,
+    ctx.track_id && `/admin/events/${ctx.event_id}/tracks/${ctx.track_id}`,
+    `/admin/events/${ctx.event_id}/formats/new`,
+    ctx.format_id && `/admin/events/${ctx.event_id}/formats/${ctx.format_id}`,
+    `/admin/events/${ctx.event_id}/venue`,
+    `/admin/events/${ctx.event_id}/rooms/new`,
+    ctx.room_id && `/admin/events/${ctx.event_id}/rooms/${ctx.room_id}`,
+    `/admin/events/${ctx.event_id}/cfps/new`,
+    ctx.cfp_id && `/admin/cfps/${ctx.cfp_id}/form/steps/new`,
+    ctx.cfp_id && ctx.form_step_id && `/admin/cfps/${ctx.cfp_id}/form/steps/${ctx.form_step_id}/fields/new`,
+    ctx.cfp_id && ctx.form_field_id && `/admin/cfps/${ctx.cfp_id}/form/fields/${ctx.form_field_id}`,
+    `/admin/events/${ctx.event_id}/sessions/new`,
+    `/admin/events/${ctx.event_id}/roster/new`,
+    `/admin/events/${ctx.event_id}/tasks/new`,
+    `/admin/events/${ctx.event_id}/tasks/adhoc`,
+    ctx.task_definition_id && `/admin/events/${ctx.event_id}/tasks/${ctx.task_definition_id}/reminder-rules/new`,
+    `/admin/events/${ctx.event_id}/files/new`,
+    `/admin/events/${ctx.event_id}/schedule/slots/new`,
+    `/admin/events/${ctx.event_id}/embeds/new`,
+    `/admin/events/${ctx.event_id}/review/rounds/new`,
+    ctx.round_id && `/admin/rounds/${ctx.round_id}/pool/new`,
+    `/admin/rubrics/new?event_id=${ctx.event_id}`,
+    ctx.rubric_id && `/admin/rubrics/${ctx.rubric_id}`,
+    `/admin/events/${ctx.event_id}/tiers/new`,
+    ctx.tier_id && `/admin/events/${ctx.event_id}/tiers/${ctx.tier_id}`,
+    ctx.tier_id && `/admin/events/${ctx.event_id}/tiers/${ctx.tier_id}/templates/new`,
+    `/admin/events/${ctx.event_id}/sponsorships/new`,
+    "/admin/sponsors/new",
+    ctx.sponsor_id && `/admin/sponsors/${ctx.sponsor_id}/contacts/new`,
+    `/admin/events/${ctx.event_id}/campaigns/new`,
+    "/admin/segments/new",
+    "/admin/pipelines/new",
+    "/admin/team/grants/new",
+    "/admin/team/invitations/new",
+    "/admin/api-keys/new",
+    "/admin/webhooks/new",
+    "/admin/templates/new",
+    "/admin/integrations/new",
+    "/admin/custom-fields/new",
+    "/admin/imports/new",
+    "/admin/exports/new",
+  ].filter(Boolean);
 
 const SPEAKER_PATHS = () => ["/portal", "/portal/proposals", "/portal/sessions", "/portal/tasks", "/portal/profile"];
 const REVIEWER_PATHS = () => ["/review", "/portal"];

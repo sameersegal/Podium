@@ -13,6 +13,7 @@
  * admin screen here) re-reads that same, now-persisted, list.
  */
 
+import type { AppContext } from "@podiumconf/data/context.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import {
   AUTO_PLACE_STRATEGY,
@@ -34,7 +35,7 @@ import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, joinHtml, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, dayBar, empty, field, humanise, pageHead, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, dayBar, editLink, empty, field, formActions, humanise, pageHead, table } from "../../ui/layout.js";
 import { adminPage, loadEvent, type EventRef } from "../../ui/shell.js";
 import { acknowledgeConflict, listConflicts, type ConflictView } from "./conflicts.js";
 import { listPublications as listPublicationRows, pendingChanges, publishSchedule, rollbackPublication } from "./publication.js";
@@ -451,8 +452,6 @@ function registerSlotRoutes(router: Router<RequestContext>): void {
       app.db.select<Row>("time_slot", { event_id: ref.id }, { orderBy: "sort_order, starts_at" }),
     ]);
     const roomById = new Map(rooms.map((r) => [str(r.id), str(r.name)]));
-    const dayOptions = days.map((d) => ({ value: str(d.id), label: strOrNull(d.label) ?? str(d.date) }));
-    const roomOptions = rooms.map((r) => ({ value: str(r.id), label: str(r.name) }));
 
     const rows = slots.map((s) => {
       const day = days.find((d) => str(d.id) === str(s.event_day_id));
@@ -475,23 +474,39 @@ function registerSlotRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Time grid", event: ref, active: "schedule", width: "wide" },
-        html`${pageHead("Time grid", "Optional. A strict grid is a convenience for placement and OUTSIDE_EVENT_HOURS checking — free placement works without one.")}
-          ${card(table(["Day", "Time", "Label", "Rooms", "Visibility", ""], rows, "No time slots yet — placement is free-form until you add some."))}
-          ${canWrite
-            ? card(
-                html`<form method="post" action="/admin/events/${ref.id}/schedule/slots" class="inline-grid">
-                  ${field({ name: "event_day_id", label: "Day", type: "select", required: true, options: dayOptions })}
-                  ${field({ name: "starts_at", label: `Starts (${ref.timezone})`, type: "time", required: true, value: "09:00" })}
-                  ${field({ name: "ends_at", label: `Ends (${ref.timezone})`, type: "time", required: true, value: "09:30" })}
-                  ${field({ name: "label", label: "Label", placeholder: "Morning block 1" })}
-                  ${field({ name: "kind", label: "Kind", type: "select", required: true, value: "session", options: opts(TIME_SLOT_KIND) })}
-                  ${field({ name: "room_ids", label: "Rooms", type: "multi_select", options: roomOptions, help: "Leave empty to apply to every room." })}
-                  ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: true })}
-                  <button type="submit">Add slot</button>
-                </form>`,
-                "Add a slot",
-              )
-            : raw("")}`,
+        html`${pageHead(
+            "Time grid",
+            "Optional. A strict grid is a convenience for placement and OUTSIDE_EVENT_HOURS checking — free placement works without one.",
+            canWrite ? addButton(`/admin/events/${ref.id}/schedule/slots/new`, "Add a slot") : raw(""),
+          )}
+          ${card(table(["Day", "Time", "Label", "Rooms", "Visibility", ""], rows, "No time slots yet — placement is free-form until you add some."))}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/schedule/slots/new", async (_req, ctx, params) => {
+    const ref = await loadEventFor(ctx, params.eventId);
+    ctx.requireWrite("schedule.place", { event_id: ref.id });
+    const app = ctx.app(ref.id);
+    const [days, rooms] = await Promise.all([
+      app.db.select<Row>("event_day", { event_id: ref.id }, { orderBy: "sort_order, date" }),
+      app.db.select<Row>("room", { event_id: ref.id }, { orderBy: "sort_order, name" }),
+    ]);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Add a slot", event: ref, active: "schedule", width: "narrow" },
+        html`${pageHead("Add a slot", `Times are entered and shown in ${ref.timezone}.`)}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/schedule/slots" class="stack">
+            ${field({ name: "event_day_id", label: "Day", type: "select", required: true, options: days.map((d) => ({ value: str(d.id), label: strOrNull(d.label) ?? str(d.date) })) })}
+            ${field({ name: "starts_at", label: `Starts (${ref.timezone})`, type: "time", required: true, value: "09:00" })}
+            ${field({ name: "ends_at", label: `Ends (${ref.timezone})`, type: "time", required: true, value: "09:30" })}
+            ${field({ name: "label", label: "Label", placeholder: "Morning block 1" })}
+            ${field({ name: "kind", label: "Kind", type: "select", required: true, value: "session", options: opts(TIME_SLOT_KIND) })}
+            ${field({ name: "room_ids", label: "Rooms", type: "multi_select", options: rooms.map((r) => ({ value: str(r.id), label: str(r.name) })), help: "Leave empty to apply to every room." })}
+            ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: true })}
+            ${formActions("Add slot", `/admin/events/${ref.id}/schedule/slots`)}
+          </form>`)}`,
       ),
     );
   });
@@ -703,6 +718,45 @@ function readEmbedInput(input: Input) {
   };
 }
 
+interface EmbedFieldOptions {
+  tracks: { value: string; label: string }[];
+  days: { value: string; label: string }[];
+  formats: { value: string; label: string }[];
+  publications: { value: string; label: string }[];
+}
+
+/** The option lists both embed form pages need, loaded once. */
+async function embedFieldOptions(app: AppContext, eventId: string): Promise<EmbedFieldOptions> {
+  const [tracks, days, formats, publications] = await Promise.all([
+    app.db.select<Row>("track", { event_id: eventId }, { orderBy: "sort_order" }),
+    app.db.select<Row>("event_day", { event_id: eventId }, { orderBy: "sort_order" }),
+    app.db.select<Row>("session_format", { event_id: eventId }, { orderBy: "sort_order" }),
+    listPublicationRows(app, eventId),
+  ]);
+  return {
+    tracks: tracks.map((t) => ({ value: str(t.id), label: str(t.name) })),
+    days: days.map((d) => ({ value: str(d.id), label: strOrNull(d.label) ?? str(d.date) })),
+    formats: formats.map((f) => ({ value: str(f.id), label: str(f.name) })),
+    publications: publications.map((p) => ({ value: str(p.id), label: `v${num(p.version)}` })),
+  };
+}
+
+/** One control set, rendered on `…/embeds/new` and on `/admin/embeds/:id`. */
+function embedFields(e: EmbedConfigRow | null, o: EmbedFieldOptions): SafeHtml {
+  return html`
+    ${field({ name: "name", label: "Name", required: true, value: e?.name ?? "", placeholder: "Main site — full schedule" })}
+    ${field({ name: "widget_type", label: "Widget", type: "select", required: true, value: e?.widget_type, options: WIDGET_TYPE.map((w) => ({ value: w, label: WIDGET_LABELS[w] })), help: "What is rendered." })}
+    ${field({ name: "format", label: "Format", type: "select", required: true, value: e?.format, options: EMBED_FORMAT.map((f) => ({ value: f, label: humanise(f) })), help: "How it is delivered. An impossible pair (e.g. speaker_gallery as ics) is rejected on save." })}
+    ${field({ name: "allowed_origins", label: "Allowed origins", required: true, value: e?.allowed_origins.join(", ") ?? "", placeholder: "https://example.com, https://blog.example.com", help: "CORS and frame-ancestors allowlist. Exact origins, space or comma separated." })}
+    ${field({ name: "filter_track_ids", label: "Limit to tracks", type: "multi_select", value: e?.filters.track_ids ?? [], options: o.tracks })}
+    ${field({ name: "filter_event_day_ids", label: "Limit to days", type: "multi_select", value: e?.filters.event_day_ids ?? [], options: o.days })}
+    ${field({ name: "filter_format_ids", label: "Limit to session formats", type: "multi_select", value: e?.filters.format_ids ?? [], options: o.formats })}
+    ${field({ name: "filter_sponsor_only", label: "Sponsored sessions only", type: "checkbox", value: e?.filters.sponsor_only ?? false })}
+    ${field({ name: "cache_ttl_seconds", label: "Cache TTL (seconds)", type: "number", value: e?.cache_ttl_seconds ?? 300, min: 0 })}
+    ${field({ name: "pinned_publication_id", label: "Pin to a version", type: "select", value: e?.pinned_publication_id ?? "", options: o.publications, help: "Leave blank to always serve the live version." })}
+    ${field({ name: "show_unpublished", label: "Preview embed — shows unpublished working data, for staging sites", type: "checkbox", value: e?.show_unpublished ?? false })}`;
+}
+
 function registerEmbedRoutes(router: Router<RequestContext>): void {
   router.get("/admin/events/:eventId/embeds", async (_req, ctx, params) => {
     const ref = await loadEventFor(ctx, params.eventId);
@@ -711,35 +765,8 @@ function registerEmbedRoutes(router: Router<RequestContext>): void {
     ctx.requireRead("schedule.publish", { event_id: ref.id });
     const app = ctx.app(ref.id);
     const canWrite = ctx.canWrite("schedule.publish", { event_id: ref.id });
-    const [embeds, tracks, days, formats, publications] = await Promise.all([
-      loadEmbeds(app, ref.id),
-      app.db.select<Row>("track", { event_id: ref.id }, { orderBy: "sort_order" }),
-      app.db.select<Row>("event_day", { event_id: ref.id }, { orderBy: "sort_order" }),
-      app.db.select<Row>("session_format", { event_id: ref.id }, { orderBy: "sort_order" }),
-      listPublicationRows(app, ref.id),
-    ]);
+    const embeds = await loadEmbeds(app, ref.id);
     const base = str(ctx.env.PUBLIC_BASE_URL) || ctx.url.origin;
-
-    const widgetOptions = WIDGET_TYPE.map((w) => ({ value: w, label: WIDGET_LABELS[w] }));
-    const formatOptions = EMBED_FORMAT.map((f) => ({ value: f, label: humanise(f) }));
-    const trackOptions = tracks.map((t) => ({ value: str(t.id), label: str(t.name) }));
-    const dayOptions = days.map((d) => ({ value: str(d.id), label: strOrNull(d.label) ?? str(d.date) }));
-    const formatFilterOptions = formats.map((f) => ({ value: str(f.id), label: str(f.name) }));
-    const pubOptions = publications.map((p) => ({ value: str(p.id), label: `v${num(p.version)}` }));
-
-    const embedFields = (e: EmbedConfigRow | null) => html`
-      ${field({ name: "name", label: "Name", required: true, value: e?.name ?? "", placeholder: "Main site — full schedule" })}
-      ${field({ name: "widget_type", label: "Widget", type: "select", required: true, value: e?.widget_type, options: widgetOptions, help: "What is rendered." })}
-      ${field({ name: "format", label: "Format", type: "select", required: true, value: e?.format, options: formatOptions, help: "How it is delivered. An impossible pair (e.g. speaker_gallery as ics) is rejected on save." })}
-      ${field({ name: "allowed_origins", label: "Allowed origins", required: true, value: e?.allowed_origins.join(", ") ?? "", placeholder: "https://example.com, https://blog.example.com", help: "CORS and frame-ancestors allowlist. Exact origins, space or comma separated." })}
-      ${field({ name: "filter_track_ids", label: "Limit to tracks", type: "multi_select", value: e?.filters.track_ids ?? [], options: trackOptions })}
-      ${field({ name: "filter_event_day_ids", label: "Limit to days", type: "multi_select", value: e?.filters.event_day_ids ?? [], options: dayOptions })}
-      ${field({ name: "filter_format_ids", label: "Limit to session formats", type: "multi_select", value: e?.filters.format_ids ?? [], options: formatFilterOptions })}
-      ${field({ name: "filter_sponsor_only", label: "Sponsored sessions only", type: "checkbox", value: e?.filters.sponsor_only ?? false })}
-      ${field({ name: "cache_ttl_seconds", label: "Cache TTL (seconds)", type: "number", value: e?.cache_ttl_seconds ?? 300, min: 0 })}
-      ${field({ name: "pinned_publication_id", label: "Pin to a version", type: "select", value: e?.pinned_publication_id ?? "", options: pubOptions, help: "Leave blank to always serve the live version." })}
-      ${field({ name: "show_unpublished", label: "Preview embed — shows unpublished working data, for staging sites", type: "checkbox", value: e?.show_unpublished ?? false })}
-    `;
 
     const rows = embeds.map((e) => {
       const { url, snippet } = embedSnippet(e, base);
@@ -754,10 +781,10 @@ function registerEmbedRoutes(router: Router<RequestContext>): void {
         </td>
         <td class="right">
           ${canWrite
-            ? html`<details class="row-edit"><summary>Edit</summary>
-                <form method="post" action="/admin/embeds/${e.id}" class="inline-grid">${embedFields(e)}<button type="submit" class="small">Save</button></form>
+            ? html`<div class="row-actions">
                 ${actionForm(`/admin/embeds/${e.id}/status`, e.status === "active" ? "Disable" : "Enable", { hidden: { status: e.status === "active" ? "disabled" : "active" } })}
-              </details>`
+                ${editLink(`/admin/embeds/${e.id}`)}
+              </div>`
             : raw("")}
         </td>
       </tr>`;
@@ -767,17 +794,54 @@ function registerEmbedRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Embeds", event: ref, active: "publish", width: "wide" },
-        html`${pageHead("Embeds", "Each embed answers two questions independently: what to show, and how to deliver it. Every one reads the published schedule, never live data, unless marked preview.")}
-          ${table(["Embed", "Type", "Allowed origins", "Status", "Public URL / snippet", ""], rows, "No embeds yet.")}
-          ${canWrite
-            ? card(
-                html`<form method="post" action="/admin/events/${ref.id}/embeds" class="inline-grid">
-                  ${embedFields(null)}
-                  <button type="submit">Create embed</button>
-                </form>`,
-                "New embed",
-              )
-            : raw("")}`,
+        html`${pageHead(
+            "Embeds",
+            "Each embed answers two questions independently: what to show, and how to deliver it. Every one reads the published schedule, never live data, unless marked preview.",
+            canWrite ? addButton(`/admin/events/${ref.id}/embeds/new`, "New embed") : raw(""),
+          )}
+          ${card(table(["Embed", "Type", "Allowed origins", "Status", "Public URL / snippet", ""], rows, "No embeds yet."))}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/embeds/new", async (_req, ctx, params) => {
+    const ref = await loadEventFor(ctx, params.eventId);
+    ctx.requireWrite("schedule.publish", { event_id: ref.id });
+    const app = ctx.app(ref.id);
+    const options = await embedFieldOptions(app, ref.id);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New embed", event: ref, active: "publish", width: "narrow" },
+        html`${pageHead("New embed", "What to show, and how to deliver it — the two choices are independent.")}
+          ${card(html`<form method="post" action="/admin/events/${ref.id}/embeds" class="stack">
+            ${embedFields(null, options)}
+            ${formActions("Create embed", `/admin/events/${ref.id}/embeds`)}
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.get("/admin/embeds/:embedId", async (_req, ctx, params) => {
+    const app0 = ctx.app();
+    const row = await app0.db.byId<Row>("embed_config", params.embedId);
+    if (!row) throw notFound("Embed config", params.embedId);
+    ctx.eventId = str(row.event_id);
+    const ref = await loadEventFor(ctx, str(row.event_id));
+    ctx.requireWrite("schedule.publish", { event_id: ref.id });
+    const app = ctx.app(ref.id);
+    const embed = (await loadEmbeds(app, ref.id)).find((e) => e.id === params.embedId);
+    if (!embed) throw notFound("Embed config", params.embedId);
+    const options = await embedFieldOptions(app, ref.id);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `Edit ${embed.name}`, event: ref, active: "publish", width: "narrow" },
+        html`${pageHead(embed.name, WIDGET_LABELS[embed.widget_type])}
+          ${card(html`<form method="post" action="/admin/embeds/${embed.id}" class="stack">
+            ${embedFields(embed, options)}
+            ${formActions("Save embed", `/admin/events/${ref.id}/embeds`)}
+          </form>`)}`,
       ),
     );
   });

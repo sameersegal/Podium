@@ -27,7 +27,7 @@ import { readInput } from "../../http/input.js";
 import { htmlResponse, json, noContent, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, markdown, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, field, humanise, pageHead, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, editLink, field, formActions, humanise, pageHead, table } from "../../ui/layout.js";
 import { adminPage, toEventRef } from "../../ui/shell.js";
 import {
   addComment,
@@ -102,6 +102,7 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
     const event = await app.db.byId<Row>("event", params.eventId);
     if (!event) throw notFound("Event", params.eventId);
     const ref = toEventRef(event);
+    const canWrite = ctx.canWrite("session.manage", { event_id: params.eventId });
 
     const kind = ctx.url.searchParams.get("kind");
     const missing = ctx.url.searchParams.get("missing") === "1";
@@ -126,6 +127,7 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
         <td>${r.comment_count}</td>
         <td class="small">${r.belongs_to.label}</td>
         <td class="small">${str(r.latest.created_at)}</td>
+        <td class="right">${editLink(`/files/${str(r.latest.id)}`, "Open")}</td>
       </tr>`,
     );
 
@@ -135,7 +137,11 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Files", event: ref, active: "files", width: "wide" },
-        html`${pageHead("Files", "Every deliverable across the event — deck, headshot, logo or signed document — with its version history and comments.")}
+        html`${pageHead(
+            "Files",
+            "Every deliverable across the event — deck, headshot, logo or signed document — with its version history and comments.",
+            canWrite ? addButton(`/admin/events/${params.eventId}/files/new`, "Upload a file") : raw(""),
+          )}
           <form method="get" class="inline-grid">
             ${field({ name: "kind", label: "Kind", type: "select", value: kind ?? "", options: ASSET_PURPOSES.map((p) => ({ value: p, label: humanise(p) })) })}
             ${field({ name: "missing", label: "Show sessions with no slides yet", type: "checkbox", value: missing })}
@@ -146,18 +152,29 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
                 table(["Session"], missingRows.map((s) => html`<tr><td><a href="/admin/events/${params.eventId}/sessions/${str(s.id)}">${str(s.title)}</a></td></tr>`), "Every session has slides."),
                 "Missing slides",
               )
-            : table(["File", "Kind", "Scan", "Version", "Comments", "Belongs to", "Uploaded"], rows, "No files yet.")}
-          ${card(
-            html`<form method="post" action="/admin/events/${params.eventId}/files/upload" enctype="multipart/form-data" class="stack">
-              ${field({ name: "file", label: "File", type: "file", required: true })}
-              ${field({ name: "subject_type", label: "Belongs to", type: "select", required: true, options: [{ value: "session", label: "Session" }, { value: "person", label: "Person" }, { value: "sponsor", label: "Sponsor" }] })}
-              ${field({ name: "subject_id", label: "Subject id", required: true, help: "The session, person or sponsor id." })}
-              ${field({ name: "kind", label: "Slot (e.g. slides, headshot, logo)", value: "document" })}
-              ${field({ name: "purpose", label: "Purpose", type: "select", required: true, value: "document", options: ASSET_PURPOSES.map((p) => ({ value: p, label: humanise(p) })) })}
-              <button type="submit">Upload</button>
-            </form>`,
-            "Upload a file (works with scripts blocked)",
-          )}`,
+            : card(table(["File", "Kind", "Scan", "Version", "Comments", "Belongs to", "Uploaded", ""], rows, "No files yet."))}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/files/new", async (_req, ctx, params) => {
+    ctx.requireWrite("session.manage", { event_id: params.eventId });
+    const app = ctx.app(params.eventId);
+    const event = await app.db.byId<Row>("event", params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Upload a file", event: toEventRef(event), active: "files", width: "narrow" },
+        html`${pageHead("Upload a file", "A plain multipart form — it works with scripts blocked.")}
+          ${card(html`<form method="post" action="/admin/events/${params.eventId}/files/upload" enctype="multipart/form-data" class="stack">
+            ${field({ name: "file", label: "File", type: "file", required: true })}
+            ${field({ name: "subject_type", label: "Belongs to", type: "select", required: true, options: [{ value: "session", label: "Session" }, { value: "person", label: "Person" }, { value: "sponsor", label: "Sponsor" }] })}
+            ${field({ name: "subject_id", label: "Subject id", required: true, help: "The session, person or sponsor id." })}
+            ${field({ name: "kind", label: "Slot (e.g. slides, headshot, logo)", value: "document" })}
+            ${field({ name: "purpose", label: "Purpose", type: "select", required: true, value: "document", options: ASSET_PURPOSES.map((p) => ({ value: p, label: humanise(p) })) })}
+            ${formActions("Upload", `/admin/events/${params.eventId}/files`)}
+          </form>`)}`,
       ),
     );
   });
@@ -354,7 +371,7 @@ function registerCustomFieldRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Custom fields",
             "Adding a field means deciding its PII class — whether it holds personal data, and who is allowed to see it, are both answered when you create it and never guessed for you.",
-            canWrite ? html`<a class="btn" href="/admin/custom-fields/new">New field</a>` : raw(""),
+            canWrite ? addButton(`/admin/custom-fields/new`, "New field") : raw(""),
           )}
           ${warnings.length ? html`<p class="notice warn">${warnings.join("; ")} — proliferation is surfaced, not capped (R27).</p>` : raw("")}
           ${table(["Field", "Subject", "Type", "Classification", "Fill rate", "Last used", "Status", ""], rows, "No custom fields yet.")}`,
@@ -444,6 +461,7 @@ function registerImportRoutes(router: Router<RequestContext>): void {
         <td><a href="/admin/imports/${str(i.id)}"><strong>${str(i.subject)}</strong></a></td>
         <td>${badge(str(i.status))}</td>
         <td class="small">${str(i.created_at)}</td>
+        <td class="right">${editLink(`/admin/imports/${str(i.id)}`, "Open")}</td>
       </tr>`,
     );
     return htmlResponse(
@@ -453,9 +471,9 @@ function registerImportRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Imports",
             "Map, validate, preview, then run — nothing is written until the preview is confirmed.",
-            html`<a class="btn" href="/admin/imports/new">New import</a>`,
+            addButton(`/admin/imports/new`, "New import"),
           )}
-          ${table(["Subject", "Status", "Started"], rows, "No imports yet.")}`,
+          ${card(table(["Subject", "Status", "Started", ""], rows, "No imports yet."))}`,
       ),
     );
   });
@@ -602,7 +620,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Exports",
             "Generated exactly under your own permissions — never a side door around what you may already see. Expire after 7 days.",
-            html`<a class="btn" href="/admin/exports/new">New export</a>`,
+            addButton(`/admin/exports/new`, "New export"),
           )}
           ${table(["Subject", "Format", "Status", "Requested", ""], rows, "No exports yet.")}`,
       ),

@@ -47,6 +47,20 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
     const [sponsor] = await app.db.select<Row>("sponsor", {}, { orderBy: "created_at", limit: 1 });
     const [task] = await app.db.select<Row>("task_instance", { event_id: eventId }, { orderBy: "created_at", limit: 1 });
     const [person] = await app.db.select<Row>("person", {}, { orderBy: "created_at", limit: 1 });
+    // The configuration rows, so the smoke walk can reach the edit page every
+    // setup list now links each row to. A create form that 500s is invisible
+    // to a walk that only ever opens the list it is reached from.
+    const [day] = await app.db.select<Row>("event_day", { event_id: eventId }, { orderBy: "sort_order", limit: 1 });
+    const [track] = await app.db.select<Row>("track", { event_id: eventId }, { orderBy: "sort_order", limit: 1 });
+    const [format] = await app.db.select<Row>("session_format", { event_id: eventId }, { orderBy: "sort_order", limit: 1 });
+    const [venue] = await app.db.select<Row>("venue", { event_id: eventId }, { limit: 1 });
+    const [room] = venue ? await app.db.select<Row>("room", { venue_id: str(venue.id) }, { orderBy: "sort_order", limit: 1 }) : [];
+    const [tier] = await app.db.select<Row>("sponsorship_tier", { event_id: eventId }, { orderBy: "level DESC", limit: 1 });
+    const [rubric] = await app.db.select<Row>("rubric", { event_id: eventId }, { orderBy: "name", limit: 1 });
+    const [definition] = await app.db.select<Row>("task_definition", { event_id: eventId }, { orderBy: "sort_order", limit: 1 });
+    const [form] = cfp ? await app.db.select<Row>("submission_form", { cfp_id: str(cfp.id) }, { orderBy: "version DESC", limit: 1 }) : [];
+    const [step] = form ? await app.db.select<Row>("form_step", { form_id: str(form.id) }, { orderBy: "sort_order", limit: 1 }) : [];
+    const [formField] = step ? await app.db.select<Row>("form_field", { step_id: str(step.id) }, { orderBy: "sort_order", limit: 1 }) : [];
     return json({
       org_id: ctx.orgId,
       event_id: eventId,
@@ -59,6 +73,15 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
       sponsor_id: sponsor ? str(sponsor.id) : null,
       task_id: task ? str(task.id) : null,
       person_id: person ? str(person.id) : null,
+      day_id: day ? str(day.id) : null,
+      track_id: track ? str(track.id) : null,
+      format_id: format ? str(format.id) : null,
+      room_id: room ? str(room.id) : null,
+      tier_id: tier ? str(tier.id) : null,
+      rubric_id: rubric ? str(rubric.id) : null,
+      task_definition_id: definition ? str(definition.id) : null,
+      form_step_id: step ? str(step.id) : null,
+      form_field_id: formField ? str(formField.id) : null,
     });
   });
 

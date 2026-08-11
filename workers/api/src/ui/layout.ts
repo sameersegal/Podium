@@ -191,8 +191,53 @@ export function pageHead(title: string, lede?: string | null, actions?: SafeHtml
   </div>`;
 }
 
-export function card(body: SafeHtml, title?: string): SafeHtml {
-  return html`<section class="card">${title ? html`<h2>${title}</h2>` : raw("")}${body}</section>`;
+/**
+ * A card, optionally titled, optionally carrying its own actions.
+ *
+ * `opts.actions` is where a section's "Add …" button goes — top right, above
+ * the table it adds to, the same place `pageHead` puts a page's own primary
+ * action. A screen with four lists on it (setup) therefore reads the same way
+ * as a screen with one, and neither hides the create action under the rows.
+ */
+export function card(body: SafeHtml, title?: string, opts: { actions?: SafeHtml; id?: string } = {}): SafeHtml {
+  const id = opts.id ? raw(` id="${escapeHtml(opts.id)}"`) : raw("");
+  if (opts.actions) {
+    return html`<section class="card"${id}>
+      <div class="section-head">
+        ${title ? html`<h2>${title}</h2>` : raw("")}
+        <div class="actions">${opts.actions}</div>
+      </div>
+      ${body}
+    </section>`;
+  }
+  return html`<section class="card"${id}>${title ? html`<h2>${title}</h2>` : raw("")}${body}</section>`;
+}
+
+/**
+ * The primary "make one of these" control for a list. Always a link to a form
+ * on its own page — never a disclosure that unfolds a form under the table.
+ * A create form competing with the rows it will join is the thing this rule
+ * exists to stop.
+ */
+export function addButton(href: string, label: string): SafeHtml {
+  return html`<a class="btn" href="${href}">${label}</a>`;
+}
+
+/** The row-level "open this one" control. Every editable row carries one. */
+export function editLink(href: string, label = "Edit"): SafeHtml {
+  return html`<a class="btn secondary small" href="${href}">${label}</a>`;
+}
+
+/**
+ * The foot of a create/edit form page: the submit, then the way back to the
+ * list without saving. Every form page that was reached from a list has one,
+ * because a form on its own page has to say how to leave it.
+ */
+export function formActions(submitLabel: string, cancelHref: string, cancelLabel = "Cancel"): SafeHtml {
+  return html`<div class="actions">
+    <button type="submit">${submitLabel}</button>
+    <a class="btn secondary" href="${cancelHref}">${cancelLabel}</a>
+  </div>`;
 }
 
 /**
@@ -397,16 +442,6 @@ export function field(o: FieldOptions): SafeHtml {
 
 export function submitButton(label: string, className = ""): SafeHtml {
   return html`<button type="submit" class="${className}">${label}</button>`;
-}
-
-/**
- * The "add one of these" form under a table on a setup screen. Closed by
- * default: four of them permanently expanded is what made `/admin/events/:id/setup`
- * read as one endless form with tables interleaved rather than as four lists
- * you can add to.
- */
-export function addForm(label: string, body: SafeHtml): SafeHtml {
-  return html`<details class="disclosure row-form"><summary>${label}</summary>${body}</details>`;
 }
 
 /** A one-button POST, for state transitions that need no form. */

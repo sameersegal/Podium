@@ -32,7 +32,7 @@ import type { ResultFilters, ResultRow, RoundView } from "./scoring.js";
 import type { PublishPreviewRow } from "./service.js";
 import { versionField } from "../../http/concurrency.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";
+import { actionForm, addButton, badge, card, editLink, empty, field, formActions, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 
 export interface PersonRef {
@@ -80,7 +80,7 @@ export function roundsOverviewView(d: { event: EventRef; rounds: RoundSummary[];
     ${pageHead(
       "Review",
       "Rounds are plural on purpose — a light screening pass, then a deep round on the survivors, then a shortlist meeting.",
-      d.canWrite ? html`<a class="btn" href="/admin/events/${d.event.id}/review/rounds/new">New round</a>` : raw(""),
+      d.canWrite ? addButton(`/admin/events/${d.event.id}/review/rounds/new`, "New round") : raw(""),
     )}
     ${table(["Round", "Status", "Window", "Rubric", "Proposals", "Pool", "Submitted / assigned", ""], rows, "No review rounds yet.")}
   `;
@@ -240,7 +240,11 @@ export function poolView(d: {
     </tr>`,
   );
   return html`
-    ${pageHead(`Pool · ${d.round.name}`, "Membership of one round's pool implies nothing about any other round.")}
+    ${pageHead(
+      `Pool · ${d.round.name}`,
+      "Membership of one round's pool implies nothing about any other round.",
+      d.canWrite ? addButton(`/admin/rounds/${d.round.id}/pool/new`, "Add a reviewer") : raw(""),
+    )}
     ${d.acceptUrl
       ? card(
           html`<p class="lede">Reviewer invitation for <strong>${d.acceptUrl.email}</strong> is ready.</p>
@@ -249,20 +253,21 @@ export function poolView(d: {
           "Copy this invitation link",
         )
       : raw("")}
-    ${table(["Reviewer", "Pool role", "Track limit", "Load", "Status", ""], rows, "Nobody is in this round's pool yet.")}
-    ${d.canWrite
-      ? card(
-          html`<form method="post" action="/admin/rounds/${d.round.id}/pool" class="inline-grid">
-            ${field({ name: "email", label: "Email", type: "email", required: true, help: "Finds them if they already exist, or creates a placeholder and an invitation." })}
-            ${field({ name: "full_name", label: "Name", help: "Optional if they already have a record." })}
-            ${field({ name: "pool_role", label: "Pool role", type: "select", required: true, value: "reviewer", options: opts(POOL_ROLE) })}
-            ${field({ name: "track_ids", label: "Limit to tracks", type: "multi_select", options: d.tracks.map((t) => ({ value: str(t.id), label: str(t.name) })) })}
-            ${field({ name: "max_assignments", label: "Per-person cap", type: "number", min: 1, help: "Overrides the round's cap for this person." })}
-            <button type="submit">Add to pool</button>
-          </form>`,
-          "Add a reviewer",
-        )
-      : raw("")}
+    ${card(table(["Reviewer", "Pool role", "Track limit", "Load", "Status", ""], rows, "Nobody is in this round's pool yet."))}
+  `;
+}
+
+export function poolAddFormView(d: { round: RoundView; tracks: Row[] }): SafeHtml {
+  return html`
+    ${pageHead("Add a reviewer", `To the pool for ${d.round.name}. Membership of one round's pool implies nothing about any other round.`)}
+    ${card(html`<form method="post" action="/admin/rounds/${d.round.id}/pool" class="stack">
+      ${field({ name: "email", label: "Email", type: "email", required: true, help: "Finds them if they already exist, or creates a placeholder and an invitation." })}
+      ${field({ name: "full_name", label: "Name", help: "Optional if they already have a record." })}
+      ${field({ name: "pool_role", label: "Pool role", type: "select", required: true, value: "reviewer", options: opts(POOL_ROLE) })}
+      ${field({ name: "track_ids", label: "Limit to tracks", type: "multi_select", options: d.tracks.map((t) => ({ value: str(t.id), label: str(t.name) })) })}
+      ${field({ name: "max_assignments", label: "Per-person cap", type: "number", min: 1, help: "Overrides the round's cap for this person." })}
+      ${formActions("Add to pool", `/admin/rounds/${d.round.id}/pool`)}
+    </form>`)}
   `;
 }
 
@@ -589,32 +594,37 @@ export function rubricsListView(d: { event: EventRef | null; rubrics: RubricView
       <td>v${r.version}</td>
       <td>${badge(r.overall_scale)}</td>
       <td>${r.requires_comment ? badge("comment required", "info") : raw("")}</td>
+      <td class="right">${d.canWrite ? editLink(`/admin/rubrics/${r.id}`) : raw("")}</td>
     </tr>`,
   );
   return html`
-    ${pageHead("Rubrics", "Typed criteria, weights and anchor descriptions — the anchors are the single highest-leverage field for score consistency.")}
+    ${pageHead(
+      "Rubrics",
+      "Typed criteria, weights and anchor descriptions — the anchors are the single highest-leverage field for score consistency.",
+      d.canWrite && d.event ? addButton(`/admin/rubrics/new?event_id=${d.event.id}`, "New rubric") : raw(""),
+    )}
     ${d.event ? raw("") : card(html`<form method="get" action="/admin/rubrics" class="inline-form"><select name="event_id">${d.eventOptions.map((e) => html`<option value="${str(e.id)}">${str(e.name)}</option>`)}</select><button class="small secondary" type="submit">Switch event</button></form>`)}
-    ${table(["Name", "Version", "Overall scale", ""], rows, "No rubrics for this event yet.")}
+    ${card(table(["Name", "Version", "Overall scale", "", ""], rows, "No rubrics for this event yet."))}
     ${d.canWrite && d.event
-      ? html`<div class="grid two">
-          ${card(
-            html`<form method="post" action="/admin/rubrics?event_id=${d.event.id}" class="stack">
-              ${field({ name: "name", label: "Name", required: true })}
-              ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
-              ${field({ name: "overall_scale", label: "Overall scale", type: "select", required: true, value: "recommendation", options: opts(OVERALL_SCALE) })}
-              ${field({ name: "requires_comment", label: "Requires at least one written comment", type: "checkbox", value: true })}
-              <p class="small muted">Add criteria after creating — a rubric needs at least one.</p>
-              ${submitButton("Create rubric")}
-            </form>`,
-            "New rubric",
-          )}
-          ${card(
-            html`<p class="small muted">A sponsor session is checked, not selected. One criterion is the whole design.</p>
-              ${actionForm(`/admin/rubrics/sponsor-preset?event_id=${d.event.id}`, "Create the sponsor compliance rubric")}`,
-            "Sponsor compliance preset",
-          )}
-        </div>`
+      ? card(
+          html`<p class="small muted">A sponsor session is checked, not selected. One criterion is the whole design.</p>
+            ${actionForm(`/admin/rubrics/sponsor-preset?event_id=${d.event.id}`, "Create the sponsor compliance rubric")}`,
+          "Sponsor compliance preset",
+        )
       : raw("")}
+  `;
+}
+
+export function rubricNewFormView(event: EventRef): SafeHtml {
+  return html`
+    ${pageHead("New rubric", `For ${event.name}. Criteria are added once it exists — a rubric needs at least one.`)}
+    ${card(html`<form method="post" action="/admin/rubrics?event_id=${event.id}" class="stack">
+      ${field({ name: "name", label: "Name", required: true })}
+      ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
+      ${field({ name: "overall_scale", label: "Overall scale", type: "select", required: true, value: "recommendation", options: opts(OVERALL_SCALE) })}
+      ${field({ name: "requires_comment", label: "Requires at least one written comment", type: "checkbox", value: true })}
+      ${formActions("Create rubric", `/admin/rubrics?event_id=${event.id}`)}
+    </form>`)}
   `;
 }
 

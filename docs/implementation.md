@@ -180,5 +180,29 @@ Four properties, in the order they matter:
   build step, public surfaces work without scripts", and it keeps all three.
 - Typed errors (`DomainError`) carry `invariant`; the HTML layer renders them as a page and
   the JSON layer as the documented body shape.
+
+### Lists, create forms and row-level edit
+
+One shape for every screen that shows a collection, so the tenth one a person meets behaves
+like the first. `ui/layout.ts` carries all three pieces; nothing should hand-roll them.
+
+- **The create action is a link, top right, above the table.** `addButton(href, label)` in
+  `pageHead`'s third argument when the list is the page, or in `card(body, title, {actions})`
+  when the page holds several lists (`/admin/events/:id/setup` holds four). Never a
+  `<details>` that unfolds a form under the rows, and never a form card below the table: a
+  create form competing with the rows it will join is what this rule exists to stop.
+- **The form lives on its own page**, at `…/new` for the collection — `…/days/new`,
+  `/admin/segments/new`, `/admin/rounds/:id/pool/new`. It ends in
+  `formActions(submitLabel, cancelHref)`, so every form reached from a list says how to leave
+  it. The literal `new` route is registered **before** the sibling `:id` route; `http/router.ts`
+  takes the first pattern that matches.
+- **Every editable row carries `editLink(href)`** in a right-aligned last cell, pointing at
+  that entity's own page. Where a row has several actions, they go in one `.row-actions`
+  wrapper with the edit link last.
+
+The agenda builder (`/admin/events/:id/schedule`) is the deliberate exception: Move, Place and
+Acknowledge are direct manipulation of a board, not creating an entity from a list, and routing
+forty placements through a page each would be a regression. Its row-level `<details class="row-edit">`
+editors stay.
 - Enum members live as `as const` arrays in `packages/domain/src/<context>/types.ts`, so a
   drift checker can compare them with the model.

@@ -41,7 +41,7 @@ import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json, text } from "../http/responses.js";
 import type { Router } from "../http/router.js";
 import { html, jsonScript, prose, raw, type SafeHtml } from "../ui/html.js";
-import { card, dayBar, empty, pageHead } from "../ui/layout.js";
+import { addButton, card, dayBar, empty, pageHead } from "../ui/layout.js";
 import { publicPage, type EventRef } from "../ui/shell.js";
 
 /* -------------------------------------------------------------------------- */
@@ -157,7 +157,7 @@ function registerLandingRoutes(router: Router<RequestContext>): void {
                     disabled: true,
                   })}
                   ${view.cfp.status === "open"
-                    ? html`<a class="btn" href="/login?next=${encodeURIComponent(`/portal/proposals/new?cfp=${view.cfp.slug}`)}">Start a submission</a>`
+                    ? addButton(`/login?next=${encodeURIComponent(`/portal/proposals/new?cfp=${view.cfp.slug}`)}`, "Start a submission")
                     : raw("")}`,
                 "Submission form",
               )

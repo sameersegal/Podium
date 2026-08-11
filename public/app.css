@@ -365,6 +365,13 @@ body.auth form.stack input { max-width: 100%; }
   box-shadow: var(--shadow-card);
 }
 .card > h2:first-child, .card > h3:first-child { margin-top: 0; }
+/* A section's own head: its name on the left, its "Add …" button on the right,
+   above the table. Same geometry as `.page-head`, one level down, so a screen
+   with four lists on it reads like four copies of a screen with one. */
+.section-head { display: flex; align-items: flex-start; gap: var(--sp-4); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+.section-head > h2, .section-head > h3 { flex: 1; min-width: 12rem; margin: 0; }
+.section-head > .actions { justify-content: flex-end; }
+.card > .section-head + .table-wrap { margin-top: 0; }
 /* A table filling a card sits edge to edge — the card is already the frame, and
    a bordered box inside a bordered box is the double-border look. */
 .card > .table-wrap { border: 0; border-radius: 0; margin: 0 calc(var(--sp-5) * -1) calc(var(--sp-4) * -1); width: auto; }
@@ -620,8 +627,9 @@ form.stack > button, form.stack > .actions > button, .card > form > button { ali
 button.block, .btn.block { width: 100%; }
 
 /* An inline editor inside a table row: a `<details>` whose summary is a small
-   button, opening a compact form over the row. Ten call sites rendered as a raw
-   `▶ Move` / `▶ Edit` disclosure triangle before this existed. */
+   button, opening a compact form over the row. Reserved for the agenda builder,
+   where Move / Place / Acknowledge are direct manipulation of a board; every
+   other list edits a row on that row's own page (`editLink`). */
 .row-edit { display: inline-block; }
 .row-edit > summary {
   list-style: none;
@@ -657,10 +665,11 @@ button.block, .btn.block { width: 100%; }
    box; the second joins the first. */
 .row-edit[open] > :not(summary) + :not(summary) { margin-top: calc(var(--sp-2) * -1 + 1px); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); }
 
-/* The compact "add one" form that sits under a table. */
+/* A secondary form inside a card, separated from what is above it. Creating a
+   row is not one of these — that lives on its own page, reached from the
+   section's "Add …" button. */
 .row-form { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
 .row-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; align-items: center; }
-.add-field { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--line); }
 
 /* ---------- feedback ---------- */
 .flash, .notice { padding: var(--sp-3) var(--sp-4); border-radius: var(--radius); margin-bottom: var(--sp-4); border: 1px solid; font-size: var(--fs-md); }
@@ -826,21 +835,6 @@ td .progress { min-width: 4rem; }
 .speaker-card img, .avatar { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; background: var(--indigo-soft); }
 .avatar.initials { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: var(--indigo-dark); font-size: var(--fs-xl); }
 
-details.disclosure { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); }
-details.disclosure > summary {
-  list-style: none;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: var(--fs-md);
-  color: var(--indigo-dark);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-details.disclosure > summary::-webkit-details-marker { display: none; }
-details.disclosure > summary::before { content: "+"; font-size: var(--fs-lg); line-height: 1; color: var(--muted); }
-details.disclosure[open] > summary::before { content: "−"; }
-details.disclosure[open] > summary { margin-bottom: var(--sp-3); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--line-2); }
 
 /* The card snippet and the gallery detail panel: `<details>` rather than a
    script, so both open with JavaScript blocked (08, "Degrade gracefully"). */

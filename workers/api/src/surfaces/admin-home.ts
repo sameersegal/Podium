@@ -13,7 +13,7 @@ import type { RequestContext } from "../http/context.js";
 import { htmlResponse, redirect } from "../http/responses.js";
 import type { Router } from "../http/router.js";
 import { html, raw } from "../ui/html.js";
-import { badge, card, empty, pageHead, stat, table } from "../ui/layout.js";
+import { addButton, badge, card, empty, pageHead, stat, table } from "../ui/layout.js";
 import { adminPage, toEventRef } from "../ui/shell.js";
 
 /** `starts_on`/`ends_on` are calendar dates and are never converted (11, "Time"). */
@@ -138,7 +138,7 @@ export function registerAdminHomeRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
           "Podium admin",
           ev ? `You are looking at ${ev.name}. Everything below is scoped to it.` : "No events yet — create one to get started.",
-          html`<a class="btn" href="/admin/events/new">New event</a>`,
+          addButton(`/admin/events/new`, "New event"),
         )}
         ${tiles}
         <div class="grid two">

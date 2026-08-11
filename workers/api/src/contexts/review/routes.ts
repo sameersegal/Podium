@@ -108,6 +108,7 @@ import {
   decisionsListView,
   opts,
   parseCriteriaFromInput,
+  poolAddFormView,
   poolView,
   proposalDiscussionView,
   progressView,
@@ -118,6 +119,7 @@ import {
   roundFormView,
   roundsOverviewView,
   rubricFormView,
+  rubricNewFormView,
   rubricsListView,
   toCsv,
   type AssignmentRowView,
@@ -619,6 +621,16 @@ function registerPoolRoutes(router: Router<RequestContext>): void {
     );
   });
 
+  router.get("/admin/rounds/:roundId/pool/new", async (_req, ctx, params) => {
+    const { round, event } = await loadRoundFor(ctx, params.roundId);
+    ctx.requireWrite("decision.manage", { event_id: event.id });
+    const app = ctx.app(event.id);
+    const { tracks } = await eventLookups(app, event.id);
+    return htmlResponse(
+      adminPage(ctx, { title: "Add a reviewer", event, active: "review", width: "narrow" }, poolAddFormView({ round, tracks })),
+    );
+  });
+
   router.post("/admin/rounds/:roundId/pool", async (req, ctx, params) => {
     const { round, event } = await loadRoundFor(ctx, params.roundId);
     ctx.requireWrite("decision.manage", { event_id: event.id });
@@ -905,6 +917,17 @@ function registerRubricRoutes(router: Router<RequestContext>): void {
         rubricsListView({ event, rubrics, canWrite: ctx.canWrite("decision.manage", { event_id: event.id }), eventOptions: events }),
       ),
     );
+  });
+
+  // Before "/admin/rubrics/:rubricId" (http/router.ts takes the first match).
+  router.get("/admin/rubrics/new", async (_req, ctx) => {
+    const eventId = ctx.url.searchParams.get("event_id") || "";
+    if (!eventId) throw validationError("Choose an event first.", [{ field_key: "event_id", message: "Which event is this rubric for?" }]);
+    const event = await loadEvent(ctx, eventId);
+    if (!event) throw notFound("Event", eventId);
+    ctx.eventId = event.id;
+    ctx.requireWrite("decision.manage", { event_id: event.id });
+    return htmlResponse(adminPage(ctx, { title: "New rubric", event, active: "review", width: "narrow" }, rubricNewFormView(event)));
   });
 
   router.post("/admin/rubrics", async (req, ctx) => {
