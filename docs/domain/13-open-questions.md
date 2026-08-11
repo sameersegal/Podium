@@ -50,9 +50,10 @@ decided.
 ## Corrections found while implementing
 
 The model was trial-implemented once, as a domain layer with a doc↔code drift checker, to
-find out where it did not hold up. That code is not merged; it lives on
-`claude/sessionboard-domain-implementation` and is the reference for what the checks in
-[`README.md`](README.md#keeping-code-and-model-in-sync) would look like in practice.
+find out where it did not hold up. That branch is gone: the product has since been built for
+real on `main`, and the drift checker it was the reference for now ships as
+[`domain-drift`](../../.claude/skills/domain-drift) and runs in CI. What the exercise was for
+survives as the corrections below, which is the part that mattered.
 
 The exercise surfaced seven places where the model contradicted itself. All are fixed here;
 recorded because each was a real gap, not a typo.
