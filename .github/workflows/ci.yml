@@ -184,10 +184,15 @@ jobs:
       # Worker is up and serving, and the end of the chain is where that shows.
       - name: Smoke check
         run: |
-          read -r code url < <(curl -sSL -o /dev/null \
+          # Split with parameter expansion, not `read`: curl's -w output has no
+          # trailing newline, so `read` returns non-zero at EOF and the step
+          # dies under `bash -e` before it can report anything.
+          out=$(curl -sSL -o /dev/null \
             -w '%{http_code} %{url_effective}' --retry 5 --retry-delay 5 \
             --retry-all-errors --max-redirs 5 --max-time 30 \
             "https://${PODIUM_HOSTNAME}/login")
+          code=${out%% *}
+          url=${out#* }
           echo "GET /login -> $code ($url)"
           test "$code" = "200"
 
