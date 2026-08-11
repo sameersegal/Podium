@@ -103,6 +103,7 @@ const ORGANIZER_PATHS = (ctx) => [
   "/admin/imports",
   "/admin/exports",
   "/admin/audit",
+  "/admin/event-log",
   "/portal",
 ];
 

@@ -4,7 +4,11 @@
 
 import type { AppContext } from "@podiumconf/data/context.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { redactEventPayload } from "@podiumconf/domain/platform/payload.js";
 import { redactRecord } from "@podiumconf/domain/shared/pii.js";
+import { reactionsFor } from "../../consumers/dispatch.js";
+import { rowToEvent } from "../../consumers/replay.js";
 import { availablePlugins } from "./service.js";
 
 /* -------------------------------------------------------------------------- */
@@ -196,6 +200,99 @@ export function campaignJson(row: Row, stats: Record<string, number>, recipientC
     created_at: str(row.created_at),
     updated_at: str(row.updated_at),
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Event log — domain_event_record + event_reaction_log, read-only            */
+/* -------------------------------------------------------------------------- */
+
+export interface EventLogFilters {
+  /** Exact type, or a `noun.*` wildcard — the same shape the webhook replay filter already uses. */
+  type?: string | null;
+  subject_id?: string | null;
+  correlation_id?: string | null;
+  cursor?: string | null;
+  limit?: number;
+}
+
+/**
+ * `domain_event_record`, newest first — the read surface 10-domain-events.md
+ * promises ("why did this speaker get that email") and, before this,
+ * genuinely lacked: the table was reachable only from cron dedupe, delivery
+ * and the (production-refusing) dev routes. Webhooks got a full ops screen;
+ * the internal event log got two `console.error` calls.
+ */
+export async function listDomainEvents(app: AppContext, filters: EventLogFilters): Promise<{ items: Row[]; next_cursor: string | null }> {
+  const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+  const clauses = ["org_id = ?"];
+  const params: unknown[] = [app.orgId];
+  const type = filters.type?.trim();
+  if (type && type !== "*") {
+    if (type.endsWith(".*")) {
+      clauses.push("type LIKE ?");
+      params.push(`${type.slice(0, -1)}%`);
+    } else {
+      clauses.push("type = ?");
+      params.push(type);
+    }
+  }
+  if (filters.subject_id) {
+    clauses.push("subject_id = ?");
+    params.push(filters.subject_id);
+  }
+  if (filters.correlation_id) {
+    clauses.push("correlation_id = ?");
+    params.push(filters.correlation_id);
+  }
+  if (filters.cursor) {
+    clauses.push("id < ?");
+    params.push(filters.cursor);
+  }
+  const rows = await app.db.raw<Row>(`SELECT * FROM domain_event_record WHERE ${clauses.join(" AND ")} ORDER BY id DESC LIMIT ${limit + 1}`, params);
+  const items = rows.slice(0, limit);
+  return { items, next_cursor: rows.length > limit ? str(items[items.length - 1]?.id) : null };
+}
+
+export async function getDomainEventRow(app: AppContext, id: string): Promise<Row | null> {
+  const rows = await app.db.raw<Row>("SELECT * FROM domain_event_record WHERE id = ? AND org_id = ?", [id, app.orgId]);
+  return rows[0] ?? null;
+}
+
+/** Events this one caused — walking `causation_id` forward, one hop. */
+export async function childEventsOf(app: AppContext, id: string): Promise<Row[]> {
+  return app.db.raw<Row>("SELECT * FROM domain_event_record WHERE causation_id = ? AND org_id = ? ORDER BY id", [id, app.orgId]);
+}
+
+export interface ReactionStatus {
+  handler: string;
+  ran: boolean;
+  processed_at: string | null;
+}
+
+/**
+ * Every handler the reaction map (`consumers/reactions.ts`, mirroring
+ * 10-domain-events.md) says should subscribe to this event's type, each
+ * cross-checked against whether it actually logged completion — "which
+ * handlers ran, and which are still missing" for one event, the exact
+ * question `platform.replay_unprocessed_events` (`consumers/replay.ts`)
+ * answers for the whole log on a schedule.
+ */
+export async function reactionStatusFor(app: AppContext, eventId: string, type: string): Promise<ReactionStatus[]> {
+  const expected = reactionsFor(type);
+  if (expected.length === 0) return [];
+  const logRows = await app.db.raw<Row>("SELECT handler, processed_at FROM event_reaction_log WHERE event_id = ?", [eventId]);
+  const done = new Map(logRows.map((r) => [str(r.handler), str(r.processed_at)]));
+  return expected.map((r) => ({ handler: r.name, ran: done.has(r.name), processed_at: done.get(r.name) ?? null }));
+}
+
+/**
+ * The envelope, redacted per the reader's PII permission — the same rule
+ * webhook payloads already follow (INV-09-5 / INV-11-4), applied here so the
+ * one place `data` is rendered in full does not become the side door around
+ * it.
+ */
+export function domainEventPayload(row: Row, includePii: boolean): DomainEvent {
+  return redactEventPayload(rowToEvent(row), { includePii });
 }
 
 export function pluginOptionsJson(): Record<string, unknown>[] {

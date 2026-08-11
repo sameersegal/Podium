@@ -62,6 +62,11 @@ const SETTINGS_SECTIONS: { key: string; href: string; label: string }[] = [
   { key: "exports", href: "/admin/exports", label: "Exports" },
   { key: "outbox", href: "/admin/outbox", label: "Outbox" },
   { key: "audit", href: "/admin/audit", label: "Audit log" },
+  // Read-only over `domain_event_record` + `event_reaction_log` — a sibling
+  // of the audit log, not a replacement for it: audit is "what an actor did
+  // to an entity", this is "what fact was recorded and what it caused"
+  // (10-domain-events.md). Gated on the same `audit.read` permission.
+  { key: "event-log", href: "/admin/event-log", label: "Event log" },
 ];
 
 export function isSettingsSection(active: string): boolean {

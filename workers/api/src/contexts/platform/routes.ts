@@ -3,11 +3,12 @@
  *
  * Admin (server-rendered): /admin/settings, /admin/api-keys, /admin/webhooks(/:id/deliveries),
  *   /admin/integrations, /admin/templates, /admin/events/:eventId/campaigns (+ compose),
- *   /admin/campaigns/:id, /admin/outbox, /admin/audit.
+ *   /admin/campaigns/:id, /admin/outbox, /admin/audit, /admin/event-log(/:id).
  * Management API: /v1/api-keys, /v1/webhooks, /v1/integrations, /v1/campaigns, /v1/notifications.
  */
 
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { PII_EVENT_TYPES, type DomainEventType } from "@podiumconf/domain/events/catalogue.js";
 import { API_SCOPES, type ApiScope } from "@podiumconf/domain/shared/authorization.js";
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumconf/domain/platform/types.js";
@@ -66,10 +67,15 @@ import {
 import {
   apiKeyJson,
   campaignJson,
+  childEventsOf,
   communicationsHistory,
+  domainEventPayload,
+  getDomainEventRow,
   integrationJson,
+  listDomainEvents,
   notificationJson,
   pluginOptionsJson,
+  reactionStatusFor,
   templateJson,
   webhookDeliveryJson,
   webhookJson,
@@ -95,6 +101,7 @@ export function registerPlatformRoutes(router: Router<RequestContext>): void {
   registerCampaignRoutes(router);
   registerOutboxRoutes(router);
   registerAuditRoutes(router);
+  registerEventLogRoutes(router);
   registerUnsubscribeRoutes(router);
   registerManagementApi(router);
 }
@@ -946,6 +953,11 @@ function registerAuditRoutes(router: Router<RequestContext>): void {
         <td class="mono small">${str(a.entity_type)}/${str(a.entity_id)}</td>
         <td class="small">${str(a.actor_type)}${a.actor_display ? ` · ${str(a.actor_display)}` : ""}</td>
         <td class="small">${strOrNull(a.reason) ?? "—"}</td>
+        <td class="small">${
+          a.correlation_id
+            ? html`<a class="mono" href="/admin/event-log?correlation_id=${encodeURIComponent(str(a.correlation_id))}">${str(a.correlation_id)}</a>`
+            : "—"
+        }</td>
       </tr>`,
     );
     return htmlResponse(
@@ -953,8 +965,130 @@ function registerAuditRoutes(router: Router<RequestContext>): void {
         ctx,
         { title: "Audit log", active: "audit", width: "wide" },
         html`${pageHead("Audit log", "Append-only, never deleted — even erasure retains the actor id and redacts the payload.")}
-          ${table(["When", "Action", "Entity", "Actor", "Reason"], rowsHtml, "Nothing recorded yet.")}
+          ${table(["When", "Action", "Entity", "Actor", "Reason", "Request"], rowsHtml, "Nothing recorded yet.")}
           ${rows.length > limit ? html`<p><a href="/admin/audit?cursor=${str(items[items.length - 1]?.id)}">Older →</a></p>` : raw("")}`,
+      ),
+    );
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Event log — domain_event_record + event_reaction_log                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `domain_event_record` had no admin screen before this: the log itself was
+ * reachable only from cron dedupe, delivery and the dev routes, so "why did
+ * this speaker get that email" — the question 10-domain-events.md says the
+ * log exists to answer — had no answer a person could actually reach. Gated
+ * on `audit.read`, the same permission `/admin/audit` uses, because this is
+ * the same kind of screen: a read-only trace of what the system did and why.
+ */
+function registerEventLogRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/event-log", async (_req, ctx) => {
+    ctx.requireRead("audit.read");
+    const app = ctx.app();
+    const type = ctx.url.searchParams.get("type");
+    const subjectId = ctx.url.searchParams.get("subject_id");
+    const correlationId = ctx.url.searchParams.get("correlation_id");
+    const page = await listDomainEvents(app, {
+      type,
+      subject_id: subjectId,
+      correlation_id: correlationId,
+      cursor: ctx.url.searchParams.get("cursor"),
+    });
+    const rowsHtml = page.items.map(
+      (e) => html`<tr>
+        <td class="small">${str(e.occurred_at)}</td>
+        <td><a href="/admin/event-log/${str(e.id)}">${str(e.type)}</a></td>
+        <td class="mono small">${str(e.subject_type)}/${str(e.subject_id)}</td>
+        <td class="small">${str(e.actor_type)}${e.actor_display ? ` · ${str(e.actor_display)}` : ""}</td>
+        <td class="small">${e.correlation_id ? html`<a class="mono" href="/admin/event-log?correlation_id=${encodeURIComponent(str(e.correlation_id))}">${str(e.correlation_id)}</a>` : "—"}</td>
+      </tr>`,
+    );
+    const qs = (extra: Record<string, string>) => {
+      const params = new URLSearchParams();
+      if (type) params.set("type", type);
+      if (subjectId) params.set("subject_id", subjectId);
+      if (correlationId) params.set("correlation_id", correlationId);
+      for (const [k, v] of Object.entries(extra)) params.set(k, v);
+      return params.toString();
+    };
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Event log", active: "event-log", width: "wide" },
+        html`${pageHead(
+            "Event log",
+            "Every fact the system has recorded, and what it caused — filter by type or by the id it happened to.",
+          )}
+          ${card(
+              html`<form method="get" action="/admin/event-log" class="inline-grid">
+                ${field({ name: "type", label: "Type", value: type ?? "", help: "Exact, or a `noun.*` wildcard." })}
+                ${field({ name: "subject_id", label: "Subject id", value: subjectId ?? "" })}
+                <button type="submit">Filter</button>
+                ${type || subjectId || correlationId ? html`<a class="button secondary" href="/admin/event-log">Clear</a>` : raw("")}
+              </form>`,
+            )}
+          ${table(["When", "Type", "Subject", "Actor", "Request"], rowsHtml, "No events recorded yet.")}
+          ${page.next_cursor ? html`<p><a href="/admin/event-log?${qs({ cursor: page.next_cursor })}">Older →</a></p>` : raw("")}`,
+      ),
+    );
+  });
+
+  router.get("/admin/event-log/:id", async (_req, ctx, params) => {
+    ctx.requireRead("audit.read");
+    const app = ctx.app();
+    const row = await getDomainEventRow(app, params.id);
+    if (!row) throw notFound("Domain event", params.id);
+    const includePii = ctx.includePii();
+    const ev = domainEventPayload(row, includePii);
+    const carriesPii = PII_EVENT_TYPES.has(str(row.type) as DomainEventType);
+    const reactions = await reactionStatusFor(app, str(row.id), str(row.type));
+    const children = await childEventsOf(app, str(row.id));
+    const parent = row.causation_id ? await getDomainEventRow(app, str(row.causation_id)) : null;
+
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: str(row.type), active: "event-log", width: "wide" },
+        html`${pageHead(str(row.type), `${str(row.occurred_at)} · ${str(row.subject_type)}/${str(row.subject_id)}`)}
+          ${card(
+              html`<dl class="kv">
+                <dt>Actor</dt><dd>${str(row.actor_type)}${row.actor_display ? ` · ${str(row.actor_display)}` : ""}</dd>
+                <dt>Request</dt><dd>${row.correlation_id ? html`<a class="mono" href="/admin/event-log?correlation_id=${encodeURIComponent(str(row.correlation_id))}">${str(row.correlation_id)}</a>` : "—"}</dd>
+                <dt>Caused by</dt><dd>${parent ? html`<a href="/admin/event-log/${str(parent.id)}">${str(parent.type)} · ${str(parent.id)}</a>` : "— (started this cascade)"}</dd>
+              </dl>
+              <pre class="mono small">${JSON.stringify(ev.data, null, 2)}</pre>
+              ${!includePii && carriesPii ? html`<p class="muted small">Personal fields are hidden — this reader does not have access to them.</p>` : raw("")}`,
+              "Payload",
+            )}
+          ${card(
+              reactions.length === 0
+                ? html`<p class="muted">Nothing subscribes to this event type.</p>`
+                : table(
+                    ["Handler", "Status"],
+                    reactions.map(
+                      (r) => html`<tr><td class="mono small">${r.handler}</td><td>${badge(r.ran ? "ran" : "missing", r.ran ? "ok" : "err")}</td></tr>`,
+                    ),
+                  ),
+              "Reactions",
+            )}
+          ${card(
+              children.length === 0
+                ? html`<p class="muted">Nothing yet.</p>`
+                : table(
+                    ["Type", "Subject", "When"],
+                    children.map(
+                      (c) => html`<tr>
+                        <td><a href="/admin/event-log/${str(c.id)}">${str(c.type)}</a></td>
+                        <td class="mono small">${str(c.subject_type)}/${str(c.subject_id)}</td>
+                        <td class="small">${str(c.occurred_at)}</td>
+                      </tr>`,
+                    ),
+                  ),
+              "What this caused",
+            )}`,
       ),
     );
   });
