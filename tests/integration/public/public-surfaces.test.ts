@@ -164,6 +164,18 @@ describe("public event surfaces — anonymous and complete (INV-08-13)", () => {
     void etag;
   });
 
+  it("08: the public schedule offers keyword search and track/format/room facets over the snapshot", async () => {
+    const res = await SELF.fetch(`http://localhost/e/${EVENT_SLUG}/schedule`, { redirect: "manual" });
+    const body = await res.text();
+    expect(body).toContain('id="podium-search"');
+    // A facet is dropped when there is nothing to choose between, so assert on
+    // the wiring the client script binds to rather than on all three selects.
+    expect(body).toContain("data-podium-facet");
+    expect(body).toContain("data-track=");
+    expect(body).toContain("data-format=");
+    expect(body).toContain("data-room=");
+  });
+
   it("GET /e/:slug/sessions/:id shows the session, with the speaker resolved from the snapshot", async () => {
     const res = await SELF.fetch(`http://localhost/e/${EVENT_SLUG}/sessions/${SESSION}`, { redirect: "manual" });
     expect(res.status).toBe(200);

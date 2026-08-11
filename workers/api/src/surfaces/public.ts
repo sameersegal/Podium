@@ -236,7 +236,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
         ctx,
         { title: `Schedule — ${ref.name}`, event: ref, width: "wide", head: jsonScript("podium-schedule-data", snapshot) },
         html`${pageHead("Schedule", `Published version ${snapshot.version}. All times in ${ref.timezone} — toggle to your local time below.`)}
-          ${scheduleControls(ref)}
+          ${scheduleControls(ref, snapshot)}
           ${daySwitcher(ref, snapshot, dayId)}
           <div class="grid two">
             <section>
@@ -314,14 +314,32 @@ function daySwitcher(ref: EventRef, snapshot: ScheduleSnapshot, activeDayId: str
   </nav>`;
 }
 
-function scheduleControls(ref: EventRef): SafeHtml {
+/**
+ * One facet select, populated from the snapshot. Dropped entirely when there is
+ * nothing to choose between — a "Track" filter over one track is furniture.
+ */
+function facet(id: string, label: string, all: string, options: { id: string; name: string }[]): SafeHtml {
+  if (options.length < 2) return raw("");
+  return html`<div>
+    <label for="${id}">${label}</label>
+    <select id="${id}" data-podium-facet>
+      <option value="">${all}</option>
+      ${options.map((o) => html`<option value="${o.id}">${o.name}</option>`)}
+    </select>
+  </div>`;
+}
+
+function scheduleControls(ref: EventRef, snapshot: ScheduleSnapshot): SafeHtml {
   return card(
     html`<div class="row">
       <div><label for="podium-search">Search</label><input id="podium-search" type="search" placeholder="Title or speaker…" aria-label="Search sessions and speakers"></div>
+      ${facet("podium-track", "Track", "All tracks", snapshot.tracks)}
+      ${facet("podium-format", "Format", "All formats", snapshot.formats)}
+      ${facet("podium-room", "Room", "All rooms", snapshot.rooms)}
       <div class="shrink checkline" style="margin-top:1.6rem"><input type="checkbox" id="podium-my-schedule"><label for="podium-my-schedule">My schedule only</label></div>
       <div class="shrink" style="margin-top:1.6rem"><a class="btn secondary" id="podium-ics-link" href="/e/${ref.slug}/schedule.ics">Add to calendar</a></div>
     </div>
-    <p class="small muted">Starring works without an account — it lives in this browser only (localStorage). Search and starring need JavaScript; the full schedule below works without it.</p>`,
+    <p class="small muted">Starring works without an account — it lives in this browser only (localStorage). Search, filters and starring need JavaScript; the full schedule below works without them.</p>`,
   );
 }
 
@@ -364,14 +382,26 @@ function scheduleClientScript(eventSlug: string): SafeHtml {
 
   var search = document.getElementById("podium-search");
   var mySchedule = document.getElementById("podium-my-schedule");
+  // 08: "faceting by track, format and room". Each select narrows on the
+  // data-* attribute widgets.ts already renders, so this walks the DOM rather
+  // than refetching the snapshot.
+  var FACETS = [["podium-track","data-track"],["podium-format","data-format"],["podium-room","data-room"]];
+  function facetValues(){
+    return FACETS.map(function(f){
+      var el = document.getElementById(f[0]);
+      return [f[1], el && el.value || ""];
+    }).filter(function(f){ return f[1]; });
+  }
   function applyFilters(){
     var q = (search && search.value || "").toLowerCase().trim();
     var onlyStarred = mySchedule && mySchedule.checked;
     var ids = starred();
+    var facets = facetValues();
     cards().forEach(function(el){
       var matchesSearch = !q || (el.getAttribute("data-title")||"").indexOf(q) >= 0 || (el.getAttribute("data-speakers")||"").indexOf(q) >= 0;
       var matchesStar = !onlyStarred || ids.indexOf(el.getAttribute("data-session-id")) >= 0;
-      var show = matchesSearch && matchesStar;
+      var matchesFacets = facets.every(function(f){ return el.getAttribute(f[0]) === f[1]; });
+      var show = matchesSearch && matchesStar && matchesFacets;
       el.style.display = show ? "" : "none";
       if (el.classList.contains("cell")) el.style.visibility = show ? "" : "hidden";
     });
@@ -387,6 +417,9 @@ function scheduleClientScript(eventSlug: string): SafeHtml {
   }
   if (search) search.addEventListener("input", applyFilters);
   if (mySchedule) mySchedule.addEventListener("change", applyFilters);
+  Array.prototype.slice.call(document.querySelectorAll("[data-podium-facet]")).forEach(function(el){
+    el.addEventListener("change", applyFilters);
+  });
   syncStars();
   updateIcsLink();
 })();

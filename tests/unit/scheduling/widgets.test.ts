@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScheduleSnapshot } from "@podiumconf/domain/scheduling/publication.js";
-import { applyFilters, corsHeaders, frameAncestorsHeader, layoutGrid } from "@podiumconf/web/contexts/scheduling/widgets.js";
+import { applyFilters, corsHeaders, frameAncestorsHeader, layoutGrid, renderSessionDetail, renderSessionsList, sessionSnippet } from "@podiumconf/web/contexts/scheduling/widgets.js";
 
 /**
  * The pure helpers behind every `widget_type` × `format` pair: INV-08-6
@@ -116,6 +116,62 @@ describe("applyFilters — the embed payload the widget actually renders", () =>
   it("narrows tracks/formats/rooms to only what the filtered sessions reference", () => {
     const filtered = applyFilters(snapshot(), "sessions_list", { track_ids: ["trk_1"] });
     expect(filtered.tracks.map((t) => t.id)).toEqual(["trk_1"]);
+  });
+});
+
+describe("08: sessions_list renders 'title, snippet' — truncated, expanding in place", () => {
+  const long = "A".repeat(120) + " " + "B".repeat(400);
+
+  it("shows a short abstract whole, with no Show more to click", () => {
+    const out = sessionSnippet({ ...snapshot().sessions[0], abstract: "Short and complete." }).toString();
+    expect(out).toContain("Short and complete.");
+    expect(out).not.toContain("Show more");
+  });
+
+  it("truncates a long abstract and puts the rest behind a Show more expansion", () => {
+    const out = sessionSnippet({ ...snapshot().sessions[0], abstract: long }).toString();
+    expect(out).toContain("Show more");
+    expect(out).toContain("…");
+    // The full text is still in the markup, so it expands with scripts blocked
+    // (08, "Degrade gracefully") rather than being fetched on click.
+    expect(out).toContain("<details");
+    expect(out).toContain("B".repeat(400));
+  });
+
+  it("falls back to the subtitle when there is no abstract, rather than an empty card", () => {
+    const out = sessionSnippet({ ...snapshot().sessions[0], abstract: null, description: null, subtitle: "The lede" }).toString();
+    expect(out).toContain("The lede");
+  });
+
+  it("the card carries the snippet, not just the title", () => {
+    const s = snapshot();
+    s.sessions[0].abstract = long;
+    const out = renderSessionsList(s, { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toContain("Show more");
+  });
+});
+
+describe("08: session_detail shows the full time range, not just the start", () => {
+  it("renders start – end so nobody has to do the arithmetic", () => {
+    const out = renderSessionDetail(snapshot(), "ses_1", { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toMatch(/09:00.*–.*09:30/s);
+  });
+
+  it("degrades to the start alone when a session has no end", () => {
+    const s = snapshot();
+    s.sessions[0].ends_at = null;
+    const out = renderSessionDetail(s, "ses_1", { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toContain("09:00");
+    expect(out).not.toContain("09:30");
+  });
+});
+
+describe("08: the facet attributes the client-side track/format/room filters read", () => {
+  it("every session card carries its track, format and room ids", () => {
+    const out = renderSessionsList(snapshot(), { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toContain('data-track="trk_1"');
+    expect(out).toContain('data-format="fmt_1"');
+    expect(out).toContain('data-room="rom_1"');
   });
 });
 

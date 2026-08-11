@@ -223,13 +223,51 @@ export function sponsorDisclosure(session: PublishedSessionSnapshot): SafeHtml {
     : raw("");
 }
 
+/**
+ * 08 asks `session_detail` for the "full time range", not just a start — a
+ * schedule you have to do arithmetic against is the thing attendees complain
+ * about. The end is rendered as a bare time because the date is already in the
+ * start.
+ */
+function timeRange(s: PublishedSessionSnapshot, timezone: string): SafeHtml {
+  if (!s.starts_at) return html`Time to be announced`;
+  const start = formatInZone(s.starts_at, timezone);
+  return s.ends_at ? html`${start} – ${formatTimeInZone(s.ends_at, timezone)}` : html`${start}`;
+}
+
 function sessionMeta(s: PublishedSessionSnapshot, opts: RenderOptions): SafeHtml {
   return html`<p class="small muted">
-    ${s.starts_at ? formatInZone(s.starts_at, opts.timezone) : "Time to be announced"}
+    ${timeRange(s, opts.timezone)}
     ${s.room && opts.theme?.show_rooms !== false ? html` · ${s.room.name}` : raw("")}
     ${s.track ? html` · ${badge(s.track.name, "info")}` : raw("")}
     ${s.format ? html` · ${s.format.name}` : raw("")}
   </p>`;
+}
+
+/** How much of the abstract a card shows before `<details>` takes over. */
+const SNIPPET_CHARS = 180;
+
+/**
+ * 08 specifies `sessions_list` as "title, **snippet**, day/time, room…" — the
+ * card carries the description, truncated, and expands in place.
+ *
+ * `<details>` rather than a script: public surfaces must render fully with
+ * scripts blocked (08, "Degrade gracefully"), and a "Show more" that needs
+ * JavaScript to reveal text is exactly the account-wall-shaped failure that
+ * requirement exists to prevent.
+ */
+export function sessionSnippet(s: PublishedSessionSnapshot): SafeHtml {
+  const full = (s.abstract ?? s.description ?? "").trim();
+  const lede = (s.subtitle ?? "").trim();
+  if (!full) return lede ? html`<p>${lede}</p>` : raw("");
+  if (full.length <= SNIPPET_CHARS) return html`<p>${full}</p>`;
+  const cut = full.slice(0, SNIPPET_CHARS);
+  const space = cut.lastIndexOf(" ");
+  const head = (space > SNIPPET_CHARS - 40 ? cut.slice(0, space) : cut).trimEnd();
+  return html`<details class="snippet">
+    <summary>${head}… <span class="more">Show more</span></summary>
+    <p>${full}</p>
+  </details>`;
 }
 
 function sessionDataAttrs(s: PublishedSessionSnapshot, speakers: PublishedSpeakerSnapshot[]): string {
@@ -260,7 +298,7 @@ function sessionCard(s: PublishedSessionSnapshot, speakers: PublishedSpeakerSnap
     <h3><a href="/e/${opts.eventSlug}/sessions/${s.session_id}">${s.title}</a></h3>
     ${sponsorDisclosure(s)}
     ${sessionMeta(s, opts)}
-    ${s.subtitle ? html`<p>${s.subtitle}</p>` : raw("")}
+    ${sessionSnippet(s)}
     ${people.length && opts.theme?.show_speakers !== false
       ? html`<p class="small">${joinHtml(
           people.map((p) => `${p.display_name}${p.job_title || p.company ? ` — ${[p.job_title, p.company].filter(Boolean).join(", ")}` : ""}`),
