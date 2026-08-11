@@ -7,6 +7,10 @@
  * file is 225 lines of topbar, table and form chrome a landing page has no use
  * for, and linking it would be exactly the coupling this site exists without.
  * If the brand palette changes, both files change. That is the whole cost.
+ *
+ * The `--glow-*` and `--display-*` tokens below have no counterpart in the app.
+ * A landing page is allowed a bigger voice than the tool it is selling; the
+ * shared tokens are what keep the two recognisably the same product anyway.
  */
 :root {
   --indigo: #6366f1;
@@ -19,6 +23,16 @@
   --bg: #f8fafc;
   --card: #ffffff;
   --radius: 10px;
+
+  /* Landing-page-only. */
+  --navy-deep: #14113a;
+  --glow-violet: #7c6cf5;
+  --glow-blue: #3b5bdb;
+  --on-dark: #c7d2fe;
+  --on-dark-dim: #9aa3d4;
+  --radius-lg: 18px;
+  --shadow-lift: 0 1px 2px rgb(30 27 75 / 8%), 0 12px 32px -12px rgb(30 27 75 / 18%);
+  --shadow-shot: 0 2px 6px rgb(20 17 58 / 12%), 0 32px 64px -24px rgb(20 17 58 / 45%);
 }
 
 * { box-sizing: border-box; }
@@ -31,111 +45,286 @@ body {
   line-height: 1.6;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  /* The hero's glow layers are positioned outside the viewport on purpose; without
+     this a phone gets a horizontal scrollbar and a few hundred px of dead space. */
+  overflow-x: hidden;
 }
 
-h1, h2, h3 { line-height: 1.2; margin: 0 0 .5rem; color: var(--navy); letter-spacing: -0.02em; }
+h1, h2, h3 { line-height: 1.15; margin: 0 0 .5rem; color: var(--navy); letter-spacing: -0.025em; }
 p { margin: 0 0 1rem; }
 a { color: var(--indigo-dark); }
 
-.wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem; }
 
-/* ---------- header ---------- */
-.topbar { background: var(--navy); }
+/* ---------- header ----------
+   The topbar shares the hero's top colour so the two read as one dark slab.
+   On the 404 page, where no hero follows, it is simply a navy bar. */
+.topbar { background: var(--navy-deep); position: relative; z-index: 3; }
 .topbar .wrap {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding-block: .75rem;
+  padding-block: .85rem;
 }
 .topbar .brand { display: flex; margin-right: auto; }
 .topbar .brand img { height: 28px; width: auto; display: block; }
-.topbar a { color: #c7d2fe; text-decoration: none; font-weight: 500; }
+.topbar a { color: var(--on-dark); text-decoration: none; font-weight: 500; }
 .topbar a:hover { color: #fff; }
 
 /* ---------- buttons ---------- */
 .btn {
   display: inline-block;
-  padding: .55rem 1.1rem;
+  padding: .7rem 1.35rem;
   border-radius: var(--radius);
   font-weight: 600;
   text-decoration: none;
   border: 1px solid transparent;
   white-space: nowrap;
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
-.btn.primary { background: var(--indigo); color: #fff; }
-.btn.primary:hover { background: var(--indigo-dark); color: #fff; }
+.btn:hover { transform: translateY(-1px); }
+.btn.primary {
+  background: var(--indigo);
+  color: #fff;
+  box-shadow: 0 8px 20px -8px rgb(99 102 241 / 70%);
+}
+.btn.primary:hover { background: #7c7ff5; color: #fff; }
 .btn.secondary { border-color: var(--line); color: var(--navy); background: var(--card); }
 .btn.secondary:hover { border-color: var(--indigo); color: var(--indigo-dark); }
-.topbar .btn.secondary { background: transparent; border-color: #4c46a3; color: #e0e7ff; }
-.topbar .btn.secondary:hover { border-color: #c7d2fe; color: #fff; }
+.topbar .btn.secondary,
+.hero .btn.secondary {
+  background: rgb(255 255 255 / 6%);
+  border-color: rgb(199 210 254 / 35%);
+  color: #e0e7ff;
+  padding: .55rem 1.1rem;
+}
+.topbar .btn.secondary:hover,
+.hero .btn.secondary:hover { border-color: #c7d2fe; color: #fff; background: rgb(255 255 255 / 12%); }
+.hero .btn.secondary { padding: .7rem 1.35rem; }
 
 /* ---------- hero ---------- */
 .hero {
-  background: linear-gradient(170deg, var(--indigo-soft) 0%, var(--card) 70%);
-  border-bottom: 1px solid var(--line);
-  padding: 4rem 0 3.5rem;
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(178deg, var(--navy-deep) 0%, #241f5e 55%, #2b2570 100%);
+  color: #fff;
+  padding: 4.5rem 0 0;
 }
-.hero h1 { font-size: 2.75rem; max-width: 20ch; }
-.hero .lede { font-size: 1.15rem; color: var(--muted); max-width: 58ch; margin-bottom: 1.75rem; }
-.hero .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 2.25rem; }
+/* Two soft colour fields behind the copy. Pure decoration — hence aria-hidden on
+   the wrapper and no content of any kind inside it.
+   The wrapper exists only to carry `overflow: hidden`: the glows are positioned
+   well outside the hero's box and have to be trimmed to it, but putting that
+   clip on `.hero` itself would also cut off the screenshot below, which is
+   deliberately hanging past the bottom edge into the next section. */
+.hero .glows { position: absolute; inset: 0; overflow: hidden; z-index: -1; pointer-events: none; }
+.hero .glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: .55;
+}
+.hero .glow.one { width: 46rem; height: 46rem; top: -18rem; right: -14rem; background: var(--glow-violet); }
+.hero .glow.two { width: 34rem; height: 34rem; top: 12rem; left: -16rem; background: var(--glow-blue); opacity: .4; }
 
-.proof {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1.5rem 2.5rem;
+.hero h1 {
+  color: #fff;
+  font-size: clamp(2.1rem, 5.2vw, 3.7rem);
+  max-width: 19ch;
+  margin-bottom: 1.1rem;
+}
+.hero h1 .hl {
+  background: linear-gradient(100deg, #a5b4fc, #e9d5ff 55%, #a5b4fc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero .lede { font-size: clamp(1.05rem, 2.2vw, 1.3rem); color: var(--on-dark); max-width: 54ch; margin-bottom: 2rem; }
+.hero .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; margin-bottom: 1.25rem; }
+.hero .reassure { color: var(--on-dark-dim); font-size: .9rem; margin: 0; }
+.hero .reassure strong { color: #e0e7ff; font-weight: 600; }
+
+/* The hero screenshot sits half in the dark slab and half in the section below
+   it, which is what makes the fold feel deliberate rather than cut off. The
+   spacer below the hero reserves the overhang so nothing collides with it. */
+/* The negative margin is what makes the shot hang out of the hero: it ends the
+   hero's dark box 8rem above the bottom of the image. `.hero-spacer` then puts
+   that 8rem back as blank page, so the overhang has somewhere to be and the
+   next section does not collide with it. The two numbers move together.
+   `flow-root` is load-bearing: `.stage` is the last in-flow child, so without a
+   block formatting context here its negative margin collapses straight up
+   through `.wrap` and out of `.hero`, which shortens the hero and moves the
+   image with it — no overhang, just a smaller hero. */
+.hero .wrap { display: flow-root; }
+.hero .stage { position: relative; margin-top: 3rem; margin-bottom: -8rem; }
+.hero .stage .shot { margin: 0; }
+.hero-spacer { height: 8rem; }
+
+/* The small dashboard card tucked into the corner of the hero screenshot. Two
+   overlapping surfaces read as "there is more product here than one screen". */
+.hero .inset {
+  position: absolute;
+  right: -1.5rem;
+  bottom: -3rem;
+  width: 24rem;
+  max-width: 46%;
+  z-index: 2;
+}
+.hero .inset .shot { margin: 0; }
+
+/* ---------- screenshot frames ---------- */
+.shot {
+  margin: 0 0 1rem;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #12102e;
+  border: 1px solid rgb(255 255 255 / 12%);
+  box-shadow: var(--shadow-shot);
+}
+.shot-bar {
+  display: flex;
   align-items: center;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  max-width: 46rem;
+  gap: .4rem;
+  padding: .55rem .8rem;
+  background: #1b1746;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
-.proof p { margin: 0; color: var(--muted); font-size: .95rem; }
-.proof pre {
-  margin: 0;
-  background: var(--navy);
-  color: #e0e7ff;
-  border-radius: var(--radius);
-  padding: .85rem 1rem;
-  font-size: .85rem;
-  line-height: 1.5;
-  overflow-x: auto;
+.shot-bar i { width: .6rem; height: .6rem; border-radius: 50%; background: rgb(199 210 254 / 25%); }
+.shot-bar span {
+  margin-left: .6rem;
+  font: 500 .72rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--on-dark-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.shot img { display: block; width: 100%; height: auto; }
+/* Small frames get a lighter bar so the chrome does not out-weigh the screen. */
+.shot.sm { border-radius: 12px; }
+.shot.sm .shot-bar { padding: .4rem .6rem; }
+.shot.sm .shot-bar i { width: .45rem; height: .45rem; }
+.shot.sm .shot-bar span { display: none; }
 
 /* ---------- sections ---------- */
-section { padding: 3.5rem 0; }
-section > .wrap > h2 { font-size: 1.75rem; }
-section > .wrap > .sub { color: var(--muted); max-width: 60ch; margin-bottom: 2rem; }
+section { padding: 4.5rem 0; }
+.eyebrow {
+  display: inline-block;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--indigo-dark);
+  margin-bottom: .6rem;
+}
+section > .wrap > h2 { font-size: clamp(1.6rem, 3.6vw, 2.3rem); max-width: 22ch; }
+section > .wrap > .sub { color: var(--muted); max-width: 58ch; font-size: 1.08rem; margin-bottom: 2.5rem; }
 
-.grid {
+/* ---------- the pains ---------- */
+.pains {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
   gap: 1rem;
 }
-.card {
+.pain {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.4rem 1.35rem;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.card h3 { font-size: 1.02rem; margin-bottom: .35rem; }
-.card p { margin: 0; color: var(--muted); font-size: .95rem; }
+.pain:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: #c7d2fe; }
+.pain q {
+  display: block;
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: var(--navy);
+  line-height: 1.4;
+  margin-bottom: .7rem;
+}
+.pain p { margin: 0; color: var(--muted); font-size: .95rem; }
+.pain p strong { color: var(--indigo-dark); font-weight: 600; }
 
-.band { background: var(--indigo-soft); border-block: 1px solid var(--line); }
-.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 2.5rem; }
+/* ---------- alternating feature rows ---------- */
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 3rem;
+  align-items: center;
+  padding: 3.25rem 0;
+  border-top: 1px solid var(--line);
+}
+.feature:first-of-type { border-top: 0; padding-top: 0; }
+/* Alternate rows put the screenshot on the left. `order` alone would leave it in
+   the narrow 5fr column meant for the copy, so the track widths swap with it —
+   the screenshot always gets the wide side. */
+.feature.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.feature.flip .copy { order: 2; }
+.feature h3 { font-size: clamp(1.35rem, 2.8vw, 1.85rem); margin-bottom: .75rem; }
+.feature p { color: var(--muted); font-size: 1.02rem; }
+.feature .copy > p:last-child { margin-bottom: 0; }
+.feature .note {
+  font-size: .9rem;
+  color: var(--muted);
+  border-left: 3px solid var(--indigo-soft);
+  padding-left: .9rem;
+  margin-top: 1.1rem;
+}
+.feature .note code { font-size: .85em; color: var(--indigo-dark); }
+/* Light-background frames need a visible edge; the dark shadow alone disappears. */
+.feature .shot { border-color: rgb(30 27 75 / 10%); box-shadow: 0 2px 6px rgb(30 27 75 / 6%), 0 24px 48px -20px rgb(30 27 75 / 28%); }
 
-.more { max-width: 64ch; color: var(--muted); }
+/* ---------- bands ---------- */
+.band { background: var(--indigo-soft); border-block: 1px solid #dfe3ff; }
+.band-dark {
+  background: linear-gradient(165deg, var(--navy-deep), #2b2570);
+  color: var(--on-dark);
+  position: relative;
+  overflow: hidden;
+}
+.band-dark h2, .band-dark h3 { color: #fff; }
+.band-dark a { color: #c7d2fe; }
+.band-dark .eyebrow { color: #a5b4fc; }
+.band-dark .sub { color: var(--on-dark); }
+
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 2.5rem; }
+.two-col h3 { font-size: 1.2rem; }
+.two-col p { font-size: .98rem; }
+.band-dark .two-col p { color: var(--on-dark-dim); }
+
+.more { max-width: 62ch; color: var(--muted); font-size: 1.05rem; }
+
+/* ---------- closing call to action ----------
+   Flat, and the colour the band above it ends on: two stacked gradients each
+   restarting from dark would put a hard light-to-dark seam across the middle of
+   what should read as one slab. The hairline border is the only divider. */
+.cta.band-dark { background: #2b2570; border-top: 1px solid rgb(255 255 255 / 8%); }
+.cta { text-align: center; }
+.cta h2 { margin-inline: auto; max-width: 20ch; }
+.cta .sub { margin-inline: auto; text-align: center; }
+.cta .actions { display: flex; flex-wrap: wrap; gap: .9rem; justify-content: center; margin-bottom: 1.75rem; }
+.cta pre {
+  margin: 0 auto;
+  max-width: 26rem;
+  text-align: left;
+  background: rgb(0 0 0 / 28%);
+  color: #e0e7ff;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  font-size: .88rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
 
 .aside {
   font-size: .875rem;
   color: var(--muted);
   border-left: 3px solid var(--line);
   padding-left: .9rem;
-  margin-top: 1.5rem;
+  margin-top: 2.5rem;
 }
 
 /* ---------- footer ---------- */
-footer { background: var(--navy); color: #a5b4fc; padding: 2rem 0; font-size: .9rem; }
+footer { background: var(--navy-deep); color: #a5b4fc; padding: 2rem 0; font-size: .9rem; }
 footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.5rem; }
 footer a { color: #c7d2fe; text-decoration: none; }
 footer a:hover { color: #fff; text-decoration: underline; }
@@ -147,14 +336,38 @@ footer nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
 .notfound h1 { font-size: 2.25rem; }
 .notfound p { color: var(--muted); }
 
+/* ---------- scroll reveal ----------
+   Set by the inline script in Base.astro, and only there: an element is hidden
+   solely because JavaScript is present and has promised to reveal it. Without
+   the script the class is never added and everything renders normally, which is
+   the behaviour a crawler and a reader with JS off both get. */
+.js-reveal .reveal { opacity: 0; transform: translateY(18px); }
+.reveal { transition: opacity .55s ease, transform .55s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .js-reveal .reveal, .reveal { opacity: 1; transform: none; transition: none; }
+  .btn:hover, .pain:hover { transform: none; }
+}
+
+@media (max-width: 60rem) {
+  .feature { grid-template-columns: 1fr; gap: 1.75rem; padding: 2.5rem 0; }
+  /* `order` is what flips alternate rows on desktop; on one column it would put
+     half the screenshots above their own heading. */
+  .feature.flip .copy { order: 0; }
+  .hero .inset { display: none; }
+  .hero-spacer { height: 4rem; }
+}
+
 @media (max-width: 40rem) {
-  .hero { padding: 2.5rem 0; }
-  /* No ch cap on a narrow screen — the viewport is already the constraint, and
-     "management," is a long enough word to touch the edge at 2rem. */
-  .hero h1 { font-size: 1.85rem; max-width: none; }
-  .hero .lede { font-size: 1.05rem; }
-  .proof { grid-template-columns: 1fr; }
-  section { padding: 2.5rem 0; }
+  .hero { padding-top: 2.75rem; }
+  .hero h1 { max-width: none; }
+  .hero .stage { margin-top: 2rem; }
+  .hero .actions { gap: .6rem; }
+  .hero .actions .btn { flex: 1 1 auto; text-align: center; }
+  .hero-spacer { height: 2.5rem; }
+  section { padding: 3rem 0; }
+  .shot { border-radius: 12px; }
   .topbar .wrap { gap: .75rem; }
   .topbar .brand img { height: 24px; }
 }

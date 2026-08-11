@@ -9,10 +9,12 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "wrangler dev",
+    "screenshots": "node scripts/screenshots.mjs",
     "deploy": "astro build && wrangler deploy"
   },
   "devDependencies": {
     "astro": "^7.2.0",
+    "playwright": "^1.62.1",
     "wrangler": "^4.120.1"
   }
 }

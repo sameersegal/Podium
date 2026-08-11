@@ -53,6 +53,21 @@ const ogImage = new URL("/og-image.png", Astro.site).href;
     <meta property="og:image" content={ogImage} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={ogImage} />
+
+    {/* Arms the scroll reveal. This has to run before first paint, or the
+        sections paint, then hide, then fade back in — a flicker worse than no
+        animation. It is deliberately the only thing here: the observer that
+        reveals them is at the end of <body>, and the two are a pair. A browser
+        without IntersectionObserver, or a reader who has asked for less motion,
+        never gets the class and so never gets the hidden state either. */}
+    <script is:inline>
+      if (
+        "IntersectionObserver" in window &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        document.documentElement.classList.add("js-reveal");
+      }
+    </script>
   </head>
 
   <body>
@@ -67,6 +82,26 @@ const ogImage = new URL("/og-image.png", Astro.site).href;
     </header>
 
     <slot />
+
+    {/* The second half of the reveal: the observer that puts each section back.
+        The class that hides them was set in <head> (see the note there), so if
+        this ever failed to run the page would stay blank — hence no early return
+        on anything the head script did not already check. */}
+    <script is:inline>
+      (() => {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (!e.isIntersecting) continue;
+              e.target.classList.add("in");
+              io.unobserve(e.target);
+            }
+          },
+          { rootMargin: "0px 0px -12% 0px" },
+        );
+        for (const el of document.querySelectorAll(".reveal")) io.observe(el);
+      })();
+    </script>
 
     <footer>
       <div class="wrap">

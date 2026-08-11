@@ -16,4 +16,4 @@ export const DOMAIN_MODEL_URL = `${GITHUB_URL}/blob/main/docs/domain/README.md`;
 
 export const SITE_TITLE = "Podium";
 export const SITE_DESCRIPTION =
-  "Open-source conference program management — submissions, review, speaker onboarding and a public schedule. An alternative to SessionBoard, built for Cloudflare.";
+  "Run your conference program without the spreadsheets. Podium handles the call for proposals, review, sponsor sessions, speaker onboarding and the schedule on your website. Open source, and it runs on infrastructure you own.";

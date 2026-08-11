@@ -1,77 +1,109 @@
 ---
 import Base from "../layouts/Base.astro";
+import Shot from "../components/Shot.astro";
 import { DOMAIN_MODEL_URL, GITHUB_URL, SIGN_IN_URL } from "../consts";
 
-// Straight from the repo README's "six capabilities" list. If that list
-// changes, this one does too — it is the product's own description of itself,
-// not a marketing rewrite of it.
-const capabilities = [
+/*
+ * The order of this page is the order the pain arrives in.
+ *
+ * The README's "six capabilities" list is how the product describes itself to
+ * someone deciding whether to read the code. It is not how the problem arrives
+ * for the person running the conference — they do not wake up needing "proposal
+ * evaluation", they wake up to a reviewer who works with a submitter and a
+ * sponsor asking where their second session went. So this page leads with the
+ * job and shows the screen that does it; the capability names are still here,
+ * one layer down, because that is the vocabulary of the docs they will read next.
+ *
+ * Every claim below is either visible in the screenshot beside it or cites the
+ * invariant in docs/domain/ that enforces it. Nothing here is aspirational.
+ */
+
+const pains = [
   {
-    title: "Multi-step submission forms",
-    body: "Abstracts from speakers, sessions from sponsors. Custom fields, saved drafts, and a deadline that actually closes.",
+    quote: "Who still hasn't sent a bio?",
+    answer:
+      "A board of every outstanding obligation, per speaker and per sponsor, with the reminders sent for you.",
   },
   {
-    title: "Submitter portal",
-    body: "Track proposals, complete onboarding tasks, manage a public speaker profile — one place, one login.",
+    quote: "Two reviewers work with the submitter.",
+    answer:
+      "Conflicts are declared up front and the score is refused, not flagged for someone to catch later.",
   },
   {
-    title: "Proposal evaluation",
-    body: "Rubrics, rounds, conflicts of interest and recorded decisions. Reviewers see what they should and nothing else.",
+    quote: "How many sessions does this sponsor actually get?",
+    answer: "Three of five used, counted against the contract, on the same screen as the deal.",
   },
   {
-    title: "Speaker onboarding",
-    body: "Define what accepted speakers must do — headshot, bio, slides, consent — and chase it to completion automatically.",
+    quote: "Two talks, one room, same slot.",
+    answer: "Found by the agenda the moment you place them — not by an attendee on the day.",
   },
   {
-    title: "Public schedule",
-    body: "An embeddable, versioned, cacheable schedule for your marketing site. Publish a snapshot; roll it back if you must.",
+    quote: "The website schedule is two versions behind.",
+    answer: "Publish a snapshot your marketing site embeds. Roll it back in one click if it is wrong.",
   },
   {
-    title: "APIs and webhooks",
-    body: "A scoped REST API and signed webhooks on every domain event, so the rest of your stack stays in sync.",
+    quote: "Every speaker emails me to ask where their talk stands.",
+    answer: "They sign in and see it: status, next action, deadline, and what you still need from them.",
   },
 ];
 ---
 
 <Base>
   <div class="hero">
+    <div class="glows" aria-hidden="true">
+      <div class="glow one"></div>
+      <div class="glow two"></div>
+    </div>
     <div class="wrap">
-      <h1>Conference program management, open source.</h1>
+      <h1>Your conference program is <span class="hl">eleven spreadsheets</span> and one person who knows where everything is.</h1>
       <p class="lede">
-        An alternative to SessionBoard, scoped to the jobs an AI Engineer–style conference actually
-        has to get done — from the call for proposals to the schedule on the day. Not a full clone.
+        Podium replaces all of it — the call for proposals, the review, the sponsor sessions, the
+        chase for bios and slides, and the schedule that goes on your website. Free, open source,
+        and it runs on infrastructure you own.
       </p>
       <div class="actions">
-        <a class="btn primary" href={GITHUB_URL}>Get the source</a>
-        <a class="btn secondary" href={SIGN_IN_URL}>Sign in</a>
+        <a class="btn primary" href={SIGN_IN_URL}>See it running</a>
+        <a class="btn secondary" href={GITHUB_URL}>Get the source</a>
       </div>
+      <p class="reassure">
+        <strong>No per-speaker pricing.</strong> No sales call. No data you cannot export.
+      </p>
 
-      <div class="proof">
-        {/* Deliberately no test count. It was 411 when the README last said so
-            and 429 a week later, and a landing page that goes stale on every
-            commit is a landing page nobody updates. */}
-        <p>
-          Built and running. Every bounded context implemented end to end, an integration suite
-          that runs against real Cloudflare bindings, a model↔code drift check that fails the
-          build, and a seeded conference mid-flight you can sign into in one command.
-        </p>
-        <pre><code>git clone …/Podium
-npm install
-npm run dev</code></pre>
+      <div class="stage">
+        <Shot
+          name="agenda"
+          height={1170}
+          url="app.podiumstack.com/admin/events/…/agenda"
+          alt="The agenda screen: a room-by-time grid with sessions placed across Main Stage, Room 2A and Room 2B, beside a panel listing two conflicts that block publication."
+          eager
+        />
+        <div class="inset">
+          <Shot
+            name="dashboard"
+            height={660}
+            small
+            alt="An event overview showing counts of days, tracks, formats, rooms and calls for proposals."
+          />
+        </div>
       </div>
     </div>
   </div>
+  <div class="hero-spacer"></div>
 
   <section>
     <div class="wrap">
-      <h2>Six capabilities</h2>
-      <p class="sub">The jobs a conference has to get done, in the order it has to do them.</p>
-      <div class="grid">
+      <span class="eyebrow">Sound familiar?</span>
+      <h2>The six questions you cannot answer from a spreadsheet.</h2>
+      <p class="sub">
+        Every one of them is somebody waiting on you. Podium answers all six from one record of
+        the program.
+      </p>
+      <div class="pains">
         {
-          capabilities.map((c) => (
-            <div class="card">
-              <h3>{c.title}</h3>
-              <p>{c.body}</p>
+          pains.map((p) => (
+            <div class="pain reveal">
+              <q>{p.quote}</q>
+              <p>{p.answer}</p>
             </div>
           ))
         }
@@ -81,50 +113,211 @@ npm run dev</code></pre>
 
   <section class="band">
     <div class="wrap">
-      <h2>And the parts nobody demos</h2>
-      <p class="more">
-        Sponsor sessions as first-class citizens with countable entitlements. An event roster.
-        Content approval with revision history. Assisted placement that respects room capacity and
-        speaker clashes. Campaigns with an auditable outbox, so you can prove what was sent to whom.
-        Bulk import and export. And a cross-event speaker directory, because the compounding asset
-        a conference builds is not its schedule — it is the people it knows.
+      <span class="eyebrow">What it looks like</span>
+      <h2>Six screens, doing the six jobs.</h2>
+      <p class="sub">
+        These are photographs of the running product against its own seeded conference — a real
+        program mid-flight, not a mockup.
       </p>
+
+      <div class="feature reveal">
+        <div class="copy">
+          <h3>Stop chasing people for bios.</h3>
+          <p>
+            Say once what an accepted speaker owes you — headshot, bio, slides, code of conduct,
+            AV requirements — and Podium tracks every one of them, for every session and every
+            sponsor, and sends the reminders itself.
+          </p>
+          <p>
+            Mark a task <em>blocking</em> and an unfinished one keeps that session off the public
+            schedule until it is done. You find out now, not on the morning of the event.
+          </p>
+        </div>
+        <Shot
+          name="onboarding"
+          height={1140}
+          url="app.podiumstack.com/admin/events/…/onboarding"
+          alt="The onboarding board listing each session against each required task, with an assignee, a status and a due date per row."
+        />
+      </div>
+
+      <div class="feature flip reveal">
+        <div class="copy">
+          <h3>Review that holds up when someone asks.</h3>
+          <p>
+            Reviewers get a queue, a rubric and a progress bar — not a shared sheet with a hundred
+            rows. A reviewer who submitted, is credited on, or has declared a conflict with a
+            proposal cannot score it: the write is refused, not logged for someone to notice.
+          </p>
+          <p>
+            Run it open, single-blind or double-blind. Every score, comment and decision is
+            recorded, so "why was this rejected" has an answer a year later.
+          </p>
+          <p class="note">Enforced as <code>INV-05</code> in the domain model, and named in the tests.</p>
+        </div>
+        <Shot
+          name="review"
+          height={1050}
+          url="app.podiumstack.com/review"
+          alt="A reviewer's queue: a screening round showing 7 of 7 done, with a card per assigned proposal."
+        />
+      </div>
+
+      <div class="feature reveal">
+        <div class="copy">
+          <h3>Sponsor sessions are not an afterthought.</h3>
+          <p>
+            A sponsor session is paid for, not selected — but it still needs content review, the
+            same onboarding and the same slot on the schedule. Most CFP tools model only the call
+            for proposals and leave this in email.
+          </p>
+          <p>
+            Here a package is a countable set of entitlements. Two session slots and a logo
+            placement, one used, one left — visible to you and to them, so nobody discovers a
+            missing slot the week before.
+          </p>
+        </div>
+        <Shot
+          name="sponsorships"
+          height={840}
+          url="app.podiumstack.com/admin/events/…/sponsors"
+          alt="A sponsorships table showing three sponsors, their tier, and a progress bar of entitlements used against entitlements bought."
+        />
+      </div>
+
+      <div class="feature flip reveal">
+        <div class="copy">
+          <h3>Decide as a batch. Tell everyone at once.</h3>
+          <p>
+            Outcomes stay provisional until you publish them. Nothing reaches a speaker early,
+            nobody finds out from a friend, and the awkward middle where half the program knows is
+            gone.
+          </p>
+          <p>
+            Podium shows you which proposals have reached quorum and which are short of it before
+            you commit — and records who waived it, and why, when you decide anyway.
+          </p>
+        </div>
+        <Shot
+          name="decisions"
+          height={1050}
+          url="app.podiumstack.com/admin/events/…/decisions"
+          alt="The decisions screen: proposals with quorum badges, an outcome, and a publication status, each with controls to record a decision."
+        />
+      </div>
+
+      <div class="feature reveal">
+        <div class="copy">
+          <h3>A schedule that cannot quietly break.</h3>
+          <p>
+            Place sessions into rooms and times and Podium recomputes conflicts on every change —
+            a double-booked room, a speaker in two places, a session whose onboarding is not done.
+            It will let you save a broken schedule. It will not let you publish one.
+          </p>
+          <p>
+            What the public sees is an immutable, versioned snapshot your marketing site embeds
+            and a CDN can cache. Publishing an hour before doors open is survivable, because
+            rolling back is just pointing at the previous version.
+          </p>
+        </div>
+        <Shot
+          name="schedule"
+          height={1170}
+          url={`podiumstack.com/e/your-event/schedule`}
+          alt="The public schedule: an itinerary of sessions with times, rooms and speakers beside a room-by-time grid, with search and add-to-calendar."
+        />
+      </div>
+
+      <div class="feature flip reveal">
+        <div class="copy">
+          <h3>One place for speakers to look.</h3>
+          <p>
+            Where their proposal stands, what they have been accepted for, when and where it is,
+            what they still owe you and by when — all on one page, behind one login, across every
+            event you have ever run.
+          </p>
+          <p>
+            They keep their own profile, and it is what appears on the public schedule. You stop
+            being the copy-editor of sixty biographies.
+          </p>
+        </div>
+        <Shot
+          name="portal"
+          height={1140}
+          url="app.podiumstack.com/portal"
+          alt="A speaker's dashboard: an accepted proposal with a confirm-by date, a published session with its room and time, and three outstanding tasks with due dates."
+        />
+      </div>
     </div>
   </section>
 
   <section>
     <div class="wrap">
+      <span class="eyebrow">Also in the box</span>
+      <h2>And the parts nobody demos.</h2>
+      <p class="more">
+        Multi-step submission forms with custom fields and saved drafts, and a deadline that
+        actually closes. An event roster. Content approval with revision history. Campaigns with an
+        auditable outbox, so you can prove what was sent to whom. Bulk import and export. A scoped
+        REST API and signed webhooks on every change, so the rest of your stack keeps up. And a
+        speaker directory that spans every edition you have run — because the compounding asset a
+        conference builds is not its schedule, it is the people it knows.
+      </p>
+    </div>
+  </section>
+
+  <section class="band-dark">
+    <div class="wrap">
+      <span class="eyebrow">Yours, actually</span>
+      <h2>Run it on your own account, or read every line first.</h2>
+      <p class="sub">
+        Two things most tools in this category will not let you do.
+      </p>
       <div class="two-col">
         <div>
-          <h2>Run it yourself</h2>
+          <h3>It deploys to infrastructure you own</h3>
           <p>
-            Apache-2.0, and built for Cloudflare: Workers, D1 behind a repository layer, R2 for
-            assets, KV for published snapshots, Queues for domain events, Cron Triggers for the
-            sweeps, and one Durable Object per event so a schedule only ever has one writer.
-          </p>
-          <p>
-            It deploys to a Cloudflare account you own, with your data in your D1. There is no
-            hosted tier to be locked into.
+            Apache-2.0, built for Cloudflare, and it goes to a Cloudflare account in your name with
+            your speakers' data in your database. There is no hosted tier to be locked into and no
+            price that changes when your conference grows.
           </p>
           <p><a href={GITHUB_URL}>Read the code →</a></p>
         </div>
 
         <div>
-          <h2>The model is the specification</h2>
+          <h3>The rules are written down before the code</h3>
           <p>
-            Entities, enums, state machines, invariants, domain events and the authorization matrix
-            live in a normative domain model, and the code implements it. When the two disagree,
-            that is a defect in one of them — and a check in CI that fails the build.
-          </p>
-          <p>
-            Every open question is decided and written down, with the reasoning, including the ones
-            that were decided against.
+            Who may see a reviewer's score, what happens to an unused sponsor slot, what a deadline
+            does when it passes — all of it is specified in a normative domain model, and a check in
+            CI fails the build when the code and the model disagree.
           </p>
           <p><a href={DOMAIN_MODEL_URL}>Read the domain model →</a></p>
         </div>
       </div>
+    </div>
+  </section>
 
-      <p class="aside">
+  <section class="band-dark cta">
+    <div class="wrap">
+      <h2>See it with a conference already in it.</h2>
+      <p class="sub">
+        The seed ships a three-day event mid-flight — proposals in every state, a review round with
+        real scores, sponsors part-way through their entitlements, an agenda with genuine conflicts
+        — and four personas you can sign in as. An empty shell teaches you nothing.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href={SIGN_IN_URL}>Sign in and look around</a>
+        <a class="btn secondary" href={GITHUB_URL}>Star it on GitHub</a>
+      </div>
+      <pre><code>git clone …/Podium
+npm install
+npm run dev</code></pre>
+    </div>
+  </section>
+
+  <section style="padding-block: 2.5rem">
+    <div class="wrap">
+      <p class="aside" style="margin-top: 0">
         Unrelated to podium.com (lead management) and to <a href="https://podium-lib.io">podium-lib</a>{" "}
         (micro-frontends), both of which hold the obvious namespaces.
       </p>
