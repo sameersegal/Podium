@@ -351,3 +351,117 @@ describe("publish, roll back, and pending changes", () => {
     });
   });
 });
+
+/**
+ * The same aggregate over `/v1` — the surface R30 named as the one blocker for
+ * a client-rendered admin console, because a grid that drags a card cannot post
+ * a form (09, "Scheduling on the management surface").
+ *
+ * What matters is that it is the *same* aggregate and not a second one: the
+ * writes go through `runSerialised`, so one writer per event holds however the
+ * write arrived, and the response carries the conflicts the write caused
+ * (INV-08-14) rather than making the client re-fetch to find out what it broke.
+ */
+describe("scheduling on the management surface", () => {
+  let cookie: string;
+
+  beforeAll(async () => {
+    await seed();
+    cookie = await signInChair();
+  });
+
+  const json = (path: string, init: RequestInit = {}) =>
+    SELF.fetch(`http://localhost/v1${path}`, {
+      ...init,
+      headers: { cookie, "content-type": "application/json", accept: "application/json", ...(init.headers ?? {}) },
+    });
+
+  it("reads the whole grid in one request", async () => {
+    const res = await json(`/events/${EVENT}/schedule`);
+    expect(res.status).toBe(200);
+    const { data } = (await res.json()) as { data: Record<string, unknown[]> };
+    // Days, rooms and the unplaced queue together: a grid that fetched these
+    // separately could not be laid out until the last response landed.
+    expect(data.days.length).toBeGreaterThan(0);
+    expect(data.rooms.length).toBeGreaterThan(0);
+    expect(Array.isArray(data.unplaced)).toBe(true);
+    expect(Array.isArray(data.placements)).toBe(true);
+  });
+
+  it("INV-08-14: a placement write answers with the conflicts it caused", async () => {
+    await env.DB.prepare("DELETE FROM placement WHERE event_id = ?").bind(EVENT).run();
+    await env.DB.prepare("DELETE FROM schedule_conflict WHERE event_id = ?").bind(EVENT).run();
+    await env.DB.prepare("UPDATE session SET status = 'confirmed' WHERE event_id = ?").bind(EVENT).run();
+
+    const place = (sessionId: string, start: string, end: string) =>
+      json(`/events/${EVENT}/placements`, {
+        method: "POST",
+        body: JSON.stringify({ session_id: sessionId, room_id: ROOM_A, event_day_id: DAY, starts_at: start, ends_at: end }),
+      });
+
+    const first = await place(SESSION_1, "2027-09-01T09:00:00.000Z", "2027-09-01T09:30:00.000Z");
+    expect(first.status).toBe(201);
+    const firstBody = (await first.json()) as { data: { placement_id: string; conflicts: unknown[] } };
+    expect(firstBody.data.placement_id).toBeTruthy();
+    expect(firstBody.data.conflicts).toHaveLength(0);
+
+    const second = await place(SESSION_2, "2027-09-01T09:15:00.000Z", "2027-09-01T09:45:00.000Z");
+    expect(second.status).toBe(201);
+    const secondBody = (await second.json()) as { data: { placement_id: string; conflicts: { code: string; severity: string }[] } };
+    expect(secondBody.data.conflicts.some((c) => c.code === "ROOM_DOUBLE_BOOKED" && c.severity === "error")).toBe(true);
+
+    // Moving it apart clears the clash, again in the write's own response.
+    const moved = await json(`/placements/${secondBody.data.placement_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ room_id: ROOM_B }),
+    });
+    expect(moved.status).toBe(200);
+    const movedBody = (await moved.json()) as { data: { conflicts: { code: string }[] } };
+    expect(movedBody.data.conflicts.some((c) => c.code === "ROOM_DOUBLE_BOOKED")).toBe(false);
+
+    const removed = await json(`/placements/${secondBody.data.placement_id}`, { method: "DELETE" });
+    expect(removed.status).toBe(200);
+    const stillThere = await env.DB.prepare("SELECT id FROM placement WHERE id = ?").bind(secondBody.data.placement_id).first();
+    expect(stillThere).toBeNull();
+  });
+
+  it("refuses to acknowledge a conflict without a reason (INV-11-5)", async () => {
+    await json(`/events/${EVENT}/placements`, {
+      method: "POST",
+      body: JSON.stringify({
+        session_id: SESSION_2,
+        room_id: ROOM_A,
+        event_day_id: DAY,
+        starts_at: "2027-09-01T09:10:00.000Z",
+        ends_at: "2027-09-01T09:40:00.000Z",
+      }),
+    });
+    const conflict = await env.DB.prepare("SELECT id FROM schedule_conflict WHERE event_id = ? LIMIT 1").bind(EVENT).first<{ id: string }>();
+    expect(conflict).not.toBeNull();
+
+    const bare = await json(`/conflicts/${conflict!.id}/acknowledge`, { method: "POST", body: JSON.stringify({}) });
+    expect(bare.status).toBe(422);
+
+    const withReason = await json(`/conflicts/${conflict!.id}/acknowledge`, {
+      method: "POST",
+      body: JSON.stringify({ reason: "Both are lightning talks; the overlap is deliberate." }),
+    });
+    expect(withReason.status).toBe(200);
+
+    // An acknowledged conflict stays in the list rather than leaving it.
+    const list = await json(`/events/${EVENT}/conflicts`);
+    const { data } = (await list.json()) as { data: { id: string; acknowledged_reason: string | null }[] };
+    expect(data.find((c) => c.id === conflict!.id)?.acknowledged_reason).toBeTruthy();
+  });
+
+  it("publishes and reports what is still unpublished", async () => {
+    const published = await json(`/events/${EVENT}/publications`, { method: "POST", body: JSON.stringify({ note: "From the console" }) });
+    expect(published.status).toBe(201);
+
+    const list = await json(`/events/${EVENT}/publications`);
+    expect(list.status).toBe(200);
+    const body = (await list.json()) as { data: unknown[]; pending_changes: { count: number } };
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(typeof body.pending_changes.count).toBe("number");
+  });
+});

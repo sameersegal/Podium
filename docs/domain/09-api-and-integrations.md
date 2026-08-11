@@ -34,6 +34,40 @@ Design rules the model must support:
   `409 version_conflict` carrying `expected_version`, `current_version` and `current_state`.
   The HTML surfaces always send it.
 
+### Scheduling on the management surface
+
+Placement is the one part of the programme that the management surface did not reach. It is
+named here because R30 ([`13`](13-open-questions.md)) makes a client-rendered admin console
+the only writer of the agenda grid, and a grid that drags a card cannot post a form.
+
+The endpoints are a thin serialisation of the placement commands in
+[`08`](08-scheduling-and-publication.md), and they inherit that context's rules rather than
+restating them:
+
+| Endpoint | Scope | Notes |
+|---|---|---|
+| `GET /v1/events/:eventId/schedule` | `schedule:read` | Days, rooms, slots, placements and the unplaced queue — the whole grid in one read, because a grid that fetches per-cell cannot be laid out before the last response lands |
+| `POST /v1/events/:eventId/placements` | `schedule:publish` | `place` |
+| `PATCH /v1/placements/:placementId` | `schedule:publish` | `move`; accepts any of `room_id`, `event_day_id`, `starts_at`, `ends_at` |
+| `DELETE /v1/placements/:placementId` | `schedule:publish` | `remove` |
+| `GET /v1/events/:eventId/conflicts` | `schedule:read` | The current list, including acknowledgements |
+| `POST /v1/conflicts/:conflictId/acknowledge` | `schedule:publish` | Requires `reason`; an acknowledged conflict stays in the list rather than leaving it |
+| `POST /v1/events/:eventId/auto-place` | `schedule:publish` | Proposes a run; never writes a `Placement` |
+| `POST /v1/auto-place-runs/:runId/apply` | `schedule:publish` | Accepts all, or the named `session_ids` |
+| `GET /v1/events/:eventId/publications` | `schedule:read` | With `PendingPublicationChanges`, so staleness is visible to a console that never reloads ([`08`](08-scheduling-and-publication.md)) |
+| `POST /v1/events/:eventId/publications` | `schedule:publish` | Publish a snapshot |
+| `POST /v1/publications/:publicationId/rollback` | `schedule:publish` | |
+
+Two properties are load-bearing and are the reason this is a table rather than a sentence:
+
+- **Every write serialises through the schedule Durable Object**, exactly as the HTML surface
+  already does. One writer per event is what makes two organizers dragging the same slot
+  queue instead of interleave ([`11`](11-cross-cutting.md), "Concurrency").
+- **Every placement write answers with the conflicts it caused** (INV-08-14), in the same
+  response. A client that drops a card and then re-fetches to find out what it broke is a
+  client that renders a wrong grid for one round trip; the response is what re-renders the
+  cell.
+
 ## ApiKey
 
 <!-- entity: ApiKey -->

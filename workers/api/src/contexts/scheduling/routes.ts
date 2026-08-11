@@ -36,6 +36,7 @@ import type { Router } from "../../http/router.js";
 import { html, joinHtml, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, dayBar, empty, field, humanise, pageHead, table } from "../../ui/layout.js";
 import { adminPage, loadEvent, type EventRef } from "../../ui/shell.js";
+import { registerSchedulingApiRoutes } from "./api-routes.js";
 import { acknowledgeConflict, listConflicts, type ConflictView } from "./conflicts.js";
 import { listPublications as listPublicationRows, pendingChanges, publishSchedule, rollbackPublication } from "./publication.js";
 import {
@@ -81,6 +82,7 @@ function conflictSummary(conflicts: { severity: string; acknowledged_reason?: st
 }
 
 export function registerSchedulingRoutes(router: Router<RequestContext>): void {
+  registerSchedulingApiRoutes(router);
   registerAgendaRoutes(router);
   registerSlotRoutes(router);
   registerPublicationRoutes(router);

@@ -17,6 +17,7 @@ import { isMutating, remember, replayIfSeen } from "./http/idempotency.js";
 import { errorResponse, htmlResponse, json, redirect, wantsJson } from "./http/responses.js";
 import { Router } from "./http/router.js";
 import { registerRoutes } from "./routes.js";
+import { consoleDocument } from "./surfaces/console.js";
 import { runQueueBatch } from "./consumers/dispatch.js";
 import { runScheduled } from "./consumers/cron.js";
 import { page } from "./ui/layout.js";
@@ -54,6 +55,14 @@ export default {
         const replay = await replayIfSeen(env, ctx.orgId, req);
         if (replay) return replay;
       }
+
+      // R30's admin console. It answers before the router because it shares
+      // its URLs with the server-rendered screens it is replacing: the console
+      // takes the request, and `?nojs=1` — or a person without the capability,
+      // or an event that does not exist — declines it and falls through to the
+      // page that has always answered.
+      const consoleRes = await consoleDocument(req, ctx);
+      if (consoleRes) return consoleRes;
 
       const match = router.match(req.method, url.pathname);
       if (!match) return notFound(req, ctx);

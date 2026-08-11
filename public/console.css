@@ -1,0 +1,553 @@
+/* Podium — the admin console (R30).
+ *
+ * Loaded after `app.css` and additive to it. Every token here comes from
+ * `app.css`; nothing in this file redefines one, and nothing in it restyles a
+ * component `app.css` already owns. That is what makes `app.css` the shared
+ * artifact R30 chose instead of a component library imported twice: a card in
+ * the console and a card on a server-rendered screen are the same card, and a
+ * change to either lands in one place.
+ *
+ * Everything below is new vocabulary the console introduced — the drawer, the
+ * toast stack, the drag affordances, the dashboard's charts and the builder's
+ * three columns. All of it is prefixed `console-`, so a class in the markup can
+ * be traced to one of the two stylesheets by reading it.
+ */
+
+/* ---------- boot ---------- */
+
+.console-booting {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: var(--fs-md);
+}
+
+body.console .topbar .console-who {
+  color: #e0e7ff;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 48rem) {
+  body.console .topbar .console-who { display: none; }
+}
+
+.console-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.console-refreshing { color: var(--muted); font-size: var(--fs-sm); }
+
+.console-spinner {
+  display: inline-block;
+  width: .75em;
+  height: .75em;
+  margin-right: var(--sp-1);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: console-spin .6s linear infinite;
+  vertical-align: -.1em;
+}
+@keyframes console-spin { to { transform: rotate(360deg); } }
+
+.console-icon { flex: none; }
+
+.console-icon-btn {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: var(--sp-1);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  cursor: pointer;
+  line-height: 0;
+}
+.console-icon-btn:hover { background: rgb(17 24 39 / .06); color: inherit; }
+
+/* ---------- layout ---------- */
+
+/* One column on a phone, two once there is room for two columns of prose. */
+.console-grid { display: grid; gap: var(--sp-4); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 64rem) {
+  .console-grid.two { grid-template-columns: 1fr 1fr; }
+}
+.console-row-2 { display: grid; gap: var(--sp-3); grid-template-columns: 1fr; }
+@media (min-width: 30rem) {
+  .console-row-2 { grid-template-columns: 1fr 1fr; }
+}
+
+.console-card-foot { margin: var(--sp-3) 0 0; font-size: var(--fs-md); }
+
+.console-list { list-style: none; margin: 0; padding: 0; }
+.console-list > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.console-list > li:last-child { border-bottom: 0; }
+.console-list > li > :first-child { flex: 1; min-width: 8rem; }
+.console-overdue { color: var(--err); font-weight: 600; }
+
+/* ---------- dashboard: the funnel ---------- */
+
+/* Counts drawn to scale against the largest of them. Six equal boxes with
+   numbers in them is a table; a bar is a shape you read in one glance. */
+.console-funnel { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
+.console-funnel > li > a {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--ink);
+}
+.console-funnel > li > a:hover { background: var(--sunken); text-decoration: none; }
+.console-funnel-n {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--navy);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+/* The bar is a child of the track rather than absolutely positioned across the
+   row, so its percentage is a percentage of the space it is allowed to fill.
+   Positioned against the row it overflowed the card at 100%. */
+.console-funnel-track { display: block; min-width: 0; }
+.console-funnel-label { display: block; color: var(--ink-2); font-size: var(--fs-md); font-weight: 500; }
+.console-funnel-bar {
+  display: block;
+  height: 4px;
+  margin-top: var(--sp-1);
+  max-width: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--indigo);
+  opacity: .35;
+  transition: width var(--dur);
+}
+
+/* ---------- dashboard: needs you ---------- */
+
+.console-queue { list-style: none; margin: 0; padding: 0; }
+.console-queue > li { border-bottom: 1px solid var(--line-2); }
+.console-queue > li:last-child { border-bottom: 0; }
+.console-queue > li > a {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-3) var(--sp-2);
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+.console-queue > li > a:hover { background: var(--sunken); text-decoration: none; }
+.console-queue-n {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.console-queue-body { display: grid; gap: 2px; }
+.console-queue-label { font-weight: 500; }
+.console-queue-why { color: var(--muted); font-size: var(--fs-sm); }
+.console-queue-err .console-queue-n { color: var(--err); }
+.console-queue-warn .console-queue-n { color: var(--warn); }
+.console-queue-info .console-queue-n { color: var(--indigo-dark); }
+
+/* ---------- dashboard: charts ---------- */
+
+/* One series, one colour. A thirty-day submission count needs no legend and no
+   second hue — a second colour here would imply a second thing being measured. */
+.console-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 4.5rem;
+  margin: var(--sp-3) 0;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--line);
+}
+.console-chart-bar {
+  flex: 1;
+  min-width: 3px;
+  background: var(--indigo);
+  opacity: .75;
+  border-radius: 2px 2px 0 0;
+  transition: opacity var(--dur);
+}
+.console-chart-bar:hover { opacity: 1; }
+
+.console-meter {
+  height: 8px;
+  background: var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin: var(--sp-2) 0 var(--sp-3);
+}
+.console-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--indigo);
+  border-radius: inherit;
+  transition: width var(--dur);
+}
+
+.console-round { padding-bottom: var(--sp-3); }
+.console-round + .console-round { border-top: 1px solid var(--line-2); padding-top: var(--sp-3); }
+.console-round-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+
+.console-stat-hint { display: block; color: var(--muted); font-size: var(--fs-xs); margin-top: 2px; }
+.console-stat-warn { border-color: var(--warn-line); background: var(--warn-soft); }
+.console-stat-warn .n { color: var(--warn); }
+.console-stat-err { border-color: var(--err-line); background: var(--err-soft); }
+.console-stat-err .n { color: var(--err); }
+
+/* ---------- dashboard: deadlines ---------- */
+
+.console-timeline { list-style: none; margin: 0; padding: 0; }
+.console-timeline > li {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) 0 var(--sp-2) var(--sp-4);
+  border-left: 2px solid var(--line);
+  position: relative;
+}
+.console-timeline > li::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 1.1em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.console-timeline-cfp::before { background: var(--indigo); }
+.console-timeline-review::before { background: var(--warn); }
+.console-timeline-confirmation::before { background: var(--ok); }
+.console-timeline-event::before { background: var(--navy); }
+.console-timeline-when { font-weight: 600; color: var(--ink-2); font-size: var(--fs-md); }
+.console-timeline > li > :last-child { grid-column: 2; }
+@media (max-width: 30rem) {
+  .console-timeline > li { grid-template-columns: 1fr; }
+  .console-timeline > li > :last-child { grid-column: 1; }
+}
+
+/* ---------- skeletons ---------- */
+
+.console-skeleton { display: grid; gap: var(--sp-4); }
+.console-skeleton-card {
+  height: 9rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, var(--line-2) 25%, var(--sunken) 37%, var(--line-2) 63%);
+  background-size: 400% 100%;
+  animation: console-shimmer 1.4s ease infinite;
+}
+@keyframes console-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .console-skeleton-card { animation: none; background: var(--line-2); }
+}
+
+/* ---------- drawer ---------- */
+
+/* Where the settings form went. It is one click away and it is no longer the
+   first thing on the overview. */
+.console-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(15 23 42 / .35);
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+}
+.console-drawer {
+  background: var(--card);
+  width: min(30rem, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-pop);
+  animation: console-slide var(--dur) ease-out;
+}
+.console-drawer.wide { width: min(48rem, 100%); }
+@keyframes console-slide { from { transform: translateX(1.5rem); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .console-drawer { animation: none; } }
+.console-drawer > header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+.console-drawer > header h2 { margin: 0; flex: 1; font-size: var(--fs-lg); }
+.console-drawer-body { padding: var(--sp-4); overflow-y: auto; }
+.console-drawer-body .stack { display: flex; flex-direction: column; gap: var(--sp-3); }
+.console-drawer-actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line-2);
+  position: sticky;
+  bottom: calc(var(--sp-4) * -1);
+  background: var(--card);
+  padding-bottom: var(--sp-1);
+}
+
+/* ---------- toasts ---------- */
+
+.console-toasts {
+  position: fixed;
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: var(--sp-3);
+  z-index: 70;
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: stretch;
+  pointer-events: none;
+}
+@media (min-width: 30rem) {
+  .console-toasts { left: auto; width: min(26rem, calc(100vw - 2rem)); }
+}
+.console-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--radius);
+  background: var(--navy);
+  color: #fff;
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-md);
+}
+.console-toast > span { flex: 1; }
+.console-toast.ok { background: var(--ok); }
+.console-toast.err { background: var(--err); }
+.console-toast.warn { background: var(--warn); }
+.console-toast .console-icon-btn:hover { background: rgb(255 255 255 / .18); }
+.console-toast button.link {
+  background: transparent;
+  border: 0;
+  color: #fff;
+  text-decoration: underline;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------- the form builder ---------- */
+
+/* Palette, canvas, inspector. Below `lg` they stack in that order, which is
+   also the order the job is done in. */
+.console-builder-cols {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@media (min-width: 64rem) {
+  .console-builder-cols { grid-template-columns: 17rem minmax(0, 1fr) 19rem; }
+}
+
+.console-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+@media (min-width: 64rem) {
+  /* The two side panels stay with you while the canvas scrolls — the palette
+     is useless at the bottom of a long form and so is the inspector. */
+  .console-panel { position: sticky; top: var(--sp-3); max-height: calc(100vh - var(--sp-5)); display: flex; flex-direction: column; }
+  .console-panel-body { overflow-y: auto; }
+}
+.console-panel-head { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line); }
+.console-panel-head h2 { margin: 0 0 var(--sp-2); font-size: var(--fs-base); }
+.console-panel-hint { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.console-panel-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+
+.console-search { display: flex; align-items: center; gap: var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 var(--sp-2); color: var(--muted); }
+.console-search:focus-within { border-color: var(--indigo); box-shadow: var(--ring); }
+.console-search input { border: 0; padding: var(--sp-2) 0; flex: 1; min-width: 0; background: transparent; font-size: var(--fs-md); }
+.console-search input:focus { outline: none; }
+
+.console-palette-group + .console-palette-group { margin-top: var(--sp-4); }
+.console-palette-group h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.console-palette-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
+
+/* A type is a shape you are choosing, so the glyph leads and the description
+   is right there — a sixteen-item `<select>` of `snake_case` names was the
+   thing this replaced. */
+.console-type {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  white-space: normal;
+  gap: var(--sp-2);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: var(--sp-2);
+  font: inherit;
+  cursor: pointer;
+}
+.console-type:hover:not(:disabled) { background: var(--indigo-soft); border-color: var(--indigo-line); color: var(--ink); }
+.console-type:disabled { opacity: .5; cursor: not-allowed; }
+.console-type-glyph {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--indigo-soft);
+  color: var(--indigo-dark);
+  border: 1px solid var(--indigo-line);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.console-type-body { flex: 1; min-width: 0; display: grid; text-align: left; }
+.console-type-label { font-size: var(--fs-md); font-weight: 600; }
+.console-type-hint { color: var(--muted); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-type .console-icon { color: var(--muted); }
+
+.console-step-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2); }
+.console-step-head h2 { margin: 0; font-size: var(--fs-lg); flex: 1 1 auto; min-width: 6rem; }
+.console-step-count { color: var(--muted); font-size: var(--fs-sm); }
+.console-row-actions { display: flex; gap: var(--sp-1); }
+
+.console-fields { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); min-height: 2.5rem; }
+.console-fields-empty {
+  padding: var(--sp-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.console-field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+.console-field:hover { border-color: var(--indigo-line); }
+.console-field.is-selected { border-color: var(--indigo); box-shadow: var(--ring); }
+/* `button` in app.css centres its content and forbids wrapping, which is right
+   for a button that says "Save" and wrong for one that is a row in a list. */
+.console-field-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-2);
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  text-align: left;
+  white-space: normal;
+  font-weight: 400;
+  padding: var(--sp-2);
+  font: inherit;
+  cursor: pointer;
+}
+.console-field-main:hover { background: transparent; color: var(--ink); }
+.console-field-glyph {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.console-field-body { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.console-field-label { font-weight: 600; font-size: var(--fs-md); }
+.console-field-meta { color: var(--muted); font-size: var(--fs-xs); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.console-field-meta .badge { font-size: 10px; padding: 0 4px; }
+
+.console-condition { border-top: 1px solid var(--line-2); padding-top: var(--sp-3); }
+.console-condition h4 { margin-top: 0; }
+.console-inspector-danger { border-top: 1px solid var(--line-2); padding-top: var(--sp-3); }
+
+.console-add-step { display: flex; gap: var(--sp-2); align-items: flex-end; flex-wrap: wrap; }
+.console-add-step .field { flex: 1; min-width: 12rem; }
+
+/* ---------- dragging ---------- */
+
+.console-grip-btn {
+  background: transparent;
+  border: 0;
+  color: var(--faint);
+  padding: var(--sp-2) var(--sp-1);
+  cursor: grab;
+  line-height: 0;
+  touch-action: none; /* the pointer stream is ours, not the scroller's */
+  border-radius: var(--radius-sm);
+}
+.console-grip-btn:hover { background: var(--sunken); color: var(--ink-2); }
+.console-grip { fill: currentColor; stroke: none; }
+
+body.console-dragging { cursor: grabbing; user-select: none; }
+body.console-dragging .console-grip-btn { cursor: grabbing; }
+
+.console-dragged { opacity: .4; }
+
+/* The drop indicator is rendered by the view from `drag.over`, so it is part of
+   the same render pass as the rows and cannot disagree with them. */
+.console-insertion {
+  height: 2px;
+  margin: 2px 0;
+  background: var(--indigo);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 3px rgb(99 102 241 / .18);
+}
+
+.console-ghost {
+  position: fixed;
+  z-index: 80;
+  transform: translate(12px, 8px);
+  pointer-events: none;
+  background: var(--navy);
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-pop);
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1521,6 +1521,88 @@ export async function moveStep(app: AppContext, stepId: string, direction: "up" 
   app.audit.record({ action: "form_step.reorder", entity_type: "form_step", entity_id: stepId, after: { direction } });
 }
 
+export interface ReorderInput {
+  steps?: { id: string; sort_order: number }[];
+  fields?: { id: string; step_id?: string | null; sort_order: number }[];
+}
+
+/**
+ * Apply a whole new order in one write — what a drag-and-drop builder produces,
+ * which the pairwise `moveStep`/`moveField` above cannot express: dropping a
+ * field three positions up renumbers everything between, and moving one to
+ * another step changes its parent.
+ *
+ * The two rules that make this more than an UPDATE loop:
+ *
+ * - **INV-02-9** — `sort_order` is cosmetic, so a pure reorder applies in place
+ *   even on a published form. Re-parenting a field is structural and is refused
+ *   there, rather than silently cloning a version underneath a drag.
+ * - **INV-02-8** — a condition may only reference a field that precedes it, so
+ *   an order is applied, checked against the resulting form, and rolled back if
+ *   the drop moved a field above something that depends on it. The check has to
+ *   run over the finished order, not per move, because an intermediate state of
+ *   a multi-item reorder is meaningless.
+ */
+export async function reorderForm(app: AppContext, formId: string, input: ReorderInput): Promise<FormSpec> {
+  const form = await loadFormSpec(app, formId);
+  if (form.status === "retired") {
+    throw invariantError("INV-02-9", "form_retired", "This version has been retired. Edit the current draft instead.");
+  }
+
+  const stepById = new Map(form.steps.map((s) => [s.id, s]));
+  const fieldById = new Map(form.steps.flatMap((s) => s.fields.map((f) => [f.id, { field: f, step: s }] as const)));
+
+  const stepMoves = (input.steps ?? []).filter((m) => stepById.has(m.id));
+  const fieldMoves = (input.fields ?? []).filter((m) => fieldById.has(m.id));
+  if (stepMoves.length === 0 && fieldMoves.length === 0) return form;
+
+  const reparented = fieldMoves.filter((m) => m.step_id && m.step_id !== fieldById.get(m.id)!.step.id);
+  for (const move of reparented) {
+    if (!stepById.has(move.step_id!)) throw notFound("Form step", move.step_id!);
+  }
+  if (reparented.length > 0 && form.status !== "draft") {
+    // INV-02-9 — moving a question into a different step changes what was
+    // asked and where, which is not cosmetic.
+    throw invariantError(
+      "INV-02-9",
+      "published_form_immutable",
+      "Moving a field to another step changes a published form. Create a new draft version first, then rearrange it there.",
+      { form_id: form.id, form_status: form.status, field_ids: reparented.map((m) => m.id) },
+    );
+  }
+
+  const restore: (() => Promise<void>)[] = [];
+  for (const move of stepMoves) {
+    const before = stepById.get(move.id)!;
+    if (before.sort_order === move.sort_order) continue;
+    await app.db.update("form_step", move.id, { sort_order: move.sort_order });
+    restore.push(() => app.db.update("form_step", move.id, { sort_order: before.sort_order }));
+  }
+  for (const move of fieldMoves) {
+    const { field: before, step } = fieldById.get(move.id)!;
+    const nextStepId = move.step_id ?? step.id;
+    if (before.sort_order === move.sort_order && nextStepId === step.id) continue;
+    await app.db.update("form_field", move.id, { sort_order: move.sort_order, step_id: nextStepId });
+    restore.push(() => app.db.update("form_field", move.id, { sort_order: before.sort_order, step_id: step.id }));
+  }
+
+  const after = await loadFormSpec(app, formId);
+  const problems = validateConditionOrdering(after);
+  if (problems.length > 0) {
+    for (const undo of restore.reverse()) await undo();
+    // INV-02-8
+    throw invariantError("INV-02-8", "condition_order_broken", problems.join(" "), { problems });
+  }
+
+  app.audit.record({
+    action: "submission_form.reorder",
+    entity_type: "submission_form",
+    entity_id: formId,
+    after: { steps: stepMoves.length, fields: fieldMoves.length, reparented: reparented.length },
+  });
+  return after;
+}
+
 /**
  * Publishing a version retires the one it replaces (INV-02-5: exactly one
  * `published` form per CFP). Existing proposal drafts keep their bound version

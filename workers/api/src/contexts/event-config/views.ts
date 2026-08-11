@@ -608,6 +608,77 @@ function conditionScript(conditions: Record<string, ConditionRule>): SafeHtml {
 </script>`);
 }
 
+/* -------------------------------------------------------------------------- */
+/* The field-type catalogue                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How each `FieldType` is presented in the builder's picker.
+ *
+ * These are `Record<FieldType, …>` rather than lookup objects on purpose: enums
+ * are additive (see CLAUDE.md), and a member added to `FIELD_TYPE` without a
+ * label here fails the typecheck instead of reaching the picker as a bare
+ * `snake_case` token. The picker itself is client-rendered and reads this
+ * through `GET /v1/cfps/:cfpId/builder`, so it cannot hold a stale copy.
+ */
+export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
+  short_text: "Short text",
+  long_text: "Paragraph",
+  markdown: "Markdown",
+  email: "Email",
+  url: "Link",
+  number: "Number",
+  single_select: "Choose one",
+  multi_select: "Choose several",
+  checkbox: "Checkbox",
+  date: "Date",
+  file: "File upload",
+  speaker_list: "Speakers",
+  track_picker: "Track",
+  format_picker: "Session format",
+  duration_picker: "Duration",
+  consent: "Consent",
+};
+
+export const FIELD_TYPE_HINTS: Record<FieldType, string> = {
+  short_text: "One line. Titles, job titles, handles.",
+  long_text: "Several lines of plain text.",
+  markdown: "Rich text an applicant writes in Markdown.",
+  email: "Validated as an address.",
+  url: "Validated as a link.",
+  number: "Whole or decimal.",
+  single_select: "A list you write; exactly one answer.",
+  multi_select: "A list you write; any number of answers.",
+  checkbox: "A single yes/no box.",
+  date: "A calendar date.",
+  file: "A slide deck, a headshot, a rider.",
+  speaker_list: "The co-speaker invitation control.",
+  track_picker: "The tracks this call offers.",
+  format_picker: "The session formats this call offers.",
+  duration_picker: "The durations the chosen format allows.",
+  consent: "A recorded yes, with the wording it was given against.",
+};
+
+/** The picker's sections. Order here is the order they are shown in. */
+export const FIELD_TYPE_GROUPS: Record<FieldType, "text" | "choice" | "session" | "other"> = {
+  short_text: "text",
+  long_text: "text",
+  markdown: "text",
+  email: "text",
+  url: "text",
+  number: "text",
+  single_select: "choice",
+  multi_select: "choice",
+  checkbox: "choice",
+  consent: "choice",
+  track_picker: "session",
+  format_picker: "session",
+  duration_picker: "session",
+  speaker_list: "session",
+  date: "other",
+  file: "other",
+};
+
 /** Re-exported so callers need one import for the runtime and the shapes. */
 export { evaluateCondition, markdown };
 export type { FormSpec, FormStepSpec, FormFieldSpec, CfpStatus };

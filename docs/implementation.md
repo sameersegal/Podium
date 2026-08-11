@@ -6,6 +6,7 @@ took so that a change lands in the same place every time.
 ## Layout
 
 ```
+public/console/             the admin console (R30) — ES modules, no build step
 packages/domain/            pure domain logic — no Cloudflare imports, no I/O
   shared/                   ids, time, errors, PII, authorization, ports (11)
   events/                   the catalogue from 10 as types + the envelope
@@ -151,6 +152,56 @@ exceptions are the publication snapshot (immutable once live) and `schedule_conf
   [`13`](domain/13-open-questions.md) for where the line falls and why `/review` sits on the
   server-rendered side of it.
 - Code enforcing an invariant names it in a comment; its test names it in the title.
+
+### The admin console
+
+R30's client-rendered console, built. It lives in `public/console/` and is served by
+`workers/api/src/surfaces/console.ts`.
+
+**No build step.** These are ES modules the browser loads directly, served from the edge like
+`/app.css` and `/live.js`. That is what keeps R30's accepted cost — two UI stacks — from also
+meaning two toolchains: `npm run dev`, `npm test` and `npm run deploy` are unchanged, and
+there is no bundler, transpiler or second lockfile.
+
+```
+public/console/kit.js       ~200 lines of keyed virtual DOM + the redraw loop
+public/console/api.js       the /v1 client; every write is JSON (see below)
+public/console/router.js    the client route table and link interception
+public/console/store.js     boot payload, toasts, drawer, async resources
+public/console/dnd.js       pointer-event dragging, with keyboard equivalents beside it
+public/console/live.js      the same socket as /live.js, invalidating instead of nudging
+public/console/ui.js        the components layout.ts renders on the server, as vnodes
+public/console/views/       one file per screen
+public/console.css          only what the console added; app.css is still the shared artifact
+```
+
+**It shares URLs with the screens it is replacing.** `consoleDocument` runs before the router
+in `index.ts` and takes a request only when the path is in `CONSOLE_PATHS`, the caller is a
+signed-in person with the capability, and `?nojs=1` is absent. Anything else falls through to
+the server-rendered page, which is still registered and still works. So the port is
+incremental rather than a flag day, `<noscript>` has somewhere to point, and
+`tests/integration/foundation/concurrency.test.ts` still drives the real HTML forms.
+
+**Ported so far:** `/admin/events/:eventId` (the dashboard) and `/admin/cfps/:cfpId/form`
+(the form builder). `public/console/app.js` and `surfaces/console.ts` each hold the list and
+the two have to agree — a path the server boots and the client cannot match renders an empty
+shell.
+
+Two properties R30 named as making this cheap are now relied upon rather than assumed, and
+should not be changed without reading it first:
+
+- **`SameSite=Lax` with no CSRF token is the console's defence.** It holds because Lax
+  withholds the cookie from a cross-site POST *and* `application/json` is not a form-encodable
+  content type, so a cross-origin write needs a preflight that will not be granted. Every
+  write in `api.js` therefore sends JSON and never `FormData`.
+- **Permissions are recomputed per request**, so the console caches no authority. The boot
+  payload's `can` / `can_write` maps decide whether a control is *drawn*; the server decides
+  again on the write.
+
+Reads the console alone needs are `GET /v1/console/bootstrap`, `GET /v1/events/:eventId/dashboard`
+(`surfaces/dashboard.ts` — a cross-context read model, beside `admin-home.ts` for the same
+reason) and `GET /v1/cfps/:cfpId/builder`. Everything else it does goes through the ordinary
+management surface.
 
 ### Live updates
 

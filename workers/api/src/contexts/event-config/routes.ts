@@ -17,6 +17,7 @@ import {
   CONDITION_OPS,
   fieldsBefore,
   opNeedsValue,
+  OPTION_TYPES,
   optionLines,
   parseOptionLines,
   type SelectOption,
@@ -83,6 +84,7 @@ import {
   closeCfp,
   reopenCfp,
   referenceCount,
+  reorderForm,
   restoreConfiguration,
   unarchiveEvent,
   updateCfp,
@@ -108,6 +110,9 @@ import {
   cfpFormatOptions,
   cfpRow,
   cfpTrackOptions,
+  FIELD_TYPE_GROUPS,
+  FIELD_TYPE_HINTS,
+  FIELD_TYPE_LABELS,
   derivedCfpStatus,
   eventRow,
   listFormVersions,
@@ -2392,6 +2397,92 @@ function registerManagementApi(router: Router<RequestContext>): void {
     });
     await app.flush();
     return json({ id: str(row.id), form_id: str(row.form_id), key: str(row.key), title: str(row.title) }, { status: 201 });
+  });
+
+  /**
+   * The whole builder in one read: the call, the version it is editing, its
+   * other versions, the track and format options its pickers resolve against,
+   * and the catalogue of field types.
+   *
+   * The catalogue is served rather than held on the client because it is
+   * derived from `FIELD_TYPE`, `MAPS_TO` and `FIELD_AUDIENCE` — enums the model
+   * owns and the drift checker watches. A picker with its own copy of the list
+   * is a picker that will still offer a type after the model drops one.
+   */
+  router.get("/v1/cfps/:cfpId/builder", async (_req, ctx, params) => {
+    const app0 = ctx.app();
+    const cfp = await cfpRow(app0, params.cfpId);
+    const eventId = str(cfp.event_id);
+    ctx.requireRead("cfp.configure", { event_id: eventId });
+    ctx.eventId = eventId;
+    const app = ctx.app(eventId);
+    const [spec, versions, tracks, formats, event] = await Promise.all([
+      builderForm(app, params.cfpId),
+      listFormVersions(app, params.cfpId),
+      cfpTrackOptions(app, params.cfpId, true),
+      cfpFormatOptions(app, params.cfpId, true),
+      app.db.byId<Row>("event", eventId),
+    ]);
+    return json({
+      data: {
+        cfp: { id: params.cfpId, name: str(cfp.name), slug: str(cfp.slug), event_id: eventId },
+        event: event ? { id: eventId, name: str(event.name), slug: str(event.slug) } : null,
+        form: spec ? formJson(spec) : null,
+        versions: versions.map((v) => ({
+          id: str(v.id),
+          version: num(v.version),
+          status: str(v.status),
+          published_at: strOrNull(v.published_at),
+          notes: strOrNull(v.notes),
+        })),
+        tracks: tracks.map((t) => ({ id: t.track_id, label: t.name })),
+        formats: formats.map((f) => ({ id: f.session_format_id, label: f.name })),
+        field_types: FIELD_TYPE.map((type) => ({
+          type,
+          label: FIELD_TYPE_LABELS[type],
+          description: FIELD_TYPE_HINTS[type],
+          group: FIELD_TYPE_GROUPS[type],
+          takes_options: OPTION_TYPES.includes(type),
+        })),
+        maps_to: MAPS_TO.map((value) => ({ value, label: humanise(value) })),
+        audiences: FIELD_AUDIENCE.map((value) => ({ value, label: humanise(value) })),
+        can_write: ctx.canWrite("cfp.configure", { event_id: eventId }),
+      },
+    });
+  });
+
+  /**
+   * The whole order in one write — what a drag-and-drop builder produces.
+   * Applying it move-by-move would leave INV-02-8 failing against an
+   * intermediate order that nobody asked for.
+   */
+  router.post("/v1/forms/:formId/reorder", async (req, ctx, params) => {
+    const app0 = ctx.app();
+    const spec = await loadFormSpec(app0, params.formId);
+    const cfp = await cfpRow(app0, spec.cfp_id);
+    ctx.requireWrite("cfp.configure", { event_id: str(cfp.event_id) });
+    const input = await readInput(req);
+    const app = ctx.app(str(cfp.event_id));
+    const next = await reorderForm(app, params.formId, {
+      steps: input.json<{ id: string; sort_order: number }[]>("steps", []),
+      fields: input.json<{ id: string; step_id?: string | null; sort_order: number }[]>("fields", []),
+    });
+    await app.flush();
+    return json(formJson(next));
+  });
+
+  router.patch("/v1/steps/:stepId", async (req, ctx, params) => {
+    const app0 = ctx.app();
+    const existing = await app0.db.byId<Row>("form_step", params.stepId);
+    if (!existing) throw notFound("Form step", params.stepId);
+    const spec = await loadFormSpec(app0, str(existing.form_id));
+    const cfp = await cfpRow(app0, spec.cfp_id);
+    ctx.requireWrite("cfp.configure", { event_id: str(cfp.event_id) });
+    const input = await readInput(req);
+    const app = ctx.app(str(cfp.event_id));
+    const row = await updateStep(app, params.stepId, input.all());
+    await app.flush();
+    return json({ id: str(row.id), form_id: str(row.form_id), key: str(row.key), title: str(row.title) });
   });
 
   router.post("/v1/forms/:formId/fields", async (req, ctx, params) => {

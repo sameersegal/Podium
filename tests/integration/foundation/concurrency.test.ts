@@ -85,7 +85,16 @@ async function signIn(): Promise<string> {
   return `podium_session=${match[1]}`;
 }
 
-/** The version the screen actually rendered — the whole point is not to read it from the database. */
+/**
+ * The version the screen actually rendered — the whole point is not to read it
+ * from the database.
+ *
+ * `?nojs=1` where the admin console (R30) owns the URL: the console serves a
+ * boot document there, and the server-rendered form these tests drive is the
+ * fallback behind it. The console's own compare-and-set is covered separately,
+ * over `/v1`, at the foot of this file — INV-11-14 has to hold on both surfaces
+ * and each has its own way of losing the version.
+ */
 async function renderedVersion(cookie: string, path: string): Promise<string> {
   const res = await SELF.fetch(`http://localhost${path}`, { headers: { cookie } });
   expect(res.status).toBe(200);
@@ -129,7 +138,7 @@ describe("compare-and-set on aggregate roots (INV-11-14)", () => {
   });
 
   it("refuses the second of two event edits made against the same version, and keeps the first", async () => {
-    const version = await renderedVersion(cookie, `/admin/events/${EVENT}`);
+    const version = await renderedVersion(cookie, `/admin/events/${EVENT}?nojs=1`);
     const settings = {
       row_version: version,
       name: "Concurrency Conf",
@@ -215,5 +224,47 @@ describe("compare-and-set on aggregate roots (INV-11-14)", () => {
     expect(flashKind(second)).toBe("warn");
     expect(await columnOf("session", SESSION, "title")).toBe("Edited by the organizer");
     expect(await columnOf("session", SESSION, "abstract")).toBe("The organizer's abstract.");
+  });
+});
+
+/**
+ * The same invariant on the admin console's surface (R30).
+ *
+ * The console holds a read for as long as its drawer is open, which is exactly
+ * the window the HTML form's hidden field exists to close — so it has to send
+ * the version back too, and be refused when it is stale. The failure mode here
+ * is different from the HTML one and just as quiet: a JSON client that simply
+ * omits `row_version` gets last-write-wins, which is documented behaviour on
+ * the management surface (09) and the wrong behaviour for a browser.
+ */
+describe("compare-and-set over /v1, the console's path (INV-11-14)", () => {
+  let cookie: string;
+
+  beforeAll(async () => {
+    await seed();
+    cookie = await signIn();
+  });
+
+  const patch = (body: Record<string, unknown>) =>
+    SELF.fetch(`http://localhost/v1/events/${EVENT}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify(body),
+    });
+
+  it("refuses a PATCH carrying a stale row_version, and keeps the first write", async () => {
+    const read = await SELF.fetch(`http://localhost/v1/events/${EVENT}`, { headers: { cookie, accept: "application/json" } });
+    expect(read.status).toBe(200);
+    const version = ((await read.json()) as { row_version: number }).row_version;
+
+    const first = await patch({ row_version: version, tagline: "Console writer one" });
+    expect(first.status).toBe(200);
+
+    const second = await patch({ row_version: version, tagline: "Console writer two" });
+    expect(second.status).toBe(409);
+    const body = (await second.json()) as { error: string; details?: Record<string, unknown> };
+    expect(body.error).toBe("version_conflict");
+
+    expect(await columnOf("event", EVENT, "tagline")).toBe("Console writer one");
   });
 });

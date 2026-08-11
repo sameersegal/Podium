@@ -24,6 +24,7 @@ import { registerCrmRoutes } from "./contexts/crm/routes.js";
 import { registerPublicRoutes } from "./surfaces/public.js";
 import { registerHomeRoutes } from "./surfaces/home.js";
 import { registerAdminHomeRoutes } from "./surfaces/admin-home.js";
+import { registerConsoleRoutes } from "./surfaces/console.js";
 import { registerDevRoutes } from "./surfaces/dev.js";
 import { registerLiveRoutes } from "./surfaces/live.js";
 
@@ -32,6 +33,7 @@ export function registerRoutes(router: Router<RequestContext>): void {
   registerAuthRoutes(router);
   registerHomeRoutes(router);
   registerAdminHomeRoutes(router);
+  registerConsoleRoutes(router);
   registerDevRoutes(router);
   registerLiveRoutes(router);
 
