@@ -5,16 +5,27 @@
  * for every other provider. The plaintext is never stored, never logged, and
  * never returned by any surface.
  *
- * Argon2id, per the same section. Parameters are the conservative end of the
- * OWASP range that a JS implementation can run inside a Worker's CPU budget:
- * 19 MiB is the RFC 9106 second recommendation; 12 MiB with t=3 sits in the
- * same family and keeps sign-in interactive on a single isolate.
+ * Argon2id, per the same section.
+ *
+ * **These parameters are deliberately far below the OWASP floor.** The Worker
+ * runs on the Cloudflare free plan, which allows 10 ms of CPU per invocation.
+ * The previous setting — m=12 MiB, t=3, chosen against the paid plan's 30 s
+ * budget — costs ~345 ms of Worker CPU, so every sign-in was killed with
+ * `exceededCpu` (error 1102) and password login was effectively down. m=256 KiB
+ * with t=1 costs ~3 ms, which is what is left once the rest of the sign-in
+ * request is paid for.
+ *
+ * The cost of that: this is roughly two orders of magnitude cheaper to attack
+ * offline than RFC 9106's second recommendation (19 MiB, t=2). It is a stopgap
+ * to keep the service usable on the free plan, not a considered security
+ * position. Raising `ARGON2_PARAMS` back to `{ t: 3, m: 12288 }` is the whole
+ * revert; `needsRehash` below then upgrades each stored hash on next sign-in.
  */
 
 import { argon2id } from "@noble/hashes/argon2.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 
-const ARGON2_PARAMS = { t: 3, m: 12288, p: 1, dkLen: 32 } as const;
+const ARGON2_PARAMS = { t: 1, m: 256, p: 1, dkLen: 32 } as const;
 
 function toBase64(bytes: Uint8Array): string {
   let bin = "";
@@ -42,16 +53,49 @@ export function hashPassword(plaintext: string, salt: Uint8Array = randomBytes(1
   return `$argon2id$v=19$m=${m},t=${t},p=${p}$${toBase64(salt)}$${toBase64(hash)}`;
 }
 
-export function verifyPassword(plaintext: string, stored: string): boolean {
+/**
+ * The cost of verifying a hash is fixed by the hash, not by `ARGON2_PARAMS` —
+ * the PHC string carries the parameters it was written with. A stored hash
+ * above this ceiling cannot be checked inside the free plan's 10 ms, so
+ * attempting it does not fail the sign-in, it kills the isolate. Callers ask
+ * `beyondCpuBudget` first and send the person to a password reset instead.
+ */
+const MAX_VERIFIABLE_M = 1024;
+
+function storedParams(stored: string): { t: number; m: number; p: number } | null {
   const parts = stored.split("$");
-  if (parts.length !== 6 || parts[1] !== "argon2id") return false;
-  const params = Object.fromEntries(parts[3].split(",").map((kv) => kv.split("=")));
-  const salt = fromBase64(parts[4]);
-  const expected = fromBase64(parts[5]);
-  const actual = argon2id(new TextEncoder().encode(plaintext), salt, {
-    t: Number(params.t ?? ARGON2_PARAMS.t),
-    m: Number(params.m ?? ARGON2_PARAMS.m),
-    p: Number(params.p ?? ARGON2_PARAMS.p),
+  if (parts.length !== 6 || parts[1] !== "argon2id") return null;
+  const raw = Object.fromEntries(parts[3].split(",").map((kv) => kv.split("=")));
+  return {
+    t: Number(raw.t ?? ARGON2_PARAMS.t),
+    m: Number(raw.m ?? ARGON2_PARAMS.m),
+    p: Number(raw.p ?? ARGON2_PARAMS.p),
+  };
+}
+
+/** True when `stored` is too expensive to verify on this plan — see above. */
+export function beyondCpuBudget(stored: string): boolean {
+  const params = storedParams(stored);
+  return params !== null && params.m > MAX_VERIFIABLE_M;
+}
+
+/**
+ * True when `stored` was written with parameters other than the current ones.
+ * Re-hashing on a successful sign-in is how a change to `ARGON2_PARAMS` reaches
+ * hashes already in the table — including the way back up, once CPU allows.
+ */
+export function needsRehash(stored: string): boolean {
+  const params = storedParams(stored);
+  if (!params) return false;
+  return params.t !== ARGON2_PARAMS.t || params.m !== ARGON2_PARAMS.m || params.p !== ARGON2_PARAMS.p;
+}
+
+export function verifyPassword(plaintext: string, stored: string): boolean {
+  const params = storedParams(stored);
+  if (!params) return false;
+  const expected = fromBase64(stored.split("$")[5]);
+  const actual = argon2id(new TextEncoder().encode(plaintext), fromBase64(stored.split("$")[4]), {
+    ...params,
     dkLen: expected.length,
   });
   return timingSafeEqual(actual, expected);

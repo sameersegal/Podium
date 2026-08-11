@@ -53,6 +53,43 @@ await app.flush();               // persists the event log + audit, then publish
 | Concurrency (compare-and-set) | `Db.updateVersioned` on `row_version` |
 | Placement serialisation | `workers/api/src/durable/schedule.ts` |
 | Reaction idempotency | `consumers/dispatch.ts` + `event_reaction_log` |
+| INV-01-12 password hashing (Argon2id) | `packages/domain/src/identity/credentials.ts` |
+
+### Password hashing is currently below the OWASP floor, on purpose
+
+`ARGON2_PARAMS` is `m=256 KiB, t=1`. The model requires Argon2id
+([`01`](domain/01-identity-and-access.md), INV-01-12) and does not name parameters, so this
+is an implementation choice — but it is a bad one, taken knowingly, and it should not
+survive.
+
+The deployment runs on the Cloudflare Workers **free plan**, which allows **10 ms of CPU per
+invocation**. The previous `m=12 MiB, t=3` was sized against the paid plan's 30 s budget and
+costs **~345 ms** of Worker CPU. Every sign-in was therefore killed with `exceededCpu`
+(Cloudflare error 1102): password login was down in production, intermittently succeeding
+only when the platform tolerated a burst. `m=256 KiB, t=1` costs ~3 ms, which is what is left
+once the rest of the sign-in request is paid for.
+
+This is roughly two orders of magnitude cheaper to attack offline than RFC 9106's second
+recommendation (19 MiB, t=2). **The fix is to move to Workers Paid and revert**: raise
+`ARGON2_PARAMS` back to `{ t: 3, m: 12288 }` and nothing else changes — `needsRehash` carries
+each stored hash up to the new parameters on its owner's next sign-in.
+
+Two things follow from parameters living inside the stored PHC string rather than in code:
+
+- A hash written with the old parameters still costs its own ~345 ms to check, so it cannot
+  be verified on this plan at all. `beyondCpuBudget` refuses those deliberately and
+  `verifyPasswordLogin` returns `credential_needs_reset` (409), because the alternative is a
+  503 that looks like an outage instead of a credential that needs re-setting. There is no
+  password reset route, so that 409 points at an invitation (INV-01-15), not a reset form.
+- Re-hashing happens on successful sign-in, while the plaintext is in hand. There is no
+  batch migration path; nobody holds the plaintexts.
+
+The 10 ms is not enforced per request. Measured on 2026-08-11, `POST /login` ranges 5–46 ms
+and all of it is served; `/admin` routinely measures ~19 ms. Cloudflare tolerates bursts and
+kills sustained or extreme overruns, which is why a 345 ms hash was fatal, why it still got
+through perhaps once in four, and why the app appears healthy today at twice the nominal
+limit. Do not read the current green state as headroom. The free plan does not fit this
+application; the password hash is only where it broke first.
 
 `row_version` is the optimistic-concurrency counter. It is not called `version` because
 several entities already use that name with a domain meaning.

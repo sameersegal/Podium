@@ -6,7 +6,7 @@
 
 import { AppContext, type Env } from "@podiumconf/data/context.js";
 import { bool, buildInsert, buildUpdate, num, parseJson, str, strOrNull, type Row, type Statement } from "@podiumconf/data/db.js";
-import { hashToken, newToken, hashPassword, verifyPassword } from "@podiumconf/domain/identity/credentials.js";
+import { beyondCpuBudget, hashToken, needsRehash, newToken, hashPassword, verifyPassword } from "@podiumconf/domain/identity/credentials.js";
 import {
   canTransitionParticipant,
   DEFAULT_PROFILE_VISIBILITY,
@@ -509,11 +509,31 @@ export async function verifyPasswordLogin(ctx: AppContext, email: string, plaint
   const subject = normaliseEmail(email);
   const identity = await ctx.db.first<Row>("auth_identity", { provider: "password", subject });
   if (!identity?.credential_hash) return null;
-  if (!verifyPassword(plaintext, str(identity.credential_hash))) return null;
+  const stored = str(identity.credential_hash);
+  // Verifying a hash written with the old parameters costs ~345 ms of CPU and
+  // would be killed mid-request, which surfaces as a 503 rather than a failed
+  // sign-in. Refuse it deliberately and say what to do about it.
+  if (beyondCpuBudget(stored)) {
+    throw new DomainError({
+      code: "credential_needs_reset",
+      // Not "reset your password": there is no reset route, so the only way
+      // back in is an invitation, which INV-01-15 guarantees is always
+      // retrievable on screen by whoever issues it.
+      message: "This password was stored under settings this deployment can no longer check. Ask an administrator for a new invitation link to sign in and set a new password.",
+      status: 409,
+    });
+  }
+  if (!verifyPassword(plaintext, stored)) return null;
   const person = await ctx.db.byId<PersonRow>("person", str(identity.person_id));
   if (!person) return null;
   if (str(person.status) === "deactivated") throw forbidden("This account has been deactivated.");
-  await ctx.db.update("auth_identity", str(identity.id), { last_used_at: ctx.now() });
+  const patch: Row = { last_used_at: ctx.now() };
+  // Carry the hash to the current parameters while we hold the plaintext.
+  if (needsRehash(stored)) {
+    patch.credential_hash = hashPassword(plaintext);
+    patch.credential_updated_at = ctx.now();
+  }
+  await ctx.db.update("auth_identity", str(identity.id), patch);
   return resolveMerged(ctx, person);
 }
 
