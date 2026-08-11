@@ -17,7 +17,8 @@
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "drift": "python3 .claude/skills/domain-drift/scripts/model_inventory.py --check",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "dev:lan": "node scripts/dev.mjs --host 0.0.0.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.21.0",

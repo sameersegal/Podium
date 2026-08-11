@@ -13,10 +13,45 @@
  */
 
 import { spawn, execFileSync } from "node:child_process";
+import { networkInterfaces } from "node:os";
 import process from "node:process";
 
-const PORT = process.env.PORT ?? "8787";
-const BASE = `http://localhost:${PORT}`;
+function flag(name, fallback) {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+}
+
+const PORT = flag("port", process.env.PORT ?? "8787");
+/** `--host 0.0.0.0` to reach the dev server from another machine. */
+const HOST = flag("host", process.env.HOST ?? "127.0.0.1");
+
+/** Where this script talks to the Worker — always locally, whatever it binds to. */
+const BASE = `http://127.0.0.1:${PORT}`;
+
+/**
+ * What the Worker puts *inside* links: invitation `accept_url`s (INV-01-15),
+ * unsubscribe links, portal URLs in email bodies. Binding to 0.0.0.0 without
+ * changing this hands a tester on another machine a pile of links pointing at
+ * their own localhost, which is a confusing way to discover the difference
+ * between a bind address and a public address.
+ */
+const PUBLIC_BASE_URL = flag(
+  "public-url",
+  process.env.PUBLIC_BASE_URL ?? (HOST === "0.0.0.0" ? `http://${lanAddress() ?? "localhost"}:${PORT}` : `http://localhost:${PORT}`),
+);
+
+function lanAddress() {
+  const nets = networkInterfaces();
+  for (const addrs of Object.values(nets)) {
+    for (const addr of addrs ?? []) {
+      if (addr.family === "IPv4" && !addr.internal && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(addr.address)) {
+        return addr.address;
+      }
+    }
+  }
+  return null;
+}
+
 const ORGANIZER = { email: "sbek-organizer@example.com", password: "SbekTest!2027-org" };
 
 function run(command, args) {
@@ -31,7 +66,11 @@ if (!skipReset) {
   run("node", ["scripts/seed.mjs"]);
 }
 
-const wrangler = spawn("npx", ["wrangler", "dev", "--port", PORT], { stdio: "inherit" });
+const wrangler = spawn(
+  "npx",
+  ["wrangler", "dev", "--ip", HOST, "--port", PORT, "--var", `PUBLIC_BASE_URL:${PUBLIC_BASE_URL}`],
+  { stdio: "inherit" },
+);
 
 let stopping = false;
 const stop = (code) => {
@@ -83,12 +122,20 @@ async function publishSeededSchedule() {
   return res.status === 303 ? { ok: true } : { ok: false, why: `publish returned ${res.status}` };
 }
 
+if (await waitForReady()) {
+  console.log(
+    `\n🎤  Podium is up.\n    local        http://localhost:${PORT}\n${
+      HOST === "0.0.0.0" ? `    from the LAN ${PUBLIC_BASE_URL}\n` : ""
+    }    links use    ${PUBLIC_BASE_URL}\n`,
+  );
+}
+
 if (!skipReset && (await waitForReady())) {
   try {
     const outcome = await publishSeededSchedule();
     console.log(
       outcome.ok
-        ? `\n📅  Seeded schedule published — ${BASE}/e/devflow-conf-2027/schedule\n`
+        ? `\n📅  Seeded schedule published — ${PUBLIC_BASE_URL}/e/devflow-conf-2027/schedule\n`
         : `\n⚠️   Seeded schedule not published (${outcome.why}). Publish it from ${BASE}/admin.\n`,
     );
   } catch (err) {
