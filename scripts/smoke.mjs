@@ -51,8 +51,12 @@ const PUBLIC_PATHS = (ctx) => [
   "/",
   `/e/${ctx.event_slug}`,
   `/e/${ctx.event_slug}/cfp/main`,
+  // 08, "Every type is also a page on the first-party site" — all five widget
+  // types, reachable without an embed key.
   `/e/${ctx.event_slug}/schedule`,
+  `/e/${ctx.event_slug}/sessions`,
   `/e/${ctx.event_slug}/speakers`,
+  `/e/${ctx.event_slug}/gallery`,
   `/e/${ctx.event_slug}/schedule.ics`,
   "/login",
   "/signup",

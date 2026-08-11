@@ -256,10 +256,9 @@ const SNIPPET_CHARS = 180;
  * JavaScript to reveal text is exactly the account-wall-shaped failure that
  * requirement exists to prevent.
  */
-export function sessionSnippet(s: PublishedSessionSnapshot): SafeHtml {
-  const full = (s.abstract ?? s.description ?? "").trim();
-  const lede = (s.subtitle ?? "").trim();
-  if (!full) return lede ? html`<p>${lede}</p>` : raw("");
+export function snippet(text: string | null | undefined): SafeHtml {
+  const full = (text ?? "").trim();
+  if (!full) return raw("");
   if (full.length <= SNIPPET_CHARS) return html`<p>${full}</p>`;
   const cut = full.slice(0, SNIPPET_CHARS);
   const space = cut.lastIndexOf(" ");
@@ -268,6 +267,13 @@ export function sessionSnippet(s: PublishedSessionSnapshot): SafeHtml {
     <summary>${head}… <span class="more">Show more</span></summary>
     <p>${full}</p>
   </details>`;
+}
+
+export function sessionSnippet(s: PublishedSessionSnapshot): SafeHtml {
+  const full = (s.abstract ?? s.description ?? "").trim();
+  const lede = (s.subtitle ?? "").trim();
+  if (!full) return lede ? html`<p>${lede}</p>` : raw("");
+  return snippet(full);
 }
 
 function sessionDataAttrs(s: PublishedSessionSnapshot, speakers: PublishedSpeakerSnapshot[]): string {
@@ -367,10 +373,45 @@ export function renderSpeakersList(snapshot: ScheduleSnapshot, opts: RenderOptio
   return html`<div class="grid four" data-podium-list>${snapshot.speakers.map((p) => speakerCard(p, opts))}</div>`;
 }
 
-/** `speaker_gallery` — the same directory, photo-first. */
-export function renderSpeakerGallery(snapshot: ScheduleSnapshot, opts: RenderOptions): SafeHtml {
-  return renderSpeakersList(snapshot, opts);
+/** One line per session on a speaker's card: what it is, when, and where. */
+function speakerSessionLine(s: PublishedSessionSnapshot, opts: RenderOptions): SafeHtml {
+  return html`<li>
+    <a href="/e/${opts.eventSlug}/sessions/${s.session_id}">${s.title}</a>
+    <span class="small muted"> — ${timeRange(s, opts.timezone)}${s.room ? html` · ${s.room.name}` : raw("")}</span>
+  </li>`;
 }
+
+/**
+ * `speaker_gallery` — 08: "A photo grid of speakers, name-searchable, **opening
+ * to a detail panel**".
+ *
+ * The panel is a native `<details>`, not a scripted modal, for the same reason
+ * the session snippet is: public surfaces must render fully with scripts
+ * blocked (08, "Degrade gracefully"). Closing it restores the grid because the
+ * grid was never replaced — this is `speakers_list` plus drill-down, which is
+ * the difference 08 draws between the two types.
+ */
+export function renderSpeakerGallery(snapshot: ScheduleSnapshot, opts: RenderOptions): SafeHtml {
+  if (snapshot.speakers.length === 0) return html`<p class="empty">No speakers announced yet.</p>`;
+  return html`<div class="grid four" data-podium-gallery>
+    ${snapshot.speakers.map((p) => {
+      const sessions = snapshot.sessions.filter((s) => p.session_refs.includes(s.session_id));
+      return html`<details class="speaker-card gallery-card" data-person-id="${p.person_id}" data-name="${p.display_name.toLowerCase()}">
+        <summary>
+          ${avatar(p.display_name, p.headshot_url, 84)}
+          <h3>${p.display_name}</h3>
+          ${p.job_title || p.company ? html`<p class="small muted">${[p.job_title, p.company].filter(Boolean).join(", ")}</p>` : raw("")}
+        </summary>
+        <div class="panel">
+          ${snippet(p.bio ?? p.short_bio ?? p.headline)}
+          ${sessions.length ? html`<ul class="small">${sessions.map((s) => speakerSessionLine(s, opts))}</ul>` : raw("")}
+          <p class="small"><a href="/e/${opts.eventSlug}/speakers/${p.person_id}">Full profile →</a></p>
+        </div>
+      </details>`;
+    })}
+  </div>`;
+}
+
 
 /** `session_detail` — one session in full. */
 export function renderSessionDetail(snapshot: ScheduleSnapshot, sessionId: string, opts: RenderOptions): SafeHtml {

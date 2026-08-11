@@ -229,6 +229,34 @@ function criterionField(c: CriterionView, existing: ExistingReviewState): SafeHt
   return html`<div class="criterion">${control}${naBox}</div>`;
 }
 
+/**
+ * 05, "AI evaluation": "A human can override it." An override is a full human
+ * review against the same rubric and the same validation (INV-05-5), not a
+ * rubber stamp — so it reuses the reviewer's own scorecard fields, prefilled
+ * with what the machine said, and demands a written reason.
+ */
+export function overrideScorecardForm(d: {
+  action: string;
+  rubric: RubricView;
+  criteria: CriterionView[];
+  existing: ExistingReviewState;
+}): SafeHtml {
+  const review = d.existing.review;
+  return html`<details class="disclosure">
+    <summary>Override with my own review</summary>
+    <form method="post" action="${d.action}" class="stack">
+      ${d.criteria.map((c) => criterionField(c, d.existing))}
+      ${d.rubric.overall_scale === "recommendation"
+        ? field({ name: "recommendation", label: "Overall recommendation", type: "select", required: true, value: review ? str(review.recommendation) : "", options: opts(RECOMMENDATION) })
+        : raw("")}
+      ${field({ name: "confidence", label: "Confidence", type: "select", value: review ? str(review.confidence) : "", options: opts(CONFIDENCE) })}
+      ${field({ name: "comments_for_committee", label: "Comments for the committee", type: "textarea", rows: 3, help: "Never visible to the submitter." })}
+      ${field({ name: "reason", label: "Why you are overriding it", required: true, help: "Recorded on the audit trail. The AI review is superseded, never deleted." })}
+      <button type="submit">Override with my review</button>
+    </form>
+  </details>`;
+}
+
 function scorecardForm(d: {
   assignment: Row;
   rubric: RubricView;

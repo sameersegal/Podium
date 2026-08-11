@@ -214,4 +214,40 @@ describe("AI first-pass review has a real trigger (R24)", () => {
     expect(human?.author_kind).toBe("human");
     expect(human?.recommendation).toBe("accept");
   });
+
+  it("the chair's own screen shows the machine's score and rationale, labelled as a machine's", async () => {
+    const res = await SELF.fetch(`http://localhost/admin/proposals/${PROPOSAL_B}/review`, { headers: { cookie }, redirect: "manual" });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("AI first-pass");
+    // INV-05-17 is the guardrail a chair most needs to see, so it is on the page.
+    expect(body).toContain("INV-05-17");
+    expect(body).toContain("Override with my own review");
+  });
+
+  it("POST /admin/reviews/:reviewId/override is the HTML twin of the /v1 route, and needs a reason", async () => {
+    const ai = await env.DB.prepare("SELECT id FROM review WHERE proposal_id = ? AND author_kind = 'ai'").bind(PROPOSAL_B).first<{ id: string }>();
+    expect(ai).toBeTruthy();
+
+    const res = await SELF.fetch(`http://localhost/admin/reviews/${ai!.id}/override`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        [`score_number_${CRITERION}`]: "2",
+        recommendation: "reject",
+        comments_for_committee: "Read it myself.",
+        reason: "Chair override from the proposal screen.",
+      }),
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+
+    const superseded = await env.DB.prepare("SELECT status FROM review WHERE id = ?").bind(ai!.id).first<{ status: string }>();
+    expect(superseded?.status).toBe("superseded");
+
+    const human = await env.DB.prepare("SELECT author_kind, recommendation FROM review WHERE proposal_id = ? AND author_kind = 'human'")
+      .bind(PROPOSAL_B)
+      .first<{ author_kind: string; recommendation: string }>();
+    expect(human?.recommendation).toBe("reject");
+  });
 });

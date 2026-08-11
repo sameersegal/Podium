@@ -143,7 +143,12 @@ insert("organization", {
     // R23: on in the shipped default seed.
     auth: { password_login_enabled: true },
     // R24: AI first-pass review ships behind an org setting, default off.
-    review: { ai_evaluation_enabled: false, default_visibility: "committee_only" },
+    // R24 keeps the product default off, and it stays off — `aiEvaluationEnabled`
+    // reads `=== true`, so an org that never opts in never gets it. This demo
+    // org opts in, because guardrails nobody can see are guardrails nobody can
+    // check: the label, the quorum exclusion (INV-05-17) and the override are
+    // only inspectable on a deployment where the feature is switched on.
+    review: { ai_evaluation_enabled: true, default_visibility: "committee_only" },
     // R25: auto-publish stays off by default.
     publication: { auto_publish: false },
     onboarding: { reminder_default_offsets: [-14, -7, -1, 3] },

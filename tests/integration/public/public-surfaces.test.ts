@@ -164,6 +164,31 @@ describe("public event surfaces — anonymous and complete (INV-08-13)", () => {
     void etag;
   });
 
+  it("08: every widget type is reachable by browsing from the landing page, not only by embed key", async () => {
+    const landing = await (await SELF.fetch(`http://localhost/e/${EVENT_SLUG}`, { redirect: "manual" })).text();
+    for (const path of ["/schedule", "/sessions", "/speakers", "/gallery"]) {
+      expect(landing).toContain(`/e/${EVENT_SLUG}${path}`);
+    }
+  });
+
+  it("08: /e/:slug/sessions and /e/:slug/gallery read anonymously, with no login prompt (INV-08-13)", async () => {
+    for (const path of ["sessions", "gallery"]) {
+      const res = await SELF.fetch(`http://localhost/e/${EVENT_SLUG}/${path}`, { redirect: "manual" });
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain("Publishing at Scale");
+      expect(body).not.toContain("Sign in to continue");
+    }
+  });
+
+  it("08: both speaker surfaces offer a search-by-name box over the directory", async () => {
+    for (const path of ["speakers", "gallery"]) {
+      const body = await (await SELF.fetch(`http://localhost/e/${EVENT_SLUG}/${path}`, { redirect: "manual" })).text();
+      expect(body).toContain('id="podium-speaker-search"');
+      expect(body).toContain("data-name=");
+    }
+  });
+
   it("08: the public schedule offers keyword search and track/format/room facets over the snapshot", async () => {
     const res = await SELF.fetch(`http://localhost/e/${EVENT_SLUG}/schedule`, { redirect: "manual" });
     const body = await res.text();

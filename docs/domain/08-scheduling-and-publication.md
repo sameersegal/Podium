@@ -309,6 +309,33 @@ missing:
   perform; a widget that only lists is a screenshot.
 - **Degrade gracefully.** A speaker with no headshot renders a fallback, not a broken grid.
 
+### Every type is also a page on the first-party site
+
+An `EmbedConfig` exists so that *somebody else's* site can render the schedule. It is not how
+an attendee reaches it: `key` is deliberately unguessable, so a widget that exists only as an
+embed is reachable only by whoever was told the key. An organizer who has published a
+schedule and not yet built a marketing site still has an event people need to browse.
+
+So the platform hosts every widget type itself, under the event's own slug, linked from the
+event landing page:
+
+| `widget_type` | Hosted at |
+|---|---|
+| `sessions_list` | `/e/:slug/sessions` |
+| `speakers_list` | `/e/:slug/speakers` |
+| `agenda_grid` and `schedule_itinerary` | `/e/:slug/schedule` — the grid and the chronological list of the same day, together |
+| `speaker_gallery` | `/e/:slug/gallery` |
+| `session_detail` | `/e/:slug/sessions/:sessionId` |
+
+The hosted page and the embed call the *same* renderer over the *same* snapshot; the page is
+not a second implementation free to drift from the widget. What the page adds is control:
+`EmbedConfig.filters` are fixed by the organizer at configuration time, whereas on the hosted
+page the search box and the track/format/room facets belong to the visitor.
+
+Discoverability is part of publishing. A published schedule whose sessions list can only be
+found by knowing an embed key has not been published to anyone, whatever
+`SchedulePublication.status` says.
+
 ### Personal schedules, without attendee accounts
 
 [R11](13-open-questions.md) rules out attendee accounts, and that stays true — but "star the

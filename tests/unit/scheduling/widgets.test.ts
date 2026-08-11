@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScheduleSnapshot } from "@podiumconf/domain/scheduling/publication.js";
-import { applyFilters, corsHeaders, frameAncestorsHeader, layoutGrid, renderSessionDetail, renderSessionsList, sessionSnippet } from "@podiumconf/web/contexts/scheduling/widgets.js";
+import { applyFilters, corsHeaders, frameAncestorsHeader, layoutGrid, renderSessionDetail, renderSessionsList, renderSpeakerGallery, sessionSnippet } from "@podiumconf/web/contexts/scheduling/widgets.js";
 
 /**
  * The pure helpers behind every `widget_type` × `format` pair: INV-08-6
@@ -163,6 +163,43 @@ describe("08: session_detail shows the full time range, not just the start", () 
     const out = renderSessionDetail(s, "ses_1", { timezone: "UTC", eventSlug: "devflow" }).toString();
     expect(out).toContain("09:00");
     expect(out).not.toContain("09:30");
+  });
+});
+
+describe("08: speaker_gallery is a photo grid opening to a detail panel", () => {
+  function withBios() {
+    const s = snapshot();
+    s.speakers[0].bio = "B".repeat(400);
+    s.speakers[0].job_title = "Principal Engineer";
+    s.speakers[0].company = "Latticework";
+    return s;
+  }
+
+  it("renders one card per speaker, name-searchable, with title and company", () => {
+    const out = renderSpeakerGallery(withBios(), { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toContain('data-name="ada lovelace"');
+    expect(out).toContain('data-person-id="per_1"');
+    expect(out).toContain("Principal Engineer, Latticework");
+  });
+
+  it("the panel carries the bio with a Show more, and the speaker's sessions with time and room", () => {
+    const out = renderSpeakerGallery(withBios(), { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toContain("Show more");
+    expect(out).toContain("Agents in production");
+    expect(out).toMatch(/09:00.*–.*09:30/s);
+    expect(out).toContain("Room A");
+  });
+
+  it("the panel is a <details>, so it opens and closes with scripts blocked and leaves the grid intact", () => {
+    const out = renderSpeakerGallery(withBios(), { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toContain("<details");
+    expect(out).not.toContain("<script");
+  });
+
+  it("degrades for a speaker with no headshot, bio or title rather than breaking the grid", () => {
+    const out = renderSpeakerGallery(snapshot(), { timezone: "UTC", eventSlug: "devflow" }).toString();
+    expect(out).toContain("Grace Hopper");
+    expect(out).toContain("avatar");
   });
 });
 

@@ -628,9 +628,19 @@ function completionForm(t: Row, taskId: string): SafeHtml {
       return html`${config.form_id
         ? field({ name: "answers", label: "Answers (JSON)", type: "textarea", rows: 4, help: "This task points at a submission form; a dedicated renderer is not wired up yet — send the answers as JSON." })
         : html`<p class="notice warn">This task has no form configured yet. Ask an organizer.</p>`}`;
-    case "file_upload":
-      return html`${field({ name: "file", label: "File", type: "file", required: true, accept: (config.accept as string[] | undefined)?.join(",") })}
+    case "file_upload": {
+      // The constraints are enforced server-side either way; saying them at the
+      // point of upload is what stops a speaker discovering a 40 MB limit after
+      // waiting for a 60 MB upload.
+      const accept = config.accept as string[] | undefined;
+      const limits = [
+        accept?.length ? `Accepted: ${accept.join(", ")}` : null,
+        config.max_file_mb ? `Maximum ${str(config.max_file_mb as string)} MB per file` : null,
+        config.max_files ? `Up to ${str(config.max_files as string)} file(s)` : null,
+      ].filter(Boolean);
+      return html`${field({ name: "file", label: "File", type: "file", required: true, accept: accept?.join(","), help: limits.join(" · ") || undefined })}
         ${config.naming_hint ? html`<p class="help">${str(config.naming_hint as string)}</p>` : raw("")}`;
+    }
     case "external_link":
       return html`${config.url ? html`<p><a href="${str(config.url as string)}" target="_blank" rel="noopener">${str((config.label as string) || "Open")}</a></p>` : raw("")}
         ${field({ name: "confirmed", label: str((config.confirm_label as string) || "I've done this"), type: "checkbox", required: true })}`;

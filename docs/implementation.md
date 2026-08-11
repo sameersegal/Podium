@@ -117,7 +117,7 @@ exceptions are the publication snapshot (immutable once live) and `schedule_conf
 
 | Surface | Paths |
 |---|---|
-| Public | `/`, `/e/:slug`, `/e/:slug/cfp/:cfpSlug`, `/e/:slug/schedule`, `/e/:slug/speakers`, `/e/:slug/sessions/:id`, `/e/:slug/schedule.ics`, `/embed/:key` |
+| Public | `/`, `/e/:slug`, `/e/:slug/cfp/:cfpSlug`, `/e/:slug/schedule`, `/e/:slug/sessions`, `/e/:slug/sessions/:id`, `/e/:slug/speakers`, `/e/:slug/speakers/:personId`, `/e/:slug/gallery`, `/e/:slug/schedule.ics`, `/embed/:key` |
 | Auth | `/login`, `/signup`, `/logout`, `/invite/:token` |
 | Portal | `/portal`, `/portal/proposals`, `/portal/proposals/:id`, `/portal/sessions/:id`, `/portal/tasks/:id`, `/portal/profile` |
 | Reviewer | `/review`, `/review/:assignmentId` |

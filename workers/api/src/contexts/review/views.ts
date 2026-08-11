@@ -849,12 +849,52 @@ export interface CommentThreadItem {
   replies: { comment: Row; author: PersonRef | null }[];
 }
 
+/**
+ * 05, "AI evaluation": always labelled, never counts toward quorum
+ * (INV-05-17), always overridable. The chair's screen has to show all three —
+ * a first-pass score the chair can see but not answer is the anchoring problem
+ * R24 exists to contain, with none of the remedy.
+ */
+function aiReviewsCard(reviews: AiReviewView[]): SafeHtml {
+  if (reviews.length === 0) return raw("");
+  return card(
+    html`${reviews.map(
+      (r) => html`<div class="review-summary">
+        <p class="small">
+          ${badge("AI", "ai")}
+          ${r.overall_score !== null ? html`<strong>${r.overall_score}</strong>` : raw("")}
+          ${r.recommendation ? badge(humanise(r.recommendation)) : raw("")}
+          <span class="muted">${r.ai_evaluator_key}${r.ai_model ? html` · ${r.ai_model}` : raw("")}</span>
+          ${r.superseded ? badge("overridden by a human", "warn") : raw("")}
+        </p>
+        ${r.ai_rationale ? html`<p class="small">${r.ai_rationale}</p>` : raw("")}
+        ${r.overrideForm ?? raw("")}
+      </div>`,
+    )}
+    <p class="small muted">Never counts toward quorum (INV-05-17). An override writes a human review that supersedes this one; the machine's opinion is kept, not deleted.</p>`,
+    "AI first-pass",
+  );
+}
+
+export interface AiReviewView {
+  id: string;
+  overall_score: number | null;
+  recommendation: string | null;
+  ai_evaluator_key: string;
+  ai_model: string | null;
+  ai_rationale: string | null;
+  superseded: boolean;
+  /** Rendered by the route, because it needs the round's rubric. */
+  overrideForm: SafeHtml | null;
+}
+
 export function proposalDiscussionView(d: {
   event: EventRef;
   proposal: Row;
   rounds: RoundView[];
   threads: CommentThreadItem[];
   conflicts: (ConflictRecord & { reviewerName: string })[];
+  aiReviews: AiReviewView[];
   canWriteComments: boolean;
   canDeclareCoi: boolean;
   canSeeChairsOnly: boolean;
@@ -885,6 +925,7 @@ export function proposalDiscussionView(d: {
 
   return html`
     ${pageHead(str(d.proposal.title), `${str(d.proposal.reference)} · committee discussion. Never speaker-visible.`)}
+    ${aiReviewsCard(d.aiReviews)}
     ${card(
       html`<ul class="notes">${threadRows}</ul>
         ${d.canWriteComments
