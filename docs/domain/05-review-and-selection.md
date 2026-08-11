@@ -289,7 +289,7 @@ nobody trusts twice.
 | `channel` | `enum(email, chat)` | Y | |
 | `template_key` | `string` | Y | resolved by the notification layer |
 | `escalate_to` | `enum(none, program_chair, track_lead)` | N | who is cc'd on late reminders |
-| `only_if_status` | `enum(...)[]` | N | default: any non-terminal `ReviewAssignment.status` |
+| `only_if_status` | `enum(assigned, accepted, declined, in_progress, submitted, revoked, expired)[]` | N | `ReviewAssignment.status` members; default: any non-terminal one |
 
 Digesting applies exactly as it does for tasks: a reviewer with nine outstanding proposals
 gets one email listing nine, batched per person per day in their timezone.

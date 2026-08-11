@@ -60,7 +60,7 @@ erDiagram
 | `sponsor_id` | `ref(Sponsor)` | N | set for `origin = sponsor`; drives the "Presented by" label (INV-06-2) |
 | `is_sponsored_content` | `bool` | D | `sponsor_id is not null` — the disclosure flag the published schedule must render |
 | **Delivery** | | | |
-| `av_requirements` | `enum(...)[]` | N | |
+| `av_requirements` | `enum(projector, confidence_monitor, stage_mics, handheld_mics, recording, livestream, hybrid_av, hands_on_power, wifi_dedicated)[]` | N | same members as `Room.av_capabilities` |
 | `recording_consent` | `enum(granted, denied, conditional, unanswered)` | Y | carried from the proposal, re-confirmable in onboarding |
 | `recording_url` | `string` | N | populated after the event |
 | `slides_asset_id` | `ref(Asset)` | N | |

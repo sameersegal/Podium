@@ -45,7 +45,7 @@ erDiagram
 | `audience_level` | `enum(beginner, intermediate, advanced, all)` | N | |
 | `keywords` | `string[]` | N | |
 | `language` | `string` | N | BCP-47, default `en` |
-| `av_requirements` | `enum(...)[]` | N | matched against `Room.av_capabilities` |
+| `av_requirements` | `enum(projector, confidence_monitor, stage_mics, handheld_mics, recording, livestream, hybrid_av, hands_on_power, wifi_dedicated)[]` | N | matched against `Room.av_capabilities`; same members |
 | `recording_consent` | `enum(granted, denied, conditional, unanswered)` | Y | default `unanswered` |
 | `recording_conditions` | `text` | N | |
 | `coi_disclosure` | `text` | N | vendor affiliation the committee should know about |

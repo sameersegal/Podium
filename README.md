@@ -24,16 +24,75 @@ contracts.
 
 ## Status
 
-**Domain model, in review. No code yet.**
+**Implementation in progress, against a settled model.**
 
-The domain model is the specification the implementation will be generated from and kept in
-sync with. Read it first:
+The domain model is the specification, and code implements it. Read it first:
 
 → **[`docs/domain/`](docs/domain/README.md)**
 
 Start with [`00-overview.md`](docs/domain/00-overview.md) for the jobs to be done, the
-bounded contexts and the master ERD. Every open question is now resolved — the decisions and
-their reasoning are in [`13-open-questions.md`](docs/domain/13-open-questions.md).
+bounded contexts and the master ERD. Every open question is resolved — the decisions and
+their reasoning are in [`13-open-questions.md`](docs/domain/13-open-questions.md), together
+with the corrections that building it surfaced. The shape the code took is described in
+[`docs/implementation.md`](docs/implementation.md).
+
+## Running it locally
+
+```bash
+npm install
+npm run dev          # resets local D1, applies migrations, seeds, starts on :8787
+```
+
+The seed ships one live event mid-flight — DevFlow Conf 2027, with proposals in every state,
+a review round with real scores, accepted sessions with onboarding under way, and a placed
+agenda — plus an archived prior edition so the cross-event speaker directory has something
+to say. An empty shell teaches you nothing about whether the product works.
+
+Sign in with any of these ([R23](docs/domain/13-open-questions.md): password login is on in
+the shipped seed, because a deployment nobody can sign into is worse than the marginal risk):
+
+| Persona | Email | Password |
+|---|---|---|
+| Organizer / program chair | `sbek-organizer@example.com` | `SbekTest!2027-org` |
+| Speaker | `sbek-speaker@example.com` | `SbekTest!2027-spk` |
+| Second speaker | `sbek-speaker2@example.com` | `SbekTest!2027-spk2` |
+| Reviewer | `sbek-reviewer@example.com` | `SbekTest!2027-rev` |
+
+| Surface | Where |
+|---|---|
+| Public event and schedule | `/e/devflow-conf-2027` |
+| Public call for proposals | `/e/devflow-conf-2027/cfp/main` |
+| Speaker / submitter portal | `/portal` |
+| Reviewer queue | `/review` |
+| Organizer admin | `/admin` |
+| Embed | `/embed/dfc27-main-sessions` |
+
+```bash
+npm test                  # unit + integration
+npm run test:unit         # pure domain, no I/O
+npm run test:integration  # real local D1, KV, R2, Queues and Durable Objects
+npm run typecheck
+npm run drift             # model↔code consistency check
+node scripts/smoke.mjs    # walk every screen as each persona
+```
+
+## Built on Cloudflare
+
+| Concern | Service |
+|---|---|
+| API, portal, admin and public site | Workers, one entry, surfaces separated as modules |
+| Relational store | D1 behind a repository layer ([R16](docs/domain/13-open-questions.md)) |
+| Assets | R2, presigned direct upload — the API never proxies file bytes |
+| Published snapshot cache, idempotency replay | KV, keyed on `content_etag` |
+| Domain events, webhooks, email | Queues with retry and a dead-letter queue |
+| Reminders, sweeps, expiry | Cron Triggers producing queue messages |
+| Schedule placement | A Durable Object per event — one writer per schedule |
+
+Everything downstream of a decision is event-driven: `decision.published` creates the
+session, which materialises the onboarding tasks, which gate the publication. The wiring is
+the reaction map in [`10-domain-events.md`](docs/domain/10-domain-events.md), and every
+reaction is idempotent on `DomainEvent.id`, because at-least-once delivery is assumed
+everywhere.
 
 ## Brand
 

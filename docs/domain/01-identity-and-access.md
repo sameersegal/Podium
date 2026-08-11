@@ -346,7 +346,7 @@ sponsor contact invites. One entity, one expiry policy, one audit trail.
 | `email` | `string` | Y | |
 | `person_id` | `ref(Person)` | N | set if the person already exists |
 | `kind` | `enum(staff, reviewer, co_speaker, sponsor_contact, speaker_portal)` | Y | |
-| `intended_role` | `enum(...)` | N | role to grant on acceptance, for `staff`/`reviewer` |
+| `intended_role` | `enum(owner, admin, program_chair, track_lead, reviewer, organizer, sponsor_manager, viewer)` | N | role to grant on acceptance, for `staff`/`reviewer`; same members as `RoleGrant.role` |
 | `scope_type` / `scope_id` | as `RoleGrant` | N | |
 | `context_type` | `enum(proposal, session, sponsor, event)` | N | what they are being invited *to*, for non-staff kinds |
 | `context_id` | `ulid` | N | |

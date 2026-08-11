@@ -63,6 +63,8 @@ recorded because each was a real gap, not a typo.
 | C3 | INV-06-5 allowed a chair to publish past a blocking task, with no field for the override; INV-06-9 said divergence is "surfaced" without saying where | Added `Session.publication_override_reason` and `Session.content_diverged` |
 | C4 | `TaskInstance` snapshotted `instructions` as required, but `TaskDefinition.instructions` is optional | Split the row; `instructions` is nullable on the instance |
 | C5 | `08-scheduling-and-publication.md` promised `embed_config.created`, which was missing from the event catalogue | Added it to the catalogue |
+| C6 | INV-09-12 and the outbox section require recording an undispatchable message with `suppressed_reason = no_provider`, and suppression is stated to cover complaints, but the `NotificationDelivery.suppressed_reason` enum listed neither | Added `no_provider` and `complained` to the enum |
+| C7 | INV-07-8 cancels a speaker's **non-terminal** task instances when their session is cancelled, but the `TaskInstance` diagram drew `cancelled` only from `not_started` and `in_progress`, leaving `blocked`, `submitted` and `changes_requested` unsatisfiable | Drew the three missing `--> cancelled` arrows |
 
 One structural change came with them: `CfpFormatOption` and `CfpTrackOption` shared a single
 table with a `session_format_id | track_id` cell. They are now two tables, because one row

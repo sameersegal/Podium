@@ -165,10 +165,20 @@ stateDiagram-v2
   completed --> in_progress: reopened by organizer
   not_started --> cancelled: session cancelled / speaker removed
   in_progress --> cancelled: session cancelled / speaker removed
+  blocked --> cancelled: session cancelled / speaker removed
+  submitted --> cancelled: session cancelled / speaker removed
+  changes_requested --> cancelled: session cancelled / speaker removed
   completed --> [*]
   waived --> [*]
   cancelled --> [*]
 ```
+
+**Cancellation reaches every non-terminal state.** INV-07-8 cancels a speaker's instances
+when their session is cancelled or they are removed from it, and "non-terminal" includes
+`blocked`, `submitted` and `changes_requested` — a task awaiting organizer review is still
+a live obligation attached to a session that no longer exists. The diagram originally drew
+`cancelled` only from `not_started` and `in_progress`, which made the invariant
+unsatisfiable for the other three; the missing arrows are now drawn.
 
 **`waived` is not `completed`.** A waived task is a decision someone made and should be
 able to justify; folding it into completion destroys the only record that a rule was bent.
@@ -212,7 +222,7 @@ in a dispute, and it is why the document version is captured rather than just a 
 | `channel` | `enum(email, webhook)` | Y | |
 | `template_key` | `string` | Y | resolved by the notification layer |
 | `escalate_to` | `enum(none, primary_speaker, sponsor_primary_contact, organizer)` | N | who gets cc'd on late reminders |
-| `only_if_status` | `enum(...)[]` | N | default: any non-terminal status |
+| `only_if_status` | `enum(blocked, not_started, in_progress, submitted, changes_requested, completed, waived, cancelled)[]` | N | `TaskInstance.status` members; default: any non-terminal status |
 
 <!-- entity: TaskReminderLog -->
 | TaskReminderLog field | Type | Req | Notes |

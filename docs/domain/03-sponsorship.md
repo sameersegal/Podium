@@ -113,7 +113,7 @@ A countable right. This is the entity that makes sponsor sessions tractable.
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ent_` |
 | `sponsorship_id` | `ref(Sponsorship)` | Y | |
-| `entitlement_type` | `enum(...)` | Y | as `TierEntitlementTemplate` |
+| `entitlement_type` | `enum(session_slot, workshop_slot, lightning_slot, keynote_slot, booth, logo_placement, attendee_passes, newsletter_mention, other)` | Y | same members as `TierEntitlementTemplate.entitlement_type` |
 | `quantity` | `int` | Y | total granted; may be edited by a sponsor manager with an audit entry |
 | `consumed_count` | `int` | D | count of proposals holding or having spent this entitlement |
 | `remaining` | `int` | D | `quantity - consumed_count` |

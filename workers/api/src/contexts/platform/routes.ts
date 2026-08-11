@@ -1,0 +1,1263 @@
+/**
+ * 09 — API & Integrations: admin UI + management API.
+ *
+ * Admin (server-rendered): /admin/settings, /admin/api-keys, /admin/webhooks(/:id/deliveries),
+ *   /admin/integrations, /admin/templates, /admin/events/:eventId/campaigns (+ compose),
+ *   /admin/campaigns/:id, /admin/outbox, /admin/audit.
+ * Management API: /v1/api-keys, /v1/webhooks, /v1/integrations, /v1/campaigns, /v1/notifications.
+ */
+
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { API_SCOPES, type ApiScope } from "@podiumconf/domain/shared/authorization.js";
+import { notFound } from "@podiumconf/domain/shared/errors.js";
+import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumconf/domain/platform/types.js";
+import type { AudienceCriteria } from "@podiumconf/domain/platform/types.js";
+import { verifyUnsubscribeSignature, recordSuppression } from "./notifications.js";
+import { flashCookie, type RequestContext } from "../../http/context.js";
+import { readInput, type Input } from "../../http/input.js";
+import { htmlResponse, json, redirect } from "../../http/responses.js";
+import type { Router } from "../../http/router.js";
+import { html, raw, type SafeHtml } from "../../ui/html.js";
+import { actionForm, badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
+import { adminPage, toEventRef, type EventRef } from "../../ui/shell.js";
+import {
+  createApiKey,
+  createWebhook,
+  getApiKey,
+  getIntegration,
+  getWebhook,
+  getWebhookDelivery,
+  healthCheckIntegration,
+  installIntegration,
+  listApiKeys,
+  listIntegrations,
+  listWebhookDeliveries,
+  listWebhooks,
+  availablePlugins,
+  redeliverWebhookDelivery,
+  replayEventType,
+  revokeApiKey,
+  rotateApiKey,
+  rotateWebhookSecret,
+  setWebhookStatus,
+  updateIntegration,
+  updateWebhook,
+} from "./service.js";
+import {
+  cancelCampaign,
+  createCampaign,
+  getCampaign,
+  listCampaigns,
+  previewAudience,
+  campaignStats,
+  scheduleCampaign,
+  sendCampaignNow,
+  updateCampaign,
+} from "./campaigns.js";
+import {
+  createTemplate,
+  getTemplateRow,
+  knownTemplateKeys,
+  listTemplates,
+  previewTemplate,
+  templateVariableChoices,
+  updateTemplate,
+} from "./notifications.js";
+import {
+  apiKeyJson,
+  campaignJson,
+  communicationsHistory,
+  integrationJson,
+  notificationJson,
+  pluginOptionsJson,
+  templateJson,
+  webhookDeliveryJson,
+  webhookJson,
+} from "./views.js";
+
+const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
+
+async function currentEventRef(ctx: RequestContext): Promise<EventRef | null> {
+  const rows = await ctx.app().db.select<Row>("event", {}, { orderBy: "created_at DESC", limit: 1 });
+  return rows[0] ? toEventRef(rows[0]) : null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Registration                                                               */
+/* -------------------------------------------------------------------------- */
+
+export function registerPlatformRoutes(router: Router<RequestContext>): void {
+  registerSettingsRoutes(router);
+  registerApiKeyRoutes(router);
+  registerWebhookRoutes(router);
+  registerIntegrationRoutes(router);
+  registerTemplateRoutes(router);
+  registerCampaignRoutes(router);
+  registerOutboxRoutes(router);
+  registerAuditRoutes(router);
+  registerUnsubscribeRoutes(router);
+  registerManagementApi(router);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Organization settings                                                      */
+/* -------------------------------------------------------------------------- */
+
+function registerSettingsRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/settings", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const org = await app.db.byId<Row>("organization", app.orgId);
+    if (!org) throw notFound("Organization");
+    const settings = parseJson<Record<string, unknown>>(org.settings, {});
+    const auth = (settings.auth ?? {}) as Record<string, unknown>;
+    const review = (settings.review ?? {}) as Record<string, unknown>;
+    const privacy = (settings.privacy ?? {}) as Record<string, unknown>;
+    const canWrite = ctx.canWrite("org.configure");
+
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Settings", active: "settings", width: "narrow" },
+        html`${pageHead("Organization settings", "Applies across every event in this deployment.")}
+          ${card(
+            html`<form method="post" action="/admin/settings" class="stack">
+              ${field({
+                name: "name",
+                label: "Organization name",
+                required: true,
+                value: str(org.name),
+              })}
+              ${field({ name: "contact_email", label: "Contact email", type: "email", required: true, value: str(org.contact_email) })}
+              ${field({ name: "primary_domain", label: "Primary domain", value: str(org.primary_domain) })}
+              <h3>Access</h3>
+              ${field({
+                name: "password_login_enabled",
+                label: "Allow password sign-in",
+                type: "checkbox",
+                value: auth.password_login_enabled === true,
+                help: "R23: off by default in production; on automatically wherever no email provider is configured, so a deployment can never lock itself out.",
+              })}
+              <h3>Review</h3>
+              ${field({
+                name: "ai_evaluation_enabled",
+                label: "AI first-pass review",
+                type: "checkbox",
+                value: review.ai_evaluation_enabled === true,
+                help: "R24: off by default. Never counts toward quorum; always labelled and overridable.",
+              })}
+              <h3>Privacy</h3>
+              ${field({
+                name: "retention_days",
+                label: "Draft retention (days)",
+                type: "number",
+                min: 1,
+                value: num(privacy.retention_days, 730),
+                help: "Draft proposals abandoned this long after an event closes are purged (default 730).",
+              })}
+              ${canWrite ? html`<button type="submit">Save settings</button>` : html`<p class="muted small">Read-only.</p>`}
+            </form>`,
+          )}
+          ${card(
+            html`<p class="muted">Everything sent from this organization, by whatever means.</p>
+              <p>
+                <a href="/admin/api-keys">API keys</a> · <a href="/admin/webhooks">Webhooks</a> ·
+                <a href="/admin/integrations">Integrations</a> · <a href="/admin/templates">Message templates</a> ·
+                <a href="/admin/outbox">Outbox</a> · <a href="/admin/audit">Audit log</a> · <a href="/admin/custom-fields">Custom fields</a> ·
+                <a href="/admin/imports">Imports</a> · <a href="/admin/exports">Exports</a>
+              </p>`,
+            "More configuration",
+          )}`,
+      ),
+    );
+  });
+
+  router.post("/admin/settings", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const org = await app.db.byId<Row>("organization", app.orgId);
+    if (!org) throw notFound("Organization");
+    const settings = parseJson<Record<string, unknown>>(org.settings, {});
+    settings.auth = { ...(settings.auth as object), password_login_enabled: input.bool("password_login_enabled") };
+    settings.review = { ...(settings.review as object), ai_evaluation_enabled: input.bool("ai_evaluation_enabled") };
+    settings.privacy = { ...(settings.privacy as object), retention_days: input.int("retention_days", 730) ?? 730 };
+    await app.db.update("organization", app.orgId, {
+      name: input.str("name", str(org.name)),
+      contact_email: input.str("contact_email", str(org.contact_email)),
+      primary_domain: input.optional("primary_domain"),
+      settings: JSON.stringify(settings),
+      updated_at: app.now(),
+    });
+    app.audit.record({ action: "organization.settings_update", entity_type: "organization", entity_id: app.orgId, after: settings });
+    await app.flush();
+    return redirect("/admin/settings", 303, OK("Settings saved."));
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* ApiKey                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function registerApiKeyRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/api-keys", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const keys = await listApiKeys(app);
+    const canWrite = ctx.canWrite("org.configure");
+    const rows = keys.map(
+      (k) => html`<tr>
+        <td><strong>${str(k.name)}</strong><br><span class="mono small muted">${str(k.prefix)}…</span></td>
+        <td>${parseJson<string[]>(k.scopes, []).map((s) => badge(s))}</td>
+        <td class="small">${k.last_used_at ? str(k.last_used_at) : "never"}</td>
+        <td>${k.revoked_at ? badge("revoked", "err") : k.expires_at && str(k.expires_at) < ctx.now ? badge("expired", "err") : badge("active", "ok")}</td>
+        <td class="right">
+          ${canWrite && !k.revoked_at
+            ? html`${actionForm(`/admin/api-keys/${str(k.id)}/rotate`, "Rotate", { confirm: "Rotate this key? The old one stops working immediately." })}
+                ${actionForm(`/admin/api-keys/${str(k.id)}/revoke`, "Revoke", { className: "danger", confirm: "Revoke this key now?" })}`
+            : raw("")}
+        </td>
+      </tr>`,
+    );
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "API keys", active: "settings", width: "wide" },
+        html`${pageHead(
+            "API keys",
+            "Scoped credentials for the management API (09, ApiKey). The secret is shown once, here, and never again (INV-09-1).",
+            canWrite ? html`<a class="button" href="/admin/api-keys/new">New API key</a>` : raw(""),
+          )}
+          ${ctx.flash?.kind === "ok" && ctx.flash.message.startsWith("secret:")
+            ? html`<p class="notice ok">Secret (copy it now — it will not be shown again): <span class="mono">${ctx.flash.message.slice(7)}</span></p>`
+            : raw("")}
+          ${table(["Key", "Scopes", "Last used", "Status", ""], rows, "No API keys yet.")}`,
+      ),
+    );
+  });
+
+  router.get("/admin/api-keys/new", async (_req, ctx) => {
+    ctx.requireWrite("org.configure");
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New API key", active: "settings", width: "narrow" },
+        html`${pageHead("New API key")}
+          ${card(html`<form method="post" action="/admin/api-keys/new" class="stack">
+            ${field({ name: "name", label: "Name", required: true, placeholder: "Marketing site" })}
+            ${field({ name: "scopes", label: "Scopes", type: "multi_select", options: API_SCOPES.map((s) => ({ value: s, label: s })), help: "pii:read is additive — without it, personal data is redacted everywhere, including inside proposals:read." })}
+            ${field({ name: "event_ids", label: "Restrict to event ids (comma-separated)", help: "Leave blank for every event (INV-09-9)." })}
+            <button type="submit">Create key</button>
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.post("/admin/api-keys/new", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const { secret } = await createApiKey(app, {
+      name: input.str("name"),
+      scopes: input.list("scopes") as ApiScope[],
+      event_ids: input.str("event_ids").split(",").map((s) => s.trim()).filter(Boolean),
+    });
+    await app.flush();
+    return redirect("/admin/api-keys", 303, OK(`secret:${secret}`));
+  });
+
+  router.post("/admin/api-keys/:id/revoke", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    await revokeApiKey(app, params.id, "Revoked from the admin API keys screen.");
+    await app.flush();
+    return redirect("/admin/api-keys", 303, OK("Key revoked."));
+  });
+
+  router.post("/admin/api-keys/:id/rotate", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const { secret } = await rotateApiKey(app, params.id);
+    await app.flush();
+    return redirect("/admin/api-keys", 303, OK(`secret:${secret}`));
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Webhook                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function webhookForm(w: Row | null, events: Row[]): SafeHtml {
+  return html`
+    ${field({ name: "name", label: "Name", required: true, value: w ? str(w.name) : "" })}
+    ${field({ name: "url", label: "URL", type: "url", required: true, value: w ? str(w.url) : "", help: "Absolute https only (INV-09-2)." })}
+    ${field({
+      name: "event_types",
+      label: "Event types",
+      value: w ? parseJson<string[]>(w.event_types, []).join(", ") : "*",
+      help: "Comma-separated. `*` for everything, or a `noun.*` wildcard.",
+    })}
+    ${field({ name: "event_id", label: "Restrict to one event", type: "select", value: w ? str(w.event_id) : "", options: events.map((e) => ({ value: str(e.id), label: str(e.name) })) })}
+    ${field({ name: "include_pii", label: "Include personal data in payloads", type: "checkbox", value: w ? bool(w.include_pii) : false })}
+  `;
+}
+
+function registerWebhookRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/webhooks", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const webhooks = await listWebhooks(app);
+    const canWrite = ctx.canWrite("org.configure");
+    const rows = webhooks.map(
+      (w) => html`<tr>
+        <td><a href="/admin/webhooks/${str(w.id)}"><strong>${str(w.name)}</strong></a><br><span class="mono small muted">${str(w.url)}</span></td>
+        <td>${parseJson<string[]>(w.event_types, []).map((t) => badge(t))}</td>
+        <td>${badge(str(w.status), str(w.status) === "active" ? "ok" : "err")}</td>
+        <td>${num(w.consecutive_failures)}</td>
+        <td class="right">
+          <a class="button secondary small" href="/admin/webhooks/${str(w.id)}/deliveries">Deliveries</a>
+          ${canWrite && str(w.status) !== "active"
+            ? actionForm(`/admin/webhooks/${str(w.id)}/resume`, "Resume")
+            : canWrite
+              ? actionForm(`/admin/webhooks/${str(w.id)}/pause`, "Pause")
+              : raw("")}
+        </td>
+      </tr>`,
+    );
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Webhooks", active: "settings", width: "wide" },
+        html`${pageHead(
+            "Webhooks",
+            "Push domain events to another system, signed with HMAC-SHA256 (INV-09-8).",
+            canWrite ? html`<a class="button" href="/admin/webhooks/new">New webhook</a>` : raw(""),
+          )}
+          ${table(["Webhook", "Event types", "Status", "Consecutive failures", ""], rows, "No webhooks yet.")}`,
+      ),
+    );
+  });
+
+  router.get("/admin/webhooks/new", async (_req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const events = await app.db.select<Row>("event", {}, { orderBy: "starts_on DESC" });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New webhook", active: "settings", width: "narrow" },
+        html`${pageHead("New webhook")}
+          ${card(html`<form method="post" action="/admin/webhooks/new" class="stack">${webhookForm(null, events)}<button type="submit">Create webhook</button></form>`)}`,
+      ),
+    );
+  });
+
+  router.post("/admin/webhooks/new", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const { row, secret } = await createWebhook(app, {
+      name: input.str("name"),
+      url: input.str("url"),
+      event_types: input.str("event_types", "*").split(",").map((s) => s.trim()).filter(Boolean),
+      event_id: input.optional("event_id"),
+      include_pii: input.bool("include_pii"),
+    });
+    await app.flush();
+    return redirect(`/admin/webhooks/${str(row.id)}`, 303, OK(`Webhook created. Signing secret (shown once): ${secret}`));
+  });
+
+  router.get("/admin/webhooks/:id", async (_req, ctx, params) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const webhook = await getWebhook(app, params.id);
+    const events = await app.db.select<Row>("event", {}, { orderBy: "starts_on DESC" });
+    const canWrite = ctx.canWrite("org.configure");
+    const recentDeliveries = await listWebhookDeliveries(app, params.id, { limit: 5 });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: str(webhook.name), active: "settings", width: "narrow" },
+        html`${pageHead(str(webhook.name), str(webhook.url))}
+          ${canWrite
+            ? card(html`<form method="post" action="/admin/webhooks/${params.id}" class="stack">${webhookForm(webhook, events)}<button type="submit">Save</button></form>`)
+            : raw("")}
+          ${canWrite
+            ? card(
+                html`<p class="muted">Both the current and previous secret verify signatures during a rotation window.</p>
+                  ${actionForm(`/admin/webhooks/${params.id}/rotate-secret`, "Rotate signing secret", { confirm: "Rotate the secret? Update the receiver before the previous one stops being accepted." })}`,
+                "Signing secret",
+              )
+            : raw("")}
+          ${card(
+              html`<p>Recent deliveries — <a href="/admin/webhooks/${params.id}/deliveries">see all</a></p>
+                ${table(
+                  ["Attempt", "Status", "Response", ""],
+                  recentDeliveries.items.map(
+                    (d) => html`<tr><td>${num(d.attempt)}</td><td>${badge(str(d.status))}</td><td>${d.response_status ?? "—"}</td>
+                      <td class="right">${canWrite ? actionForm(`/admin/webhooks/${params.id}/deliveries/${str(d.id)}/redeliver`, "Redeliver") : raw("")}</td></tr>`,
+                  ),
+                  "No deliveries yet.",
+                )}`,
+              "Deliveries",
+            )}
+          ${canWrite
+            ? card(
+                html`<form method="post" action="/admin/webhooks/${params.id}/replay" class="inline-grid">
+                  ${field({ name: "event_type", label: "Event type", value: "*", help: "`*` or a `noun.*` wildcard." })}
+                  ${field({ name: "from", label: "From", type: "datetime-local", required: true })}
+                  ${field({ name: "to", label: "To", type: "datetime-local", required: true })}
+                  <button type="submit">Replay</button>
+                </form>`,
+                "Replay a time range",
+              )
+            : raw("")}`,
+      ),
+    );
+  });
+
+  router.post("/admin/webhooks/:id", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    await updateWebhook(app, params.id, {
+      name: input.str("name"),
+      url: input.str("url"),
+      event_types: input.str("event_types", "*").split(",").map((s) => s.trim()).filter(Boolean),
+      include_pii: input.bool("include_pii"),
+    });
+    await app.flush();
+    return redirect(`/admin/webhooks/${params.id}`, 303, OK("Webhook updated."));
+  });
+
+  router.post("/admin/webhooks/:id/rotate-secret", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const { secret } = await rotateWebhookSecret(app, params.id);
+    await app.flush();
+    return redirect(`/admin/webhooks/${params.id}`, 303, OK(`New signing secret (shown once): ${secret}`));
+  });
+
+  router.post("/admin/webhooks/:id/pause", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    await setWebhookStatus(app, params.id, "paused", "Paused from the admin webhooks screen.");
+    await app.flush();
+    return redirect("/admin/webhooks", 303, OK("Webhook paused."));
+  });
+
+  router.post("/admin/webhooks/:id/resume", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    await setWebhookStatus(app, params.id, "active", "Resumed from the admin webhooks screen.");
+    await app.flush();
+    return redirect("/admin/webhooks", 303, OK("Webhook resumed."));
+  });
+
+  router.post("/admin/webhooks/:id/replay", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const count = await replayEventType(
+      app,
+      params.id,
+      input.str("event_type", "*"),
+      new Date(input.str("from")).toISOString(),
+      new Date(input.str("to")).toISOString(),
+    );
+    await app.flush();
+    return redirect(`/admin/webhooks/${params.id}`, 303, OK(`Replaying ${count} event(s).`));
+  });
+
+  router.get("/admin/webhooks/:id/deliveries", async (_req, ctx, params) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const webhook = await getWebhook(app, params.id);
+    const canWrite = ctx.canWrite("org.configure");
+    const cursor = ctx.url.searchParams.get("cursor");
+    const page = await listWebhookDeliveries(app, params.id, { cursor });
+    const rows = page.items.map(
+      (d) => html`<tr>
+        <td class="mono small">${str(d.id)}</td>
+        <td>${num(d.attempt)}</td>
+        <td>${badge(str(d.status), str(d.status) === "delivered" ? "ok" : str(d.status) === "pending" ? "" : "err")}</td>
+        <td>${d.response_status ?? "—"}</td>
+        <td class="small">${str(d.scheduled_for) || "—"}</td>
+        <td class="small">${str(d.delivered_at) || "—"}</td>
+        <td class="right">${canWrite && str(d.status) !== "pending" ? actionForm(`/admin/webhooks/${params.id}/deliveries/${str(d.id)}/redeliver`, "Redeliver") : raw("")}</td>
+      </tr>`,
+    );
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `${str(webhook.name)} — deliveries`, active: "settings", width: "wide" },
+        html`${pageHead(`Deliveries for ${str(webhook.name)}`, "At-least-once, ordered per subject (INV-09-8).")}
+          ${table(["Delivery", "Attempt", "Status", "HTTP", "Scheduled", "Delivered", ""], rows, "No deliveries yet.")}
+          ${page.next_cursor ? html`<p><a href="/admin/webhooks/${params.id}/deliveries?cursor=${page.next_cursor}">Older →</a></p>` : raw("")}`,
+      ),
+    );
+  });
+
+  router.post("/admin/webhooks/:id/deliveries/:deliveryId/redeliver", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    await redeliverWebhookDelivery(app, params.deliveryId);
+    await app.flush();
+    return redirect(`/admin/webhooks/${params.id}/deliveries`, 303, OK("Redelivering now."));
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Integration                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function registerIntegrationRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/integrations", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const installed = await listIntegrations(app);
+    const canWrite = ctx.canWrite("org.configure");
+    const rows = installed.map(
+      (i) => html`<tr>
+        <td><strong>${str(i.display_name)}</strong><br><span class="mono small muted">${str(i.plugin_key)}</span></td>
+        <td>${badge(str(i.capability))}</td>
+        <td>${badge(str(i.status), str(i.status) === "active" ? "ok" : "err")}</td>
+        <td>${bool(i.is_default_for_capability) ? badge("default", "ok") : raw("")}</td>
+        <td class="right">
+          ${canWrite
+            ? html`${actionForm(`/admin/integrations/${str(i.id)}/health-check`, "Check health")}
+                ${actionForm(`/admin/integrations/${str(i.id)}/disable`, str(i.status) === "disabled" ? "Enable" : "Disable", {
+                  className: str(i.status) === "disabled" ? "" : "danger",
+                  hidden: { status: str(i.status) === "disabled" ? "active" : "disabled" },
+                })}`
+            : raw("")}
+        </td>
+      </tr>`,
+    );
+    const plugins = pluginOptionsJson();
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Integrations", active: "settings", width: "wide" },
+        html`${pageHead("Integrations", "Capability contracts — the core never imports a vendor SDK (09).")}
+          ${table(["Integration", "Capability", "Status", "Default", ""], rows, "Nothing installed. Without an active email integration, mail is recorded in the outbox and never sent (INV-09-12).")}
+          ${canWrite
+            ? card(
+                html`<form method="post" action="/admin/integrations/new" class="stack">
+                  ${field({
+                    name: "plugin_key",
+                    label: "Plugin",
+                    type: "select",
+                    required: true,
+                    options: plugins.map((p) => ({ value: String(p.key), label: `${String(p.display_name)} (${String(p.capability)})` })),
+                  })}
+                  ${field({ name: "display_name", label: "Display name" })}
+                  ${field({ name: "secret_ref", label: "Secret ref", help: "The name of a Workers Secret holding the credential (INV-09-3) — never the secret itself." })}
+                  ${field({ name: "is_default_for_capability", label: "Make this the default for its capability", type: "checkbox", value: true })}
+                  <button type="submit">Install</button>
+                </form>`,
+                "Install a plugin",
+              )
+            : raw("")}`,
+      ),
+    );
+  });
+
+  router.post("/admin/integrations/new", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    await installIntegration(app, {
+      plugin_key: input.str("plugin_key"),
+      display_name: input.optional("display_name"),
+      secret_ref: input.optional("secret_ref"),
+      is_default_for_capability: input.bool("is_default_for_capability"),
+    });
+    await app.flush();
+    return redirect("/admin/integrations", 303, OK("Integration installed."));
+  });
+
+  router.post("/admin/integrations/:id/health-check", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const result = await healthCheckIntegration(app, params.id);
+    await app.flush();
+    return redirect("/admin/integrations", 303, result.ok ? OK("Healthy.") : { "set-cookie": flashCookie("warn", result.error ?? "Health check failed.") });
+  });
+
+  router.post("/admin/integrations/:id/disable", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    await updateIntegration(app, params.id, { status: (input.str("status", "disabled") as "active" | "disabled") });
+    await app.flush();
+    return redirect("/admin/integrations", 303, OK("Updated."));
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* NotificationTemplate                                                       */
+/* -------------------------------------------------------------------------- */
+
+function registerTemplateRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/templates", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const templates = await listTemplates(app);
+    const canWrite = ctx.canWrite("org.configure");
+    const rows = templates.map(
+      (t) => html`<tr>
+        <td><a href="/admin/templates/${str(t.id)}"><strong>${str(t.key)}</strong></a></td>
+        <td>${badge(str(t.channel))}</td>
+        <td>${str(t.locale)}</td>
+        <td>v${num(t.version, 1)}</td>
+        <td>${bool(t.is_active) ? badge("active", "ok") : badge("inactive")}</td>
+      </tr>`,
+    );
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Message templates", active: "settings", width: "wide" },
+        html`${pageHead(
+            "Message templates",
+            "System-triggered messages. Unknown variables are rejected at save time (INV-09-13).",
+            canWrite ? html`<a class="button" href="/admin/templates/new">New template</a>` : raw(""),
+          )}
+          ${table(["Key", "Channel", "Locale", "Version", "Status"], rows, "No org-level overrides yet — defaults from the catalogue are used.")}
+          <p class="muted small">Known keys: ${knownTemplateKeys().join(", ")}</p>`,
+      ),
+    );
+  });
+
+  router.get("/admin/templates/new", async (_req, ctx) => {
+    ctx.requireWrite("org.configure");
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "New template", active: "settings", width: "narrow" },
+        html`${pageHead("New template")}
+          ${card(html`<form method="post" action="/admin/templates/new" class="stack">
+            ${field({ name: "key", label: "Key", required: true, help: `One of: ${knownTemplateKeys().join(", ")} — or a custom key for a one-off variable set.` })}
+            ${field({ name: "subject", label: "Subject" })}
+            ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 10, required: true })}
+            ${field({ name: "locale", label: "Locale", value: "en" })}
+            <button type="submit">Create</button>
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.post("/admin/templates/new", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const row = await createTemplate(app, {
+      key: input.str("key"),
+      subject: input.optional("subject"),
+      body_markdown: input.str("body_markdown"),
+      locale: input.str("locale", "en"),
+    });
+    await app.flush();
+    return redirect(`/admin/templates/${str(row.id)}`, 303, OK("Template created."));
+  });
+
+  router.get("/admin/templates/:id", async (_req, ctx, params) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const t = await getTemplateRow(app, params.id);
+    const canWrite = ctx.canWrite("org.configure");
+    const people = await app.db.select<Row>("person", {}, { orderBy: "full_name", limit: 100 });
+    const previewPersonId = ctx.url.searchParams.get("preview_person_id");
+    let preview: SafeHtml = raw("");
+    if (previewPersonId) {
+      const rendered = await previewTemplate(app, { key: str(t.key), subject: strOrNull(t.subject), body_markdown: str(t.body_markdown) }, previewPersonId);
+      preview = html`<div class="card">
+        <h3>Preview</h3>
+        <p><strong>${rendered.subject}</strong></p>
+        <div>${raw(rendered.html)}</div>
+        ${rendered.empty_variables.length ? html`<p class="notice warn">Empty for this recipient: ${rendered.empty_variables.join(", ")}</p>` : raw("")}
+      </div>`;
+    }
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: str(t.key), active: "settings", width: "narrow" },
+        html`${pageHead(str(t.key), `Declared variables: ${templateVariableChoices(str(t.key)).join(", ")}`)}
+          ${canWrite
+            ? card(html`<form method="post" action="/admin/templates/${params.id}" class="stack">
+                ${field({ name: "subject", label: "Subject", value: strOrNull(t.subject) })}
+                ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 10, required: true, value: str(t.body_markdown) })}
+                ${field({ name: "is_active", label: "Active", type: "checkbox", value: bool(t.is_active) })}
+                <button type="submit">Save</button>
+              </form>`)
+            : raw("")}
+          ${card(
+              html`<form method="get" action="/admin/templates/${params.id}" class="inline-grid">
+                ${field({ name: "preview_person_id", label: "Preview as", type: "select", options: people.map((p) => ({ value: str(p.id), label: `${str(p.display_name) || str(p.full_name)} <${str(p.email)}>` })) })}
+                <button type="submit">Preview</button>
+              </form>`,
+              "Preview against a real recipient",
+            )}
+          ${preview}`,
+      ),
+    );
+  });
+
+  router.post("/admin/templates/:id", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    await updateTemplate(app, params.id, {
+      subject: input.optional("subject"),
+      body_markdown: input.str("body_markdown"),
+      is_active: input.bool("is_active"),
+    });
+    await app.flush();
+    return redirect(`/admin/templates/${params.id}`, 303, OK("Template saved."));
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Campaign                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function readAudience(input: Input): AudienceCriteria {
+  return {
+    kind: (input.optional("audience_kind") as AudienceCriteria["kind"]) ?? "event_participants",
+    event_id: input.optional("event_id"),
+    participant_status: input.list("participant_status"),
+    track_ids: input.list("track_ids"),
+    has_outstanding_tasks: input.has("has_outstanding_tasks") ? input.bool("has_outstanding_tasks") : undefined,
+    person_ids: input.str("person_ids").split(",").map((s) => s.trim()).filter(Boolean),
+    segment_id: input.optional("segment_id"),
+  };
+}
+
+function registerCampaignRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/events/:eventId/campaigns", async (_req, ctx, params) => {
+    ctx.requireRead("campaign.send", { event_id: params.eventId });
+    const app = ctx.app(params.eventId);
+    const event = await app.db.byId<Row>("event", params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    const ref = toEventRef(event);
+    const campaigns = await listCampaigns(app, params.eventId);
+    const canWrite = ctx.canWrite("campaign.send", { event_id: params.eventId });
+    const rows = campaigns.map(
+      (c) => html`<tr>
+        <td><a href="/admin/campaigns/${str(c.id)}"><strong>${str(c.name)}</strong></a></td>
+        <td>${badge(str(c.channel))}</td>
+        <td>${badge(str(c.status))}</td>
+        <td class="small">${str(c.scheduled_for) || str(c.sent_at) || "—"}</td>
+      </tr>`,
+    );
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Campaigns", event: ref, active: "campaigns", width: "wide" },
+        html`${pageHead(
+            "Campaigns",
+            "Organizer-composed bulk messaging — every recipient gets an ordinary NotificationDelivery (09).",
+            canWrite ? html`<a class="button" href="/admin/events/${params.eventId}/campaigns/new">Compose</a>` : raw(""),
+          )}
+          ${table(["Name", "Channel", "Status", "Sent / scheduled"], rows, "No campaigns yet.")}`,
+      ),
+    );
+  });
+
+  router.get("/admin/events/:eventId/campaigns/new", async (_req, ctx, params) => {
+    ctx.requireWrite("campaign.send", { event_id: params.eventId });
+    const app = ctx.app(params.eventId);
+    const event = await app.db.byId<Row>("event", params.eventId);
+    if (!event) throw notFound("Event", params.eventId);
+    const ref = toEventRef(event);
+    const templates = await listTemplates(app, null);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Compose a campaign", event: ref, active: "campaigns", width: "narrow" },
+        html`${pageHead("Compose a campaign")}
+          ${card(html`<form method="post" action="/admin/events/${params.eventId}/campaigns/new" class="stack">
+            ${field({ name: "name", label: "Internal name", required: true, placeholder: "Room change notice" })}
+            ${field({ name: "channel", label: "Channel", type: "select", required: true, value: "email", options: [{ value: "email", label: "Email" }, { value: "chat", label: "Chat" }] })}
+            ${field({ name: "template_id", label: "Based on template (optional)", type: "select", options: templates.map((t) => ({ value: str(t.id), label: str(t.key) })) })}
+            ${field({ name: "subject", label: "Subject" })}
+            ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 8, required: true })}
+            <h3>Audience</h3>
+            ${field({
+              name: "audience_kind",
+              label: "Who",
+              type: "select",
+              value: "event_participants",
+              options: [
+                { value: "event_participants", label: "Event roster" },
+                { value: "speakers", label: "Confirmed speakers" },
+                { value: "sponsor_contacts", label: "Sponsor contacts" },
+                { value: "reviewers", label: "Reviewers" },
+              ],
+            })}
+            ${field({ name: "participant_status", label: "Roster status (event_participants only)", type: "multi_select", options: ["prospect", "invited", "confirmed", "declined", "withdrawn"].map((s) => ({ value: s, label: humanise(s) })) })}
+            ${field({ name: "has_outstanding_tasks", label: "Has an outstanding task", type: "checkbox" })}
+            <button type="submit">Save as draft</button>
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.post("/admin/events/:eventId/campaigns/new", async (req, ctx, params) => {
+    ctx.requireWrite("campaign.send", { event_id: params.eventId });
+    const input = await readInput(req);
+    const app = ctx.app(params.eventId);
+    const audience = readAudience(input);
+    audience.event_id = params.eventId;
+    const campaign = await createCampaign(app, {
+      name: input.str("name"),
+      channel: input.str("channel", "email") as "email" | "chat",
+      template_id: input.optional("template_id"),
+      subject: input.optional("subject"),
+      body_markdown: input.str("body_markdown"),
+      audience,
+      event_id: params.eventId,
+    });
+    await app.flush();
+    return redirect(`/admin/campaigns/${str(campaign.id)}`, 303, OK("Campaign saved as a draft."));
+  });
+
+  router.get("/admin/campaigns/:id", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const campaign = await getCampaign(app, params.id);
+    ctx.eventId = strOrNull(campaign.event_id);
+    ctx.requireRead("campaign.send", { event_id: ctx.eventId });
+    const canWrite = ctx.canWrite("campaign.send", { event_id: ctx.eventId });
+    const audience = parseJson<AudienceCriteria>(campaign.audience, {});
+    const preview = await previewAudience(app, audience);
+    const stats = await campaignStats(app, params.id);
+    const event = ctx.eventId ? await app.db.byId<Row>("event", ctx.eventId) : null;
+
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: str(campaign.name), event: event ? toEventRef(event) : null, active: "campaigns", width: "narrow" },
+        html`${pageHead(str(campaign.name), `${badge(str(campaign.status))}`)}
+          ${card(
+            html`<p><strong>${preview.total}</strong> recipient(s) resolved right now — the actual send re-resolves the criteria (09, "criteria resolved at send time").</p>
+              <ul>${preview.sample.map((m) => html`<li>${m.name} — ${m.email}</li>`)}</ul>`,
+            "Audience",
+          )}
+          ${str(campaign.status) === "sent" || str(campaign.status) === "partially_failed"
+            ? card(
+                html`<div class="stats">
+                  ${stat("sent", stats.sent)} ${stat("suppressed", stats.suppressed)} ${stat("failed", stats.failed)} ${stat("queued", stats.queued)}
+                </div>`,
+                "Results",
+              )
+            : raw("")}
+          ${canWrite && str(campaign.status) === "draft"
+            ? html`${actionForm(`/admin/campaigns/${params.id}/send`, "Send now", { confirm: "Send to everyone matching the audience right now?" })}
+                <form method="post" action="/admin/campaigns/${params.id}/schedule" class="inline-grid">
+                  ${field({ name: "scheduled_for", label: "Or schedule for", type: "datetime-local", required: true })}
+                  <button type="submit" class="secondary">Schedule</button>
+                </form>`
+            : raw("")}
+          ${canWrite && str(campaign.status) === "scheduled" ? actionForm(`/admin/campaigns/${params.id}/cancel`, "Cancel", { className: "danger" }) : raw("")}
+          <div class="card"><h2>Message</h2><p><strong>${strOrNull(campaign.subject) ?? "—"}</strong></p><pre>${str(campaign.body_markdown)}</pre></div>`,
+      ),
+    );
+  });
+
+  router.post("/admin/campaigns/:id/send", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const campaign = await getCampaign(app, params.id);
+    ctx.eventId = strOrNull(campaign.event_id);
+    ctx.requireWrite("campaign.send", { event_id: ctx.eventId });
+    await sendCampaignNow(app, params.id);
+    await app.flush();
+    return redirect(`/admin/campaigns/${params.id}`, 303, OK("Sending."));
+  });
+
+  router.post("/admin/campaigns/:id/schedule", async (req, ctx, params) => {
+    const app = ctx.app();
+    const campaign = await getCampaign(app, params.id);
+    ctx.eventId = strOrNull(campaign.event_id);
+    ctx.requireWrite("campaign.send", { event_id: ctx.eventId });
+    const input = await readInput(req);
+    await scheduleCampaign(app, params.id, new Date(input.str("scheduled_for")).toISOString());
+    await app.flush();
+    return redirect(`/admin/campaigns/${params.id}`, 303, OK("Scheduled."));
+  });
+
+  router.post("/admin/campaigns/:id/cancel", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const campaign = await getCampaign(app, params.id);
+    ctx.eventId = strOrNull(campaign.event_id);
+    ctx.requireWrite("campaign.send", { event_id: ctx.eventId });
+    await cancelCampaign(app, params.id);
+    await app.flush();
+    return redirect(`/admin/campaigns/${params.id}`, 303, OK("Cancelled."));
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Outbox — CommunicationsHistory                                             */
+/* -------------------------------------------------------------------------- */
+
+function registerOutboxRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/outbox", async (_req, ctx) => {
+    ctx.requireRead("communications.read");
+    const app = ctx.app();
+    const cursor = ctx.url.searchParams.get("cursor");
+    const status = ctx.url.searchParams.get("status");
+    const page = await communicationsHistory(app, { cursor, status, event_id: ctx.eventId });
+    const includePii = ctx.includePii();
+    const rows = page.items.map((n) => {
+      const j = notificationJson(n, includePii);
+      return html`<tr>
+        <td class="small">${str(n.created_at)}</td>
+        <td>${strOrNull(n.template_key) ?? (n.campaign_id ? "campaign" : "—")}</td>
+        <td>${String(j.recipient_email ?? "")}</td>
+        <td>${badge(str(n.status), str(n.status) === "sent" ? "ok" : str(n.status) === "suppressed" ? "warn" : str(n.status) === "failed" ? "err" : "")}</td>
+        <td class="small">${strOrNull(n.suppressed_reason) ?? "—"}</td>
+      </tr>`;
+    });
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Outbox", active: "settings", width: "wide" },
+        html`${pageHead("Outbox", "Every message the platform has sent or tried to — the answer to 'did we tell her?' (09, \"The outbox\").")}
+          ${table(["When", "Template / source", "To", "Status", "Reason"], rows, "Nothing sent yet.")}
+          ${page.next_cursor ? html`<p><a href="/admin/outbox?cursor=${page.next_cursor}">Older →</a></p>` : raw("")}`,
+      ),
+    );
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Audit log                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function registerAuditRoutes(router: Router<RequestContext>): void {
+  router.get("/admin/audit", async (_req, ctx) => {
+    ctx.requireRead("audit.read");
+    const app = ctx.app();
+    const cursor = ctx.url.searchParams.get("cursor");
+    const limit = 50;
+    const params: unknown[] = [app.orgId];
+    let sql = "SELECT * FROM audit_log WHERE org_id = ?";
+    if (cursor) {
+      sql += " AND id < ?";
+      params.push(cursor);
+    }
+    sql += ` ORDER BY id DESC LIMIT ${limit + 1}`;
+    const rows = await app.db.raw<Row>(sql, params);
+    const items = rows.slice(0, limit);
+    const rowsHtml = items.map(
+      (a) => html`<tr>
+        <td class="small">${str(a.created_at)}</td>
+        <td>${str(a.action)}</td>
+        <td class="mono small">${str(a.entity_type)}/${str(a.entity_id)}</td>
+        <td class="small">${str(a.actor_type)}${a.actor_display ? ` · ${str(a.actor_display)}` : ""}</td>
+        <td class="small">${strOrNull(a.reason) ?? "—"}</td>
+      </tr>`,
+    );
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Audit log", active: "settings", width: "wide" },
+        html`${pageHead("Audit log", "Append-only, never deleted — even erasure retains the actor id and redacts the payload (11).")}
+          ${table(["When", "Action", "Entity", "Actor", "Reason"], rowsHtml, "Nothing recorded yet.")}
+          ${rows.length > limit ? html`<p><a href="/admin/audit?cursor=${str(items[items.length - 1]?.id)}">Older →</a></p>` : raw("")}`,
+      ),
+    );
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Unsubscribe                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function registerUnsubscribeRoutes(router: Router<RequestContext>): void {
+  router.get("/unsubscribe", async (_req, ctx) => {
+    const email = ctx.url.searchParams.get("email") ?? "";
+    const category = ctx.url.searchParams.get("category") ?? "campaign";
+    const sig = ctx.url.searchParams.get("sig") ?? "";
+    const ok = email && (await verifyUnsubscribeSignature(ctx.env, email, category, sig));
+    if (!ok) {
+      return htmlResponse(
+        adminPage(ctx, { title: "Unsubscribe", width: "narrow" }, html`<div class="card"><p>That link is not valid.</p></div>`),
+        { status: 400 },
+      );
+    }
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Unsubscribe", width: "narrow" },
+        html`<div class="card">
+          <p>Stop marketing messages to <strong>${email}</strong>?</p>
+          <p class="muted small">This never affects a message about your own proposal, session or task (INV-09-10) — those keep coming regardless.</p>
+          <form method="post" action="/unsubscribe">
+            <input type="hidden" name="email" value="${email}"><input type="hidden" name="category" value="${category}"><input type="hidden" name="sig" value="${sig}">
+            <button type="submit">Unsubscribe</button>
+          </form>
+        </div>`,
+      ),
+    );
+  });
+
+  router.post("/unsubscribe", async (req, ctx) => {
+    const input = await readInput(req);
+    const email = input.str("email");
+    const category = input.str("category", "campaign");
+    const sig = input.str("sig");
+    const ok = email && (await verifyUnsubscribeSignature(ctx.env, email, category, sig));
+    if (!ok) return htmlResponse(html`<p>That link is not valid.</p>`, { status: 400 });
+    const app = ctx.app();
+    await recordSuppression(app, email, category, "unsubscribed");
+    await app.flush();
+    return htmlResponse(
+      adminPage(ctx, { title: "Unsubscribed", width: "narrow" }, html`<div class="card"><p>You will not receive marketing messages of this kind again.</p></div>`),
+    );
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Management API                                                              */
+/* -------------------------------------------------------------------------- */
+
+function registerManagementApi(router: Router<RequestContext>): void {
+  // ApiKey
+  router.get("/v1/api-keys", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    return json((await listApiKeys(ctx.app())).map(apiKeyJson));
+  });
+  router.post("/v1/api-keys", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const { row, secret } = await createApiKey(app, {
+      name: input.str("name"),
+      scopes: input.list("scopes") as ApiScope[],
+      event_ids: input.list("event_ids"),
+      expires_at: input.optional("expires_at"),
+    });
+    await app.flush();
+    return json({ ...apiKeyJson(row), secret }, { status: 201 });
+  });
+  router.post("/v1/api-keys/:id/revoke", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    await revokeApiKey(app, params.id);
+    await app.flush();
+    return json(apiKeyJson(await getApiKey(app, params.id)));
+  });
+  router.post("/v1/api-keys/:id/rotate", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const { row, secret } = await rotateApiKey(app, params.id);
+    await app.flush();
+    return json({ ...apiKeyJson(row), secret });
+  });
+
+  // Webhook
+  router.get("/v1/webhooks", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    return json((await listWebhooks(ctx.app())).map(webhookJson));
+  });
+  router.post("/v1/webhooks", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const { row, secret } = await createWebhook(app, {
+      name: input.str("name"),
+      url: input.str("url"),
+      event_types: input.json<string[]>("event_types", ["*"]),
+      event_id: input.optional("event_id"),
+      include_pii: input.bool("include_pii"),
+    });
+    await app.flush();
+    return json({ ...webhookJson(row), secret }, { status: 201 });
+  });
+  router.get("/v1/webhooks/:id", async (_req, ctx, params) => {
+    ctx.requireRead("org.configure");
+    return json(webhookJson(await getWebhook(ctx.app(), params.id)));
+  });
+  router.post("/v1/webhooks/:id", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    await updateWebhook(app, params.id, {
+      name: input.has("name") ? input.str("name") : undefined,
+      url: input.has("url") ? input.str("url") : undefined,
+      event_types: input.has("event_types") ? input.json<string[]>("event_types", []) : undefined,
+      include_pii: input.has("include_pii") ? input.bool("include_pii") : undefined,
+    });
+    await app.flush();
+    return json(webhookJson(await getWebhook(app, params.id)));
+  });
+  router.post("/v1/webhooks/:id/rotate-secret", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const { secret } = await rotateWebhookSecret(app, params.id);
+    await app.flush();
+    return json({ ...webhookJson(await getWebhook(app, params.id)), secret });
+  });
+  router.get("/v1/webhooks/:id/deliveries", async (_req, ctx, params) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const page = await listWebhookDeliveries(app, params.id, { cursor: ctx.url.searchParams.get("cursor"), limit: Number(ctx.url.searchParams.get("limit") ?? 50) });
+    return json({ items: page.items.map(webhookDeliveryJson), next_cursor: page.next_cursor });
+  });
+  router.post("/v1/webhooks/:id/deliveries/:deliveryId/redeliver", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const id = await redeliverWebhookDelivery(app, params.deliveryId);
+    await app.flush();
+    return json(webhookDeliveryJson(await getWebhookDelivery(app, id)), { status: 201 });
+  });
+  router.post("/v1/webhooks/:id/replay", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const count = await replayEventType(app, params.id, input.str("event_type", "*"), input.str("from"), input.str("to"));
+    await app.flush();
+    return json({ replayed: count });
+  });
+
+  // Integration
+  router.get("/v1/integrations", async (_req, ctx) => {
+    ctx.requireRead("org.configure");
+    return json((await listIntegrations(ctx.app())).map(integrationJson));
+  });
+  router.post("/v1/integrations", async (req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const row = await installIntegration(app, {
+      plugin_key: input.str("plugin_key"),
+      event_id: input.optional("event_id"),
+      display_name: input.optional("display_name"),
+      config: input.json<Record<string, unknown>>("config", {}),
+      secret_ref: input.optional("secret_ref"),
+      is_default_for_capability: input.bool("is_default_for_capability"),
+    });
+    await app.flush();
+    return json(integrationJson(row), { status: 201 });
+  });
+  router.post("/v1/integrations/:id", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    await updateIntegration(app, params.id, {
+      display_name: input.optional("display_name") ?? undefined,
+      config: input.has("config") ? input.json<Record<string, unknown>>("config", {}) : undefined,
+      secret_ref: input.has("secret_ref") ? input.optional("secret_ref") : undefined,
+      is_default_for_capability: input.has("is_default_for_capability") ? input.bool("is_default_for_capability") : undefined,
+      status: input.has("status") ? (input.str("status") as "active" | "disabled") : undefined,
+    });
+    await app.flush();
+    return json(integrationJson(await getIntegration(app, params.id)));
+  });
+  router.post("/v1/integrations/:id/health-check", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const result = await healthCheckIntegration(app, params.id);
+    await app.flush();
+    return json(result);
+  });
+
+  // Notifications (read-only management surface over the outbox)
+  router.get("/v1/notifications", async (_req, ctx) => {
+    ctx.requireRead("communications.read");
+    const app = ctx.app();
+    const page = await communicationsHistory(app, {
+      event_id: ctx.url.searchParams.get("event_id"),
+      person_id: ctx.url.searchParams.get("person_id"),
+      session_id: ctx.url.searchParams.get("session_id"),
+      campaign_id: ctx.url.searchParams.get("campaign_id"),
+      status: ctx.url.searchParams.get("status"),
+      cursor: ctx.url.searchParams.get("cursor"),
+    });
+    const includePii = ctx.includePii();
+    return json({ items: page.items.map((n) => notificationJson(n, includePii)), next_cursor: page.next_cursor });
+  });
+
+  // Campaign
+  router.get("/v1/campaigns", async (_req, ctx) => {
+    ctx.requireRead("campaign.send", { event_id: ctx.url.searchParams.get("event_id") });
+    const app = ctx.app();
+    const rows = await listCampaigns(app, ctx.url.searchParams.get("event_id"));
+    const out = [];
+    for (const r of rows) out.push(campaignJson(r, await campaignStats(app, str(r.id)), (await previewAudience(app, parseJson(r.audience, {}))).total));
+    return json(out);
+  });
+  router.post("/v1/campaigns", async (req, ctx) => {
+    const input = await readInput(req);
+    const eventId = input.optional("event_id");
+    ctx.requireWrite("campaign.send", { event_id: eventId });
+    const app = ctx.app(eventId);
+    const row = await createCampaign(app, {
+      name: input.str("name"),
+      channel: input.str("channel", "email") as "email" | "chat",
+      template_id: input.optional("template_id"),
+      subject: input.optional("subject"),
+      body_markdown: input.str("body_markdown"),
+      audience: input.json<AudienceCriteria>("audience", {}),
+      event_id: eventId,
+    });
+    await app.flush();
+    return json(campaignJson(row, await campaignStats(app, str(row.id)), (await previewAudience(app, parseJson(row.audience, {}))).total), { status: 201 });
+  });
+  router.get("/v1/campaigns/:id", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const row = await getCampaign(app, params.id);
+    ctx.requireRead("campaign.send", { event_id: strOrNull(row.event_id) });
+    return json(campaignJson(row, await campaignStats(app, params.id), (await previewAudience(app, parseJson(row.audience, {}))).total));
+  });
+  router.post("/v1/campaigns/:id", async (req, ctx, params) => {
+    const app = ctx.app();
+    const row = await getCampaign(app, params.id);
+    ctx.requireWrite("campaign.send", { event_id: strOrNull(row.event_id) });
+    const input = await readInput(req);
+    await updateCampaign(app, params.id, {
+      name: input.has("name") ? input.str("name") : undefined,
+      subject: input.has("subject") ? input.optional("subject") : undefined,
+      body_markdown: input.has("body_markdown") ? input.str("body_markdown") : undefined,
+      template_id: input.has("template_id") ? input.optional("template_id") : undefined,
+      audience: input.has("audience") ? input.json<AudienceCriteria>("audience", {}) : undefined,
+    });
+    await app.flush();
+    return json(campaignJson(await getCampaign(app, params.id), await campaignStats(app, params.id), 0));
+  });
+  router.get("/v1/campaigns/:id/preview-audience", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const row = await getCampaign(app, params.id);
+    ctx.requireRead("campaign.send", { event_id: strOrNull(row.event_id) });
+    const preview = await previewAudience(app, parseJson(row.audience, {}));
+    return json(preview);
+  });
+  router.post("/v1/campaigns/:id/schedule", async (req, ctx, params) => {
+    const app = ctx.app();
+    const row = await getCampaign(app, params.id);
+    ctx.requireWrite("campaign.send", { event_id: strOrNull(row.event_id) });
+    const input = await readInput(req);
+    await scheduleCampaign(app, params.id, input.str("scheduled_for"));
+    await app.flush();
+    return json(campaignJson(await getCampaign(app, params.id), await campaignStats(app, params.id), 0));
+  });
+  router.post("/v1/campaigns/:id/send", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const row = await getCampaign(app, params.id);
+    ctx.requireWrite("campaign.send", { event_id: strOrNull(row.event_id) });
+    await sendCampaignNow(app, params.id);
+    await app.flush();
+    return json(campaignJson(await getCampaign(app, params.id), await campaignStats(app, params.id), 0));
+  });
+  router.post("/v1/campaigns/:id/cancel", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const row = await getCampaign(app, params.id);
+    ctx.requireWrite("campaign.send", { event_id: strOrNull(row.event_id) });
+    await cancelCampaign(app, params.id);
+    await app.flush();
+    return json(campaignJson(await getCampaign(app, params.id), await campaignStats(app, params.id), 0));
+  });
+}
+
+export { currentEventRef, CAPABILITIES, CAMPAIGN_STATUSES };

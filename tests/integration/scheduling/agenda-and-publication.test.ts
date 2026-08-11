@@ -1,0 +1,353 @@
+import { env, SELF } from "cloudflare:test";
+import { beforeAll, describe, expect, it } from "vitest";
+import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
+
+/**
+ * 08, "Placement" and "Publication" — the admin surfaces end to end, against
+ * real D1, KV and the schedule Durable Object (Miniflare).
+ */
+
+const ORG = "org_sched";
+const EVENT = "evt_sched";
+const VENUE = "ven_sched";
+const ROOM_A = "rom_sched_a";
+const ROOM_B = "rom_sched_b";
+const DAY = "day_sched_1";
+const TRACK = "trk_sched";
+const FORMAT = "fmt_sched";
+const CHAIR_EMAIL = "sched-chair@example.com";
+const CHAIR_PASSWORD = "a-long-enough-password-3";
+const CHAIR = "per_sched_chair";
+const SPEAKER = "per_sched_speaker";
+const SESSION_1 = "ses_sched_1";
+const SESSION_2 = "ses_sched_2";
+
+async function run(sql: string, params: unknown[] = []) {
+  await env.DB.prepare(sql).bind(...params).run();
+}
+
+async function seed() {
+  const now = new Date().toISOString();
+  await run(
+    "INSERT OR IGNORE INTO organization (id, name, slug, default_timezone, contact_email, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    [ORG, "Sched Org", "sched-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
+  );
+  await run(
+    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, ORG, "Sched Conf", "sched-conf", "UTC", "2027-09-01", "2027-09-01", "in_person", "active", "public", "{}", now, now],
+  );
+  await run("INSERT OR IGNORE INTO venue (id, event_id, name) VALUES (?,?,?)", [VENUE, EVENT, "Main Venue"]);
+  await run(
+    "INSERT OR IGNORE INTO room (id, venue_id, event_id, name, slug, capacity, av_capabilities, sort_order, is_public) VALUES (?,?,?,?,?,?,?,?,?)",
+    [ROOM_A, VENUE, EVENT, "Room A", "room-a", 100, "[]", 0, 1],
+  );
+  await run(
+    "INSERT OR IGNORE INTO room (id, venue_id, event_id, name, slug, capacity, av_capabilities, sort_order, is_public) VALUES (?,?,?,?,?,?,?,?,?)",
+    [ROOM_B, VENUE, EVENT, "Room B", "room-b", 50, "[]", 1, 1],
+  );
+  await run("INSERT OR IGNORE INTO event_day (id, event_id, date, label, sort_order, is_public) VALUES (?,?,?,?,?,?)", [DAY, EVENT, "2027-09-01", "Day 1", 0, 1]);
+  await run("INSERT OR IGNORE INTO track (id, event_id, name, slug, sort_order, is_public) VALUES (?,?,?,?,?,?)", [TRACK, EVENT, "Agents", "agents", 0, 1]);
+  await run(
+    "INSERT OR IGNORE INTO session_format (id, event_id, name, slug, default_duration_minutes, max_speakers, eligible_origins, sort_order, is_public) VALUES (?,?,?,?,?,?,?,?,?)",
+    [FORMAT, EVENT, "Talk", "talk", 30, 1, '["cfp"]', 0, 1],
+  );
+
+  await run(
+    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    [CHAIR, ORG, CHAIR_EMAIL, "Chair Person", "active", 0, now, now],
+  );
+  await run(
+    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    [SPEAKER, ORG, "sched-speaker@example.com", "Speaker Person", "active", 0, now, now],
+  );
+  await run(
+    "INSERT OR IGNORE INTO auth_identity (id, person_id, provider, subject, credential_hash, credential_updated_at, email_at_provider, created_at) VALUES (?,?,?,?,?,?,?,?)",
+    ["aid_sched_chair", CHAIR, "password", CHAIR_EMAIL, hashPassword(CHAIR_PASSWORD), now, CHAIR_EMAIL, now],
+  );
+  await run(
+    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
+    ["rg_sched_chair", ORG, CHAIR, "program_chair", "event", EVENT, CHAIR, now],
+  );
+
+  for (const [id, ref] of [
+    [SESSION_1, "T-0001"],
+    [SESSION_2, "T-0002"],
+  ]) {
+    await run(
+      `INSERT OR IGNORE INTO session
+        (id, org_id, event_id, reference, origin, title, abstract, session_format_id, track_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, ORG, EVENT, ref, "cfp", `Session ${ref}`, "An abstract.", FORMAT, TRACK, 30, "confirmed", "approved", "public", now, now],
+    );
+  }
+  await run(
+    "INSERT OR IGNORE INTO session_speaker (id, session_id, person_id, speaker_role, confirmation_status, is_public, added_at) VALUES (?,?,?,?,?,?,?)",
+    ["spk_sched_1", SESSION_1, SPEAKER, "primary", "confirmed", 1, now],
+  );
+}
+
+async function signInChair(): Promise<string> {
+  const res = await SELF.fetch("http://localhost/login", {
+    method: "POST",
+    body: new URLSearchParams({ email: CHAIR_EMAIL, password: CHAIR_PASSWORD }),
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    redirect: "manual",
+  });
+  expect(res.status).toBe(303);
+  const setCookie = res.headers.get("set-cookie") ?? "";
+  const match = /podium_session=([^;]+)/.exec(setCookie);
+  if (!match) throw new Error(`Sign-in did not set a session cookie: ${setCookie}`);
+  return `podium_session=${match[1]}`;
+}
+
+describe("the agenda builder", () => {
+  let cookie: string;
+
+  beforeAll(async () => {
+    await seed();
+    cookie = await signInChair();
+  });
+
+  it("INV-08-14: a placement write returns its conflicts in the same response", async () => {
+    // Place both sessions in the same room at overlapping times — a
+    // deliberately broken draft, which the model explicitly allows.
+    const first = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/place`, {
+      method: "POST",
+      body: new URLSearchParams({ session_id: SESSION_1, room_id: ROOM_A, event_day_id: DAY, start_time: "09:00" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(first.status).toBe(303);
+
+    const second = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/place`, {
+      method: "POST",
+      body: new URLSearchParams({ session_id: SESSION_2, room_id: ROOM_A, event_day_id: DAY, start_time: "09:15" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(second.status).toBe(303);
+
+    // The write already computed and persisted ROOM_DOUBLE_BOOKED
+    // synchronously (INV-08-14) — the builder page shows it without a
+    // separate recompute step.
+    const { results } = await env.DB.prepare("SELECT code, severity FROM schedule_conflict WHERE event_id = ?").bind(EVENT).all<{ code: string; severity: string }>();
+    expect(results.some((r) => r.code === "ROOM_DOUBLE_BOOKED" && r.severity === "error")).toBe(true);
+
+    const page = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule`, { headers: { cookie } });
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain("Room double-booked");
+  });
+
+  it("moving one of them apart clears the conflict", async () => {
+    const { results } = await env.DB.prepare("SELECT id FROM placement WHERE session_id = ?").bind(SESSION_2).all<{ id: string }>();
+    const placementId = results[0].id;
+
+    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/move`, {
+      method: "POST",
+      body: new URLSearchParams({ placement_id: placementId, room_id: ROOM_B, event_day_id: DAY, start_time: "09:15" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+
+    const { results: conflicts } = await env.DB.prepare("SELECT code FROM schedule_conflict WHERE event_id = ?").bind(EVENT).all<{ code: string }>();
+    expect(conflicts.some((r) => r.code === "ROOM_DOUBLE_BOOKED")).toBe(false);
+  });
+
+  it("INV-11-5: acknowledging a conflict requires a reason", async () => {
+    // Recreate the clash from the first test by moving session_2's (now in
+    // Room B) placement back onto session_1's — it already has a placement,
+    // so this goes through "move", not "place".
+    const { results: existing } = await env.DB.prepare("SELECT id FROM placement WHERE session_id = ?").bind(SESSION_2).all<{ id: string }>();
+    expect(existing).toHaveLength(1);
+    const moveBack = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/move`, {
+      method: "POST",
+      body: new URLSearchParams({ placement_id: existing[0].id, room_id: ROOM_A, event_day_id: DAY, start_time: "09:00" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(moveBack.status).toBe(303);
+
+    const { results } = await env.DB.prepare("SELECT id FROM schedule_conflict WHERE event_id = ? AND code = 'ROOM_DOUBLE_BOOKED'").bind(EVENT).all<{ id: string }>();
+    expect(results.length).toBeGreaterThan(0);
+
+    const withoutReason = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/acknowledge`, {
+      method: "POST",
+      body: new URLSearchParams({ conflict_id: results[0].id, reason: "" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      redirect: "manual",
+    });
+    expect(withoutReason.status).toBe(422);
+    const body = await withoutReason.json<{ invariant?: string }>();
+    expect(body.invariant).toBe("INV-11-5");
+
+    const withReason = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/acknowledge`, {
+      method: "POST",
+      body: new URLSearchParams({ conflict_id: results[0].id, reason: "Known clash, accepted by the chairs." }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(withReason.status).toBe(303);
+  });
+
+  it("removing a placement returns the session to confirmed and clears its row", async () => {
+    const { results } = await env.DB.prepare("SELECT id FROM placement WHERE session_id = ?").bind(SESSION_2).all<{ id: string }>();
+    expect(results).toHaveLength(1);
+    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/remove`, {
+      method: "POST",
+      body: new URLSearchParams({ placement_id: results[0].id }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+    const { results: sessionRows } = await env.DB.prepare("SELECT status FROM session WHERE id = ?").bind(SESSION_2).all<{ status: string }>();
+    expect(sessionRows[0].status).toBe("confirmed");
+  });
+
+  it("Concurrency: two simultaneous placements of the same session serialise through the DO — exactly one wins, INV-08-1 catches the other", async () => {
+    // session_2 is unplaced again after the previous test. Fire two "place"
+    // requests for it at once, into two different rooms/times: "one writer
+    // per event" (11-cross-cutting.md) means these queue rather than
+    // interleave, so the second sees the first's placement already there.
+    const [a, b] = await Promise.all([
+      SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/place`, {
+        method: "POST",
+        body: new URLSearchParams({ session_id: SESSION_2, room_id: ROOM_A, event_day_id: DAY, start_time: "11:00" }),
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+        redirect: "manual",
+      }),
+      SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/place`, {
+        method: "POST",
+        body: new URLSearchParams({ session_id: SESSION_2, room_id: ROOM_B, event_day_id: DAY, start_time: "12:00" }),
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+        redirect: "manual",
+      }),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    // One redirect (succeeded), one 422 (INV-08-1: already placed) — never
+    // two successes, and never a silently dropped write.
+    expect(statuses).toEqual([303, 422]);
+
+    const { results: placed } = await env.DB.prepare("SELECT COUNT(*) AS n FROM placement WHERE session_id = ?").bind(SESSION_2).all<{ n: number }>();
+    expect(placed[0].n).toBe(1);
+  });
+
+  it("assisted placement proposes, and per-row accept applies through the same serialised path", async () => {
+    // Start clean: remove session_2's placement so it is a candidate again.
+    const { results: existing } = await env.DB.prepare("SELECT id FROM placement WHERE session_id = ?").bind(SESSION_2).all<{ id: string }>();
+    if (existing.length) {
+      await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/remove`, {
+        method: "POST",
+        body: new URLSearchParams({ placement_id: existing[0].id }),
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        redirect: "manual",
+      });
+    }
+
+    const propose = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/auto-place`, {
+      method: "POST",
+      body: new URLSearchParams({ strategy: "greedy_fill" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(propose.status).toBe(303);
+    const location = propose.headers.get("location") ?? "";
+    const runId = new URL(location, "http://localhost").searchParams.get("run");
+    expect(runId).toBeTruthy();
+
+    const { results: runRows } = await env.DB.prepare("SELECT proposed FROM auto_place_run WHERE id = ?").bind(runId).all<{ proposed: string }>();
+    const proposed = JSON.parse(runRows[0].proposed) as { session_id: string }[];
+    expect(proposed.some((p) => p.session_id === SESSION_2)).toBe(true);
+
+    const apply = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/auto-place/apply`, {
+      method: "POST",
+      body: new URLSearchParams({ run_id: String(runId), session_id: SESSION_2 }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(apply.status).toBe(303);
+
+    const { results: placedAgain } = await env.DB.prepare("SELECT COUNT(*) AS n FROM placement WHERE session_id = ?").bind(SESSION_2).all<{ n: number }>();
+    expect(placedAgain[0].n).toBe(1);
+  });
+});
+
+describe("publish, roll back, and pending changes", () => {
+  let cookie: string;
+
+  beforeAll(async () => {
+    cookie = await signInChair();
+  });
+
+  it("publishes v1, then a title change shows up as a pending change until published again", async () => {
+    const publish = await SELF.fetch(`http://localhost/admin/events/${EVENT}/publications`, {
+      method: "POST",
+      body: new URLSearchParams({ note: "First publish" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(publish.status).toBe(303);
+
+    const { results: pubs } = await env.DB.prepare("SELECT id, version, status FROM schedule_publication WHERE event_id = ? ORDER BY version").bind(EVENT).all<{ id: string; version: number; status: string }>();
+    expect(pubs.length).toBeGreaterThanOrEqual(1);
+    const live = pubs.find((p) => p.status === "live")!;
+    expect(live.version).toBe(pubs[pubs.length - 1].version);
+
+    // The published snapshot has at least one session with the confirmed speaker.
+    const { results: publishedSessions } = await env.DB.prepare("SELECT title, speaker_refs FROM published_session WHERE publication_id = ?").bind(live.id).all<{ title: string; speaker_refs: string }>();
+    expect(publishedSessions.length).toBeGreaterThan(0);
+
+    await env.DB.prepare("UPDATE session SET title = ?, updated_at = ? WHERE id = ?").bind("A retitled session", new Date().toISOString(), SESSION_1).run();
+
+    const pendingPage = await SELF.fetch(`http://localhost/admin/events/${EVENT}/publications`, { headers: { cookie } });
+    const body = await pendingPage.text();
+    expect(body).toContain("not yet published");
+
+    const republish = await SELF.fetch(`http://localhost/admin/events/${EVENT}/publications`, {
+      method: "POST",
+      body: new URLSearchParams({ note: "Retitled" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(republish.status).toBe(303);
+
+    const { results: diffRows } = await env.DB.prepare(
+      `SELECT change_type FROM schedule_diff_entry WHERE publication_id = (SELECT id FROM schedule_publication WHERE event_id = ? AND status = 'live')`,
+    )
+      .bind(EVENT)
+      .all<{ change_type: string }>();
+    expect(diffRows.some((r) => r.change_type === "content_changed")).toBe(true);
+  });
+
+  it("INV-08-9 / rollback restores the previous version as the one live publication", async () => {
+    const { results: pubs } = await env.DB.prepare("SELECT id, version, status FROM schedule_publication WHERE event_id = ? ORDER BY version").bind(EVENT).all<{ id: string; version: number; status: string }>();
+    expect(pubs.length).toBeGreaterThanOrEqual(2);
+    const first = pubs[0];
+    const current = pubs.find((p) => p.status === "live")!;
+    expect(current.id).not.toBe(first.id);
+
+    const rollback = await SELF.fetch(`http://localhost/admin/publications/${first.id}/rollback`, {
+      method: "POST",
+      body: new URLSearchParams({ reason: "Wrong keynote time — rolling back before doors open." }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(rollback.status).toBe(303);
+
+    const { results: liveNow } = await env.DB.prepare("SELECT id FROM schedule_publication WHERE event_id = ? AND status = 'live'").bind(EVENT).all<{ id: string }>();
+    expect(liveNow).toHaveLength(1);
+    expect(liveNow[0].id).toBe(first.id);
+
+    const { results: supersededCurrent } = await env.DB.prepare("SELECT status FROM schedule_publication WHERE id = ?").bind(current.id).all<{ status: string }>();
+    expect(supersededCurrent[0].status).toBe("rolled_back");
+
+    // Republish so later tests in this file see a `live` publication again.
+    await SELF.fetch(`http://localhost/admin/events/${EVENT}/publications`, {
+      method: "POST",
+      body: new URLSearchParams({ note: "Restore after rollback test" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+  });
+});

@@ -96,7 +96,7 @@ draft schedule; you may not publish one without an explicit, recorded override.
 |---|---|---|
 | `id` | `ulid` | derived read model, recomputed on placement change |
 | `event_id` | `ref(Event)` | |
-| `code` | `enum(...)` | |
+| `code` | `enum(ROOM_DOUBLE_BOOKED, SPEAKER_DOUBLE_BOOKED, SPEAKER_NO_TRANSIT, DURATION_MISMATCH, AV_UNSUPPORTED, OVER_CAPACITY, TRACK_COLLISION, SPONSOR_COLLISION, SERIES_OUT_OF_ORDER, OUTSIDE_EVENT_HOURS, UNPUBLISHABLE)` | one per row of the conflict table above |
 | `severity` | `enum(error, warning)` | |
 | `placement_ids` | `ref(Placement)[]` | the parties |
 | `detail` | `json` | human-readable specifics |

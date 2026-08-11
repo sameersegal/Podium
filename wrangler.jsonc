@@ -1,0 +1,99 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "podium",
+  "main": "workers/api/src/index.ts",
+  "compatibility_date": "2025-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ---------------------------------------------------------------------------
+  // Surfaces
+  //
+  // 09-api-and-integrations.md names four surfaces (public / portal / management /
+  // webhooks). They are separated in the code under workers/api/src/surfaces/*,
+  // each with its own auth and cache behaviour, and composed into one Worker
+  // entry because a single origin is what a self-hosted deployment (and the
+  // browser-driven eval harness) needs. Splitting them into separate Workers
+  // behind service bindings is a routing change, not a rewrite: no surface
+  // imports another's handlers.
+  // ---------------------------------------------------------------------------
+
+  "assets": {
+    "directory": "./public",
+    "binding": "STATIC",
+    "run_worker_first": ["/e/*", "/admin/*", "/portal/*", "/v1/*", "/embed/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "podium",
+      "database_id": "local-podium-d1",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "kv_namespaces": [
+    // Published snapshot cache (keyed on content_etag) + the 24h idempotency
+    // replay cache (INV-09-7).
+    { "binding": "CACHE", "id": "local-podium-cache" }
+  ],
+
+  "r2_buckets": [
+    { "binding": "ASSETS_BUCKET", "bucket_name": "podium-assets" }
+  ],
+
+  "queues": {
+    "producers": [
+      { "binding": "EVENT_QUEUE", "queue": "podium-events" },
+      { "binding": "DELIVERY_QUEUE", "queue": "podium-delivery" }
+    ],
+    "consumers": [
+      {
+        "queue": "podium-events",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "podium-dlq"
+      },
+      {
+        "queue": "podium-delivery",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 6,
+        "dead_letter_queue": "podium-dlq"
+      }
+    ]
+  },
+
+  "durable_objects": {
+    "bindings": [
+      // One writer per event's schedule — placement writes serialise here
+      // (11-cross-cutting.md, "Concurrency").
+      { "name": "SCHEDULE_DO", "class_name": "ScheduleDurableObject" }
+    ]
+  },
+
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ScheduleDurableObject"] }
+  ],
+
+  "triggers": {
+    // Reminder fan-out, draft-abandonment sweep, confirmation-deadline expiry,
+    // entitlement expiry nudges, session `delivered` transition.
+    "crons": ["*/15 * * * *"]
+  },
+
+  "vars": {
+    "ENVIRONMENT": "development",
+    "PUBLIC_BASE_URL": "http://localhost:8787"
+  },
+
+  "observability": { "enabled": true },
+
+  "alias": {
+    "@podiumconf/domain": "./packages/domain/src",
+    "@podiumconf/data": "./packages/data/src",
+    "@podiumconf/plugins": "./packages/plugins/src",
+    "@podiumconf/web": "./workers/api/src"
+  }
+}

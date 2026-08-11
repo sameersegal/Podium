@@ -1,0 +1,32 @@
+{
+  "name": "@podiumconf/podium",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Podium \u2014 an open-source SessionBoard alternative for AI Engineer-style conferences",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:only": "node scripts/dev.mjs --no-reset",
+    "db:migrate": "wrangler d1 migrations apply podium --local",
+    "db:seed": "node scripts/seed.mjs",
+    "db:reset": "node scripts/reset-db.mjs && npm run db:migrate && npm run db:seed",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:watch": "vitest",
+    "drift": "python3 .claude/skills/domain-drift/scripts/model_inventory.py --check",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.21.0",
+    "@cloudflare/workers-types": "^5.20260810.1",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.120.1"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.3.0"
+  }
+}

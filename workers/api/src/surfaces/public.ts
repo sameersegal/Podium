@@ -1,0 +1,566 @@
+/**
+ * The public surface (08, "The embed (J10)") — everything an anonymous
+ * visitor reads: an event's landing page, its calls for proposals, the
+ * published schedule (agenda grid + itinerary + search, client-side, over the
+ * snapshot), speakers, session detail, ICS, and the embed in its six widget
+ * types and seven formats.
+ *
+ * Anonymous and complete, always (INV-08-13) — nothing here calls
+ * `ctx.requireRead`/`requirePerson`. Program data comes only from the `live`
+ * publication, served from the KV snapshot cache (INV-09-6); `event`,
+ * `call_for_proposals` and `venue` are Event Configuration's own tables, not
+ * "live program tables", and are read directly the same way
+ * `publicCfpView` already does.
+ */
+
+import { str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { derivedCfpStatus, publicCfpView, renderPublicForm } from "../contexts/event-config/views.js";
+import { buildIcs } from "../contexts/scheduling/ics.js";
+import { embedByKey, type EmbedConfigRow } from "../contexts/scheduling/views.js";
+import { buildSnapshot, liveSnapshot, snapshotById } from "../contexts/scheduling/publication.js";
+import type { ScheduleSnapshot } from "@podiumconf/domain/scheduling/publication.js";
+import {
+  applyFieldAllowlist,
+  applyFilters,
+  corsHeaders,
+  frameAncestorsHeader,
+  renderAgendaGrid,
+  renderItinerary,
+  renderSessionDetail,
+  renderSpeakerDetail,
+  renderSpeakersList,
+  renderWidgetHtml,
+  widgetRss,
+  widgetXml,
+  type RenderOptions,
+} from "../contexts/scheduling/widgets.js";
+import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
+import type { RequestContext } from "../http/context.js";
+import { htmlResponse, json, text } from "../http/responses.js";
+import type { Router } from "../http/router.js";
+import { html, jsonScript, markdown, raw, type SafeHtml } from "../ui/html.js";
+import { card, empty, pageHead } from "../ui/layout.js";
+import { publicPage, type EventRef } from "../ui/shell.js";
+
+/* -------------------------------------------------------------------------- */
+/* Shared lookups                                                              */
+/* -------------------------------------------------------------------------- */
+
+function baseUrl(ctx: RequestContext): string {
+  return str(ctx.env.PUBLIC_BASE_URL) || ctx.url.origin;
+}
+
+/** A `draft` or `private` event has no public surface at all. */
+function isPubliclyVisible(row: Row): boolean {
+  return str(row.visibility) === "public" && str(row.status) !== "draft";
+}
+
+async function resolvePublicEvent(ctx: RequestContext, slug: string): Promise<Row | null> {
+  const row = await ctx.app().db.first<Row>("event", { slug });
+  if (!row || !isPubliclyVisible(row)) return null;
+  return row;
+}
+
+function toRef(row: Row): EventRef {
+  return {
+    id: str(row.id),
+    name: str(row.name),
+    slug: str(row.slug),
+    timezone: str(row.timezone, "UTC"),
+    status: str(row.status),
+    starts_on: str(row.starts_on),
+    ends_on: str(row.ends_on),
+  };
+}
+
+async function assetUrl(ctx: RequestContext, assetId: string | null): Promise<string | null> {
+  if (!assetId) return null;
+  const asset = await ctx.app().db.byId<Row>("asset", assetId);
+  return asset ? `/assets/${str(asset.storage_key)}` : null;
+}
+
+export function registerPublicRoutes(router: Router<RequestContext>): void {
+  registerLandingRoutes(router);
+  registerScheduleRoutes(router);
+  registerEmbedRoutes(router);
+  registerPublicApiRoutes(router);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Landing + CFP                                                              */
+/* -------------------------------------------------------------------------- */
+
+function registerLandingRoutes(router: Router<RequestContext>): void {
+  router.get("/e/:eventSlug", async (_req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return notFoundPage(ctx, "No such event.");
+    return htmlResponse(await renderEventLanding(ctx, row));
+  });
+
+  router.get("/e/:eventSlug/cfp/:cfpSlug", async (_req, ctx, params) => {
+    const view = await publicCfpView(ctx.app(), params.cfpSlug, { eventSlug: params.eventSlug });
+    // INV-02-12 — every derived status including `closed` renders; never 404
+    // a link that once worked.
+    if (!view) return notFoundPage(ctx, "No such call for proposals.");
+    const ref: EventRef = { id: "", name: view.event.name, slug: view.event.slug, timezone: view.event.timezone, status: "active", starts_on: view.event.starts_on, ends_on: view.event.ends_on };
+    const deadline = view.cfp.status === "open" ? html`<p class="notice info">Open — closes ${formatInZone(view.cfp.closes_at, view.event.timezone)} (${view.event.timezone}).</p>` : raw("");
+    const closed = view.cfp.status === "closed" ? html`<p class="notice warn">This call closed ${formatInZone(view.cfp.closes_at, view.event.timezone)}. Thanks to everyone who submitted.</p>` : raw("");
+    const notYetOpen = view.cfp.status === "scheduled" ? html`<p class="notice info">Opens ${formatInZone(view.cfp.opens_at, view.event.timezone)} (${view.event.timezone}).</p>` : raw("");
+
+    return htmlResponse(
+      publicPage(
+        ctx,
+        { title: view.cfp.name, event: ref, width: "narrow" },
+        html`${pageHead(view.cfp.name, view.event.tagline)}
+          ${deadline}${closed}${notYetOpen}
+          ${view.cfp.intro_markdown ? card(markdown(view.cfp.intro_markdown)) : raw("")}
+          ${view.tracks.length || view.formats.length
+            ? card(
+                html`${view.tracks.length ? html`<p><strong>Tracks:</strong> ${view.tracks.map((t) => t.name).join(", ")}</p>` : raw("")}
+                  ${view.formats.length ? html`<p><strong>Formats:</strong> ${view.formats.map((f) => `${f.name} (${f.default_duration_minutes} min)`).join(", ")}</p>` : raw("")}
+                  ${view.cfp.guidelines_url ? html`<p><a href="${view.cfp.guidelines_url}">Submission guidelines</a></p>` : raw("")}`,
+                "What we're looking for",
+              )
+            : raw("")}
+          ${view.form
+            ? card(
+                html`<p class="muted small">The form, inspectable before you sign up.</p>
+                  ${renderPublicForm(view.form, {
+                    tracks: view.tracks.map((t, i) => ({ id: String(i), track_id: String(i), name: t.name, slug: t.slug, description: t.description, color: t.color, closes_at_override: null, max_proposals_per_person: null, is_available: true, sort_order: i })),
+                    formats: view.formats.map((f, i) => ({
+                      id: String(i),
+                      session_format_id: String(i),
+                      name: f.name,
+                      slug: f.slug,
+                      description: f.description,
+                      default_duration_minutes: f.default_duration_minutes,
+                      min_duration_minutes: f.min_duration_minutes,
+                      max_duration_minutes: f.max_duration_minutes,
+                      max_speakers: 1,
+                      closes_at_override: f.closes_at_override,
+                      max_proposals_per_person: null,
+                      is_available: true,
+                      sort_order: i,
+                    })),
+                    disabled: true,
+                  })}
+                  ${view.cfp.status === "open"
+                    ? html`<a class="btn" href="/login?next=${encodeURIComponent(`/portal/proposals/new?cfp=${view.cfp.slug}`)}">Start a submission</a>`
+                    : raw("")}`,
+                "Submission form",
+              )
+            : raw("")}`,
+      ),
+    );
+  });
+}
+
+/** Shared by `GET /e/:slug` and `GET /` when exactly one public event exists. */
+export async function renderEventLanding(ctx: RequestContext, row: Row): Promise<SafeHtml> {
+  const ref = toRef(row);
+  const app = ctx.app();
+  const [cfps, venue, logoUrl] = await Promise.all([
+    app.db.select<Row>("call_for_proposals", { event_id: ref.id }, { orderBy: "opens_at" }),
+    row.venue_id ? app.db.byId<Row>("venue", str(row.venue_id)) : Promise.resolve(null),
+    assetUrl(ctx, strOrNull(row.logo_asset_id)),
+  ]);
+
+  const openCfps: SafeHtml[] = [];
+  for (const c of cfps) {
+    const status = await derivedCfpStatus(app, c, row);
+    if (status !== "open" && status !== "scheduled") continue;
+    openCfps.push(html`<li>
+      <a href="/e/${ref.slug}/cfp/${str(c.slug)}"><strong>${str(c.name)}</strong></a>
+      — ${status === "open" ? html`closes ${formatInZone(str(c.closes_at), ref.timezone)}` : html`opens ${formatInZone(str(c.opens_at), ref.timezone)}`}
+    </li>`);
+  }
+
+  const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+
+  return publicPage(
+    ctx,
+    { title: ref.name, event: ref },
+    html`<section class="hero"><div class="inner">
+        ${logoUrl ? html`<img src="${logoUrl}" alt="${ref.name}" style="height:48px;margin-bottom:1rem">` : raw("")}
+        <h1>${ref.name}</h1>
+        ${row.tagline ? html`<p>${str(row.tagline)}</p>` : raw("")}
+        <p>${formatDateInZone(new Date(`${ref.starts_on}T00:00:00Z`).toISOString(), ref.timezone)} – ${formatDateInZone(new Date(`${ref.ends_on}T00:00:00Z`).toISOString(), ref.timezone)}${venue ? html` · ${str(venue.name)}` : raw("")}</p>
+        <p class="actions">
+          <a class="btn" href="/e/${ref.slug}/schedule">Schedule</a>
+          <a class="btn" href="/e/${ref.slug}/speakers">Speakers</a>
+          ${openCfps.length ? html`<a class="btn" href="#cfps">Submit a talk</a>` : raw("")}
+          <a class="btn secondary" href="/login">Sign in</a>
+        </p>
+      </div></section>
+      <main class="narrow" style="padding-top:1.5rem">
+        ${row.description ? card(markdown(str(row.description))) : raw("")}
+        ${openCfps.length ? card(html`<ul id="cfps">${openCfps}</ul>`, "Open calls for proposals") : raw("")}
+        ${snapshot
+          ? card(html`<p>${snapshot.sessions.length} sessions across ${snapshot.event.days.length} day${snapshot.event.days.length === 1 ? "" : "s"}. <a href="/e/${ref.slug}/schedule">View the schedule →</a></p>`, "Schedule")
+          : raw("")}
+      </main>`,
+  );
+}
+
+function notFoundPage(ctx: RequestContext, message: string): Response {
+  return htmlResponse(publicPage(ctx, { title: "Not found" }, html`<div class="card"><h1>Not found</h1><p>${message}</p><p><a href="/">Home</a></p></div>`), { status: 404 });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Schedule, sessions, speakers, ICS                                          */
+/* -------------------------------------------------------------------------- */
+
+function renderOpts(ref: EventRef, interactive: boolean): RenderOptions {
+  return { timezone: ref.timezone, eventSlug: ref.slug, interactive };
+}
+
+function noPublicationYet(ref: EventRef): SafeHtml {
+  return html`${pageHead("Schedule", "Not published yet — check back soon.")}
+    ${empty("The organizers haven't published a schedule yet.")}
+    <p><a href="/e/${ref.slug}">← Back to ${ref.name}</a></p>`;
+}
+
+function registerScheduleRoutes(router: Router<RequestContext>): void {
+  router.get("/e/:eventSlug/schedule", async (_req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return notFoundPage(ctx, "No such event.");
+    const ref = toRef(row);
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    if (!snapshot) return htmlResponse(publicPage(ctx, { title: "Schedule", event: ref, width: "wide" }, noPublicationYet(ref)));
+
+    const dayId = ctx.url.searchParams.get("day") ?? snapshot.event.days[0]?.id ?? null;
+    const opts = renderOpts(ref, true);
+
+    return htmlResponse(
+      publicPage(
+        ctx,
+        { title: `Schedule — ${ref.name}`, event: ref, width: "wide", head: jsonScript("podium-schedule-data", snapshot) },
+        html`${pageHead("Schedule", `Published version ${snapshot.version}. All times in ${ref.timezone} — toggle to your local time below.`)}
+          ${scheduleControls(ref)}
+          ${daySwitcher(ref, snapshot, dayId)}
+          <div class="grid two">
+            <section>
+              <h2>Itinerary</h2>
+              ${dayId ? renderItinerary({ ...snapshot, sessions: snapshot.sessions.filter((s) => s.starts_at?.slice(0, 10) === snapshot.event.days.find((d) => d.id === dayId)?.date) }, opts) : renderItinerary(snapshot, opts)}
+            </section>
+            <section>
+              <h2>Grid</h2>
+              ${dayId ? renderAgendaGrid(snapshot, dayId, opts) : empty("No days published yet.")}
+            </section>
+          </div>
+          ${scheduleClientScript(ref.slug)}`,
+      ),
+    );
+  });
+
+  router.get("/e/:eventSlug/sessions/:sessionId", async (_req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return notFoundPage(ctx, "No such event.");
+    const ref = toRef(row);
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    // INV-08-10 — a cancelled or since-removed session does not 404; it says
+    // plainly that it is no longer part of the published schedule.
+    const body = snapshot ? renderSessionDetail(snapshot, params.sessionId, renderOpts(ref, false)) : html`<p class="empty">This session is not part of the published schedule.</p>`;
+    return htmlResponse(publicPage(ctx, { title: "Session", event: ref, width: "narrow" }, html`${body}<p><a href="/e/${ref.slug}/schedule">← Back to the schedule</a></p>`));
+  });
+
+  router.get("/e/:eventSlug/speakers", async (_req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return notFoundPage(ctx, "No such event.");
+    const ref = toRef(row);
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    return htmlResponse(
+      publicPage(
+        ctx,
+        { title: `Speakers — ${ref.name}`, event: ref, width: "wide" },
+        html`${pageHead("Speakers", "Ordered by surname.")}${snapshot ? renderSpeakersList(snapshot, renderOpts(ref, false)) : noPublicationYet(ref)}`,
+      ),
+    );
+  });
+
+  router.get("/e/:eventSlug/speakers/:personId", async (_req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return notFoundPage(ctx, "No such event.");
+    const ref = toRef(row);
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const body = snapshot ? renderSpeakerDetail(snapshot, params.personId, renderOpts(ref, false)) : html`<p class="empty">This speaker is not part of the published schedule.</p>`;
+    return htmlResponse(publicPage(ctx, { title: "Speaker", event: ref, width: "narrow" }, html`${body}<p><a href="/e/${ref.slug}/speakers">← Back to speakers</a></p>`));
+  });
+
+  router.get("/e/:eventSlug/schedule.ics", async (req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return text("No such event.", { status: 404 });
+    const ref = toRef(row);
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    if (!snapshot) return text("No published schedule yet.", { status: 404 });
+    const track = ctx.url.searchParams.get("track");
+    const sessionIds = ctx.url.searchParams.get("sessions")?.split(",").filter(Boolean);
+    let sessions = snapshot.sessions;
+    if (track) sessions = sessions.filter((s) => s.track?.slug === track);
+    if (sessionIds?.length) sessions = sessions.filter((s) => sessionIds.includes(s.session_id));
+    const body = buildIcs(snapshot.event, sessions, snapshot.speakers, { baseUrl: baseUrl(ctx), eventSlug: ref.slug, generatedAt: ctx.now });
+    const etag = `W/"ics-${snapshot.content_etag.replace(/"/g, "")}-${track ?? ""}-${(sessionIds ?? []).join(",")}"`;
+    if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag } });
+    return new Response(body, { headers: { "content-type": "text/calendar; charset=utf-8", "content-disposition": `inline; filename="${ref.slug}.ics"`, etag, "cache-control": "public, max-age=300" } });
+  });
+}
+
+function daySwitcher(ref: EventRef, snapshot: ScheduleSnapshot, activeDayId: string | null): SafeHtml {
+  if (snapshot.event.days.length === 0) return raw("");
+  return html`<nav class="subnav" style="margin:0 0 1rem;border:1px solid var(--line);border-radius:var(--radius)">
+    ${snapshot.event.days.map(
+      (d) => html`<a href="/e/${ref.slug}/schedule?day=${d.id}"${d.id === activeDayId ? raw(' aria-current="page"') : raw("")}>${d.label ?? d.date}</a>`,
+    )}
+  </nav>`;
+}
+
+function scheduleControls(ref: EventRef): SafeHtml {
+  return card(
+    html`<div class="row">
+      <div><label for="podium-search">Search</label><input id="podium-search" type="search" placeholder="Title or speaker…" aria-label="Search sessions and speakers"></div>
+      <div class="shrink checkline" style="margin-top:1.6rem"><input type="checkbox" id="podium-my-schedule"><label for="podium-my-schedule">My schedule only</label></div>
+      <div class="shrink" style="margin-top:1.6rem"><a class="btn secondary" id="podium-ics-link" href="/e/${ref.slug}/schedule.ics">Add to calendar</a></div>
+    </div>
+    <p class="small muted">Starring works without an account — it lives in this browser only (localStorage). Search and starring need JavaScript; the full schedule below works without it.</p>`,
+  );
+}
+
+/**
+ * Progressive enhancement over the server-rendered itinerary and grid: text
+ * search across title and speaker names, a "my schedule" filter backed by
+ * `localStorage` (R11 — no attendee accounts, no server state), and a
+ * per-selection "Add to calendar" link. Every element it touches already
+ * carries the `data-session-id` / `data-title` / `data-speakers` attributes
+ * `widgets.ts` renders — this walks the DOM rather than re-fetching anything.
+ */
+function scheduleClientScript(eventSlug: string): SafeHtml {
+  const key = `podium:starred:${eventSlug}`;
+  return raw(`<script>
+(function(){
+  var STORE_KEY = ${JSON.stringify(key)};
+  function starred(){ try { return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); } catch(e){ return []; } }
+  function setStarred(ids){ try { localStorage.setItem(STORE_KEY, JSON.stringify(ids)); } catch(e){} }
+  function cards(){ return Array.prototype.slice.call(document.querySelectorAll("[data-session-id]")); }
+
+  function syncStars(){
+    var ids = starred();
+    cards().forEach(function(el){
+      var box = el.querySelector("[data-star-session]");
+      if (box) box.checked = ids.indexOf(el.getAttribute("data-session-id")) >= 0;
+    });
+  }
+  document.addEventListener("change", function(e){
+    var box = e.target.closest && e.target.closest("[data-star-session]");
+    if (!box) return;
+    var id = box.getAttribute("data-star-session");
+    var ids = starred();
+    var i = ids.indexOf(id);
+    if (box.checked && i < 0) ids.push(id);
+    if (!box.checked && i >= 0) ids.splice(i, 1);
+    setStarred(ids);
+    updateIcsLink();
+    applyFilters();
+  });
+
+  var search = document.getElementById("podium-search");
+  var mySchedule = document.getElementById("podium-my-schedule");
+  function applyFilters(){
+    var q = (search && search.value || "").toLowerCase().trim();
+    var onlyStarred = mySchedule && mySchedule.checked;
+    var ids = starred();
+    cards().forEach(function(el){
+      var matchesSearch = !q || (el.getAttribute("data-title")||"").indexOf(q) >= 0 || (el.getAttribute("data-speakers")||"").indexOf(q) >= 0;
+      var matchesStar = !onlyStarred || ids.indexOf(el.getAttribute("data-session-id")) >= 0;
+      var show = matchesSearch && matchesStar;
+      el.style.display = show ? "" : "none";
+      if (el.classList.contains("cell")) el.style.visibility = show ? "" : "hidden";
+    });
+  }
+  function updateIcsLink(){
+    var link = document.getElementById("podium-ics-link");
+    if (!link) return;
+    var ids = starred();
+    var base = link.getAttribute("data-base") || link.href.split("?")[0];
+    link.setAttribute("data-base", base);
+    link.href = ids.length ? base + "?sessions=" + ids.join(",") : base;
+    link.textContent = ids.length ? "Add my " + ids.length + " session" + (ids.length === 1 ? "" : "s") + " to calendar" : "Add to calendar";
+  }
+  if (search) search.addEventListener("input", applyFilters);
+  if (mySchedule) mySchedule.addEventListener("change", applyFilters);
+  syncStars();
+  updateIcsLink();
+})();
+</script>`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* The embed (J10)                                                            */
+/* -------------------------------------------------------------------------- */
+
+async function snapshotForEmbed(ctx: RequestContext, embed: EmbedConfigRow | null): Promise<ScheduleSnapshot | null> {
+  if (!embed) return null;
+  if (embed.pinned_publication_id) return snapshotById(ctx.env, ctx.orgId, embed.pinned_publication_id);
+  if (embed.show_unpublished) {
+    // A preview embed for staging sites: intentionally reads the working
+    // schedule rather than the cached `live` snapshot, so it is never served
+    // from the public KV cache either.
+    const app = ctx.app(embed.event_id);
+    const build = await buildSnapshot(app, embed.event_id);
+    const eventRow = await app.db.byId<Row>("event", embed.event_id);
+    if (!eventRow) return null;
+    return {
+      publication_id: "preview",
+      version: 0,
+      published_at: ctx.now,
+      content_etag: `"preview-${ctx.now}"`,
+      event: build.event,
+      sessions: build.sessions,
+      speakers: build.speakers,
+      tracks: build.tracks,
+      formats: build.formats,
+      rooms: build.rooms,
+    };
+  }
+  return liveSnapshot(ctx.env, ctx.orgId, embed.event_id);
+}
+
+function registerEmbedRoutes(router: Router<RequestContext>): void {
+  router.get("/embed/:key", async (req, ctx, params) => {
+    const embed = await embedByKey(ctx.app(), params.key);
+    if (!embed || embed.status !== "active") return text("No such embed.", { status: 404 });
+
+    const origin = req.headers.get("origin");
+    const cors = corsHeaders(origin, embed.allowed_origins);
+    // Preflight, and a same-origin `<script>`/`<iframe>` load (no Origin
+    // header) both proceed; a cross-origin fetch from an unlisted origin gets
+    // no CORS header and the browser refuses to read the body (INV-08-6).
+
+    const snapshot = await snapshotForEmbed(ctx, embed);
+    const ref: EventRef = snapshot
+      ? { id: embed.event_id, name: snapshot.event.name, slug: snapshot.event.slug, timezone: snapshot.event.timezone, status: "active", starts_on: snapshot.event.starts_on, ends_on: snapshot.event.ends_on }
+      : { id: embed.event_id, name: "", slug: "", timezone: "UTC", status: "active", starts_on: "", ends_on: "" };
+
+    const etag = snapshot ? `W/"${snapshot.content_etag.replace(/"/g, "")}-${embed.format}-${embed.widget_type}"` : null;
+    if (etag && req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag, ...cors } });
+
+    const cacheControl = `public, max-age=${embed.cache_ttl_seconds}`;
+    const commonHeaders: Record<string, string> = { ...cors, "cache-control": cacheControl, ...(etag ? { etag } : {}) };
+
+    if (!snapshot) {
+      if (embed.format === "json") return json({ event: null, sessions: [], speakers: [], tracks: [], formats: [], rooms: [] }, { headers: commonHeaders });
+      return htmlResponse(html`<p class="empty">Not published yet.</p>`, { headers: commonHeaders });
+    }
+
+    const filtered = applyFieldAllowlist(applyFilters(snapshot, embed.widget_type, embed.filters), embed.widget_type, embed.fields ?? undefined);
+    const dayId = ctx.url.searchParams.get("day") ?? filtered.event.days[0]?.id;
+    const sessionId = ctx.url.searchParams.get("session_id") ?? undefined;
+    const opts: RenderOptions = { timezone: filtered.event.timezone, eventSlug: filtered.event.slug, theme: (embed.theme as RenderOptions["theme"]) ?? null, interactive: embed.widget_type === "sessions_list" || embed.widget_type === "schedule_itinerary" };
+
+    switch (embed.format) {
+      case "json":
+        return json(filtered, { headers: commonHeaders });
+      case "xml":
+        return new Response(widgetXml(embed.widget_type, filtered), { headers: { ...commonHeaders, "content-type": "application/xml; charset=utf-8" } });
+      case "rss":
+        return new Response(widgetRss(filtered, opts), { headers: { ...commonHeaders, "content-type": "application/rss+xml; charset=utf-8" } });
+      case "ics":
+        return new Response(buildIcs(filtered.event, filtered.sessions, filtered.speakers, { baseUrl: baseUrl(ctx), eventSlug: filtered.event.slug, generatedAt: ctx.now }), {
+          headers: { ...commonHeaders, "content-type": "text/calendar; charset=utf-8" },
+        });
+      case "iframe": {
+        // Falls back to server-rendered HTML — a full standalone page, framed
+        // under the allowed origins' CSP.
+        const frameHeaders = { ...commonHeaders, "content-security-policy": frameAncestorsHeader(embed.allowed_origins) };
+        return htmlResponse(
+          html`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"></head>
+            <body style="margin:0;padding:.75rem">${renderWidgetHtml(embed.widget_type, filtered, opts, { dayId, sessionId })}</body></html>`,
+          { headers: frameHeaders },
+        );
+      }
+      case "html":
+      case "js_widget":
+      default:
+        // `js_widget` and `iframe` both fall back to server-rendered HTML; the
+        // `js_widget` response is the fragment `embed.js` mounts into the page,
+        // and is exactly what renders if the script never loads.
+        return htmlResponse(
+          html`<div data-podium-embed="${embed.key}" data-podium-widget="${embed.widget_type}">${renderWidgetHtml(embed.widget_type, filtered, opts, { dayId, sessionId })}</div>`,
+          { headers: commonHeaders },
+        );
+    }
+  });
+
+  router.get("/embed.js", async (_req, ctx) => {
+    return new Response(embedJsSource(baseUrl(ctx)), {
+      headers: { "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=3600" },
+    });
+  });
+}
+
+/**
+ * One script, one global (`window.Podium`), mounting every `widget_type` —
+ * "a marketing team that has pasted a script tag into a CMS will not repaste
+ * it when a second widget ships" (08). Progressive enhancement only: the
+ * server response already contains the rendered widget, so a blocked script
+ * leaves a working, static embed (08, "Degrade gracefully").
+ */
+function embedJsSource(base: string): string {
+  return `(function(){
+  var BASE = ${JSON.stringify(base)};
+  function mount(el){
+    var key = el.getAttribute("data-podium-key");
+    if (!key || el.getAttribute("data-podium-mounted")) return;
+    el.setAttribute("data-podium-mounted", "1");
+    var url = BASE + "/embed/" + key;
+    fetch(url, { headers: { accept: "text/html" } })
+      .then(function(res){ return res.text(); })
+      .then(function(html){ el.innerHTML = html; })
+      .catch(function(){ /* leave any server-rendered fallback content in place */ });
+  }
+  function mountAll(){
+    var els = document.querySelectorAll("[data-podium-widget][data-podium-key]");
+    for (var i = 0; i < els.length; i++) mount(els[i]);
+  }
+  window.Podium = { mount: mount, mountAll: mountAll };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountAll);
+  else mountAll();
+})();
+`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Public API — /v1/public/...                                                */
+/* -------------------------------------------------------------------------- */
+
+function registerPublicApiRoutes(router: Router<RequestContext>): void {
+  router.get("/v1/public/events/:eventSlug/schedule", async (req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return json({ error: "not_found", message: "No such event." }, { status: 404 });
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, str(row.id));
+    if (!snapshot) return json({ event: toRef(row), sessions: [], speakers: [], tracks: [], formats: [], rooms: [] });
+    if (req.headers.get("if-none-match") === snapshot.content_etag) return new Response(null, { status: 304, headers: { etag: snapshot.content_etag } });
+    return json(snapshot, { headers: { etag: snapshot.content_etag, "cache-control": "public, max-age=60" } });
+  });
+
+  router.get("/v1/public/events/:eventSlug/sessions", async (req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return json({ error: "not_found", message: "No such event." }, { status: 404 });
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, str(row.id));
+    const data = snapshot?.sessions ?? [];
+    const etag = snapshot ? `${snapshot.content_etag}` : null;
+    if (etag && req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag } });
+    return json({ data }, { headers: etag ? { etag, "cache-control": "public, max-age=60" } : {} });
+  });
+
+  router.get("/v1/public/events/:eventSlug/speakers", async (req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return json({ error: "not_found", message: "No such event." }, { status: 404 });
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, str(row.id));
+    const data = snapshot?.speakers ?? [];
+    const etag = snapshot ? `${snapshot.content_etag}` : null;
+    if (etag && req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag } });
+    return json({ data }, { headers: etag ? { etag, "cache-control": "public, max-age=60" } : {} });
+  });
+}
+
+export { resolvePublicEvent, toRef as toPublicEventRef };

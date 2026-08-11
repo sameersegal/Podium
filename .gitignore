@@ -2,3 +2,9 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Local Cloudflare state — D1, KV, R2 and Durable Object storage for `wrangler dev`
+.wrangler/
+
+# Generated from wrangler.jsonc by `wrangler types`; regenerate rather than review
+worker-configuration.d.ts

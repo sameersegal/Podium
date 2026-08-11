@@ -38,7 +38,7 @@ Design rules the model must support:
 | `name` | `string` | Y | "Marketing site", "Airtable sync" |
 | `prefix` | `string` | Y | first 8 chars, shown in the UI for identification |
 | `secret_hash` | `string` | Y | the secret is displayed once and never stored (INV-09-1) |
-| `scopes` | `enum(...)[]` | Y | see below |
+| `scopes` | `enum(events:read, events:write, proposals:read, proposals:write, reviews:read, reviews:write, decisions:read, decisions:write, sessions:read, sessions:write, speakers:read, speakers:write, sponsors:read, sponsors:write, entitlements:read, entitlements:write, tasks:read, tasks:write, schedule:read, schedule:publish, webhooks:manage, pii:read)[]` | Y | see below |
 | `event_ids` | `ref(Event)[]` | N | empty = all events; a key for one event cannot read another |
 | `created_by_person_id` | `ref(Person)` | Y | |
 | `expires_at` | `timestamptz` | N | |
@@ -195,7 +195,7 @@ guess.
 | `channel` / `integration_id` | | which provider actually sent it |
 | `subject_type` / `subject_id` | | proposal, task, session |
 | `status` | `enum(queued, sent, delivered, bounced, complained, failed, suppressed)` | |
-| `suppressed_reason` | `enum(unsubscribed, hard_bounced, duplicate, quiet_hours, digest_batched)` | |
+| `suppressed_reason` | `enum(unsubscribed, hard_bounced, complained, duplicate, quiet_hours, digest_batched, no_provider)` | |
 | `provider_message_id` / `sent_at` / `delivered_at` / `error` | | |
 
 **Suppression is global per email address** for hard bounces and complaints, and

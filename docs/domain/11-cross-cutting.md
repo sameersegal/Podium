@@ -334,6 +334,9 @@ PII export and erasure, and any organizer edit of submitter-owned content.
 | Edit a speaker profile | ✎ | ✎ | ✎ | — | — | ✎ | — | — | O | — |
 | Set profile `visibility` / `is_listed` | — | — | — | — | — | — | — | — | O | — |
 | Read and write `PersonNote` | ✎ | ✎ | ✎ | 👁 | — | ✎ | ✎ (sponsor) | — | — | — |
+| Read the speaker directory ([`14`](14-speaker-crm.md)) | 👁 | 👁 | 👁 | — | — | 👁 | 👁 | — | — | — |
+| Manage `ContactSegment`s | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
+| Run a `SourcingPipeline` | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
 | Comment on an uploaded file | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | O | O | — |
 | Compose and send a campaign | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
 | Read the communications history | 👁 | 👁 | 👁 | — | — | 👁 | 👁 (sponsor) | — | O | — |
@@ -348,6 +351,13 @@ PII export and erasure, and any organizer edit of submitter-owned content.
 | Read the published schedule | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 |
 | Read PII | 👁 | 👁 | 👁 | — | — | 👁 | 👁 (sponsor) | — | O | — |
 | Read the audit log | 👁 | 👁 | 👁 (event) | — | — | — | — | — | — | — |
+
+The three Speaker CRM rows arrived with [`14`](14-speaker-crm.md), which is org-scoped
+rather than event-scoped: the directory is `Person` at org scope, and INV-14-7 says this
+context grants no access to any event's proposals, reviews or decisions. `track_lead` and
+`reviewer` are absent from all three because their grants are event- or track-scoped and
+this data is neither. Pushing a contact into an event is *not* a fourth row — it creates an
+`EventParticipant`, so it is the existing "Manage the event roster" row (INV-14-5).
 
 Two rules override the table:
 
