@@ -709,3 +709,126 @@ body.console-dragging .console-grip-btn { cursor: grabbing; }
    the code badge in front of it. */
 .console-list.conflict-list > li > :first-child { flex: none; min-width: 0; }
 .console-list.conflict-list > li > :nth-child(2) { flex: 1; min-width: 12rem; }
+
+/* ---------- the proposal board ---------- */
+
+.board-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.board-search { flex: 1; min-width: 14rem; }
+.board-chips { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+.board-chip {
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.board-chip:hover { border-color: var(--indigo-line); background: var(--indigo-soft); color: var(--indigo-dark); }
+.board-chip.is-on { background: var(--indigo); border-color: var(--indigo-dark); color: #fff; }
+.board-chip.is-clear { border-style: dashed; }
+.board-sort { display: flex; align-items: center; gap: var(--sp-2); }
+.board-sort select { width: auto; }
+
+.board-count {
+  display: inline-block;
+  margin-left: var(--sp-1);
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--indigo-soft);
+  color: var(--indigo-dark);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-table table { font-size: var(--fs-sm); }
+.board-table th, .board-table td { white-space: nowrap; }
+/* The title is the one column allowed to be long — every other cell is a
+   label, and a table that wraps eight columns is a table nobody can scan. */
+.board-table td .board-title { white-space: normal; font-weight: 600; }
+.board-table th.num, .board-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.board-reviews.is-short { color: var(--warn); font-weight: 700; }
+.board-more { margin: var(--sp-3) 0 0; }
+
+/* The picker: available on the left, shown-in-order on the right. */
+.board-picker { padding: 0; overflow: hidden; }
+.board-picker-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.board-picker-head h2 { margin: 0; font-size: var(--fs-lg); }
+.board-picker-head .spacer { flex: 1; }
+.board-picker-cols { display: grid; grid-template-columns: 1fr; }
+@media (min-width: 48rem) {
+  .board-picker-cols { grid-template-columns: 1fr 1fr; }
+  .board-picker-selected { border-left: 1px solid var(--line); }
+}
+.board-picker-available, .board-picker-selected { padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+.board-picker-list { max-height: 26rem; overflow-y: auto; margin-top: var(--sp-3); }
+.board-picker-list h3, .board-picker-selected h3 {
+  margin: var(--sp-3) 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.board-picker-list section:first-child h3 { margin-top: 0; }
+.board-picker-list ul, .board-selected { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
+
+.board-option {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.board-option:hover { background: var(--sunken); }
+.board-option.is-on { background: var(--indigo-soft); border-color: var(--indigo-line); }
+.board-option input { width: auto; margin: 0; accent-color: var(--indigo); }
+.board-option-body { flex: 1; min-width: 0; display: grid; }
+.board-option-type { color: var(--muted); font-size: var(--fs-xs); }
+
+.board-glyph {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.board-selected-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2) 2px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.board-selected-item:hover { border-color: var(--indigo-line); }
+.board-selected-label { flex: 1; min-width: 0; font-size: var(--fs-md); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }

@@ -689,6 +689,32 @@ function proposalJson(row: Row, _includePii: boolean): Record<string, unknown> {
   };
 }
 
+/**
+ * A list row, for a board rather than for an integration.
+ *
+ * `proposalJson` is the entity as the API models it — all ids, no names —
+ * which is right for a caller syncing into another system and useless to a
+ * screen: a table of `trk_01J…` is a table nobody can read. The queue query
+ * already joins the names, so they come along here rather than costing the
+ * board one lookup per cell.
+ *
+ * `submitter_email` is PII and is gated on `includePii` exactly as everywhere
+ * else — the board is a staff screen, not an exemption.
+ */
+function proposalRowJson(row: Row, includePii: boolean): Record<string, unknown> {
+  return {
+    ...proposalJson(row, includePii),
+    submitter_name: strOrNull(row.submitter_name),
+    submitter_email: includePii ? strOrNull(row.submitter_email) : null,
+    track_name: strOrNull(row.track_name),
+    format_name: strOrNull(row.format_name),
+    sponsor_name: strOrNull(row.sponsor_name),
+    speaker_names: strOrNull(row.speaker_names),
+    review_count: num(row.review_count, 0),
+    target_reviews: num(row.target_reviews, 0),
+  };
+}
+
 function registerManagementApi(router: Router<RequestContext>): void {
   router.get("/v1/proposals", async (_req, ctx) => {
     const eventId = ctx.url.searchParams.get("event_id");
@@ -699,7 +725,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const filters = queueFiltersFrom(ctx.url);
     const { rows, next_cursor, total } = await proposalQueue(app, eventId, filters);
     const includePii = ctx.includePii({ event_id: eventId });
-    return json({ data: rows.map((r) => proposalJson(r, includePii)), next_cursor, total });
+    return json({ data: rows.map((r) => proposalRowJson(r, includePii)), next_cursor, total });
   });
 
   router.get("/v1/proposals/:id", async (_req, ctx, params) => {

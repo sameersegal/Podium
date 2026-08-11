@@ -42,6 +42,7 @@ import { eventDashboard } from "./dashboard.js";
 const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
   { segments: ["admin", "events", ":eventId"], capability: "config.manage" },
   { segments: ["admin", "events", ":eventId", "schedule"], capability: "schedule.place" },
+  { segments: ["admin", "events", ":eventId", "proposals"], capability: "proposal.read_any" },
   { segments: ["admin", "cfps", ":cfpId", "form"], capability: "cfp.configure" },
 ];
 

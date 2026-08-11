@@ -23,6 +23,7 @@ import { icons, formatDate } from "./ui.js";
 import { dashboard } from "./views/dashboard.js";
 import { formBuilder } from "./views/form-builder.js";
 import { agenda } from "./views/agenda.js";
+import { proposals } from "./views/proposals.js";
 
 /* -------------------------------------------------------------------------- */
 /* The route table                                                             */
@@ -30,6 +31,7 @@ import { agenda } from "./views/agenda.js";
 
 route("/admin/events/:eventId", dashboard);
 route("/admin/events/:eventId/schedule", agenda);
+route("/admin/events/:eventId/proposals", proposals);
 route("/admin/cfps/:cfpId/form", formBuilder);
 
 /* -------------------------------------------------------------------------- */
