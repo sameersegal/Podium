@@ -75,9 +75,19 @@ const EXTERNAL_ICON = raw(
   `<svg class="ext" width="11" height="11" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2H14v4.5"/><path d="M14 2 7.5 8.5"/><path d="M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5"/></svg>`,
 );
 
-/** The collapsed-menu affordance. Decorative — "Menu" is the accessible name. */
+/** The collapsed-menu affordance. Decorative — the label carries the meaning. */
 const MENU_ICON = raw(
   `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 4h11"/><path d="M2.5 8h11"/><path d="M2.5 12h11"/></svg>`,
+);
+
+/**
+ * Stands in for the account name once the bar is too narrow to spend a third of
+ * itself on it. Decorative: the name stays in the summary as text, hidden the
+ * way `.sr-only` hides things, so the button is still called by the person's
+ * name when it is read aloud.
+ */
+const USER_ICON = raw(
+  `<svg width="17" height="17" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="5.3" r="2.7"/><path d="M2.9 13.5a5.1 5.1 0 0 1 10.2 0"/></svg>`,
 );
 
 /** A link that opens in a new tab, announced as such rather than only drawn. */
@@ -111,10 +121,16 @@ function homeHref(opts: PageOptions): string {
  * of chrome before the page began. A `<details>`, like the account menu, so it
  * opens with scripts blocked (08, "Degrade gracefully"); `app.css` unfolds it
  * back into a row once the row fits.
+ *
+ * Collapsed, it is labelled with the tab you are on rather than the word
+ * "Menu" — the same reason the section menu names its section. A row of tabs
+ * says where you are by which one is filled in; a button that says "Menu"
+ * throws that away exactly where there is least room to work it out again.
  */
 function primaryNav(items: NavItem[]): SafeHtml {
+  const current = items.find((n) => n.current);
   return html`<details class="navmenu">
-    <summary>${MENU_ICON}<span>Menu</span></summary>
+    <summary>${MENU_ICON}${current ? html`<span class="sr-only">Menu: </span><span>${current.label}</span>` : html`<span>Menu</span>`}</summary>
     <nav class="tabs" aria-label="Primary">${items.map(navLink)}</nav>
   </details>`;
 }
@@ -128,7 +144,7 @@ function topbar(opts: PageOptions): SafeHtml {
     <span class="spacer"></span>
     ${opts.who
       ? html`<details class="usermenu">
-          <summary aria-haspopup="menu"><span class="who">${opts.who}</span></summary>
+          <summary aria-haspopup="menu">${USER_ICON}<span class="who">${opts.who}</span></summary>
           <div class="menu" role="menu">
             <p class="menu-head">${opts.who}</p>
             ${profile.external

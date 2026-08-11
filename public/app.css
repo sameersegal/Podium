@@ -62,9 +62,16 @@ p { margin: 0 0 .75rem; }
 .topbar .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; color: #fff; font-size: 1.05rem; }
 .topbar .brand img { height: 26px; width: auto; }
 .topbar .spacer { flex: 1; }
-/* Truncated rather than wrapped: the pill is a fixed landmark in the bar, and
-   the full name is the first line of the menu it opens. */
-.topbar .who { color: #e0e7ff; font-size: .88rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9rem; }
+/* On a phone the account chip is an icon: a name is the widest thing in the
+   bar and the least useful — you know who you are signed in as. It is hidden
+   the way `.sr-only` hides things rather than with `display: none`, so the
+   button is still announced by name, and the menu it opens leads with the name
+   anyway. `md` gives the words back, truncated rather than wrapped so the chip
+   stays a fixed landmark. */
+.topbar .who {
+  color: #e0e7ff; font-size: .88rem; font-weight: 500;
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
 
 /* The tab you are on is filled, not underlined: on a dark bar an underline is
    easy to miss and easy to mistake for a hover state. */
@@ -197,6 +204,8 @@ main.narrow { max-width: 720px; }
  */
 @media (min-width: 48rem) {
   .topbar { padding: .6rem 1.25rem; gap: 1.25rem; }
+  .topbar .who { position: static; width: auto; height: auto; clip: auto; max-width: 9rem; text-overflow: ellipsis; }
+  .usermenu > summary > svg { display: none; }
   /* Room for the account menu to hang off its own chip again. */
   .usermenu { position: relative; }
   .usermenu .menu { left: auto; right: 0; top: calc(100% + .45rem); min-width: 13rem; }

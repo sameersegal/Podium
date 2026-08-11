@@ -147,6 +147,14 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
   // A settings screen is organization-wide even when an event is loaded, so it
   // neither claims the Events tab nor flies an event's banner.
   const ev = isSettingsSection(opts.active ?? "") ? null : (opts.event ?? null);
+  // Which top-level tab an organization-wide screen sits under. Path matching
+  // gets `/admin/contacts/:id` for free but not `/admin/segments` or the ten
+  // settings sections, whose URLs sit under no tab at all — and on a phone the
+  // row is one button labelled with the current tab, so "no tab" now reads as
+  // "Menu" and the answer to "where am I" is gone. An event-scoped screen keeps
+  // deciding by its event: `sponsors` is both an event section and an
+  // organization screen, and two filled tabs is worse than none.
+  const orgTab = ev ? null : (opts.active ?? null);
   return page(
     {
       // The event is in the tab title too — admin and the portal are now two
@@ -163,10 +171,10 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
         // An event-scoped screen belongs to Events however flat its own URL is
         // (`/admin/proposals/:id` is one), so the event decides the tab.
         { href: "/admin/events", label: "Events", current: ev ? true : undefined },
-        { href: "/admin/contacts", label: "Contacts" },
-        { href: "/admin/sponsors", label: "Sponsors" },
-        { href: "/admin/team", label: "Team" },
-        { href: "/admin/settings", label: "Settings" },
+        { href: "/admin/contacts", label: "Contacts", current: orgTab === "contacts" || undefined },
+        { href: "/admin/sponsors", label: "Sponsors", current: orgTab === "sponsors" || undefined },
+        { href: "/admin/team", label: "Team", current: orgTab === "team" || undefined },
+        { href: "/admin/settings", label: "Settings", current: (orgTab !== null && isSettingsSection(orgTab)) || undefined },
         { href: "/portal", label: "Speaker portal", external: true },
       ]),
       banner: ev ? eventBar(ev) : raw(""),
