@@ -14,6 +14,12 @@ import { versionConflict } from "@podiumconf/domain/shared/errors.js";
 
 export type Row = Record<string, unknown>;
 
+/** One prepared statement, for `Db.batch()` — see its doc comment. */
+export interface Statement {
+  sql: string;
+  params?: unknown[];
+}
+
 export interface QueryOptions {
   /** Admin-only escape hatch for INV-11-2. */
   includeDeleted?: boolean;
@@ -92,8 +98,56 @@ export interface Db {
   /** Escape hatch for reads the generic helpers cannot express. Still org-scoped by the caller. */
   raw<T extends Row = Row>(sql: string, params?: unknown[]): Promise<T[]>;
   rawRun(sql: string, params?: unknown[]): Promise<void>;
+  /**
+   * Every statement commits or none do — the one escape from "every helper
+   * writes immediately" for flows that must not leave partial state (e.g.
+   * first-run bootstrap, 01-identity-and-access.md, "First-run setup").
+   * Build statements with `buildInsert`/`buildUpdate` rather than hand-rolled
+   * SQL, so this stays the single place column lists and placeholders are
+   * assembled.
+   */
+  batch(statements: Statement[]): Promise<void>;
   /** A view of this Db bound to a different org, for the platform surfaces. */
   readonly orgId: string;
+}
+
+/** Applies the same "inject org_id for org-scoped tables" rule as `insert`. */
+function withOrgId(table: string, values: Row, orgId: string): Row {
+  if (ORG_SCOPED_TABLES.has(table) && values.org_id === undefined) return { ...values, org_id: orgId };
+  return values;
+}
+
+/**
+ * Builds an `INSERT` statement without executing it, for callers assembling a
+ * `Db.batch()` — the same column/placeholder logic `D1Db.insert` uses, so a
+ * batched insert and an immediate one can never drift apart. Returns the
+ * finalised row (with `org_id` applied) alongside the statement, since the
+ * caller usually needs the row's id before the batch has actually run.
+ */
+export function buildInsert(table: string, values: Row, orgId: string): { statement: Statement; row: Row } {
+  const row = withOrgId(table, values, orgId);
+  const keys = Object.keys(row);
+  return {
+    statement: {
+      sql: `INSERT INTO ${table} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`,
+      params: keys.map((k) => encode(row[k])),
+    },
+    row,
+  };
+}
+
+/** Builds an `UPDATE` statement without executing it — see `buildInsert`. */
+export function buildUpdate(table: string, id: string, values: Row, orgId: string): Statement {
+  const keys = Object.keys(values);
+  const sets = keys.map((k) => `${k} = ?`).join(",");
+  const params: unknown[] = keys.map((k) => encode(values[k]));
+  let sql = `UPDATE ${table} SET ${sets} WHERE id = ?`;
+  params.push(id);
+  if (ORG_SCOPED_TABLES.has(table)) {
+    sql += " AND org_id = ?";
+    params.push(orgId);
+  }
+  return { sql, params };
 }
 
 function buildWhere(table: string, orgId: string, where: Row, opts: QueryOptions): { sql: string; params: unknown[] } {
@@ -172,14 +226,8 @@ export class D1Db implements Db {
   }
 
   async insert<T extends Row = Row>(table: string, values: Row): Promise<T> {
-    const row: Row = { ...values };
-    if (ORG_SCOPED_TABLES.has(table) && row.org_id === undefined) row.org_id = this.orgId;
-    const keys = Object.keys(row);
-    const sql = `INSERT INTO ${table} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`;
-    await this.d1
-      .prepare(sql)
-      .bind(...keys.map((k) => encode(row[k])))
-      .run();
+    const { statement, row } = buildInsert(table, values, this.orgId);
+    await this.d1.prepare(statement.sql).bind(...(statement.params ?? [])).run();
     return row as T;
   }
 
@@ -197,17 +245,9 @@ export class D1Db implements Db {
   }
 
   async update(table: string, id: string, values: Row): Promise<void> {
-    const keys = Object.keys(values);
-    if (keys.length === 0) return;
-    const sets = keys.map((k) => `${k} = ?`).join(",");
-    const params = keys.map((k) => encode(values[k]));
-    let sql = `UPDATE ${table} SET ${sets} WHERE id = ?`;
-    params.push(id);
-    if (ORG_SCOPED_TABLES.has(table)) {
-      sql += " AND org_id = ?";
-      params.push(this.orgId);
-    }
-    await this.d1.prepare(sql).bind(...params).run();
+    if (Object.keys(values).length === 0) return;
+    const { sql, params } = buildUpdate(table, id, values, this.orgId);
+    await this.d1.prepare(sql).bind(...(params ?? [])).run();
   }
 
   /**
@@ -252,8 +292,15 @@ export class D1Db implements Db {
     await this.d1.prepare(sql).bind(...params.map(encode)).run();
   }
 
-  /** Batch of prepared statements, for the "one transaction per proposal" flows. */
-  async batch(statements: { sql: string; params?: unknown[] }[]): Promise<void> {
+  /**
+   * `d1.batch()` runs every statement as one SQL transaction: if any fails,
+   * none of the writes are applied. This is the only all-or-nothing
+   * primitive `D1Db` offers — see the interface doc comment on `batch`.
+   * Params passed through `buildInsert`/`buildUpdate` are already `encode`d;
+   * running them through `encode` again here is idempotent, so raw callers
+   * building a `Statement` by hand don't have to remember to do it themselves.
+   */
+  async batch(statements: Statement[]): Promise<void> {
     if (statements.length === 0) return;
     await this.d1.batch(statements.map((s) => this.d1.prepare(s.sql).bind(...(s.params ?? []).map(encode))));
   }

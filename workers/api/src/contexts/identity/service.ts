@@ -5,7 +5,7 @@
  */
 
 import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { bool, buildInsert, buildUpdate, num, parseJson, str, strOrNull, type Row, type Statement } from "@podiumconf/data/db.js";
 import { hashToken, newToken, hashPassword, verifyPassword } from "@podiumconf/domain/identity/credentials.js";
 import {
   canTransitionParticipant,
@@ -57,6 +57,23 @@ export interface SetupOrganizationResult {
 }
 
 /**
+ * D1 (SQLite) reports a primary-key collision with exactly this message
+ * shape — confirmed against the real `env.DB` binding, not assumed:
+ * `D1_ERROR: UNIQUE constraint failed: bootstrap_state.id: SQLITE_CONSTRAINT
+ * (extended: SQLITE_CONSTRAINT_PRIMARYKEY)`. D1 does not expose a structured
+ * error code here, so this is a substring match, pinned by
+ * `setup-race.test.ts`. Deliberately narrow: matching on `SQLITE_CONSTRAINT`
+ * alone would also catch a foreign-key or unrelated unique-index failure
+ * elsewhere in the same batch (e.g. two attempts racing on the same owner
+ * email) and misreport it as "already set up", which is exactly the failure
+ * mode defect 2 exists to close off.
+ */
+function isBootstrapLockConflict(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes("SQLITE_CONSTRAINT") && message.includes("bootstrap_state.id");
+}
+
+/**
  * First-run bootstrap (01, "Tenancy": "One Organization per deployment";
  * "First-run setup"). Every other function in this file takes an `AppContext`
  * whose `orgId` already names a real `Organization` row; this one cannot,
@@ -70,8 +87,17 @@ export interface SetupOrganizationResult {
  * first write are not the same statement, so the real backstop against two
  * concurrent requests both bootstrapping the deployment is `bootstrap_state`:
  * its primary key holds exactly one value, and claiming it is deliberately
- * the very first write below. The loser's `INSERT` fails immediately, before
- * an `Organization`, `Person`, `AuthIdentity` or `RoleGrant` is created.
+ * the first statement of the one batch below.
+ *
+ * ATOMICITY: `Organization`, `Person`, their `password` `AuthIdentity` and
+ * the `owner` `RoleGrant` are collected as statements and executed in a
+ * single `Db.batch()` (one D1 transaction) rather than each committing on
+ * its own — a failure anywhere in this function must never leave a claimed
+ * `bootstrap_state` lock with no `Organization` behind it, or an
+ * `Organization` with no owner who can sign in. `findOrCreatePerson`,
+ * `setPassword` and `grantRole` each still write immediately for every other
+ * caller; here they are given the batch to append to instead, so their
+ * column/uniqueness logic is not duplicated for this one path.
  */
 export async function setupOrganization(env: Env, input: SetupOrganizationInput): Promise<SetupOrganizationResult> {
   const orgName = input.org_name.trim();
@@ -95,9 +121,9 @@ export async function setupOrganization(env: Env, input: SetupOrganizationInput)
     throw new DomainError({ code: "invalid_email", message: `"${input.owner_email}" is not an email address.`, status: 422 });
   }
 
-  // Fail fast on the password before claiming the bootstrap lock — `setPassword`
-  // enforces the same rule, but there is no reason to spend the one-shot lock
-  // on a request that was always going to fail validation.
+  // Fail fast on the password before doing anything else — `setPassword`
+  // enforces the same rule, but there is no reason to hash it or touch the
+  // database for a request that was always going to fail validation.
   if (input.owner_password.length < 8) {
     throw new DomainError({ code: "weak_password", message: "Use at least 8 characters.", status: 422 });
   }
@@ -106,38 +132,42 @@ export async function setupOrganization(env: Env, input: SetupOrganizationInput)
   const app = new AppContext({ env, orgId, actor: SYSTEM_ACTOR });
   const now = app.now();
 
-  try {
-    // INV-01-16: the first write, and the one that decides who wins a race.
-    await app.db.rawRun("INSERT INTO bootstrap_state (id, organization_id, created_at) VALUES (1, ?, ?)", [orgId, now]);
-  } catch {
-    throw invariantError(
-      "INV-01-16",
-      "organization_already_exists",
-      "This deployment has already been set up. Sign in instead.",
-      undefined,
-      403,
-    );
-  }
-
+  // `organization` is empty on every request racing to bootstrap an empty
+  // deployment, so two concurrent requests may well compute the same slug —
+  // that is fine. Only one of their batches below can actually commit
+  // (`bootstrap_state`'s primary key), and a batch that loses is rolled back
+  // in full, slug collision included.
   const slug = await uniqueOrganizationSlug(app, input.org_slug?.trim() || orgName);
 
-  await app.db.insert("organization", {
-    id: orgId,
-    name: orgName,
-    slug,
-    primary_domain: null,
-    logo_asset_id: null,
-    default_timezone: timezone,
-    contact_email: contactEmail,
-    // Deliberately no `auth` key: leaving it unset lets `passwordLoginEnabled`
-    // fall through to its dynamic default — on, because a brand-new
-    // deployment has no `email` integration (R23) — rather than baking in an
-    // explicit `false` that could lock the owner who just created it out.
-    settings: JSON.stringify({}),
-    created_at: now,
-    updated_at: now,
-    row_version: 1,
-  });
+  const statements: Statement[] = [
+    // INV-01-16: first statement in the batch, and the one that decides who
+    // wins a race. A conflict here now aborts every write below it, in the
+    // same transaction, rather than being the only write that happened.
+    { sql: "INSERT INTO bootstrap_state (id, organization_id, created_at) VALUES (1, ?, ?)", params: [orgId, now] },
+  ];
+
+  const org = buildInsert(
+    "organization",
+    {
+      id: orgId,
+      name: orgName,
+      slug,
+      primary_domain: null,
+      logo_asset_id: null,
+      default_timezone: timezone,
+      contact_email: contactEmail,
+      // Deliberately no `auth` key: leaving it unset lets `passwordLoginEnabled`
+      // fall through to its dynamic default — on, because a brand-new
+      // deployment has no `email` integration (R23) — rather than baking in an
+      // explicit `false` that could lock the owner who just created it out.
+      settings: JSON.stringify({}),
+      created_at: now,
+      updated_at: now,
+      row_version: 1,
+    },
+    orgId,
+  );
+  statements.push(org.statement);
   app.events.emit({
     type: "organization.created",
     subject: { type: "organization", id: orgId },
@@ -145,14 +175,33 @@ export async function setupOrganization(env: Env, input: SetupOrganizationInput)
   });
   app.audit.record({ action: "organization.create", entity_type: "organization", entity_id: orgId, after: { name: orgName, slug } });
 
-  const person = await findOrCreatePerson(app, {
-    email: ownerEmail,
-    full_name: ownerName,
-    status: "active",
-    source: "setup",
-  });
-  await setPassword(app, person.id, input.owner_password);
-  await grantRole(app, { person_id: person.id, role: "owner", scope_type: "org", scope_id: orgId });
+  const person = await findOrCreatePerson(
+    app,
+    { email: ownerEmail, full_name: ownerName, status: "active", source: "setup" },
+    { batch: statements },
+  );
+  // `setPassword` normally re-reads the `Person` row by id; `person` here is
+  // not committed yet (it is still just a statement in `statements`), so it
+  // is passed in directly rather than fetched. `hashPassword` runs inside it,
+  // synchronously, before this function returns — i.e. before the batch
+  // below ever executes.
+  await setPassword(app, person.id, input.owner_password, { batch: statements, person });
+  await grantRole(app, { person_id: person.id, role: "owner", scope_type: "org", scope_id: orgId }, { batch: statements });
+
+  try {
+    await app.db.batch(statements);
+  } catch (err) {
+    if (isBootstrapLockConflict(err)) {
+      throw invariantError(
+        "INV-01-16",
+        "organization_already_exists",
+        "This deployment has already been set up. Sign in instead.",
+        undefined,
+        403,
+      );
+    }
+    throw err;
+  }
 
   return { app, organization_id: orgId, person_id: person.id };
 }
@@ -194,7 +243,22 @@ export interface UpsertPersonInput {
  * INV-01-1: `Person.email` is unique per org among non-deleted, non-merged
  * people, so this is an upsert by email rather than a blind insert.
  */
-export async function findOrCreatePerson(ctx: AppContext, input: UpsertPersonInput): Promise<PersonRow> {
+export interface WriteBatchOpts {
+  /**
+   * When given, this call's write(s) are appended here instead of executing
+   * immediately — the caller is responsible for running `ctx.db.batch(...)`
+   * itself, atomically, once every statement it needs is collected (see
+   * `setupOrganization`). Every other caller leaves this unset and gets the
+   * original immediate-write behaviour, unchanged.
+   */
+  batch?: Statement[];
+}
+
+export async function findOrCreatePerson(
+  ctx: AppContext,
+  input: UpsertPersonInput,
+  opts: WriteBatchOpts = {},
+): Promise<PersonRow> {
   const email = normaliseEmail(input.email);
   if (!email || !email.includes("@")) {
     throw new DomainError({ code: "invalid_email", message: `"${input.email}" is not an email address.`, status: 422 });
@@ -212,14 +276,18 @@ export async function findOrCreatePerson(ctx: AppContext, input: UpsertPersonInp
     if (input.display_name && !resolved.display_name) patch.display_name = input.display_name;
     if (Object.keys(patch).length > 0) {
       patch.updated_at = now;
-      await ctx.db.update("person", resolved.id, patch);
+      if (opts.batch) {
+        opts.batch.push(buildUpdate("person", resolved.id, patch, ctx.orgId));
+      } else {
+        await ctx.db.update("person", resolved.id, patch);
+      }
       return { ...resolved, ...patch } as PersonRow;
     }
     return resolved;
   }
 
   const id = newId("Person");
-  const row: Row = {
+  const values: Row = {
     id,
     org_id: ctx.orgId,
     email,
@@ -235,7 +303,14 @@ export async function findOrCreatePerson(ctx: AppContext, input: UpsertPersonInp
     created_at: now,
     updated_at: now,
   };
-  await ctx.db.insert("person", row);
+  let row: Row;
+  if (opts.batch) {
+    const built = buildInsert("person", values, ctx.orgId);
+    opts.batch.push(built.statement);
+    row = built.row;
+  } else {
+    row = await ctx.db.insert("person", values);
+  }
   ctx.events.emit({
     type: "person.created",
     subject: { type: "person", id },
@@ -381,24 +456,39 @@ export async function detectMergeCandidates(ctx: AppContext, personId: string): 
 /* Auth identities                                                             */
 /* -------------------------------------------------------------------------- */
 
+export interface SetPasswordOpts extends WriteBatchOpts {
+  /**
+   * The `Person` row, when the caller already holds it. Required alongside
+   * `batch` when that row was itself only just appended to the same batch and
+   * so is not readable through `ctx.db` yet — `getPerson`'s usual lookup
+   * would (wrongly) report it missing. Every non-batch caller omits this and
+   * gets the original `getPerson(ctx, personId)` lookup.
+   */
+  person?: PersonRow;
+}
+
 /**
  * INV-01-12: `credential_hash` is required when `provider = password` and must
  * be null for every other provider.
  */
-export async function setPassword(ctx: AppContext, personId: string, plaintext: string): Promise<void> {
+export async function setPassword(ctx: AppContext, personId: string, plaintext: string, opts: SetPasswordOpts = {}): Promise<void> {
   if (plaintext.length < 8) {
     throw new DomainError({ code: "weak_password", message: "Use at least 8 characters.", status: 422 });
   }
-  const person = await getPerson(ctx, personId);
+  const person = opts.person ?? (await getPerson(ctx, personId));
   const subject = normaliseEmail(str(person.email)); // for `password`, the lowercased email
   const now = ctx.now();
   const existing = await ctx.db.first<Row>("auth_identity", { provider: "password", subject });
   const hash = hashPassword(plaintext);
   if (existing) {
-    await ctx.db.update("auth_identity", str(existing.id), { credential_hash: hash, credential_updated_at: now });
+    if (opts.batch) {
+      opts.batch.push(buildUpdate("auth_identity", str(existing.id), { credential_hash: hash, credential_updated_at: now }, ctx.orgId));
+    } else {
+      await ctx.db.update("auth_identity", str(existing.id), { credential_hash: hash, credential_updated_at: now });
+    }
     return;
   }
-  await ctx.db.insert("auth_identity", {
+  const row: Row = {
     id: newId("AuthIdentity"),
     person_id: person.id,
     provider: "password",
@@ -407,7 +497,12 @@ export async function setPassword(ctx: AppContext, personId: string, plaintext: 
     credential_updated_at: now,
     email_at_provider: subject,
     created_at: now,
-  });
+  };
+  if (opts.batch) {
+    opts.batch.push(buildInsert("auth_identity", row, ctx.orgId).statement);
+  } else {
+    await ctx.db.insert("auth_identity", row);
+  }
 }
 
 export async function verifyPasswordLogin(ctx: AppContext, email: string, plaintext: string): Promise<PersonRow | null> {
@@ -468,6 +563,7 @@ export async function endSession(ctx: AppContext, token: string): Promise<void> 
 export async function grantRole(
   ctx: AppContext,
   input: { person_id: string; role: Role; scope_type: ScopeType; scope_id: string; expires_at?: string | null },
+  opts: WriteBatchOpts = {},
 ): Promise<string> {
   // INV-01-6: owner and admin only at org scope; track_lead only at track scope.
   if ((input.role === "owner" || input.role === "admin") && input.scope_type !== "org") {
@@ -486,7 +582,7 @@ export async function grantRole(
   if (existing) return str(existing.id);
 
   const id = newId("RoleGrant");
-  await ctx.db.insert("role_grant", {
+  const row: Row = {
     id,
     org_id: ctx.orgId,
     person_id: input.person_id,
@@ -496,7 +592,12 @@ export async function grantRole(
     granted_by_person_id: ctx.actor.id ?? input.person_id,
     granted_at: ctx.now(),
     expires_at: input.expires_at ?? null,
-  });
+  };
+  if (opts.batch) {
+    opts.batch.push(buildInsert("role_grant", row, ctx.orgId).statement);
+  } else {
+    await ctx.db.insert("role_grant", row);
+  }
   ctx.events.emit({
     type: "role_grant.created",
     subject: { type: "person", id: input.person_id },
