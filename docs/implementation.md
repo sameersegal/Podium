@@ -83,11 +83,15 @@ Two things follow from parameters living inside the stored PHC string rather tha
 - A hash written with the old parameters still costs its own ~345 ms to check, so it cannot
   be verified on this plan at all. `beyondCpuBudget` refuses those deliberately and
   `verifyPasswordLogin` returns `credential_needs_reset` (409), because the alternative is a
-  503 that looks like an outage instead of a credential that needs re-setting.
+  503 that looks like an outage instead of a credential that needs re-setting. There is no
+  password reset route, so that 409 points at an invitation (INV-01-15), not a reset form.
 - Re-hashing happens on successful sign-in, while the plaintext is in hand. There is no
   batch migration path; nobody holds the plaintexts.
+- `scripts/seed.mjs` writes its own hashes and carries its own copy of the parameters, so it
+  has to move with `ARGON2_PARAMS`. It did not, and every seeded password became
+  unverifiable; `tests/unit/shared/seed-credentials.test.ts` now holds the two in step.
 
-The 10 ms is not enforced per request. Measured after the change, `POST /login` ranges 5–46 ms
+The 10 ms is not enforced per request. Measured on 2026-08-11, `POST /login` ranges 5–46 ms
 and all of it is served; `/admin` routinely measures ~19 ms. Cloudflare tolerates bursts and
 kills sustained or extreme overruns, which is why a 345 ms hash was fatal, why it still got
 through perhaps once in four, and why the app appears healthy today at twice the nominal
