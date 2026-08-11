@@ -130,7 +130,11 @@ if (await waitForReady()) {
   );
 }
 
-if (!skipReset && (await waitForReady())) {
+// Runs on every start, not just after a reset: `publishSeededSchedule` returns
+// early when a publication already exists, and `--no-reset` against a database
+// that has never been published is exactly the case that leaves every public
+// surface correctly, and confusingly, empty.
+if (await waitForReady()) {
   try {
     const outcome = await publishSeededSchedule();
     console.log(
