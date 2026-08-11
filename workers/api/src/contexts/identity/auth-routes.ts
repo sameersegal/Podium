@@ -27,7 +27,7 @@ import {
 } from "./service.js";
 
 function authPage(title: string, body: ReturnType<typeof html>, flash?: RequestContext["flash"]) {
-  return page({ title, surface: "auth", width: "narrow", flash: flash ?? null, nav: [{ href: "/", label: "Home" }] }, body);
+  return page({ title, surface: "auth", width: "narrow", flash: flash ?? null, nav: [] }, body);
 }
 
 export function registerAuthRoutes(router: Router<RequestContext>): void {

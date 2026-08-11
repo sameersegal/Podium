@@ -112,7 +112,7 @@ function setupFormBody(values: SetupFormValues, error?: string | null): SafeHtml
 
 function setupPage(ctx: RequestContext, values: SetupFormValues = {}, error?: string | null) {
   return page(
-    { title: "Set up Podium", surface: "auth", width: "narrow", flash: ctx.flash, nav: [{ href: "/", label: "Home" }] },
+    { title: "Set up Podium", surface: "auth", width: "narrow", flash: ctx.flash, nav: [] },
     setupFormBody(values, error),
   );
 }

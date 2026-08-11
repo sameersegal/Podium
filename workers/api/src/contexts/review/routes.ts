@@ -373,7 +373,7 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
     const progressByRound: Record<string, Awaited<ReturnType<typeof progressForReviewer>>> = {};
     for (const roundId of roundIds) progressByRound[roundId] = await progressForReviewer(app, roundId, person.id);
     return htmlResponse(
-      portalPage(ctx, { title: "My reviews", width: "wide" }, reviewerDashboardView({ rows, progressByRound })),
+      portalPage(ctx, { title: "My reviews", width: "wide", active: "reviews" }, reviewerDashboardView({ rows, progressByRound })),
     );
   });
 

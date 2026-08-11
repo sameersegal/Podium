@@ -4,6 +4,12 @@ export interface NavItem {
   href: string;
   label: string;
   current?: boolean;
+  /**
+   * Opens in a new tab, with an icon saying so. Reserved for links that leave
+   * the mode you are in — switching between admin and the portal mid-task is
+   * disorienting when it happens in the tab you were working in.
+   */
+  external?: boolean;
 }
 
 export interface PageOptions {
@@ -13,6 +19,12 @@ export interface PageOptions {
   subnav?: NavItem[];
   nav?: NavItem[];
   who?: string | null;
+  /** Where the account menu's "Profile" points. Defaults to the portal profile. */
+  profile?: NavItem;
+  /** The brand link. Defaults to the landing page of the current surface. */
+  home?: string;
+  /** Rendered between the top bar and the subnav — the admin event bar. */
+  banner?: SafeHtml;
   width?: "narrow" | "default" | "wide";
   flash?: { kind: "ok" | "err" | "warn" | "info"; message: string } | null;
   bodyClass?: string;
@@ -40,6 +52,7 @@ export function page(opts: PageOptions, body: SafeHtml): SafeHtml {
 </head>
 <body class="${opts.bodyClass ?? ""}">
   ${topbar(opts)}
+  ${opts.banner ?? raw("")}
   ${opts.subnav?.length ? subnav(opts.subnav) : raw("")}
   <main class="${width}">
     ${opts.flash ? html`<div class="flash ${opts.flash.kind}" role="status">${opts.flash.message}</div>` : raw("")}
@@ -49,37 +62,66 @@ export function page(opts: PageOptions, body: SafeHtml): SafeHtml {
 </html>`;
 }
 
+/** The "leaves this tab" marker. Decorative — the label carries the meaning. */
+const EXTERNAL_ICON = raw(
+  `<svg class="ext" width="11" height="11" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2H14v4.5"/><path d="M14 2 7.5 8.5"/><path d="M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5"/></svg>`,
+);
+
+/** A link that opens in a new tab, announced as such rather than only drawn. */
+export function externalLink(href: string, label: string, className = ""): SafeHtml {
+  return html`<a href="${href}" target="_blank" rel="noopener" class="${className}"
+    >${label}${EXTERNAL_ICON}<span class="sr-only"> (opens in a new tab)</span></a
+  >`;
+}
+
+function navLink(n: NavItem): SafeHtml {
+  const current = n.current ? raw(' aria-current="page"') : raw("");
+  if (n.external) {
+    return html`<a href="${n.href}" target="_blank" rel="noopener"
+      >${n.label}${EXTERNAL_ICON}<span class="sr-only"> (opens in a new tab)</span></a
+    >`;
+  }
+  return html`<a href="${n.href}"${current}>${n.label}</a>`;
+}
+
+/** Landing page of the surface you are on — the logo never leaves your mode. */
+function homeHref(opts: PageOptions): string {
+  if (opts.home) return opts.home;
+  if (opts.surface === "admin") return "/admin";
+  if (opts.surface === "portal") return "/portal";
+  return "/";
+}
+
 function topbar(opts: PageOptions): SafeHtml {
   const nav = opts.nav ?? defaultNav(opts.surface ?? "public");
+  const profile = opts.profile ?? { href: "/portal/profile", label: "Profile" };
   return html`<header class="topbar">
-    <a class="brand" href="/"><img src="/podium-logo-horizontal-light.png" alt="Podium"></a>
-    ${nav.map((n) => html`<a href="${n.href}"${n.current ? raw(' aria-current="page"') : raw("")}>${n.label}</a>`)}
+    <a class="brand" href="${homeHref(opts)}"><img src="/podium-logo-horizontal-light.png" alt="Podium"></a>
+    ${nav.length ? html`<nav class="tabs">${nav.map(navLink)}</nav>` : raw("")}
     <span class="spacer"></span>
     ${opts.who
-      ? html`<span class="who">${opts.who}</span>
-          <form method="post" action="/logout" class="inline-form"><button class="secondary small" type="submit">Sign out</button></form>`
+      ? html`<details class="usermenu">
+          <summary aria-haspopup="menu"><span class="who">${opts.who}</span></summary>
+          <div class="menu" role="menu">
+            <p class="menu-head">${opts.who}</p>
+            ${profile.external
+              ? externalLink(profile.href, profile.label)
+              : html`<a href="${profile.href}">${profile.label}</a>`}
+            <form method="post" action="/logout"><button class="secondary small" type="submit">Sign out</button></form>
+          </div>
+        </details>`
       : html`<a href="/login">Sign in</a>`}
   </header>`;
 }
 
 function subnav(items: NavItem[]): SafeHtml {
-  return html`<nav class="subnav">${items.map(
-    (n) => html`<a href="${n.href}"${n.current ? raw(' aria-current="page"') : raw("")}>${n.label}</a>`,
-  )}</nav>`;
+  return html`<nav class="subnav">${items.map(navLink)}</nav>`;
 }
 
 function defaultNav(surface: PageOptions["surface"]): NavItem[] {
-  if (surface === "admin")
-    return [
-      { href: "/admin", label: "Dashboard" },
-      { href: "/portal", label: "Speaker portal" },
-    ];
-  if (surface === "portal")
-    return [
-      { href: "/portal", label: "My dashboard" },
-      { href: "/portal/profile", label: "My profile" },
-    ];
-  return [{ href: "/", label: "Home" }];
+  if (surface === "admin") return [{ href: "/portal", label: "Speaker portal", external: true }];
+  if (surface === "portal") return [{ href: "/portal", label: "My dashboard" }];
+  return [];
 }
 
 /* -------------------------------------------------------------------------- */
