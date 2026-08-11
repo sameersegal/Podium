@@ -182,9 +182,18 @@ the server-rendered page, which is still registered and still works. So the port
 incremental rather than a flag day, `<noscript>` has somewhere to point, and
 `tests/integration/foundation/concurrency.test.ts` still drives the real HTML forms.
 
-**Ported so far:** the event dashboard, the agenda grid, the proposal board, the form
+**Ported so far — fifteen screens**, which is the organizer's daily loop end to end:
+`/admin`, the event dashboard, the proposal board and a proposal, the agenda grid, the form
 builder, and the events / setup / calls / sessions / review / speakers / onboarding / publish
-lists. `public/console/app.js` and `surfaces/console.ts` each hold the list and the two have
+lists. Navigating between any of them is same-document.
+
+**Still server-rendered, deliberately:** the write-heavy detail forms — a session, a call's
+settings, a decision, a round's assignments, and the organization-wide settings screens.
+Each already round-trips `row_version` and refuses a stale write (INV-11-14), and a form
+reimplemented badly is worse than a form that reloads. The console links to them rather than
+hiding them.
+
+`public/console/app.js` and `surfaces/console.ts` each hold the route list and the two have
 to agree — a path the server boots and the client cannot match renders an empty shell.
 
 **Testing a ported path.** An integration test asserting server-rendered HTML for a URL the

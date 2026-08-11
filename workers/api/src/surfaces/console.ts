@@ -40,7 +40,9 @@ import { eventDashboard } from "./dashboard.js";
  * console that boots and then 403s on its first fetch.
  */
 const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
-  // Organization-wide: no event in the path, so the shell flies no event bar.
+  // Organization-wide: no event in the path. `/admin` still opens on the most
+  // recent event, because "what needs me today" is always about one.
+  { segments: ["admin"], capability: "config.manage" },
   { segments: ["admin", "events"], capability: "config.manage" },
   { segments: ["admin", "events", ":eventId"], capability: "config.manage" },
   { segments: ["admin", "events", ":eventId", "schedule"], capability: "schedule.place" },
@@ -53,11 +55,13 @@ const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
   { segments: ["admin", "events", ":eventId", "onboarding"], capability: "task.define" },
   { segments: ["admin", "events", ":eventId", "publications"], capability: "schedule.read_published" },
   { segments: ["admin", "cfps", ":cfpId", "form"], capability: "cfp.configure" },
+  { segments: ["admin", "proposals", ":proposalId"], capability: "proposal.read_any" },
 ];
 
 interface ConsoleMatch {
   params: Record<string, string>;
   capability: Capability;
+  segments: string[];
 }
 
 function matchConsolePath(pathname: string): ConsoleMatch | null {
@@ -74,7 +78,7 @@ function matchConsolePath(pathname: string): ConsoleMatch | null {
         break;
       }
     }
-    if (ok) return { params, capability: route.capability };
+    if (ok) return { params, capability: route.capability, segments: route.segments };
   }
   return null;
 }
@@ -102,6 +106,18 @@ async function eventForMatch(
     if (!cfp) return { event: null, missing: true };
     const row = await app.db.byId<Row>("event", str(cfp.event_id));
     return { event: row ? toEventRef(row) : null, missing: !row };
+  }
+  if (hit.params.proposalId) {
+    const proposal = await app.db.byId<Row>("proposal", hit.params.proposalId);
+    if (!proposal) return { event: null, missing: true };
+    const row = await app.db.byId<Row>("event", str(proposal.event_id));
+    return { event: row ? toEventRef(row) : null, missing: !row };
+  }
+  // `/admin` names no event and opens on the most recent one, the same choice
+  // the server-rendered landing page makes.
+  if (hit.segments.length === 1) {
+    const rows = await app.db.select<Row>("event", {}, { orderBy: "starts_on DESC", limit: 1 });
+    return { event: rows[0] ? toEventRef(rows[0]) : null, missing: false };
   }
   return { event: null, missing: false };
 }

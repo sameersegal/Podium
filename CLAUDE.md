@@ -119,10 +119,11 @@ The decisions that most shape the code, and how each one landed:
   blocker is closed: `scheduling` now has a `/v1` surface, specified in
   [`09`](docs/domain/09-api-and-integrations.md) under "Scheduling on the management
   surface". The console is built and lives in `public/console/` — ES modules, no build step
-  — and owns two screens so far, `/admin/events/:eventId` and `/admin/cfps/:cfpId/form`. It
-  shares URLs with the screens it replaces and declines any request it does not own, so the
-  rest of `/admin` is still server-rendered and still works; `?nojs=1` reaches the
-  server-rendered version of a ported screen. See "The admin console" in
+  — and owns fifteen screens, which is the organizer's daily loop end to end. It shares URLs
+  with the screens it replaces and declines any request it does not own, so the write-heavy
+  detail forms are still server-rendered and still work; `?nojs=1` reaches the
+  server-rendered version of a ported screen, and an integration test asserting HTML for one
+  must ask for it. See "The admin console" in
   [`docs/implementation.md`](docs/implementation.md) before adding a screen — in particular
   the two properties (`SameSite=Lax` + JSON as the CSRF defence, permissions recomputed per
   request) the console now relies on. Public, embeds, `/portal` and `/review` stay

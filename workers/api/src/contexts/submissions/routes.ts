@@ -752,6 +752,23 @@ function registerManagementApi(router: Router<RequestContext>): void {
       answers: Object.fromEntries(
         detail.answer_views.filter((a) => a.visible).map((a) => [a.field_key, a.value]),
       ),
+      // The same answers with the question they answered. `answers` is the map
+      // an integration wants — key to value — and is unreadable on a screen,
+      // which needs the label, the step it sat in, and the resolved `display`
+      // for the reference-valued types (04, "An answer's value is not what a
+      // reader sees"). Additive, so the map above is untouched.
+      answer_views: detail.answer_views
+        .filter((a) => a.visible)
+        .map((a) => ({
+          field_key: a.field_key,
+          label: a.label,
+          type: a.type,
+          step_key: a.step_key,
+          step_title: a.step_title,
+          value: a.value,
+          display: a.display,
+        })),
+      event: detail.event ? { id: str(detail.event.id), name: str(detail.event.name), timezone: str(detail.event.timezone, "UTC") } : null,
     });
   });
 
