@@ -21,6 +21,7 @@ import { PROGRAM_REACTIONS } from "../contexts/program/reactions.js";
 import { ONBOARDING_REACTIONS } from "../contexts/onboarding/reactions.js";
 import { SCHEDULING_REACTIONS } from "../contexts/scheduling/reactions.js";
 import { IDENTITY_REACTIONS } from "../contexts/identity/reactions.js";
+import { REVIEW_REACTIONS } from "../contexts/review/reactions.js";
 import { PLATFORM_REACTIONS } from "../contexts/platform/reactions.js";
 import { CONTENT_REACTIONS } from "../contexts/content/reactions.js";
 
@@ -30,6 +31,7 @@ export const REACTIONS: Reaction[] = [
   ...PROGRAM_REACTIONS,
   ...ONBOARDING_REACTIONS,
   ...SCHEDULING_REACTIONS,
+  ...REVIEW_REACTIONS,
   ...CONTENT_REACTIONS,
   // Platform last: webhook fan-out and notification delivery react to
   // everything, including the events the handlers above raise.

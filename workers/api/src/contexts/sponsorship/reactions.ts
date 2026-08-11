@@ -49,17 +49,34 @@ export const SPONSORSHIP_REACTIONS: Reaction[] = [
     },
   },
   {
+    // INV-04-10 — "withdrawing or rejecting releases any entitlement hold in
+    // the same transaction". `withdrawProposal` and `applyDecisionToProposal`
+    // (`submissions/service.ts`) already call `emitRelease` inline, so the
+    // slot is free before the response is written rather than only once a
+    // queue delivers — and `expireProposal` does the same for the fourth
+    // release path, `accepted --> expired`, which INV-04-10 does not name but
+    // the entitlement lifecycle (03, `Entitlement`) requires for the same
+    // reason: an expired acceptance never became a session, so its hold has
+    // nowhere else to go.
+    //
+    // This reaction used to also subscribe to `proposal.withdrawn` and
+    // `proposal.rejected`, so every one of those two release paths ran
+    // *twice* — once inline, once again here on the event the inline call's
+    // own transition emitted — producing two `entitlement.released` events
+    // with different ids and two audit rows for one fact (`emitRelease` is
+    // pure event-plus-audit with no state guard, so nothing caught the
+    // duplicate). `draft.abandoned` is the one release path with no inline
+    // call (the 14-day sweep is a cron, not a request with a response to keep
+    // fast — R22), so it is the only type that still belongs here.
     name: "sponsorship.release_entitlement",
-    types: ["proposal.withdrawn", "proposal.rejected", "draft.abandoned"],
+    types: ["draft.abandoned"],
     async handle(ev, env) {
       const app = contextFor(env, ev);
       const proposalId = str((ev.data as Record<string, unknown>).proposal_id);
       const proposal = await proposalOf(app, proposalId);
       if (!proposal?.entitlement_id) return;
       // 03: "held --> available: draft withdrawn / abandoned / rejected".
-      const reason =
-        ev.type === "proposal.withdrawn" ? "withdrawn" : ev.type === "proposal.rejected" ? "rejected" : "abandoned";
-      await emitRelease(app, str(proposal.entitlement_id), proposalId, reason);
+      await emitRelease(app, str(proposal.entitlement_id), proposalId, "abandoned");
       await app.flush();
     },
   },

@@ -29,6 +29,7 @@ import { DEFAULT_TASK_DEFINITIONS, type DefaultTaskDefinition } from "@podiumcon
 import { DomainError, illegalTransition, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
 import { newId } from "@podiumconf/domain/shared/ids.js";
 import { addDays, calendarDateInZone, type Instant } from "@podiumconf/domain/shared/time.js";
+import type { DeliveryMessage } from "../../consumers/delivery.js";
 import {
   eventStartOf,
   materialiseChained,
@@ -666,7 +667,26 @@ export interface ReminderCandidate {
  * (in their timezone), writes a `TaskReminderLog` row per candidate (sent or
  * suppressed, so "did we chase them?" always has an answer), and writes the
  * `NotificationDelivery` outbox row directly — this context owns its own
- * reminders rather than going through the campaign machinery.
+ * reminders rather than going through `platform.queueNotification`.
+ *
+ * That is a deliberate choice, not the bypass it looks like: "digest by
+ * default" (07, "Reminders") means one email listing every task due for a
+ * person, and `queueNotification`'s contract is one template rendered for one
+ * subject — it has no shape for "N tasks, one message" any more than
+ * `remindReviewer` (05, `review/service.ts`) routes the reviewer chase through
+ * it. Both contexts hand-build the digested body and write the row directly.
+ *
+ * What *was* a bug, and is fixed here: the row was left at `status: "queued"`
+ * with nothing ever calling `DELIVERY_QUEUE.send` — so both the scheduled
+ * sweep and a manual nudge reported themselves sent and reached nobody. Every
+ * other direct-write path in this codebase (`review/service.ts`
+ * `writeDecisionNotification`, `remindReviewer`) enqueues the delivery
+ * immediately after the insert; this now does too. The `template_key` is also
+ * fixed to `task.reminder`, the one declared in `platform/templates.ts` — the
+ * previous `task.manual_reminder` for manual nudges did not exist, which
+ * silently defeated `isTransactionalTemplate` (an obligation reminder was
+ * treated as suppressible marketing content) as well as leaving the outbox
+ * carrying a template key nothing could resolve or preview.
  */
 export async function deliverReminders(app: AppContext, candidates: ReminderCandidate[]): Promise<{ sent: number; suppressed: number }> {
   let sent = 0;
@@ -725,7 +745,7 @@ export async function deliverReminders(app: AppContext, candidates: ReminderCand
     await app.db.insert("notification_delivery", {
       id: notificationId,
       event_id: strOrNull(due[0].instance.event_id),
-      template_key: due[0].trigger === "manual" ? "task.manual_reminder" : "task.reminder",
+      template_key: "task.reminder",
       recipient_person_id: personId,
       recipient_email: str(person?.email, ""),
       channel: "email",
@@ -735,6 +755,14 @@ export async function deliverReminders(app: AppContext, candidates: ReminderCand
       status: "queued",
       created_at: now,
     });
+    const message: DeliveryMessage = { kind: "notification", notification_id: notificationId, org_id: app.orgId };
+    try {
+      await app.env.DELIVERY_QUEUE.send(message);
+    } catch (err) {
+      // The row is committed either way (INV-09-12); a queue outage costs
+      // latency, not the fact that the message was intended.
+      console.warn("task reminder enqueue failed", { notification_id: notificationId, error: String(err) });
+    }
     for (const c of due) {
       await app.db.insert("task_reminder_log", {
         id: newId("TaskReminderLog"),

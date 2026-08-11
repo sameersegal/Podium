@@ -686,6 +686,16 @@ export async function emitHold(app: AppContext, entitlementId: string, proposalI
   return usage;
 }
 
+/**
+ * Pure event-plus-audit, like `emitHold` — no state guard, so it is the
+ * caller's job to call it exactly once per release. INV-04-10 wants the
+ * withdraw/reject/expire releases in the same transaction as the proposal
+ * transition, so those three call this directly (`submissions/service.ts`);
+ * `draft.abandoned` has no such transaction to piggyback on (it is a cron
+ * sweep, not a request), so `sponsorship.release_entitlement`
+ * (`reactions.ts`) is the only caller for that one path. Never both for the
+ * same fact — that produced two `entitlement.released` events per withdrawal.
+ */
 export async function emitRelease(
   app: AppContext,
   entitlementId: string,

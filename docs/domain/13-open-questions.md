@@ -4,7 +4,7 @@ Decisions the model deliberately leaves open, and scope consciously deferred. Ea
 recommendation, because "it depends" is not a useful handoff to an implementation agent.
 Resolve these before code generation; record the resolution here and in the affected file.
 
-**Nothing is open.** All twenty-nine are resolved below. New questions belong above this
+**Nothing is open.** All thirty are resolved below. New questions belong above this
 line, in the same shape: the decision that is actually being asked for, and a recommendation.
 
 ---
@@ -45,6 +45,7 @@ decided.
 | R27 *(was Q20)* | No hard cap on custom fields; surface usage and offer an archive action | A field-management screen showing fill rate and last-used date per definition, an archive that retires a field while keeping its values, and a soft warning past roughly 25 definitions per subject type. The real guardrail is INV-11-11 — `pii` and `audience` mandatory at creation — because the failure that hurts is not two hundred fields, it is one free-text box with a passport number in it. |
 | R28 *(was Q21)* | Directory and segments in v1; the sourcing pipeline after the first event | The directory's value is immediate and its cost is a query over `Person`. The pipeline is a second product surface with its own board, cards, stages and history, and its value only appears during the run-up to a *second* event — by which point real usage will say whether it needs a kanban board or just a `ContactSegment` plus `next_action_at` on the roster. |
 | R29 *(was Q2)* | The product is called **Podium** | Chosen by the product owner. *Sessions* was considered and rejected for colliding with `Session`, the model's most-used entity; *BackStage* for being confusable with [Spotify's Backstage](https://backstage.io), which reaches a similar open-source audience. Podium collides with nothing in the domain. Its external collisions — podium.com (lead management) and [podium-lib](https://podium-lib.io) (micro-frontends) — are in unrelated categories, but they hold the obvious namespaces, so **the npm scope is `@podiumconf/*`, never `@podium`**. Speaker-facing email is sent as the *event*, never as the product ([`12`](12-glossary.md)). |
+| R30 *(new)* | Server-rendered HTML on the applicant side; a client-rendered SPA for the admin console, over the existing `/v1` API | Until now "no client framework" ([`implementation.md`](../implementation.md)) was a convention nobody had argued, and the reasons usually given for it do not survive inspection: the performance budgets do not rule out a framework — `www/` is already Astro on the same edge — and INV-08-13 does not either, since server-rendering frameworks satisfy it by default. The honest reason it held this long is that the whole application contains 316 lines of inline JavaScript and no client-side JS files at all, which is not enough client state to pay for a build step. That reason expires the moment drag-and-drop schedule placement, a real submission wizard and a data-dense review queue get built, so the decision is taken now rather than worked around later. **The boundary is the user, not the screen.** The applicant side — public pages, embeds, the speaker portal and the reviewer surface — stays server-rendered: it is unauthenticated or infrequent, mobile-first, must render fully with scripts blocked (INV-08-13), and is served from the cached publication snapshot, which is the single largest performance decision in the system (INV-09-6) and gains nothing from a second render path in front of it. `/review` sits on this side deliberately even though it is the easiest surface to port (11 `/v1` routes already), because reviewers work on tablets and check decisions on phones; ease of porting is the wrong tiebreaker against who is holding the device. The admin console — authenticated, desktop, high-frequency, data-dense — becomes a SPA. Three properties make that cheap rather than a re-platform: `/v1` already authenticates a browser session, not only an API key (`http/context.ts` gates on `!ctx.person && !ctx.apiKeyId`); `surfaces/live.ts` already provides the cache-invalidation channel, a Durable-Object-backed socket whose frames deliberately carry no domain data and merely provoke a refetch that re-authorizes; and permissions are recomputed per request, so a long-lived client accumulates no stale authority. The costs, accepted: two UI stacks, with `public/app.css` as the shared artifact rather than a component library imported twice; and `SameSite=Lax` with no CSRF token becomes load-bearing once the console is entirely cookie-authenticated XHR — it holds (Lax withholds the cookie on cross-site POST and `application/json` forces a preflight), but it is now a relied-upon property and not an accident. **Prerequisite:** `scheduling` has no `/v1` surface at all — 0 routes against 812 lines of HTML form posts — so placement endpoints must be added to [`09`](09-api-and-integrations.md) and implemented before the grid can move. Nothing else in the console is blocked on new API work. |
 
 ## Corrections found while implementing
 
@@ -53,8 +54,13 @@ find out where it did not hold up. That code is not merged; it lives on
 `claude/sessionboard-domain-implementation` and is the reference for what the checks in
 [`README.md`](README.md#keeping-code-and-model-in-sync) would look like in practice.
 
-The exercise surfaced five places where the model contradicted itself. All are fixed here;
+The exercise surfaced seven places where the model contradicted itself. All are fixed here;
 recorded because each was a real gap, not a typo.
+
+C8 came later and from a different direction — an audit of the event-driven architecture
+against the running code, rather than a trial implementation. It is recorded in the same
+table because it is the same kind of defect: the model asserting something the code does
+not do.
 
 | # | Gap | Fix |
 |---|---|---|
@@ -65,6 +71,7 @@ recorded because each was a real gap, not a typo.
 | C5 | `08-scheduling-and-publication.md` promised `embed_config.created`, which was missing from the event catalogue | Added it to the catalogue |
 | C6 | INV-09-12 and the outbox section require recording an undispatchable message with `suppressed_reason = no_provider`, and suppression is stated to cover complaints, but the `NotificationDelivery.suppressed_reason` enum listed neither | Added `no_provider` and `complained` to the enum |
 | C7 | INV-07-8 cancels a speaker's **non-terminal** task instances when their session is cancelled, but the `TaskInstance` diagram drew `cancelled` only from `not_started` and `in_progress`, leaving `blocked`, `submitted` and `changes_requested` unsatisfiable | Drew the three missing `--> cancelled` arrows |
+| C8 | The reaction map in [`10`](10-domain-events.md) had drifted from the wiring in seven places — the exact fate the table exists to prevent. Two rows were never built (`proposal.submitted` → notify committee channel; `campaign.sent` → communications history); five described real behaviour that is deliberately synchronous, not a queue reaction (entitlement release under INV-04-10, `SessionRevision` under INV-06-12, access revocation under INV-06-10, prospect conversion, asset supersession); and the reactions on `event_participant.*`, `task_instance.waived`/`.cancelled` and `schedule.changed` were missing from the table entirely. Nothing failed, which is the point: a reaction map is only load-bearing if a wrong row is visible | Split the table into *reactions dispatched from the queue* and *consequences that are deliberately synchronous, and why*. Deleted the two unbuilt rows. The split is the fix — collapsing both kinds into one list is what let the drift hide |
 
 One structural change came with them: `CfpFormatOption` and `CfpTrackOption` shared a single
 table with a `session_format_id | track_id` cell. They are now two tables, because one row

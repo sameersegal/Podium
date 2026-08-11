@@ -269,34 +269,66 @@ whatever `include_pii` says.
 Which internal handlers subscribe to what. This is the actual wiring between contexts, and
 keeping it in one table is what stops it from becoming folklore.
 
+It became folklore anyway once, which is why the table is now split in two. A consequence
+that is *supposed* to be a queue reaction and a consequence that is deliberately synchronous
+are different claims, and collapsing them into one list is what let seven rows drift out of
+agreement with the code without anything noticing (C8).
+
+### Reactions — dispatched from the queue
+
+Every row here is a real subscriber in a `contexts/<context>/reactions.ts`, registered in
+`consumers/reactions.ts`.
+
 | Event | Reaction | Context |
 |---|---|---|
-| `proposal.submitted` | Confirmation email; notify committee channel; hold entitlement | Notifications, Sponsorship |
-| `proposal.withdrawn` / `proposal.rejected` | Release entitlement hold | Sponsorship |
-| `decision.published` (accept) | Create session; set confirmation deadline; email speakers | Program, Notifications |
-| `decision.published` (reject/waitlist) | Email speakers with `feedback_for_speaker` | Notifications |
-| `session.created` | Materialise onboarding tasks; spend entitlement | Onboarding, Sponsorship |
-| `session_speaker.confirmed` | Re-evaluate session confirmation; materialise per-speaker tasks | Program, Onboarding |
-| `session_speaker.replaced` | Transfer incomplete tasks; revoke outgoing access | Onboarding, Identity |
-| `session.confirmed` | Make eligible for placement | Scheduling |
-| `task_instance.completed` | Unblock dependents; recompute `onboarding_progress`; check publication readiness | Onboarding, Program |
-| `onboarding.session_complete` | Clear the publication block | Scheduling |
-| `placement.moved` | Recompute `relative_to_session_start` due dates; recompute conflicts | Onboarding, Scheduling |
-| `schedule.published` | Invalidate embed cache; compute diffs; notify affected speakers | Publication, Notifications |
-| `session.cancelled` | Cancel tasks; release placement and entitlement; queue schedule diff | Onboarding, Scheduling, Sponsorship |
-| `entitlement.expiring_soon` | Nudge the sponsor contact | Notifications |
-| `task_instance.overdue` | Reminder with escalation | Notifications |
-| `decision.published` (accept) | Add or confirm the speaker's `EventParticipant` row | Identity |
-| `session_speaker.replaced` | Recompute both people's roster rows | Identity |
-| `session.updated` (content fields) | Write a `SessionRevision`; revoke content approval; recompute `content_diverged` | Program |
-| `session.content_approved` | Recompute publication readiness | Program, Scheduling |
-| `asset.uploaded` | Supersede the previous version in the slot; complete the file-request task once scanned clean | Cross-cutting, Onboarding |
 | `person.created` | Detect merge candidates | Identity |
-| `prospect.converted` | Create the `EventParticipant` with `source = crm_push` | Identity, Speaker CRM |
-| `campaign.sent` | Append to the communications history | Notifications |
+| `proposal.submitted` | Confirmation email; add speakers to the roster; re-emit the entitlement hold | Notifications, Identity, Sponsorship |
+| `proposal.resubmitted` / `proposal.updated` | Re-hash reviewed content and mark diverged reviews `stale` (INV-05-8) | Review |
+| `draft.abandoned` | Release the entitlement hold | Sponsorship |
+| `decision.published` (accept) | Create the session; add or confirm the speaker's `EventParticipant` row | Program, Identity |
+| `decision.published` (all outcomes) | Email the submitter and every credited speaker with `feedback_for_speaker` (INV-05-10) | Notifications |
+| `session.created` | Materialise onboarding tasks; spend the entitlement | Onboarding, Sponsorship |
+| `session.confirmed` | Materialise the tasks gated on confirmation | Onboarding |
+| `session_speaker.confirmed` | Re-evaluate session confirmation; materialise per-speaker tasks | Program, Onboarding |
+| `session_speaker.replaced` | Transfer incomplete tasks; recompute both people's roster rows | Onboarding, Identity |
+| `session.cancelled` | Cancel tasks; release the placement and the entitlement | Onboarding, Scheduling, Sponsorship |
+| `session.content_approved` | Recompute publication readiness | Program, Scheduling |
+| `event_participant.added` / `event_participant.status_changed` | Materialise the tasks gated on joining or confirming | Onboarding |
+| `task_instance.completed` / `.waived` | Unblock dependents; chain `on_task_completed` | Onboarding |
+| `task_instance.completed` / `.waived` / `.cancelled` | Emit `onboarding.session_complete` once nothing blocking is outstanding | Onboarding |
+| `onboarding.session_complete` | Clear the publication block; auto-publish if the event opted in | Scheduling |
+| `placement.moved` | Recompute `relative_to_session_start` due dates; recompute conflicts | Onboarding, Scheduling |
+| `schedule.published` | Invalidate the snapshot cache | Scheduling |
+| `schedule.changed` | Notify the speakers whose time or room actually moved | Notifications |
+| `asset.uploaded` | Scan the asset; complete the file-request task once scanned clean | Cross-cutting, Onboarding |
+| `entitlement.expiring_soon` | Nudge the sponsor contact | Notifications |
+| `*` | Fan out to every matching webhook | Platform |
+
+### Consequences that are deliberately synchronous
+
+These are *not* reactions, and each has a reason it cannot be one. They are listed here
+because the absence of a subscriber is otherwise indistinguishable from a missing one.
+
+| Fact | Consequence | Why inline |
+|---|---|---|
+| Proposal withdrawn / rejected / expired | Release the entitlement hold | INV-04-10 — the slot must be free before the response is written, not one queue hop later. `draft.abandoned` has no synchronous path and stays a reaction. |
+| Session content fields edited | Write a `SessionRevision`; revoke content approval; recompute `content_diverged` | INV-06-12 requires the revision in the same transaction as the edit. |
+| Speaker replaced | Revoke the outgoing speaker's relationship-derived access | INV-06-10 — "step three gets forgotten and a former speaker keeps portal access". Security-critical, so it cannot wait on a queue. |
+| Prospect converted | Create the `EventParticipant` with `source = crm_push` | The participant is what conversion *means*; `prospect.converted` is the receipt, emitted after. |
+| Asset uploaded | Supersede the previous version in the slot | Version ordering is decided by the write that creates the version. |
+| Schedule published | Compute the diff and write the snapshot | The diff is part of building the publication, not a consequence of it. `schedule.changed` then carries it to speakers. |
+| Session confirmed | Becomes eligible for placement | Derived at read time (INV-11-6), so there is nothing to react to. |
+| Task overdue / reminders due | Reminder with escalation | Onboarding's two reminder cron sweeps own chasing, because a reminder is driven by elapsed time rather than by a fact. `task_instance.overdue` is emitted for the log and for webhook subscribers. |
+
+Two rows the table used to promise are simply not built: `proposal.submitted` → *notify
+committee channel* (the `chat` capability is reachable only through campaigns), and
+`campaign.sent` → *append to the communications history*. They are removed rather than left
+standing, because a row nobody implemented reads exactly like a row somebody did.
 
 Every reaction must be **idempotent on `DomainEvent.id`** — the same event may be delivered
 twice, and "create session" running twice is exactly the bug this rule exists to prevent.
+Idempotency is enforced once, in `consumers/dispatch.ts`, on `(event id, handler)`, so a
+retry re-runs only the handler that actually failed.
 
 ## Naming rules
 

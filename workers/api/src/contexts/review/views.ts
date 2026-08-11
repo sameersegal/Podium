@@ -172,6 +172,7 @@ export function roundDetailView(d: {
   formats: Row[];
   cfps: Row[];
   canWrite: boolean;
+  aiEvaluationEnabled: boolean;
 }): SafeHtml {
   const r = d.round;
   const nav = html`<p class="small">
@@ -187,6 +188,19 @@ export function roundDetailView(d: {
       ? card(
           html`${ROUND_NEXT[r.status].map((t) => actionForm(`/admin/rounds/${r.id}/${t.action}`, t.label, { confirm: t.confirm }))}`,
           "Move this round on",
+        )
+      : raw("")}
+    ${d.canWrite && d.aiEvaluationEnabled
+      ? card(
+          html`<p class="small muted">
+              Evaluates every in-scope proposal that does not already have a current AI review. Never counts toward
+              quorum (INV-05-17); always labelled, in the results table and every export, as a machine's opinion, and
+              a human can override any of them from the results page.
+            </p>
+            ${actionForm(`/admin/rounds/${r.id}/ai-evaluate`, "Run AI first-pass", {
+              confirm: "Generate AI first-pass reviews for every in-scope proposal without one? This never counts toward quorum.",
+            })}`,
+          "AI first-pass review",
         )
       : raw("")}
     ${d.canWrite ? roundFormView({ event: d.event, round: r, rubrics: d.rubrics, tracks: d.tracks, formats: d.formats, cfps: d.cfps }) : raw("")}

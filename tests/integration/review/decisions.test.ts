@@ -1,6 +1,9 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
+import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
+import { buildEvent, SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
+import { templateSpec } from "@podiumconf/domain/platform/templates.js";
 
 /**
  * INV-05-11 — "`outcome = accept` requires `has_quorum`, unless … the chair
@@ -15,17 +18,21 @@ const CFP = "cfp_revdec";
 const RUBRIC = "rub_revdec";
 const CRITERION = "crt_revdec";
 const ROUND = "rnd_revdec";
+const FORMAT = "fmt_revdec"; // only PROPOSAL_SPEAKER needs one — it is the only fixture that runs the full decision.published cascade
 
 const CHAIR_EMAIL = "revdec-chair@example.com";
 const CHAIR_PASSWORD = "a-long-enough-password-2";
 const CHAIR_PERSON = "per_revdec_chair";
 const SUBMITTER_SHORT = "per_revdec_sub_short";
 const SUBMITTER_FULL = "per_revdec_sub_full";
+const SUBMITTER_SPEAKER = "per_revdec_sub_speaker"; // submits their own talk, credited as its speaker
 const REVIEWER_1 = "per_revdec_r1";
 const REVIEWER_2 = "per_revdec_r2";
 
 const PROPOSAL_SHORT = "prp_revdec_short"; // one submitted human review — short of quorum (target 2)
 const PROPOSAL_FULL = "prp_revdec_full"; // two submitted human reviews — quorum met
+const PROPOSAL_SPEAKER = "prp_revdec_speaker"; // submitter is also the credited speaker
+const DECISION_SPEAKER = "dec_revdec_speaker"; // already published, direct from seed — never touches the real queue
 
 async function run(sql: string, params: unknown[] = []) {
   await env.DB.prepare(sql).bind(...params).run();
@@ -46,11 +53,16 @@ async function seed() {
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, opens_at, closes_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
     [CFP, EVENT, "Main CFP", "main", "2027-01-01T00:00:00.000Z", "2027-03-01T00:00:00.000Z", now, now],
   );
+  await run(
+    "INSERT OR IGNORE INTO session_format (id, event_id, name, slug, default_duration_minutes, max_speakers, eligible_origins, requires_review, requires_recording_consent, capacity_policy, sort_order, is_public) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [FORMAT, EVENT, "Talk", "talk", 30, 2, '["cfp"]', 1, 0, "open", 0, 1],
+  );
 
   for (const [id, email, name] of [
     [CHAIR_PERSON, CHAIR_EMAIL, "Chair Person"],
     [SUBMITTER_SHORT, "revdec-sub-short@example.com", "Short Submitter"],
     [SUBMITTER_FULL, "revdec-sub-full@example.com", "Full Submitter"],
+    [SUBMITTER_SPEAKER, "revdec-sub-speaker@example.com", "Speaking Submitter"],
     [REVIEWER_1, "revdec-r1@example.com", "Reviewer One"],
     [REVIEWER_2, "revdec-r2@example.com", "Reviewer Two"],
   ]) {
@@ -96,6 +108,42 @@ async function seed() {
        (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [PROPOSAL_FULL, ORG, EVENT, CFP, "frm_revdec", "REVDEC-0002", SUBMITTER_FULL, "Has Quorum", "An abstract.", "in_review", now, now, now, 1],
+  );
+
+  // A proposal whose submitter is also its credited primary speaker — the
+  // common case, and the one the duplicate-email defect hid in: they belong
+  // to both "the submitter" and "every speaker", the two sets
+  // `platform.notify_decision` (10, reaction map) queues for. Its decision is
+  // inserted already `published` rather than published through the HTTP
+  // route, so this fixture is never touched by the real `EVENT_QUEUE` a live
+  // publish would enqueue to — the only delivery of its `decision.published`
+  // fact is the one the test below drives directly.
+  await run(
+    `INSERT OR IGNORE INTO proposal
+       (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, session_format_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [PROPOSAL_SPEAKER, ORG, EVENT, CFP, "frm_revdec", "REVDEC-0003", SUBMITTER_SPEAKER, FORMAT, "Submitter Is The Speaker", "An abstract.", "accepted", now, now, now, 1],
+  );
+  await run(
+    "INSERT OR IGNORE INTO proposal_speaker (id, proposal_id, person_id, speaker_role, sort_order, participation_status, added_by_person_id, added_at) VALUES (?,?,?,?,?,?,?,?)",
+    ["psp_revdec_speaker", PROPOSAL_SPEAKER, SUBMITTER_SPEAKER, "primary", 0, "accepted", SUBMITTER_SPEAKER, now],
+  );
+  await run(
+    `INSERT OR IGNORE INTO decision
+       (id, proposal_id, outcome, conditions, feedback_for_speaker, decided_by_person_id, decided_at, status, published_at, confirmation_deadline)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [
+      DECISION_SPEAKER,
+      PROPOSAL_SPEAKER,
+      "accept",
+      "Please add a live demo.",
+      "Loved the concreteness.",
+      CHAIR_PERSON,
+      now,
+      "published",
+      now,
+      "2027-05-01T10:00:00.000Z",
+    ],
   );
 
   // One submitted human review on the short proposal — one short of the round's quorum of two.
@@ -216,14 +264,73 @@ describe("decisions and publishing", () => {
     const second = await publishOnce();
     expect(second.status).toBe(303);
 
+    // `publishDecisions` no longer writes a notification itself — that used
+    // to be a second, inline writer (`writeDecisionNotification`, subject_type
+    // 'decision') alongside `platform.notify_decision` reacting to the
+    // `decision.published` event this same publish emits. There is now
+    // exactly one writer, and it is not this request path.
     const { results: notifications } = await env.DB.prepare(
       "SELECT COUNT(*) AS n FROM notification_delivery WHERE subject_type = 'decision' AND subject_id = ?",
     )
       .bind(decisionId)
       .all<{ n: number }>();
-    expect(notifications[0].n).toBe(1);
+    expect(notifications[0].n).toBe(0);
 
     const { results: published } = await env.DB.prepare("SELECT status FROM decision WHERE id = ?").bind(decisionId).all<{ status: string }>();
     expect(published[0].status).toBe("published");
+  });
+
+  it("INV-05-10: a submitter who is also the credited speaker gets exactly one decision email, not two", async () => {
+    // Regression for the defect where `publishDecisions` wrote a
+    // submitter-only notification inline *and* emitted `decision.published`,
+    // which `platform.notify_decision` also queues for the submitter plus
+    // every speaker — so a submitter credited as their own proposal's speaker
+    // (`PROPOSAL_SPEAKER`, seeded above) landed in both sets and got the
+    // acceptance letter twice, the second copy under `decision.*` template
+    // keys that were never declared in `platform/templates.ts`.
+    //
+    // Deliver the `decision.published` fact directly (`deliverEvent` against
+    // a built envelope), the same way every other reaction test in this
+    // suite does, rather than through the live `EVENT_QUEUE` — this fixture
+    // was seeded already-published specifically so nothing else ever
+    // delivers this fact, and the count below is unambiguous.
+    const before = await env.DB.prepare("SELECT COUNT(*) AS n FROM notification_delivery WHERE recipient_person_id = ?")
+      .bind(SUBMITTER_SPEAKER)
+      .first<{ n: number }>();
+    expect(before?.n ?? 0).toBe(0);
+
+    const ev = buildEvent(
+      {
+        type: "decision.published",
+        subject: { type: "decision", id: DECISION_SPEAKER },
+        data: { decision_id: DECISION_SPEAKER, proposal_id: PROPOSAL_SPEAKER, outcome: "accept", confirmation_deadline: "2027-05-01T10:00:00.000Z" },
+      },
+      { org_id: ORG, event_id: EVENT, actor: SYSTEM_ACTOR, correlation_id: "req_revdec_notify" },
+    );
+    await deliverEvent(env, ev);
+
+    const rows = await env.DB.prepare(
+      "SELECT template_key, rendered_body FROM notification_delivery WHERE recipient_person_id = ?",
+    )
+      .bind(SUBMITTER_SPEAKER)
+      .all<{ template_key: string; rendered_body: string }>();
+    expect(rows.results).toHaveLength(1);
+    // The template key must be one `platform/templates.ts` actually declares
+    // — the inline path's `decision.accepted` never was.
+    expect(templateSpec(rows.results[0].template_key)).toBeTruthy();
+    expect(rows.results[0].template_key).toBe("proposal.accepted");
+    // `decision.conditions` — "conditions of acceptance, shown to the
+    // speaker" (05, `Decision`) — reaches the body; `rationale` never would
+    // (INV-05-7), and this decision has none set anyway.
+    expect(rows.results[0].rendered_body).toContain("Please add a live demo.");
+
+    // Redelivering the same fact is a no-op (INV-05-10, idempotent on
+    // decision id / event id) — the dispatcher's per-`(event, handler)` log
+    // is what the whole architecture leans on for this.
+    await deliverEvent(env, ev);
+    const after = await env.DB.prepare("SELECT COUNT(*) AS n FROM notification_delivery WHERE recipient_person_id = ?")
+      .bind(SUBMITTER_SPEAKER)
+      .first<{ n: number }>();
+    expect(after?.n ?? 0).toBe(1);
   });
 });

@@ -45,6 +45,7 @@ import { personDisplayName } from "../identity/service.js";
 import {
   addComment,
   addPoolMember,
+  aiEvaluationEnabled,
   assertNoConflict,
   confirmAssignments,
   createAssignment,
@@ -55,7 +56,9 @@ import {
   declareConflict,
   declineAssignment,
   deleteConflict,
+  generateAiReviewsForRound,
   listComments,
+  overrideAiReview,
   previewPublish,
   proposeAutoDistribution,
   proposeBulkAssignment,
@@ -533,8 +536,30 @@ function registerRoundRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: round.name, event, active: "review" },
-        roundDetailView({ event, round, rubrics, tracks, formats, cfps, canWrite: ctx.canWrite("decision.manage", { event_id: event.id }) }),
+        roundDetailView({
+          event,
+          round,
+          rubrics,
+          tracks,
+          formats,
+          cfps,
+          canWrite: ctx.canWrite("decision.manage", { event_id: event.id }),
+          aiEvaluationEnabled: await aiEvaluationEnabled(app),
+        }),
       ),
+    );
+  });
+
+  router.post("/admin/rounds/:roundId/ai-evaluate", async (_req, ctx, params) => {
+    const { round, event } = await loadRoundFor(ctx, params.roundId);
+    ctx.requireWrite("decision.manage", { event_id: event.id });
+    const app = ctx.app(event.id);
+    const result = await generateAiReviewsForRound(app, round.id);
+    await app.flush();
+    return redirect(
+      `/admin/rounds/${round.id}`,
+      303,
+      OK(`Generated ${result.generated} AI first-pass review${result.generated === 1 ? "" : "s"}.${result.skipped ? ` ${result.skipped} skipped (already reviewed or failed).` : ""}`),
     );
   });
 
@@ -1288,6 +1313,32 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const draft = readReviewDraft(input, criteria);
     const id =
       input.str("intent", "submit") === "submit" ? await submitReview(app, assignmentId, draft) : await saveReviewDraft(app, assignmentId, draft);
+    await app.flush();
+    return json({ id }, { status: 201 });
+  });
+
+  // A chair overriding an AI first-pass review (05, "AI first-pass
+  // evaluation": "a human can override it"). Distinct from `POST /v1/reviews`
+  // above: that is a reviewer submitting against their own assignment;
+  // overriding is a chair action against whichever review the AI wrote,
+  // assignment or none, gated on `decision.manage` write rather than
+  // assignment ownership.
+  router.post("/v1/reviews/:reviewId/override", async (req, ctx, params) => {
+    const app = ctx.app();
+    const ai = await app.db.byId<Row>("review", params.reviewId);
+    if (!ai) throw notFound("Review", params.reviewId);
+    const round = await requireRound(app, str(ai.round_id));
+    ctx.eventId = round.event_id;
+    ctx.requireWrite("decision.manage", { event_id: round.event_id });
+    const { criteria } = await requireRubric(app, round.rubric_id);
+    const input = await readInput(req);
+    const draft = readReviewDraft(input, criteria);
+    const id = await overrideAiReview(
+      app,
+      params.reviewId,
+      { ...draft, assignment_id: input.optional("assignment_id") ?? null },
+      input.str("reason", "Chair override of the AI first-pass review."),
+    );
     await app.flush();
     return json({ id }, { status: 201 });
   });

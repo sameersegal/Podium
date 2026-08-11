@@ -1225,15 +1225,40 @@ export async function reviewableFor(
  * and the proposal's current `content_hash` sets `status = stale`. The reviewer
  * is prompted to re-confirm and the chair sees the staleness in the queue
  * rather than discovering it in the decision meeting.
+ *
+ * Driven by `review.mark_stale_on_proposal_change` (`reactions.ts`), reacting
+ * to `proposal.resubmitted` and `proposal.updated` — the two facts that can
+ * move `content_hash`. Narrowed to `opts.proposalId` there, which is what
+ * keeps a single organizer edit from re-hashing every submitted review in the
+ * event: only the rounds that actually hold a submitted review of *this*
+ * proposal are visited, not every open round. `opts.roundId` / no options at
+ * all remain for an operator running the check by hand over a whole round or
+ * event — the reaction is the only caller in production, but the sweep
+ * itself does not assume that.
  */
-export async function sweepStaleReviews(app: AppContext, roundId?: string): Promise<number> {
-  const rounds = roundId
-    ? [await requireRound(app, roundId)]
-    : (await app.db.select<Row>("review_round", { status: ["open", "closed"] })).map(toRoundView);
+export async function sweepStaleReviews(app: AppContext, opts: { roundId?: string; proposalId?: string } = {}): Promise<number> {
+  let rounds: RoundView[];
+  if (opts.roundId) {
+    rounds = [await requireRound(app, opts.roundId)];
+  } else if (opts.proposalId) {
+    const roundIds = await app.db.raw<Row>(
+      "SELECT DISTINCT round_id FROM review WHERE proposal_id = ? AND status = 'submitted'",
+      [opts.proposalId],
+    );
+    rounds = [];
+    for (const r of roundIds) {
+      const row = await app.db.byId<Row>("review_round", str(r.round_id));
+      if (row && (str(row.status) === "open" || str(row.status) === "closed")) rounds.push(toRoundView(row));
+    }
+  } else {
+    rounds = (await app.db.select<Row>("review_round", { status: ["open", "closed"] })).map(toRoundView);
+  }
 
   let marked = 0;
   for (const round of rounds) {
-    const reviews = await app.db.select<Row>("review", { round_id: round.id, status: "submitted" });
+    const where: Row = { round_id: round.id, status: "submitted" };
+    if (opts.proposalId) where.proposal_id = opts.proposalId;
+    const reviews = await app.db.select<Row>("review", where);
     const hashes = new Map<string, string>();
     for (const review of reviews) {
       const proposalId = str(review.proposal_id);
@@ -1403,6 +1428,49 @@ export async function generateAiReview(
     after: { proposal_id: proposalId, evaluator: result.evaluator_key, model: result.model },
   });
   return id;
+}
+
+/**
+ * "Run AI first-pass" — the chair's trigger for the whole point of R24:
+ * "committees will mostly use it to triage a first cut of 900 submissions."
+ * `generateAiReview` and `overrideAiReview` were both fully built to spec but
+ * reachable from nothing — no route, cron or reaction — which left
+ * `Organization.settings.review.ai_evaluation_enabled` a toggle that changed
+ * nothing when switched on. This is that trigger: every in-scope proposal
+ * (`roundScopeProposals`, the same set the round is reviewed against) that
+ * does not already have a current AI review gets one. Idempotent the way
+ * materialisation is (07): running it twice costs a query per
+ * already-covered proposal, not a duplicate.
+ */
+export async function generateAiReviewsForRound(app: AppContext, roundId: string): Promise<{ generated: number; skipped: number }> {
+  if (!(await aiEvaluationEnabled(app))) {
+    throw forbidden("AI first-pass evaluation is switched off for this organization.", {
+      setting: "review.ai_evaluation_enabled",
+    });
+  }
+  const round = await requireRound(app, roundId);
+  const proposals = await roundScopeProposals(app, round);
+  const evaluator = await resolveEvaluator(app);
+  let generated = 0;
+  let skipped = 0;
+  for (const proposal of proposals) {
+    const existing = await app.db.select<Row>("review", { round_id: roundId, proposal_id: proposal.id, author_kind: "ai" });
+    if (existing.some((r) => str(r.status) !== "superseded")) {
+      skipped++;
+      continue;
+    }
+    try {
+      await generateAiReview(app, roundId, proposal.id, evaluator);
+      generated++;
+    } catch (err) {
+      // One bad proposal (a missing field the evaluator chokes on) does not
+      // stop the batch — logged loudly, per the implementer brief on failure
+      // isolation, and counted as skipped rather than silently dropped.
+      console.error("ai first-pass review failed", { round_id: roundId, proposal_id: proposal.id, error: String(err) });
+      skipped++;
+    }
+  }
+  return { generated, skipped };
 }
 
 /**
@@ -1811,11 +1879,16 @@ async function latestRoundFor(app: AppContext, proposalId: string): Promise<stri
   return reviews.length > 0 ? str(reviews[0].round_id) : null;
 }
 
+// Must match the outcome → template mapping `platform.notify_decision`
+// resolves at delivery time (`platform/reactions.ts`) — this is only for the
+// preview below to show the chair the truth, not a second source of it. Keys
+// are the `proposal.*` templates actually declared in
+// `platform/templates.ts`; the previous `decision.*` keys here did not exist.
 const DECISION_TEMPLATE: Record<DecisionOutcome, string> = {
-  accept: "decision.accepted",
-  waitlist: "decision.waitlisted",
-  reject: "decision.rejected",
-  request_changes: "decision.changes_requested",
+  accept: "proposal.accepted",
+  waitlist: "proposal.waitlisted",
+  reject: "proposal.rejected",
+  request_changes: "proposal.changes_requested",
 };
 
 export interface PublishPreviewRow {
@@ -1914,7 +1987,7 @@ export async function publishDecisions(
   eventId: string,
   decisionIds: string[],
 ): Promise<PublishResult> {
-  const event = await requireEvent(app, eventId);
+  await requireEvent(app, eventId); // 404s a bogus event id rather than silently publishing nothing
   const published: string[] = [];
   const skipped: { decision_id: string; reason: string }[] = [];
   const now = app.now();
@@ -1943,13 +2016,15 @@ export async function publishDecisions(
     }
 
     const outcome = str(decision.outcome) as DecisionOutcome;
-    const notificationId = await writeDecisionNotification(app, event, decision, proposal);
 
-    await app.db.update("decision", decisionId, {
-      status: "published",
-      published_at: now,
-      notification_id: notificationId,
-    });
+    // INV-05-10 — exactly one speaker notification per proposal. That is
+    // `platform.notify_decision` (10, reaction map: `decision.published` →
+    // "email speakers"), reacting to the event emitted below; it is the only
+    // writer of a decision notification, so there is nothing to link back
+    // into `Decision.notification_id` here (it stays null, as it does for
+    // every published decision — see the comment on the reaction for the
+    // history of why a second, inline writer used to exist and produced two).
+    await app.db.update("decision", decisionId, { status: "published", published_at: now });
 
     // `Proposal.status` is downstream of the decision, not parallel to it. The
     // transition itself belongs to Submissions.
@@ -2022,7 +2097,7 @@ export async function publishDecisions(
       entity_type: "decision",
       entity_id: decisionId,
       before: { status: "provisional" },
-      after: { status: "published", outcome, notification_id: notificationId },
+      after: { status: "published", outcome },
       reason: strOrNull(decision.quorum_waived_reason),
     });
     published.push(decisionId);
@@ -2032,70 +2107,24 @@ export async function publishDecisions(
 }
 
 /**
- * INV-09-12 — every message the platform intends to send writes a
- * `NotificationDelivery` before any provider call. Exactly one row per
- * proposal, which is what makes INV-05-10 checkable after the fact.
+ * There used to be a second writer here: `writeDecisionNotification` wrote a
+ * submitter-only `NotificationDelivery` inline, in the same breath as emitting
+ * `decision.published` — which `platform.notify_decision` also reacts to,
+ * queuing the same message for the submitter *and* every credited speaker.
+ * A submitter who is also a speaker (the common case) got two emails, and the
+ * comment above the inline writer claimed INV-05-10 ("at most one speaker
+ * notification per proposal") while the code guaranteed two.
+ *
+ * The reaction is the one path now, and it already had everything the inline
+ * copy did except two things, both preserved there rather than here:
+ *   - `decision.conditions` — "conditions of acceptance, shown to the
+ *     speaker" (05, `Decision`) — is now a variable on `proposal.accepted`
+ *     (`platform/templates.ts`) and passed by `platform.notify_decision`.
+ *   - `rationale` stays excluded (INV-05-7: committee-only, never reaches the
+ *     submitter) — the reaction never reads it, same as before.
+ * `comments_for_committee` and reviewer identities were never in the inline
+ * body either, so nothing there needed carrying over.
  */
-async function writeDecisionNotification(
-  app: AppContext,
-  event: Row,
-  decision: Row,
-  proposal: Row,
-): Promise<string | null> {
-  const submitter = await app.db.byId<Row>("person", str(proposal.submitter_person_id));
-  if (!submitter) return null;
-  const outcome = str(decision.outcome) as DecisionOutcome;
-  const id = newId("NotificationDelivery");
-  const body = [
-    `Your session "${str(proposal.title)}" (${str(proposal.reference)}) for ${str(event.name)}.`,
-    "",
-    outcomeSentence(outcome, decision),
-    strOrNull(decision.feedback_for_speaker) ? `\n${str(decision.feedback_for_speaker)}` : "",
-    strOrNull(decision.conditions) ? `\nConditions: ${str(decision.conditions)}` : "",
-    // `rationale` is committee-only and never reaches the speaker (INV-05-7).
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  await app.db.insert("notification_delivery", {
-    id,
-    org_id: app.orgId,
-    event_id: str(event.id),
-    template_key: DECISION_TEMPLATE[outcome],
-    recipient_person_id: str(submitter.id),
-    recipient_email: str(submitter.email),
-    channel: "email",
-    subject_type: "decision",
-    subject_id: str(decision.id),
-    subject: `${str(event.name)}: your session "${str(proposal.title)}"`,
-    rendered_body: body,
-    status: "queued",
-    created_at: app.now(),
-  });
-
-  const message: DeliveryMessage = { kind: "notification", notification_id: id, org_id: app.orgId };
-  try {
-    await app.env.DELIVERY_QUEUE.send(message);
-  } catch (err) {
-    // The row is committed either way, so a queue outage costs latency, not the
-    // fact that the message was intended (INV-09-12).
-    console.warn("decision notification enqueue failed", { notification_id: id, error: String(err) });
-  }
-  return id;
-}
-
-function outcomeSentence(outcome: DecisionOutcome, decision: Row): string {
-  switch (outcome) {
-    case "accept":
-      return `It has been accepted. Please confirm by ${str(decision.confirmation_deadline)}.`;
-    case "waitlist":
-      return "It has been waitlisted. We will be in touch if a slot opens.";
-    case "reject":
-      return "It has not been selected for the programme this year.";
-    case "request_changes":
-      return "The committee has asked for changes before it can be considered further.";
-  }
-}
 
 /* ========================================================================== */
 /* Reminders                                                                   */

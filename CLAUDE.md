@@ -97,9 +97,9 @@ Keep these green. They are the contract, not a formality:
   `AppContext` and never flushes it — the silent failure it catches is a write that lands
   while every reaction that should have followed it never runs.
 
-**Nothing is open.** All twenty-nine questions in
+**Nothing is open.** All thirty questions in
 [`13-open-questions.md`](docs/domain/13-open-questions.md) are decided and recorded as
-R1–R29; read the rationale there before reopening any of it.
+R1–R30; read the rationale there before reopening any of it.
 
 The decisions that most shape the code, and how each one landed:
 
@@ -115,8 +115,13 @@ The decisions that most shape the code, and how each one landed:
   specifies it completely, so shipping it early is scope, not drift. Recorded under the R28
   blockquote in [`14`](docs/domain/14-speaker-crm.md). If it should come back out, the
   directory and segments stay and only the board goes.
+- **R30 — server-rendered applicant side, client-rendered admin console.** Decided, not yet
+  built. Public, embeds, `/portal` and `/review` stay server-rendered and must survive
+  blocked scripts; `/admin` moves to a SPA over `/v1`. The one blocker is that `scheduling`
+  has no `/v1` surface, so placement endpoints go into [`09`](docs/domain/09-api-and-integrations.md)
+  before any of the console work starts.
 
-Corrections the build surfaced are recorded as C1–C7 in
+Corrections the build surfaced are recorded as C1–C8 in
 [`13-open-questions.md`](docs/domain/13-open-questions.md). C7 is the shape to copy when
 you hit another: an invariant required a state transition the diagram never drew, so the
 diagram gained the arrows rather than the invariant losing its teeth.

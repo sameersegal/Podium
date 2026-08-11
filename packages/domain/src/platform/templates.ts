@@ -75,6 +75,7 @@ We will be in touch once review is finished.
       "proposal.reference",
       "decision.confirmation_deadline",
       "decision.feedback",
+      "decision.conditions",
       "session.title",
       "confirm_url",
     ],
@@ -90,6 +91,8 @@ the slot is released to somebody on the waitlist.
 {{confirm_url}}
 
 {{decision.feedback}}
+
+{{decision.conditions}}
 
 — The {{event.name}} programme team`,
   },

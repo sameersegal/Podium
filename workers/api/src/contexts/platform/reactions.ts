@@ -70,6 +70,17 @@ export const PLATFORM_REACTIONS: Reaction[] = [
     // 10, reaction map: `decision.published` → "email speakers", for every
     // outcome. This is the one channel to the speaker, and a human wrote its
     // `feedback_for_speaker` (05, "Discussion").
+    //
+    // This used to run alongside a second, inline notification write in
+    // `publishDecisions` (`review/service.ts`) that sent the submitter a copy
+    // directly. A submitter who is also a speaker — the common case — was in
+    // both sets, so they got the acceptance letter twice, and the inline copy
+    // used `decision.*` template keys that were never declared in
+    // `platform/templates.ts`. This reaction is now the only writer
+    // (INV-05-10: at most one speaker notification per proposal); the
+    // dispatcher's per-`(event, handler)` idempotency plus the `Set` below
+    // are what keep a redelivered event, or a submitter who is also credited
+    // as a speaker, to exactly one send each.
     name: "platform.notify_decision",
     types: ["decision.published"],
     async handle(ev, env) {
@@ -96,6 +107,7 @@ export const PLATFORM_REACTIONS: Reaction[] = [
       // dispatcher already makes this idempotent on the event id; the loop is
       // over the people credited on that one proposal, not over decisions.
       const recipients = new Set<string>([str(proposal.submitter_person_id), ...speakers.map((r) => str(r.person_id))]);
+      const feedback = strOrNull(decision?.feedback_for_speaker) ?? "";
       for (const personId of recipients) {
         await queueNotification(app, {
           template_key: template,
@@ -105,8 +117,21 @@ export const PLATFORM_REACTIONS: Reaction[] = [
           variables: {
             proposal: { reference: str(proposal.reference), title: str(proposal.title) },
             session: { title: str(proposal.title) },
-            feedback_for_speaker: strOrNull(decision?.feedback_for_speaker) ?? "",
-            confirmation_deadline: strOrNull(decision?.confirmation_deadline) ?? "",
+            // Names must match what each template actually declares
+            // (`platform/templates.ts`) — `proposal.accepted`/`waitlisted`/
+            // `rejected` read `decision.feedback`, `changes_requested` reads
+            // the same content under `decision.note`. This block used to pass
+            // flat `feedback_for_speaker` / `confirmation_deadline` keys that
+            // no template referenced, so those lines silently rendered empty
+            // in every decision email; wiring the removal of the duplicate
+            // inline copy (which *did* show them) surfaced it.
+            "decision.feedback": feedback,
+            "decision.note": feedback,
+            "decision.confirmation_deadline": strOrNull(decision?.confirmation_deadline) ?? "",
+            // "Conditions of acceptance, shown to the speaker" (05, `Decision`).
+            // `rationale` is deliberately never read here — INV-05-7,
+            // committee-only, never reaches the submitter.
+            "decision.conditions": strOrNull(decision?.conditions) ?? "",
           },
         });
       }
