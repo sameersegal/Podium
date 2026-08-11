@@ -132,7 +132,7 @@ exceptions are the publication snapshot (immutable once live) and `schedule_conf
 
 | Surface | Paths |
 |---|---|
-| Public | `/`, `/e/:slug`, `/e/:slug/cfp/:cfpSlug`, `/e/:slug/schedule`, `/e/:slug/speakers`, `/e/:slug/sessions/:id`, `/e/:slug/schedule.ics`, `/embed/:key` |
+| Public | `/`, `/e/:slug`, `/e/:slug/cfp/:cfpSlug`, `/e/:slug/schedule`, `/e/:slug/sessions`, `/e/:slug/sessions/:id`, `/e/:slug/speakers`, `/e/:slug/speakers/:personId`, `/e/:slug/gallery`, `/e/:slug/schedule.ics`, `/embed/:key` |
 | Auth | `/login`, `/signup`, `/logout`, `/invite/:token` |
 | Portal | `/portal`, `/portal/proposals`, `/portal/proposals/:id`, `/portal/sessions/:id`, `/portal/tasks/:id`, `/portal/profile` |
 | Reviewer | `/review`, `/review/:assignmentId` |
@@ -140,6 +140,7 @@ exceptions are the publication snapshot (immutable once live) and `schedule_conf
 | Live | `/live/subscribe` (WebSocket upgrade), `/live.js` (static asset) |
 | Public API | `/v1/public/…` |
 | Management API | `/v1/…` |
+| Provider callbacks | `/integrations/:id/inbound` (signed URL, no session — 09) |
 
 ## Conventions
 

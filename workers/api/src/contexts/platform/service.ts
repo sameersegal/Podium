@@ -510,6 +510,23 @@ export async function resolvePlugin(app: AppContext, capability: PluginCapabilit
   return { plugin, integration: null, ctx: await pluginContextFor(app.env, null, fallbackKey) };
 }
 
+/**
+ * The adapter for one named `Integration`, rather than the default for a
+ * capability. Inbound provider callbacks arrive addressed to a specific
+ * installation — the provider is answering *that* integration's sends — so
+ * resolving them through `resolvePlugin` would hand a Resend callback to
+ * SendGrid the moment SendGrid held the default.
+ *
+ * INV-09-11: a disabled integration resolves to `null` here exactly as it does
+ * in `resolvePlugin`, so disabling stops inbound traffic on the next call too.
+ */
+export async function resolvePluginForIntegration(app: AppContext, integration: Row): Promise<ResolvedPlugin | null> {
+  if (str(integration.status) === "disabled") return null;
+  const plugin = pluginFor(str(integration.plugin_key));
+  if (!plugin) return null;
+  return { plugin, integration, ctx: await pluginContextFor(app.env, integration) };
+}
+
 /** Whether an *active* `email` Integration exists for this scope — INV-09-12's gate. */
 export async function hasActiveEmailIntegration(app: AppContext, eventId?: string | null): Promise<boolean> {
   const rows = await app.db.select<Row>("integration", { capability: "email", status: "active" });

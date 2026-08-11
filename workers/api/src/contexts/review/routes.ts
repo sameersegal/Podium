@@ -38,7 +38,7 @@ import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect, text } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
-import { html } from "../../ui/html.js";
+import { html, type SafeHtml } from "../../ui/html.js";
 import { pageHead } from "../../ui/layout.js";
 import { adminPage, loadEvent, portalPage, type EventRef } from "../../ui/shell.js";
 import { personDisplayName } from "../identity/service.js";
@@ -124,8 +124,9 @@ import {
   type CommentThreadItem,
   type PersonRef,
   type PoolRowView,
+  type AiReviewView,
 } from "./views.js";
-import { reviewerAssignmentView, reviewerDashboardView, type ReviewerAssignmentRow } from "./reviewer-views.js";
+import { overrideScorecardForm, reviewerAssignmentView, reviewerDashboardView, type ReviewerAssignmentRow } from "./reviewer-views.js";
 
 const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
 
@@ -1137,6 +1138,50 @@ function registerDiscussionRoutes(router: Router<RequestContext>): void {
     const conflicts = proposalConflicts.map((c) => ({ ...c, reviewerName: reviewerPeople[c.reviewer_person_id]?.name ?? c.reviewer_person_id }));
 
     const rounds = await app.db.select<Row>("review_round", { event_id: event.id });
+
+    // 05, "AI evaluation": the chair's screen shows the machine's opinion
+    // labelled, and offers the override on the spot. A superseded one still
+    // shows — the disagreement is the point (INV-05-16).
+    const aiRows = await app.db.select<Row>("review", { proposal_id: str(proposal.id), author_kind: "ai" });
+    const aiReviews: AiReviewView[] = [];
+    for (const r of aiRows) {
+      const superseded = str(r.status) === "superseded";
+      let overrideForm: SafeHtml | null = null;
+      if (canWrite && !superseded) {
+        const round = rounds.find((x) => str(x.id) === str(r.round_id));
+        if (round) {
+          const { rubric, criteria } = await requireRubric(app, str(round.rubric_id));
+          const scoreRows = await app.db.select<Row>("criterion_score", { review_id: str(r.id) });
+          overrideForm = overrideScorecardForm({
+            action: `/admin/reviews/${str(r.id)}/override`,
+            rubric,
+            criteria,
+            existing: {
+              review: r,
+              scores: scoreRows.map((s) => ({
+                criterion_id: str(s.criterion_id),
+                value_number: s.value_number === null || s.value_number === undefined ? null : num(s.value_number),
+                value_option: strOrNull(s.value_option),
+                value_text: strOrNull(s.value_text),
+                value_bool: s.value_bool === null || s.value_bool === undefined ? null : bool(s.value_bool),
+              })),
+              naCriterionIds: [],
+            },
+          });
+        }
+      }
+      aiReviews.push({
+        id: str(r.id),
+        overall_score: r.overall_score === null || r.overall_score === undefined ? null : Number(r.overall_score),
+        recommendation: strOrNull(r.recommendation),
+        ai_evaluator_key: str(r.ai_evaluator_key),
+        ai_model: strOrNull(r.ai_model),
+        ai_rationale: strOrNull(r.ai_rationale),
+        superseded,
+        overrideForm,
+      });
+    }
+
     return htmlResponse(
       adminPage(
         ctx,
@@ -1156,12 +1201,33 @@ function registerDiscussionRoutes(router: Router<RequestContext>): void {
           rounds: rounds.map(toRoundView),
           threads,
           conflicts,
+          aiReviews,
           canWriteComments: canWrite,
           canDeclareCoi: canWrite,
           canSeeChairsOnly: canWrite,
         }),
       ),
     );
+  });
+
+  /**
+   * The HTML twin of `POST /v1/reviews/:reviewId/override`. 05 promises the
+   * chair can override the machine, and until this existed the promise was
+   * only keepable through the API — which is not where chairs work.
+   */
+  router.post("/admin/reviews/:reviewId/override", async (req, ctx, params) => {
+    const app = ctx.app();
+    const ai = await app.db.byId<Row>("review", params.reviewId);
+    if (!ai) throw notFound("Review", params.reviewId);
+    const round = await requireRound(app, str(ai.round_id));
+    ctx.eventId = round.event_id;
+    ctx.requireWrite("decision.manage", { event_id: round.event_id });
+    const { criteria } = await requireRubric(app, round.rubric_id);
+    const input = await readInput(req);
+    const draft = readReviewDraft(input, criteria);
+    await overrideAiReview(app, params.reviewId, { ...draft, assignment_id: null }, input.str("reason"));
+    await app.flush();
+    return redirect(`/admin/proposals/${str(ai.proposal_id)}/review`, 303, OK("Your review now supersedes the machine's."));
   });
 
   router.post("/admin/proposals/:proposalId/review/comments", async (req, ctx, params) => {

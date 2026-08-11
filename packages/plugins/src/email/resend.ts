@@ -26,6 +26,21 @@ function addr(a: { email: string; name?: string | null }): string {
   return a.name ? `${a.name} <${a.email}>` : a.email;
 }
 
+/**
+ * Resend accepts only ASCII letters, numbers, underscores and dashes in a tag,
+ * and rejects the whole send otherwise. Every tag the core passes is a
+ * `template_key` — `proposal.submitted`, `schedule.changed` — so the dot in the
+ * name made *every* notification fail with "Tags should only contain ASCII
+ * letters, numbers, underscores, or dashes."
+ *
+ * Normalising here rather than in the core is the point of the contract: a
+ * dotted template key is the platform's vocabulary, and one provider's charset
+ * is that provider's problem.
+ */
+function tagValue(tag: string): string {
+  return tag.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
 export const emailResendPlugin: EmailPlugin = {
   key: "email.resend",
   capability: "email",
@@ -57,7 +72,7 @@ export const emailResendPlugin: EmailPlugin = {
         html: message.html,
         text: message.text,
         headers: message.headers,
-        tags: message.tags?.map((t) => ({ name: "podium", value: t })),
+        tags: message.tags?.map((t) => ({ name: "podium", value: tagValue(t) })),
       }),
     });
 
@@ -71,7 +86,15 @@ export const emailResendPlugin: EmailPlugin = {
   async verify_sender(domain: string, ctx: PluginContext): Promise<SenderVerification> {
     if (!ctx.secret) throw new PluginError("email.resend", "No API key is configured.");
     const res = await fetch(`${API}/domains`, { headers: { authorization: `Bearer ${ctx.secret}` } });
-    if (!res.ok) throw new PluginError("email.resend", `Resend returned ${res.status}.`, res.status);
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { name?: string };
+      // Unlike `health`, this one cannot answer: a sending-only key genuinely
+      // cannot read domain status, so say which key would.
+      if (res.status === 401 && body.name === "restricted_api_key") {
+        throw new PluginError("email.resend", "This is a sending-only API key; domain verification needs a full-access key.", res.status);
+      }
+      throw new PluginError("email.resend", `Resend returned ${res.status}.`, res.status);
+    }
     const body = (await res.json()) as { data?: { name: string; status: string; records?: unknown[] }[] };
     const match = body.data?.find((d) => d.name.toLowerCase() === domain.toLowerCase());
     return {
@@ -119,6 +142,15 @@ export const emailResendPlugin: EmailPlugin = {
     if (!ctx.secret) return { ok: false, error: "No API key is configured." };
     if (!configString(ctx, "from_email")) return { ok: false, error: "No from address is configured." };
     const res = await fetch(`${API}/domains`, { headers: { authorization: `Bearer ${ctx.secret}` } });
-    return res.ok ? { ok: true } : { ok: false, error: `Resend returned ${res.status}.` };
+    if (res.ok) return { ok: true };
+    // A **sending-only** key — Resend's own recommendation for production — is
+    // refused by `GET /domains` with `restricted_api_key`. That is a correctly
+    // configured integration, not a broken one, and reporting it unhealthy is
+    // not cosmetic: `healthCheckIntegration` writes `misconfigured`, and
+    // `resolvePlugin` only ever returns `active` rows, so a health check on a
+    // working deployment would silently stop every email.
+    const body = (await res.json().catch(() => ({}))) as { name?: string };
+    if (res.status === 401 && body.name === "restricted_api_key") return { ok: true };
+    return { ok: false, error: `Resend returned ${res.status}.` };
   },
 };

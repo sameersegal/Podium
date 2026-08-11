@@ -17,6 +17,7 @@ how public schedule traffic ends up authenticated and slow.
 | **Portal** `/v1/me/...` | session cookie | the caller's own proposals, sessions, tasks, profile | Relationship-derived scope, never role-derived |
 | **Management** `/v1/...` | API key or session | everything permitted by scope/role | The integration surface |
 | **Webhooks** (outbound) | HMAC signature | push | The reactive half of J11 |
+| **Provider callbacks** (inbound) `/integrations/:id/inbound` | signed URL (INV-09-15) | write | Where a provider posts back — bounces and complaints |
 
 Design rules the model must support:
 
@@ -150,6 +151,22 @@ handle_inbound_webhook(payload) -> DeliveryStatusUpdate[]   // bounces, complain
 Templating, batching, quiet hours, digesting and suppression are **core concerns**, not
 provider ones. The plugin does one thing: put this rendered message on the wire. That is
 what keeps "swap Resend for SES" a config change.
+
+`handle_inbound_webhook` is reached at `/integrations/:id/inbound`, scoped to one installed
+`Integration` rather than to the capability's default — the provider is answering *that*
+installation's sends, and routing a Resend callback to whichever adapter currently holds the
+default would attribute it to the wrong provider. The callback carries no session and no API
+key, so **the URL is the credential**: it is HMAC-signed per integration under INV-09-15,
+exactly like the unsubscribe link. That is deliberately weaker than verifying a provider's
+own request signature — every provider signs differently (SendGrid ECDSA over timestamp and
+body, Resend via Svix) while this contract takes a parsed payload and no headers — and it is
+the check the core can make uniformly for every provider. A plugin that wants its provider's
+native verification needs the contract to grow a headers argument first.
+
+Callbacks are **at-least-once and unordered**, so applying one moves
+`NotificationDelivery.status` forward only: a resent `delivered` never erases a `bounced`,
+and a replayed bounce emits `notification.bounced` once. `complained` outranks `delivered`
+because that is the only order it can occur in.
 
 **`chat`** — `post(channel, blocks|text)`, for "new proposal submitted" into a committee
 channel.
@@ -365,11 +382,16 @@ model depends on these choices.
   its `template_key`'s declared set is rejected at save time.
 - **INV-09-14** Campaign sending is idempotent per `(campaign_id, person_id)`; a recipient
   receives at most one delivery per campaign regardless of retries.
-- **INV-09-15** A signed, no-login link (the unsubscribe link) is HMAC-signed with a
-  deployment secret held behind a Workers Secret, never derived from a public or guessable
-  configuration value such as an environment name, and never logged. Generating or verifying
-  one without that secret configured fails closed rather than falling back to a default an
-  attacker could reproduce.
+- **INV-09-15** A signed, no-login URL — the unsubscribe link, and the inbound
+  provider-callback URL — is HMAC-signed with a deployment secret held behind a Workers
+  Secret, never derived from a public or guessable configuration value such as an
+  environment name, and never logged. Generating or verifying one without that secret
+  configured fails closed rather than falling back to a default an attacker could reproduce.
+  Each kind signs a distinct message shape, so a signature minted for one cannot be replayed
+  against the other.
+- **INV-09-16** An inbound provider callback only moves a `NotificationDelivery` forward:
+  provider webhooks are at-least-once and unordered, so re-applying an event already
+  recorded changes nothing and emits nothing.
 
 ## Emitted events
 

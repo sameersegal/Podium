@@ -842,6 +842,21 @@ details.disclosure > summary::before { content: "+"; font-size: var(--fs-lg); li
 details.disclosure[open] > summary::before { content: "−"; }
 details.disclosure[open] > summary { margin-bottom: var(--sp-3); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--line-2); }
 
+/* The card snippet and the gallery detail panel: `<details>` rather than a
+   script, so both open with JavaScript blocked (08, "Degrade gracefully"). */
+details.snippet > summary { cursor: pointer; list-style: none; }
+details.snippet > summary::-webkit-details-marker { display: none; }
+details.snippet > summary .more { color: var(--indigo-dark); font-weight: 600; white-space: nowrap; }
+details.snippet[open] > summary { display: none; }
+
+.gallery-card > summary { cursor: pointer; list-style: none; }
+.gallery-card > summary::-webkit-details-marker { display: none; }
+.gallery-card > summary h3 { margin: .5rem 0 .2rem; font-size: 1rem; }
+.gallery-card[open] { text-align: left; box-shadow: 0 2px 10px rgba(0, 0, 0, .08); }
+.gallery-card[open] > summary { text-align: center; }
+.gallery-card .panel { border-top: 1px solid var(--line); margin-top: .75rem; padding-top: .75rem; }
+.gallery-card .panel ul { margin: .4rem 0 .4rem 1rem; padding: 0; }
+
 /* Label over value on a phone, two columns once there is room for both. The
    values are answers, and an answer can be an id or a URL with nowhere to
    break: `anywhere` is what keeps one of those from widening the grid past the

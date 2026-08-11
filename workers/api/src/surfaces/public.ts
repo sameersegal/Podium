@@ -27,7 +27,9 @@ import {
   renderAgendaGrid,
   renderItinerary,
   renderSessionDetail,
+  renderSessionsList,
   renderSpeakerDetail,
+  renderSpeakerGallery,
   renderSpeakersList,
   renderWidgetHtml,
   widgetRss,
@@ -201,8 +203,11 @@ export async function renderEventLanding(ctx: RequestContext, row: Row): Promise
         <p>${formatDateInZone(new Date(`${ref.starts_on}T00:00:00Z`).toISOString(), ref.timezone)} – ${formatDateInZone(new Date(`${ref.ends_on}T00:00:00Z`).toISOString(), ref.timezone)}${venue ? html` · ${str(venue.name)}` : raw("")}</p>
         <p class="actions">
           <a class="btn" href="/e/${ref.slug}/schedule">Schedule</a>
+          <a class="btn secondary" href="/e/${ref.slug}/sessions">Sessions</a>
           <a class="btn secondary" href="/e/${ref.slug}/speakers">Speakers</a>
+          <a class="btn secondary" href="/e/${ref.slug}/gallery">Speaker gallery</a>
           ${openCfps.length ? html`<a class="btn secondary" href="#cfps">Submit a talk</a>` : raw("")}
+          <a class="btn secondary" href="/login">Sign in</a>
         </p>
       </div></section>
       <div class="grid two">
@@ -254,7 +259,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
         ctx,
         { title: `Schedule — ${ref.name}`, event: ref, width: "wide", head: jsonScript("podium-schedule-data", snapshot) },
         html`${pageHead("Schedule", `Published version ${snapshot.version}. All times in ${ref.timezone} — toggle to your local time below.`)}
-          ${scheduleControls(ref)}
+          ${scheduleControls(ref, snapshot)}
           ${daySwitcher(ref, snapshot, dayId)}
           <div class="grid two">
             <section>
@@ -282,6 +287,27 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     return htmlResponse(publicPage(ctx, { title: "Session", event: ref, width: "narrow" }, html`${body}<p><a href="/e/${ref.slug}/schedule">← Back to the schedule</a></p>`));
   });
 
+  // 08, "Every type is also a page on the first-party site": `sessions_list`
+  // hosted under the event's own slug, with the search and facet controls the
+  // visitor drives (an embed's filters are fixed by the organizer instead).
+  router.get("/e/:eventSlug/sessions", async (_req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return notFoundPage(ctx, "No such event.");
+    const ref = toRef(row);
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    if (!snapshot) return htmlResponse(publicPage(ctx, { title: "Sessions", event: ref, width: "wide" }, noPublicationYet(ref)));
+    return htmlResponse(
+      publicPage(
+        ctx,
+        { title: `Sessions — ${ref.name}`, event: ref, width: "wide" },
+        html`${pageHead("Sessions", `${snapshot.sessions.length} session${snapshot.sessions.length === 1 ? "" : "s"}. Search by title or speaker, or filter by track, format and room.`)}
+          ${scheduleControls(ref, snapshot)}
+          ${renderSessionsList(snapshot, renderOpts(ref, true))}
+          ${scheduleClientScript(ref.slug)}`,
+      ),
+    );
+  });
+
   router.get("/e/:eventSlug/speakers", async (_req, ctx, params) => {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
@@ -291,7 +317,25 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
       publicPage(
         ctx,
         { title: `Speakers — ${ref.name}`, event: ref, width: "wide" },
-        html`${pageHead("Speakers", "Ordered by surname.")}${snapshot ? renderSpeakersList(snapshot, renderOpts(ref, false)) : noPublicationYet(ref)}`,
+        html`${pageHead("Speakers", "Ordered by surname.")}
+          ${snapshot ? html`${speakerSearchControl()}${renderSpeakersList(snapshot, renderOpts(ref, false))}${speakerSearchScript()}` : noPublicationYet(ref)}`,
+      ),
+    );
+  });
+
+  // 08: `speaker_gallery` — the same directory photo-first, each card opening
+  // to a detail panel.
+  router.get("/e/:eventSlug/gallery", async (_req, ctx, params) => {
+    const row = await resolvePublicEvent(ctx, params.eventSlug);
+    if (!row) return notFoundPage(ctx, "No such event.");
+    const ref = toRef(row);
+    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    return htmlResponse(
+      publicPage(
+        ctx,
+        { title: `Speaker gallery — ${ref.name}`, event: ref, width: "wide" },
+        html`${pageHead("Speaker gallery", "Tap a speaker for their bio and sessions.")}
+          ${snapshot ? html`${speakerSearchControl()}${renderSpeakerGallery(snapshot, renderOpts(ref, false))}${speakerSearchScript()}` : noPublicationYet(ref)}`,
       ),
     );
   });
@@ -331,14 +375,69 @@ function daySwitcher(ref: EventRef, snapshot: ScheduleSnapshot, activeDayId: str
   );
 }
 
-function scheduleControls(ref: EventRef): SafeHtml {
+/**
+ * 08 describes both `speakers_list` and `speaker_gallery` as name-searchable.
+ * The control is shared; the script below filters whichever of the two is on
+ * the page, since both render cards carrying `data-name`.
+ */
+function speakerSearchControl(): SafeHtml {
+  return card(
+    html`<div class="row">
+      <div><label for="podium-speaker-search">Search speakers</label><input id="podium-speaker-search" type="search" placeholder="Name…" aria-label="Search speakers by name"></div>
+      <div class="shrink" style="margin-top:1.6rem"><span class="small muted" id="podium-speaker-count" aria-live="polite"></span></div>
+    </div>
+    <p class="small muted">Search needs JavaScript; the full directory below works without it.</p>`,
+  );
+}
+
+function speakerSearchScript(): SafeHtml {
+  return raw(`<script>
+(function(){
+  var box = document.getElementById("podium-speaker-search");
+  if (!box) return;
+  var cards = Array.prototype.slice.call(document.querySelectorAll("[data-person-id][data-name]"));
+  var count = document.getElementById("podium-speaker-count");
+  box.addEventListener("input", function(){
+    var q = box.value.toLowerCase().trim();
+    var shown = 0;
+    cards.forEach(function(el){
+      var show = !q || (el.getAttribute("data-name")||"").indexOf(q) >= 0;
+      el.style.display = show ? "" : "none";
+      if (show) shown++;
+    });
+    if (count) count.textContent = shown + " of " + cards.length + " speakers";
+  });
+})();
+</script>`);
+}
+
+/**
+ * One facet select, populated from the snapshot. Dropped entirely when there is
+ * nothing to choose between — a "Track" filter over one track is furniture.
+ */
+function facet(id: string, label: string, all: string, options: { id: string; name: string }[]): SafeHtml {
+  if (options.length < 2) return raw("");
+  return html`<div>
+    <label for="${id}">${label}</label>
+    <select id="${id}" data-podium-facet>
+      <option value="">${all}</option>
+      ${options.map((o) => html`<option value="${o.id}">${o.name}</option>`)}
+    </select>
+  </div>`;
+}
+
+function scheduleControls(ref: EventRef, snapshot: ScheduleSnapshot): SafeHtml {
   return card(
     html`<div class="row">
       <div><label for="podium-search">Search</label><input id="podium-search" type="search" placeholder="Title or speaker…" aria-label="Search sessions and speakers"></div>
+      ${facet("podium-track", "Track", "All tracks", snapshot.tracks)}
+      ${facet("podium-format", "Format", "All formats", snapshot.formats)}
+      ${facet("podium-room", "Room", "All rooms", snapshot.rooms)}
       <div class="shrink checkline" style="margin-top:1.6rem"><input type="checkbox" id="podium-my-schedule"><label for="podium-my-schedule">My schedule only</label></div>
       <div class="shrink" style="margin-top:1.6rem"><a class="btn secondary" id="podium-ics-link" href="/e/${ref.slug}/schedule.ics">Add to calendar</a></div>
+      <div class="shrink" style="margin-top:1.6rem"><span class="small muted" id="podium-session-count" aria-live="polite"></span></div>
     </div>
-    <p class="small muted">Starring works without an account — it lives in this browser only (localStorage). Search and starring need JavaScript; the full schedule below works without it.</p>`,
+    <p class="small muted">Starring works without an account — it lives in this browser only (localStorage). Search, filters and starring need JavaScript; the full schedule below works without them.</p>`,
   );
 }
 
@@ -381,17 +480,37 @@ function scheduleClientScript(eventSlug: string): SafeHtml {
 
   var search = document.getElementById("podium-search");
   var mySchedule = document.getElementById("podium-my-schedule");
+  // 08: "faceting by track, format and room". Each select narrows on the
+  // data-* attribute widgets.ts already renders, so this walks the DOM rather
+  // than refetching the snapshot.
+  var FACETS = [["podium-track","data-track"],["podium-format","data-format"],["podium-room","data-room"]];
+  function facetValues(){
+    return FACETS.map(function(f){
+      var el = document.getElementById(f[0]);
+      return [f[1], el && el.value || ""];
+    }).filter(function(f){ return f[1]; });
+  }
   function applyFilters(){
     var q = (search && search.value || "").toLowerCase().trim();
     var onlyStarred = mySchedule && mySchedule.checked;
     var ids = starred();
+    var facets = facetValues();
+    // The grid and the itinerary render the same session twice on /schedule, so
+    // the count is over distinct session ids, not over elements.
+    var shown = {}, all = {};
     cards().forEach(function(el){
+      var id = el.getAttribute("data-session-id");
       var matchesSearch = !q || (el.getAttribute("data-title")||"").indexOf(q) >= 0 || (el.getAttribute("data-speakers")||"").indexOf(q) >= 0;
-      var matchesStar = !onlyStarred || ids.indexOf(el.getAttribute("data-session-id")) >= 0;
-      var show = matchesSearch && matchesStar;
+      var matchesStar = !onlyStarred || ids.indexOf(id) >= 0;
+      var matchesFacets = facets.every(function(f){ return el.getAttribute(f[0]) === f[1]; });
+      var show = matchesSearch && matchesStar && matchesFacets;
+      all[id] = 1;
+      if (show) shown[id] = 1;
       el.style.display = show ? "" : "none";
       if (el.classList.contains("cell")) el.style.visibility = show ? "" : "hidden";
     });
+    var count = document.getElementById("podium-session-count");
+    if (count) count.textContent = Object.keys(shown).length + " of " + Object.keys(all).length + " sessions";
   }
   function updateIcsLink(){
     var link = document.getElementById("podium-ics-link");
@@ -404,8 +523,12 @@ function scheduleClientScript(eventSlug: string): SafeHtml {
   }
   if (search) search.addEventListener("input", applyFilters);
   if (mySchedule) mySchedule.addEventListener("change", applyFilters);
+  Array.prototype.slice.call(document.querySelectorAll("[data-podium-facet]")).forEach(function(el){
+    el.addEventListener("change", applyFilters);
+  });
   syncStars();
   updateIcsLink();
+  applyFilters();
 })();
 </script>`);
 }
