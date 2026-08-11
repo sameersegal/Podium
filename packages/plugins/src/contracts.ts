@@ -12,6 +12,7 @@
  */
 
 import type { Capability } from "@podiumconf/domain/platform/types.js";
+import type { SyncFieldKind } from "@podiumconf/domain/platform/sync.js";
 
 export type { Capability };
 
@@ -286,6 +287,28 @@ export interface SyncChangePage {
 }
 
 /**
+ * One column to create, in semantic terms. The adapter picks the provider type.
+ *
+ * The core says "this is a set of tags" and "this points at that table"; only
+ * the adapter knows those are `multipleSelects` and `multipleRecordLinks`.
+ */
+export interface SyncColumnSpec {
+  external_field: string;
+  kind: SyncFieldKind;
+  /** For `link` — the provider table id on the other end. */
+  links_to_table_id?: string | null;
+  /** Shown in every linked-record chip. Exactly one, and it must be first. */
+  primary?: boolean;
+}
+
+export interface SyncTableSpec {
+  /** Null creates the table; a value extends the one that is there. */
+  external_table_id?: string | null;
+  name: string;
+  columns: SyncColumnSpec[];
+}
+
+/**
  * A table-shaped, two-way mirror. Six methods, and none of them know what a
  * proposal is — every rule that matters is core (09).
  *
@@ -308,6 +331,16 @@ export interface SyncPlugin extends PluginBase {
   delete_records(external_table_id: string, external_ids: string[], ctx: PluginContext): Promise<void>;
   /** Null `external_table_ids` means "something changed, re-read everything". */
   handle_inbound_webhook?(payload: unknown, ctx: PluginContext): Promise<{ external_table_ids: string[] | null }>;
+  /**
+   * Create the table, or add the columns it is missing, and return what it now
+   * has. Optional: a provider without a schema API simply cannot offer it.
+   *
+   * Worth having because the alternative is an organizer hand-typing twenty
+   * column names that must match exactly, and then discovering at the first sync
+   * that one of them is a text field where a date was needed. Additive only — it
+   * never renames, retypes or removes a column somebody else made.
+   */
+  ensure_table?(spec: SyncTableSpec, ctx: PluginContext): Promise<SyncTable>;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -38,8 +38,16 @@ export interface SubjectAdapter {
   load(app: AppContext, id: string): Promise<Row | null>;
   /** Every record the mapping should mirror. The backfill and the reconcile sweep. */
   list(app: AppContext, scope: MappingScope): Promise<Row[]>;
-  /** Values for this subject's `derived` fields. Empty when it has none. */
+  /** Values for this subject's scalar `derived` fields. Empty when it has none. */
   derived(app: AppContext, row: Row): Promise<Record<string, unknown>>;
+  /**
+   * Related Podium record ids, per `link` field. The service turns these into
+   * provider record ids using the target subject's own mapping, or drops the
+   * field if there is no such mapping (INV-09-24).
+   */
+  links?(app: AppContext, row: Row): Promise<Record<string, string[]>>;
+  /** Asset ids per `attachment` field; the service signs them into fetchable URLs. */
+  assets?(app: AppContext, row: Row): Promise<Record<string, string[]>>;
   /**
    * Apply the writable patch and return the field names that actually changed.
    * Absent on a push-only subject (INV-09-23), where it can never be reached
@@ -76,15 +84,31 @@ async function nameOf(app: AppContext, table: string, id: string | null, column 
   return value;
 }
 
-async function speakerNames(app: AppContext, table: "proposal_speaker" | "session_speaker", key: string, id: string): Promise<string> {
+/**
+ * The speakers on a proposal or session, as `SpeakerProfile` ids.
+ *
+ * Profiles rather than people, because the Speakers table an organizer builds is
+ * the one with the bio, the company and the headshot — that is `SpeakerProfile`.
+ * A speaker with no profile row yet contributes no link: profiles are created
+ * lazily when somebody first edits one, and a read path must not write.
+ * `ORDER BY sort_order` is kept so the chips appear in billing order.
+ */
+async function speakerProfileIds(
+  app: AppContext,
+  table: "proposal_speaker" | "session_speaker",
+  key: string,
+  id: string,
+): Promise<string[]> {
   const rows = await app.db.raw<Row>(
-    `SELECT p.full_name AS full_name
-       FROM ${table} s JOIN person p ON p.id = s.person_id
+    `SELECT sp.id AS profile_id
+       FROM ${table} s
+       JOIN person p ON p.id = s.person_id
+       JOIN speaker_profile sp ON sp.person_id = p.id
       WHERE s.${key} = ? AND p.deleted_at IS NULL
       ORDER BY s.sort_order, s.id`,
     [id],
   );
-  return rows.map((r) => str(r.full_name)).filter(Boolean).join(", ");
+  return rows.map((r) => str(r.profile_id)).filter(Boolean);
 }
 
 /** Rows of an event-scoped table that has no `org_id` column of its own. */
@@ -126,19 +150,22 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
       return applyFilter(await app.db.select<Row>("proposal", { event_id: scope.eventId }), scope);
     },
     async derived(app, row) {
-      const id = str(row.id);
       const submitter = strOrNull(row.submitter_person_id)
         ? await app.db.byId<Row>("person", str(row.submitter_person_id))
         : null;
       const decision = strOrNull(row.decision_id) ? await app.db.byId<Row>("decision", str(row.decision_id)) : null;
       return {
-        speaker_names: await speakerNames(app, "proposal_speaker", "proposal_id", id),
         submitter_name: submitter ? str(submitter.full_name) : null,
         submitter_email: submitter ? str(submitter.email) : null,
-        track_name: await nameOf(app, "track", strOrNull(row.track_id)),
-        format_name: await nameOf(app, "session_format", strOrNull(row.session_format_id)),
+        // Names, not ids: these render as a dropdown an organizer picks from.
+        track: await nameOf(app, "track", strOrNull(row.track_id)),
+        assigned_track: await nameOf(app, "track", strOrNull(row.assigned_track_id)),
+        format: await nameOf(app, "session_format", strOrNull(row.session_format_id)),
         decision_outcome: decision ? str(decision.outcome) : null,
       };
+    },
+    async links(app, row) {
+      return { speakers: await speakerProfileIds(app, "proposal_speaker", "proposal_id", str(row.id)) };
     },
     async apply(app, row, patch) {
       // INV-11-5: an organizer edit of submitter-owned content carries a reason,
@@ -157,16 +184,25 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
       return applyFilter(await app.db.select<Row>("session", { event_id: scope.eventId }), scope);
     },
     async derived(app, row) {
-      const id = str(row.id);
-      const placement = await app.db.first<Row>("placement", { session_id: id });
+      const placement = await app.db.first<Row>("placement", { session_id: str(row.id) });
       return {
-        speaker_names: await speakerNames(app, "session_speaker", "session_id", id),
-        track_name: await nameOf(app, "track", strOrNull(row.track_id)),
-        format_name: await nameOf(app, "session_format", strOrNull(row.session_format_id)),
+        track: await nameOf(app, "track", strOrNull(row.track_id)),
+        format: await nameOf(app, "session_format", strOrNull(row.session_format_id)),
         room_name: placement ? await nameOf(app, "room", strOrNull(placement.room_id)) : null,
         starts_at: placement ? strOrNull(placement.starts_at) : null,
         ends_at: placement ? strOrNull(placement.ends_at) : null,
       };
+    },
+    async links(app, row) {
+      const proposalId = strOrNull(row.proposal_id);
+      return {
+        speakers: await speakerProfileIds(app, "session_speaker", "session_id", str(row.id)),
+        proposal: proposalId ? [proposalId] : [],
+      };
+    },
+    async assets(app, row) {
+      const slides = strOrNull(row.slides_asset_id);
+      return { slides: slides ? [slides] : [] };
     },
     async apply(app, row, patch) {
       // The compare-and-set the whole authority rule rests on happens here
@@ -207,15 +243,34 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
     },
     async derived(app, row) {
       const person = await app.db.byId<Row>("person", str(row.person_id));
-      return { full_name: person ? str(person.full_name) : null, person_id: strOrNull(row.person_id) };
+      return { full_name: person ? str(person.full_name) : null, email: person ? str(person.email) : null };
+    },
+    async assets(_app, row) {
+      const headshot = strOrNull(row.headshot_asset_id);
+      return { headshot: headshot ? [headshot] : [] };
     },
     async apply(app, row, patch) {
       const personId = str(row.person_id);
-      // `isOwner: false` is the truthful argument for an integration, and it is
-      // what makes `updateProfile` refuse `visibility` and `is_listed` under
-      // INV-01-13 — a second guard behind the writable-field set.
-      await updateProfile(app, personId, patch, { isOwner: false, editedByRole: "integration" });
-      return Object.keys(patch);
+      const changed: string[] = [];
+
+      // The Speakers table is where somebody notices a misspelled name, and the
+      // name lives on `Person`. Splitting the patch here rather than pretending
+      // one table owns both is what keeps the identity write on its own service.
+      if ("full_name" in patch) {
+        const applied = await updatePersonDetails(app, personId, { full_name: patch.full_name });
+        changed.push(...applied);
+      }
+
+      const profilePatch = { ...patch };
+      delete profilePatch.full_name;
+      if (Object.keys(profilePatch).length > 0) {
+        // `isOwner: false` is the truthful argument for an integration, and it
+        // is what makes `updateProfile` refuse `visibility` and `is_listed`
+        // under INV-01-13 — a second guard behind the writable-field set.
+        await updateProfile(app, personId, profilePatch, { isOwner: false, editedByRole: "integration" });
+        changed.push(...Object.keys(profilePatch));
+      }
+      return changed;
     },
     async byPerson(app, personId) {
       const row = await app.db.first<Row>("speaker_profile", { person_id: personId });
@@ -234,6 +289,9 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
     async derived(app, row) {
       const person = await app.db.byId<Row>("person", str(row.person_id));
       return { full_name: person ? str(person.full_name) : null, email: person ? str(person.email) : null };
+    },
+    async links(_app, row) {
+      return { person: [str(row.person_id)] };
     },
     async apply(app, row, patch) {
       if (!("status" in patch)) return [];
@@ -259,6 +317,10 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
     async derived() {
       return {};
     },
+    async assets(_app, row) {
+      const logo = strOrNull(row.logo_asset_id);
+      return { logo: logo ? [logo] : [] };
+    },
     async apply(app, row, patch) {
       const input = { ...patch } as Record<string, unknown>;
       if ("industry_tags" in input) input.industry_tags = parseJson<string[]>(input.industry_tags, []);
@@ -280,6 +342,9 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
         sponsor_name: sponsor ? str(sponsor.name) : null,
         tier_name: await nameOf(app, "sponsorship_tier", strOrNull(row.tier_id)),
       };
+    },
+    async links(_app, row) {
+      return { sponsor: [str(row.sponsor_id)] };
     },
     async apply(app, row, patch) {
       await updateSponsorship(app, str(row.id), patch as Parameters<typeof updateSponsorship>[2]);
@@ -320,6 +385,9 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
         sponsor_name: sponsor ? str(sponsor.name) : null,
       };
     },
+    async links(_app, row) {
+      return { sponsorship: [str(row.sponsorship_id)] };
+    },
   },
 
   placement: {
@@ -337,6 +405,9 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
         room_name: await nameOf(app, "room", strOrNull(row.room_id)),
         day: day ? strOrNull(day.date) : null,
       };
+    },
+    async links(_app, row) {
+      return { session: [str(row.session_id)] };
     },
   },
 
@@ -359,8 +430,10 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
       const proposal = await app.db.byId<Row>("proposal", str(row.proposal_id));
       return {
         proposal_reference: proposal ? str(proposal.reference) : null,
-        proposal_title: proposal ? str(proposal.title) : null,
       };
+    },
+    async links(_app, row) {
+      return { proposal: [str(row.proposal_id)] };
     },
   },
 
@@ -378,12 +451,14 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
     },
     async derived(app, row) {
       const person = await app.db.byId<Row>("person", str(row.person_id));
-      const stage = await nameOf(app, "pipeline_stage", strOrNull(row.stage_id));
       return {
         full_name: person ? str(person.full_name) : null,
-        stage_name: stage,
+        stage_name: await nameOf(app, "pipeline_stage", strOrNull(row.stage_id)),
         pipeline_name: await nameOf(app, "sourcing_pipeline", strOrNull(row.pipeline_id)),
       };
+    },
+    async links(_app, row) {
+      return { person: [str(row.person_id)] };
     },
     async apply(app, row, patch) {
       await updateCard(app, str(row.id), patch as Parameters<typeof updateCard>[2]);

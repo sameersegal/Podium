@@ -152,7 +152,20 @@ explicitly instead, as per-subject writable sets (`SUBJECT_SPECS` in
 | Admin screens and `/v1/sync/…` | `contexts/platform/sync-routes.ts` |
 | Providers | `packages/plugins/src/sync/{airtable,memory}.ts` |
 
-Two things to know before changing any of it. **The push half never calls a provider from a
+The field model is deliberately not lowest-common-denominator. A subject declares semantic
+kinds — `select`, `multi_select`, `link`, `attachment` — and only the adapter knows those are
+`singleSelect`, `multipleSelects`, `multipleRecordLinks` and `multipleAttachments`. Speakers
+are pushed as real links to the Speakers table, tracks as a dropdown matched by name, headshots
+as files the provider fetches. A base whose Track column is text cannot group by track, and a
+grid that cannot group is the spreadsheet the organizer was trying to leave.
+
+Three rules fall out of that: a relationship is declared on **one side only** (providers create
+the reverse column themselves); `link` and `attachment` are **never hashed**, because their
+values are provider record ids and fetched file copies this system cannot reproduce; and
+neither is ever **accepted back** (INV-09-24). `ensure_table` creates the columns with the
+right types, so setup is not twenty hand-typed names.
+
+Two more things to know before changing any of it. **The push half never calls a provider from a
 reaction** — it flips links to `pending_push` and enqueues one debounced sweep per mapping,
 because a `decision.published` batch over four hundred proposals is four hundred events.
 **Accepting an inbound change leaves the link `pending_push`, not `in_sync`**, so Podium

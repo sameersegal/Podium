@@ -6,6 +6,10 @@ import {
   SUBJECT_SPECS,
   canTransitionSyncLink,
   canonical,
+  columnOf,
+  fieldSpec,
+  primaryField,
+  pushableFields,
   fromExternal,
   isEcho,
   projectCanonical,
@@ -48,7 +52,7 @@ describe("field maps (INV-09-17)", () => {
   it("refuses a derived field as writable, naming INV-11-6", () => {
     // The rule every other service satisfies by omission: a derived column has
     // no route that can write it, because nothing asks. A field map asks.
-    expect(invariantOf(() => validateFieldMap("session", [map("speaker_names", "both")], false))).toBe("INV-11-6");
+    expect(invariantOf(() => validateFieldMap("session", [map("room_name", "both")], false))).toBe("INV-11-6");
   });
 
   it("refuses a pushable-but-not-writable field as writable", () => {
@@ -97,13 +101,31 @@ describe("push-only subjects (INV-09-23)", () => {
     }
   });
 
-  it("never marks a derived or PII field writable, on any subject", () => {
+  it("never marks PII, a relationship or a file writable, on any subject", () => {
     for (const subject of SYNC_SUBJECTS) {
       for (const f of writableFields(subject)) {
-        expect(f.derived, `${subject}.${f.field}`).toBeFalsy();
         expect(f.pii, `${subject}.${f.field}`).toBeFalsy();
+        expect(f.kind, `${subject}.${f.field}`).not.toBe("link");
+        expect(f.kind, `${subject}.${f.field}`).not.toBe("attachment");
       }
     }
+  });
+
+  it("allows derived and writable together only where a service exists to apply it", () => {
+    // Normally derived implies push-only. Two shapes are deliberate exceptions:
+    // a select showing a name and storing an id, and the Speakers table's name
+    // column, which reads from `Person` and writes back to it. Anything else
+    // appearing here is somebody having marked a computed column writable with
+    // nowhere for the write to land.
+    const found: string[] = [];
+    for (const subject of SYNC_SUBJECTS) {
+      for (const f of writableFields(subject)) {
+        if (!f.derived) continue;
+        if (f.optionsFrom) continue;
+        found.push(`${subject}.${f.field}`);
+      }
+    }
+    expect(found).toEqual(["speaker_profile.full_name"]);
   });
 
   it("keeps `visibility` and `is_listed` out of the writable set (INV-01-13)", () => {
@@ -121,9 +143,9 @@ describe("push-only subjects (INV-09-23)", () => {
 
 describe("the value space", () => {
   it("reads a list from JSON, from CSV, and from an array alike", () => {
-    expect(canonical("list", '["ai","agents"]')).toEqual(["ai", "agents"]);
-    expect(canonical("list", "ai, agents")).toEqual(["ai", "agents"]);
-    expect(canonical("list", ["ai", " agents "])).toEqual(["ai", "agents"]);
+    expect(canonical("multi_select", '["ai","agents"]')).toEqual(["ai", "agents"]);
+    expect(canonical("multi_select", "ai, agents")).toEqual(["ai", "agents"]);
+    expect(canonical("multi_select", ["ai", " agents "])).toEqual(["ai", "agents"]);
   });
 
   it("treats the ways a table tool says yes as one value", () => {
@@ -140,7 +162,7 @@ describe("the value space", () => {
       ["text", "  Keynote  "],
       ["number", "1,200"],
       ["boolean", "yes"],
-      ["list", "ai, agents"],
+      ["multi_select", "ai, agents"],
       ["date", "2026-03-01T09:00:00Z"],
     ] as const) {
       const there = canonical(kind, value);
@@ -188,20 +210,20 @@ describe("echo suppression (INV-09-19)", () => {
 });
 
 describe("inbound projection", () => {
-  const fieldMap = [map("title", "both"), map("status"), map("speaker_names")];
+  const fieldMap = [map("title", "both"), map("status"), map("room_name")];
 
   it("patches only the fields marked two-way", () => {
     const result = projectInbound(
       "session",
-      { title: "New title", status: "cancelled", speaker_names: "Someone Else" },
+      { title: "New title", status: "cancelled", room_name: "Hall B" },
       fieldMap,
       { includePii: false },
     );
-    // `status` is pushable but not writable; `speaker_names` is derived. Both
-    // are hashed — the echo check has to cover what the push covered — and
-    // neither reaches the patch.
+    // `status` is pushable but not writable; `room_name` is derived from the
+    // placement. Both are hashed — the echo check has to cover what the push
+    // covered — and neither reaches the patch.
     expect(Object.keys(result.patch)).toEqual(["title"]);
-    expect(Object.keys(result.values).sort()).toEqual(["speaker_names", "status", "title"]);
+    expect(Object.keys(result.values).sort()).toEqual(["room_name", "status", "title"]);
   });
 
   it("tells absent from blank", () => {
@@ -238,5 +260,129 @@ describe("the link state machine", () => {
 
   it("refuses to move straight from in_sync to error without a push", () => {
     expect(canTransitionSyncLink("in_sync", "error")).toBe(false);
+  });
+});
+
+describe("the shape a table tool actually wants", () => {
+  it("gives every subject exactly one primary field, and a scalar one", () => {
+    // Providers show the primary field in every linked-record chip, and refuse
+    // to make a select, a link or an attachment primary.
+    for (const subject of SYNC_SUBJECTS) {
+      const primaries = SUBJECT_SPECS[subject].fields.filter((f) => f.primary);
+      expect(primaries.length, `${subject} declares ${primaries.length} primary fields`).toBe(1);
+      expect(["text", "number", "date", "url", "email"]).toContain(primaries[0].kind);
+    }
+  });
+
+  it("names a human-readable thing as primary, never an id or a status", () => {
+    expect(primaryField("session").field).toBe("title");
+    expect(primaryField("speaker_profile").field).toBe("full_name");
+    expect(primaryField("sponsor").field).toBe("name");
+    expect(primaryField("proposal").field).toBe("reference");
+  });
+
+  it("carries speakers as a relationship rather than a comma-joined string", () => {
+    const speakers = fieldSpec("session", "speakers")!;
+    expect(speakers.kind).toBe("link");
+    expect(speakers.linkTo).toBe("speaker_profile");
+  });
+
+  it("maps a relationship from one side only", () => {
+    // Providers create the reverse column automatically, so declaring both ends
+    // would put two mappings on one pair of columns, each undoing the other.
+    const speakersSide = SUBJECT_SPECS.speaker_profile.fields.filter((f) => f.kind === "link");
+    expect(speakersSide).toEqual([]);
+  });
+
+  it("offers tracks and formats as named options, not raw ids", () => {
+    const track = fieldSpec("session", "track")!;
+    expect(track.kind).toBe("select");
+    expect(track.optionsFrom).toBe("track");
+    expect(track.writable).toBe(true);
+    // The value on the wire is the name; the column behind it is the id.
+    expect(columnOf(track)).toBe("track_id");
+    expect(SUBJECT_SPECS.session.fields.map((f) => f.field)).not.toContain("track_id");
+  });
+
+  it("sends a multi-select as a list, so it renders as chips", () => {
+    expect(toExternal("multi_select", ["ai", "agents"])).toEqual(["ai", "agents"]);
+  });
+
+  it("sends an attachment as something the provider will go and fetch", () => {
+    expect(toExternal("attachment", ["https://example.test/a.png"])).toEqual([{ url: "https://example.test/a.png" }]);
+  });
+
+  it("reads a link back whether the provider gives ids or objects", () => {
+    expect(fromExternal("link", ["rec1", { id: "rec2" }])).toEqual(["rec1", "rec2"]);
+  });
+});
+
+describe("links and attachments stay out of the hash (INV-09-19)", () => {
+  const fieldMap = [map("title"), map("speakers"), map("slides")];
+  const row = { title: "Agents in production" };
+
+  it("hashes only what Podium can reproduce", async () => {
+    const values = projectCanonical("session", row, fieldMap, { includePii: false });
+    // A provider record id and a fetched file copy are the provider's, not
+    // ours. Hashing them would make every record look changed on every pull.
+    expect(Object.keys(values)).toEqual(["title"]);
+  });
+
+  it("hashes the same whether or not the related records exist yet", async () => {
+    const before = await syncHash(projectCanonical("session", row, fieldMap, { includePii: false, links: {} }));
+    const after = await syncHash(
+      projectCanonical("session", row, fieldMap, { includePii: false, links: { speakers: ["recA", "recB"] } }),
+    );
+    expect(before).toBe(after);
+  });
+
+  it("omits an unresolved link rather than blanking the column (INV-09-24)", () => {
+    // The target table is not mapped yet. Writing `[]` would clear whatever an
+    // organizer had linked by hand; leaving the column out lets a later mapping
+    // fill it in.
+    const withoutTarget = projectForPush("session", row, fieldMap, { includePii: false });
+    expect(withoutTarget).not.toHaveProperty("speakers");
+
+    const withTarget = projectForPush("session", row, fieldMap, {
+      includePii: false,
+      links: { speakers: ["recA"] },
+    });
+    expect(withTarget.speakers).toEqual(["recA"]);
+  });
+});
+
+describe("relationships and files are never accepted back", () => {
+  it("refuses a link mapped two-way, naming INV-09-24", () => {
+    expect(invariantOf(() => validateFieldMap("session", [map("speakers", "both")], false))).toBe("INV-09-24");
+  });
+
+  it("refuses an attachment mapped two-way", () => {
+    expect(invariantOf(() => validateFieldMap("speaker_profile", [map("headshot", "both")], false))).toBe("INV-09-17");
+  });
+
+  it("still pushes both, so the grid is worth opening", () => {
+    const pushable = pushableFields("speaker_profile").map((f) => f.field);
+    expect(pushable).toContain("headshot");
+    expect(pushableFields("session").map((f) => f.field)).toContain("speakers");
+  });
+});
+
+describe("named options come back as names", () => {
+  const fieldMap = [map("track", "both"), map("title", "both")];
+
+  it("hands the name to the caller to resolve, and keeps it out of the patch", () => {
+    const result = projectInbound("session", { track: "Platform Engineering", title: "A talk" }, fieldMap, {
+      includePii: false,
+    });
+    // Resolving a name needs the event's tracks, which is a query — so it is
+    // carried out separately rather than guessed at here.
+    expect(result.patch).toEqual({ title: "A talk" });
+    expect(result.options.track).toEqual({ optionsFrom: "track", name: "Platform Engineering" });
+  });
+
+  it("treats a cleared dropdown as a null, not as a missing field", () => {
+    const result = projectInbound("session", { track: "", title: "A talk" }, fieldMap, { includePii: false });
+    expect(result.options.track.name).toBeNull();
+    expect(result.absent).not.toContain("track");
   });
 });

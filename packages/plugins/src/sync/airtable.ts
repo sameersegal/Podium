@@ -31,8 +31,10 @@ import {
   type PluginContext,
   type SyncChangePage,
   type SyncPlugin,
+  type SyncColumnSpec,
   type SyncRecordInput,
   type SyncTable,
+  type SyncTableSpec,
   type SyncUpsertResult,
 } from "../contracts.js";
 
@@ -156,6 +158,51 @@ export const syncAirtablePlugin: SyncPlugin = {
     }));
   },
 
+  /**
+   * Create the table, or add the columns it is missing.
+   *
+   * The alternative is an organizer hand-typing twenty column names that must
+   * match exactly, then finding out at the first sync that "Starts" is a text
+   * field where a date was needed. Needs `schema.bases:write` on the token;
+   * without it Airtable answers 403 and the message says which scope is missing.
+   *
+   * Additive only. It never renames, retypes or deletes — a column somebody else
+   * made and a column of ours that drifted are indistinguishable from here, and
+   * guessing wrong destroys their data rather than ours.
+   */
+  async ensure_table(spec: SyncTableSpec, ctx: PluginContext): Promise<SyncTable> {
+    const base = baseId(ctx);
+
+    if (!spec.external_table_id) {
+      // Airtable takes the primary field as the *first* one in the list and
+      // refuses to make a select, a link or an attachment primary — which is why
+      // every subject declares a plain scalar as its primary field.
+      const ordered = [...spec.columns].sort((a, b) => Number(Boolean(b.primary)) - Number(Boolean(a.primary)));
+      const created = await call<{ id: string; name: string }>(ctx, `/meta/bases/${base}/tables`, {
+        method: "POST",
+        body: JSON.stringify({ name: spec.name, fields: ordered.map(airtableField) }),
+      });
+      return this.describe_table(created.id, ctx);
+    }
+
+    const existing = await this.describe_table(spec.external_table_id, ctx);
+    const have = new Set(existing.fields.map((f) => f.external_field.toLowerCase()));
+    for (const column of spec.columns) {
+      if (have.has(column.external_field.toLowerCase())) continue;
+      try {
+        await call(ctx, `/meta/bases/${base}/tables/${encodeTable(spec.external_table_id)}/fields`, {
+          method: "POST",
+          body: JSON.stringify(airtableField(column)),
+        });
+      } catch (error) {
+        // One column failing should not abandon the other nineteen; the mapping
+        // screen shows what is still missing after the call returns.
+        console.warn("airtable field create failed", { field: column.external_field, error: String(error) });
+      }
+    }
+    return this.describe_table(spec.external_table_id, ctx);
+  },
+
   async describe_table(externalTableId: string, ctx: PluginContext): Promise<SyncTable> {
     const tables = await this.list_tables(ctx);
     const found = tables.find((t) => t.external_table_id === externalTableId);
@@ -277,6 +324,53 @@ export const syncAirtablePlugin: SyncPlugin = {
     }
   },
 };
+
+/**
+ * A semantic column, as an Airtable field definition.
+ *
+ * This is the only place in the system that names an Airtable type, and the
+ * reason the core's kinds are semantic rather than primitive: "a set of tags"
+ * becomes `multipleSelects` here and something else in the next adapter, and
+ * neither the domain nor the service layer has to know.
+ *
+ * `singleSelect` and `multipleSelects` are created with no choices. Airtable
+ * fills them in as records arrive, because every write passes `typecast: true`
+ * — which is what makes a new keyword or a newly-added track just work instead
+ * of failing the row.
+ */
+function airtableField(column: SyncColumnSpec): Record<string, unknown> {
+  const name = column.external_field;
+  switch (column.kind) {
+    case "long_text":
+      return { name, type: "multilineText" };
+    case "number":
+      return { name, type: "number", options: { precision: 0 } };
+    case "boolean":
+      return { name, type: "checkbox", options: { icon: "check", color: "greenBright" } };
+    case "date":
+      return {
+        name,
+        type: "dateTime",
+        options: { dateFormat: { name: "iso" }, timeFormat: { name: "24hour" }, timeZone: "utc" },
+      };
+    case "select":
+      return { name, type: "singleSelect", options: { choices: [] } };
+    case "multi_select":
+      return { name, type: "multipleSelects", options: { choices: [] } };
+    case "url":
+      return { name, type: "url" };
+    case "email":
+      return { name, type: "email" };
+    case "attachment":
+      return { name, type: "multipleAttachments" };
+    case "link":
+      // Airtable creates the symmetric field on the other table automatically,
+      // which is exactly why a relationship is mapped from one side only.
+      return { name, type: "multipleRecordLinks", options: { linkedTableId: column.links_to_table_id } };
+    default:
+      return { name, type: "singleLineText" };
+  }
+}
 
 function chunks<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];

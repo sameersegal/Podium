@@ -38,9 +38,11 @@ import {
   createMapping,
   fieldMapOf,
   getMapping,
+  linkReadiness,
   linkStats,
   resolveConflict,
   runsFor,
+  scaffoldMapping,
   updateMapping,
 } from "./sync.js";
 import { schedulePull, schedulePush } from "./sync-delivery.js";
@@ -280,6 +282,7 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     const current = new Map(fieldMapOf(mapping).map((e) => [e.field, e]));
     const stats = await linkStats(app, params.mappingId);
     const runs = await runsFor(app, params.mappingId);
+    const readiness = await linkReadiness(app, mapping);
     const canWrite = ctx.canWrite("org.configure");
     const includePii = bool(mapping.include_pii);
 
@@ -288,9 +291,12 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
       const twoWayAllowed = !spec.pushOnly && f.writable && !f.derived && !f.pii;
       return html`<tr>
         <td>
-          <strong>${f.label}</strong><br /><span class="mono small muted">${f.field}</span>
-          ${f.derived ? badge("derived") : raw("")} ${f.pii ? badge("personal data", "warn") : raw("")}
+          <strong>${f.label}</strong>${f.primary ? badge("primary", "ok") : raw("")}<br />
+          <span class="mono small muted">${f.field}</span> ${badge(columnKindLabel(f.kind))}
+          ${f.pii ? badge("personal data", "warn") : raw("")}
           ${f.revokesApproval ? badge("revokes approval", "warn") : raw("")}
+          ${f.kind === "link" ? html`<br /><span class="small muted">links to ${SUBJECT_SPECS[f.linkTo!].label}</span>` : raw("")}
+          ${f.optionsFrom ? html`<br /><span class="small muted">a dropdown of this event's ${f.optionsFrom === "track" ? "tracks" : "formats"}, matched by name</span>` : raw("")}
         </td>
         <td>
           <input name="field.${f.field}" value="${entry?.external_field ?? ""}" placeholder="column name" ${canWrite ? raw("") : raw("disabled")} />
@@ -316,9 +322,28 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             `${spec.label} → ${str(mapping.external_table_name) || str(mapping.external_table_id)}`,
             spec.pushOnly ?? "Every mapped field is pushed. Tick a field to accept edits back; Podium still wins if both sides changed.",
-            html`${canWrite ? actionForm(`/admin/sync/${params.mappingId}/push`, "Push now") : raw("")}
+            html`${canWrite ? actionForm(`/admin/sync/${params.mappingId}/scaffold`, "Create/update columns") : raw("")}
+              ${canWrite ? actionForm(`/admin/sync/${params.mappingId}/push`, "Push now") : raw("")}
               ${canWrite && writableFields(subject).length > 0 ? actionForm(`/admin/sync/${params.mappingId}/pull`, "Pull now") : raw("")}`,
           )}
+          ${readiness.length > 0
+            ? card(
+                html`<p class="small muted">
+                    Relationships are pushed as real links between tables, so each one needs its own table mirrored in the
+                    same base. The reverse column appears automatically on the other side — you never map both ends.
+                  </p>
+                  <ul class="small">
+                    ${readiness.map(
+                      (r) =>
+                        html`<li>
+                          ${r.label} — ${r.mapped ? badge("mapped", "ok") : badge("not mapped yet", "warn")}
+                          ${r.mapped ? raw("") : html`<span class="muted"> the column stays empty until it is</span>`}
+                        </li>`,
+                    )}
+                  </ul>`,
+                "Linked tables",
+              )
+            : raw("")}
           <div class="stats">
             ${stat("In sync", num(stats.in_sync, 0))} ${stat("Pending", num(stats.pending_push, 0))}
             ${stat("Conflicts", num(stats.conflict, 0), "/admin/sync")} ${stat("Errors", num(stats.error, 0))}
@@ -388,6 +413,19 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     return redirect(`/admin/sync/${params.mappingId}`, 303, OK(`Queued${queued > 0 ? ` — ${queued} record(s) waiting` : ""}.`));
   });
 
+  router.post("/admin/sync/:mappingId/scaffold", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const result = await scaffoldMapping(app, await getMapping(app, params.mappingId));
+    await app.flush();
+    const note = result.skipped.length > 0 ? ` ${result.skipped.join(", ")} still needs its own table first.` : "";
+    return redirect(
+      `/admin/sync/${params.mappingId}`,
+      303,
+      OK(`${result.created ? "Created" : "Updated"} “${result.table}”.${note}`),
+    );
+  });
+
   router.post("/admin/sync/:mappingId/pull", async (_req, ctx, params) => {
     ctx.requireWrite("org.configure");
     const app = ctx.app();
@@ -400,12 +438,32 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
   });
 }
 
+/** What column type this field wants, said the way a table tool says it. */
+function columnKindLabel(kind: string): string {
+  const labels: Record<string, string> = {
+    text: "text",
+    long_text: "long text",
+    number: "number",
+    boolean: "checkbox",
+    date: "date",
+    select: "single select",
+    multi_select: "multiple select",
+    url: "URL",
+    email: "email",
+    link: "linked records",
+    attachment: "attachment",
+  };
+  return labels[kind] ?? kind;
+}
+
 function twoWayReason(subject: string, fieldName: string): string {
   const spec = subjectSpec(subject);
   if (spec.pushOnly) return "Push-only.";
   const f = fieldSpec(subject, fieldName);
-  if (f?.derived) return "Computed here — nothing to write.";
+  if (f?.kind === "link") return "A relationship — managed here, mirrored out.";
+  if (f?.kind === "attachment") return "A file — uploads go through the file pipeline.";
   if (f?.pii) return "Personal data is never accepted back.";
+  if (f?.derived) return "Computed here — nothing to write.";
   return "Push-only.";
 }
 
@@ -466,19 +524,25 @@ function registerSyncApi(router: Router<RequestContext>): void {
     return json(
       SYNC_SUBJECTS.map((s) => {
         const spec = SUBJECT_SPECS[s];
+        const writable = new Set(writableFields(s).map((f) => f.field));
         return {
           subject: s,
           label: spec.label,
           scope: spec.scope,
           push_only: spec.pushOnly ?? null,
           writable: writableFields(s).map((f) => f.field),
+          primary_field: spec.fields.find((f) => f.primary)?.field ?? null,
+          links_to: [...new Set(spec.fields.filter((f) => f.linkTo).map((f) => f.linkTo))],
           fields: spec.fields.map((f) => ({
             field: f.field,
             label: f.label,
             kind: f.kind,
-            writable: Boolean(f.writable) && !spec.pushOnly && !f.derived && !f.pii,
+            writable: writable.has(f.field),
             derived: Boolean(f.derived),
             pii: Boolean(f.pii),
+            primary: Boolean(f.primary),
+            links_to: f.linkTo ?? null,
+            options_from: f.optionsFrom ?? null,
             revokes_approval: Boolean(f.revokesApproval),
           })),
         };
@@ -558,6 +622,14 @@ function registerSyncApi(router: Router<RequestContext>): void {
     await app.flush();
     await schedulePush(ctx.env, app.orgId, params.id, "manual");
     return json({ queued }, { status: 202 });
+  });
+
+  router.post("/v1/sync/mappings/:id/scaffold", async (_req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const app = ctx.app();
+    const result = await scaffoldMapping(app, await getMapping(app, params.id));
+    await app.flush();
+    return json(result);
   });
 
   router.post("/v1/sync/mappings/:id/pull", async (_req, ctx, params) => {

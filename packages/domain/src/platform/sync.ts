@@ -98,7 +98,63 @@ export const EMPTY_COUNTS: SyncCounts = { pushed: 0, pulled: 0, echoed: 0, confl
 /* Field and subject specifications                                            */
 /* -------------------------------------------------------------------------- */
 
-export type SyncFieldKind = "text" | "long_text" | "number" | "boolean" | "date" | "select" | "list";
+/**
+ * Semantic field kinds, chosen so a spreadsheet tool can render each one as the
+ * thing it actually is.
+ *
+ * The temptation is a lowest-common-denominator set — text, number, date — that
+ * every provider satisfies. It is the wrong trade. A base whose Track column is
+ * text cannot group by track; one whose Speakers column is a comma-joined string
+ * cannot answer "what else is this person on"; one whose Headshot column is a
+ * URL shows a URL instead of a face. Those three capabilities are most of why an
+ * organizer chose Airtable over a spreadsheet, and a sync that flattens them
+ * gives back the spreadsheet.
+ *
+ * The provider adapter maps these to its own types (`multipleSelects`,
+ * `multipleRecordLinks`, `multipleAttachments`); the core never names one.
+ */
+export type SyncFieldKind =
+  | "text"
+  | "long_text"
+  | "number"
+  | "boolean"
+  | "date"
+  /** One value from a small closed set — a track, a status. Groupable, colourable. */
+  | "select"
+  /** Several values from an open set — keywords, tags. */
+  | "multi_select"
+  | "url"
+  | "email"
+  /** A relationship, carried as real links between two mirrored tables. */
+  | "link"
+  /** A file the provider fetches and stores its own copy of — a headshot, slides. */
+  | "attachment";
+
+/**
+ * Kinds whose value is stable in Podium's own space, and therefore hashable.
+ *
+ * `link` and `attachment` are excluded on purpose. A link's value on the wire is
+ * a set of *provider* record ids, and an attachment's is whatever the provider
+ * made of a file it fetched — neither is something this system can reproduce, so
+ * including them would make every record look changed on every pull and defeat
+ * INV-09-19. Both are push-only, so nothing is lost: there is no inbound value
+ * to compare.
+ */
+const HASHABLE_KINDS: readonly SyncFieldKind[] = [
+  "text",
+  "long_text",
+  "number",
+  "boolean",
+  "date",
+  "select",
+  "multi_select",
+  "url",
+  "email",
+];
+
+export function isHashable(kind: SyncFieldKind): boolean {
+  return HASHABLE_KINDS.includes(kind);
+}
 
 export interface SyncFieldSpec {
   field: string;
@@ -111,13 +167,45 @@ export interface SyncFieldSpec {
   /** Computed at projection time rather than read from a column — never writable (INV-11-6). */
   derived?: boolean;
   /**
+   * For `kind: "link"` — the subject on the other end. The link is pushed only
+   * when that subject also has an active mapping on the same integration
+   * (INV-09-24), because a record id from one base means nothing in another.
+   */
+  linkTo?: SyncSubject;
+  /**
+   * The table's primary field. Airtable and its kin show this in every
+   * linked-record chip and record card, so it has to be the human name of the
+   * thing — a session's title, a person's name — and never an id or a status.
+   * Exactly one per subject, and it must be a plain scalar: providers refuse a
+   * link, an attachment or a select as the primary column.
+   */
+  primary?: boolean;
+  /**
    * Accepting this back revokes the session's content approval and writes a
    * `SessionRevision`, in the same write (INV-06-12). True of every content
    * field on `session`. Surfaced where the field is chosen, because the first
    * time somebody fixes a typo in the spreadsheet is a bad time to find out.
    */
   revokesApproval?: boolean;
+  /**
+   * A `select` whose options are rows in Podium — a track, a session format.
+   * Pushed and accepted back **by name**, because that is what an organizer sees
+   * in the dropdown; the name is resolved to an id on the way in, and an
+   * unrecognised one is a conflict rather than a silent null.
+   */
+  optionsFrom?: "track" | "session_format";
+  /**
+   * The column behind the field, where they differ. A `select` shows a name and
+   * stores an id, so `track` reads and writes `track_id` — which is also why
+   * these are `derived` (the name is a lookup) *and* `writable` (the id is a
+   * real column somebody is choosing a value for).
+   */
+  column?: string;
   help?: string;
+}
+
+export function columnOf(spec: SyncFieldSpec): string {
+  return spec.column ?? spec.field;
 }
 
 export interface SyncSubjectSpec {
@@ -138,21 +226,29 @@ export interface SyncSubjectSpec {
   fields: SyncFieldSpec[];
 }
 
-const text = (field: string, label: string, extra: Partial<SyncFieldSpec> = {}): SyncFieldSpec => ({
+const f = (field: string, label: string, kind: SyncFieldKind, extra: Partial<SyncFieldSpec> = {}): SyncFieldSpec => ({
   field,
   label,
-  kind: "text",
+  kind,
   ...extra,
 });
 
 /**
  * What each subject offers, in each direction.
  *
- * The general rule the lists encode: **sync what a human types, never what the
- * system computes or what fires.** Every `derived` field is push-only by
- * construction, and so is every field whose write has a consequence a
- * spreadsheet cannot express — a decision that emails four hundred people, a
- * placement that has to serialise through one writer.
+ * These are shaped as the tables an organizer actually builds, not as a
+ * transcription of the schema. A conference base has a **Sessions** table whose
+ * Speakers column links to a **Speakers** table, whose Track column is a
+ * single-select you can group and colour by, and whose Headshot column shows a
+ * face in gallery view. So that is what gets pushed — links, selects and
+ * attachments — rather than three columns of ULIDs and a comma-joined string.
+ *
+ * Two rules run through all of it. **Sync what a human types, never what the
+ * system computes or what fires**: every `derived` field is push-only by
+ * construction, and so is every field whose write has a consequence a cell edit
+ * cannot express. And **relationships are pushed from one side only**: providers
+ * create the reverse link automatically, so defining both ends would have two
+ * mappings fighting over one pair of columns.
  */
 export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
   proposal: {
@@ -162,30 +258,32 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     scope: "event",
     eventColumn: "event_id",
     fields: [
-      text("reference", "Reference"),
-      { field: "title", label: "Title", kind: "long_text" },
-      { field: "abstract", label: "Abstract", kind: "long_text" },
-      { field: "description", label: "Description", kind: "long_text" },
-      { field: "status", label: "Status", kind: "select" },
-      { field: "origin", label: "Origin", kind: "select" },
-      { field: "is_late", label: "Late submission", kind: "boolean" },
-      { field: "submitted_at", label: "Submitted at", kind: "date" },
-      { field: "confirmation_deadline", label: "Confirmation deadline", kind: "date" },
-      { field: "requested_duration_minutes", label: "Requested duration (min)", kind: "number" },
-      text("session_format_id", "Format id"),
-      text("track_id", "Requested track id"),
-      // The chair-side triage fields. Sorting four hundred proposals into
-      // tracks is a grid job, and this is the row that makes it one.
-      text("assigned_track_id", "Assigned track id", { writable: true }),
-      { field: "audience_level", label: "Audience level", kind: "select", writable: true },
-      { field: "keywords", label: "Keywords", kind: "list", writable: true },
-      text("language", "Language", { writable: true }),
-      text("speaker_names", "Speakers", { derived: true }),
-      text("submitter_name", "Submitter", { derived: true }),
-      text("submitter_email", "Submitter email", { derived: true, pii: true }),
-      text("track_name", "Requested track", { derived: true }),
-      text("format_name", "Format", { derived: true }),
-      { field: "decision_outcome", label: "Decision", kind: "select", derived: true },
+      // The primary column. A proposal is referred to by its reference in every
+      // room where proposals are discussed, so that is what belongs in the chip.
+      f("reference", "Reference", "text", { primary: true }),
+      f("title", "Title", "text"),
+      f("abstract", "Abstract", "long_text"),
+      f("description", "Description", "long_text"),
+      f("status", "Status", "select"),
+      f("origin", "Origin", "select"),
+      f("is_late", "Late submission", "boolean"),
+      f("submitted_at", "Submitted", "date"),
+      f("confirmation_deadline", "Confirmation deadline", "date"),
+      f("requested_duration_minutes", "Requested duration (min)", "number"),
+      // The chair-side triage columns, and the reason a review committee opens a
+      // grid at all: sort four hundred proposals, group by track, fix the ones
+      // in the wrong place. Both are selects resolved by name, so the dropdown
+      // reads "Platform Engineering" and not `trk_01J…`.
+      f("assigned_track", "Assigned track", "select", { writable: true, derived: true, optionsFrom: "track", column: "assigned_track_id" }),
+      f("track", "Requested track", "select", { derived: true, optionsFrom: "track", column: "track_id" }),
+      f("format", "Format", "select", { derived: true, optionsFrom: "session_format", column: "session_format_id" }),
+      f("audience_level", "Audience level", "select", { writable: true }),
+      f("keywords", "Keywords", "multi_select", { writable: true }),
+      f("language", "Language", "text", { writable: true }),
+      f("speakers", "Speakers", "link", { derived: true, linkTo: "speaker_profile" }),
+      f("submitter_name", "Submitter", "text", { derived: true }),
+      f("submitter_email", "Submitter email", "email", { derived: true, pii: true }),
+      f("decision_outcome", "Decision", "select", { derived: true }),
     ],
   },
 
@@ -196,33 +294,69 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     scope: "event",
     eventColumn: "event_id",
     fields: [
-      text("reference", "Reference"),
-      { field: "title", label: "Title", kind: "long_text", writable: true, revokesApproval: true },
-      { field: "subtitle", label: "Subtitle", kind: "text", writable: true, revokesApproval: true },
-      { field: "abstract", label: "Abstract", kind: "long_text", writable: true, revokesApproval: true },
-      { field: "description", label: "Description", kind: "long_text", writable: true, revokesApproval: true },
-      { field: "duration_minutes", label: "Duration (min)", kind: "number" },
-      { field: "audience_level", label: "Audience level", kind: "select", writable: true },
-      { field: "keywords", label: "Keywords", kind: "list", writable: true },
-      text("language", "Language", { writable: true }),
-      text("recording_url", "Recording URL", { writable: true }),
-      text("registration_url", "Registration URL", { writable: true }),
-      { field: "capacity_override", label: "Capacity override", kind: "number", writable: true },
-      text("track_id", "Track id", { writable: true }),
-      text("session_format_id", "Format id"),
-      { field: "status", label: "Status", kind: "select" },
-      { field: "content_status", label: "Content status", kind: "select" },
-      { field: "visibility", label: "Visibility", kind: "select" },
-      { field: "recording_consent", label: "Recording consent", kind: "select" },
-      { field: "published_at", label: "Published at", kind: "date" },
-      // The read-only half of a programme grid: names rather than ids, and the
-      // scheduled time, which lives on `Placement` and not here (08).
-      text("speaker_names", "Speakers", { derived: true }),
-      text("track_name", "Track", { derived: true }),
-      text("format_name", "Format", { derived: true }),
-      text("room_name", "Room", { derived: true }),
-      { field: "starts_at", label: "Starts at", kind: "date", derived: true },
-      { field: "ends_at", label: "Ends at", kind: "date", derived: true },
+      f("title", "Title", "text", { primary: true, writable: true, revokesApproval: true }),
+      f("reference", "Reference", "text"),
+      f("subtitle", "Subtitle", "text", { writable: true, revokesApproval: true }),
+      f("abstract", "Abstract", "long_text", { writable: true, revokesApproval: true }),
+      f("description", "Description", "long_text", { writable: true, revokesApproval: true }),
+      // The relationship, as a relationship. This is the column that answers
+      // "what else is she on this year" and "who have we not heard back from",
+      // and a comma-joined string answers neither.
+      f("speakers", "Speakers", "link", { derived: true, linkTo: "speaker_profile" }),
+      f("proposal", "Proposal", "link", { derived: true, linkTo: "proposal" }),
+      f("track", "Track", "select", { writable: true, derived: true, optionsFrom: "track", column: "track_id" }),
+      f("format", "Format", "select", { derived: true, optionsFrom: "session_format", column: "session_format_id" }),
+      f("duration_minutes", "Duration (min)", "number"),
+      f("audience_level", "Audience level", "select", { writable: true }),
+      f("keywords", "Keywords", "multi_select", { writable: true }),
+      f("language", "Language", "text", { writable: true }),
+      f("recording_url", "Recording", "url", { writable: true }),
+      f("registration_url", "Registration", "url", { writable: true }),
+      f("capacity_override", "Capacity override", "number", { writable: true }),
+      f("status", "Status", "select"),
+      f("content_status", "Content status", "select"),
+      f("visibility", "Visibility", "select"),
+      f("recording_consent", "Recording consent", "select"),
+      f("published_at", "Published", "date"),
+      f("slides", "Slides", "attachment", { derived: true }),
+      // Times live on `Placement` (08), not here. Pushed so the grid can be
+      // sorted by slot; never accepted back, because placement serialises
+      // through one writer per event.
+      f("room_name", "Room", "text", { derived: true }),
+      f("starts_at", "Starts", "date", { derived: true }),
+      f("ends_at", "Ends", "date", { derived: true }),
+    ],
+  },
+
+  speaker_profile: {
+    subject: "speaker_profile",
+    table: "speaker_profile",
+    label: "Speakers",
+    scope: "org",
+    personColumn: "person_id",
+    fields: [
+      // `full_name` lives on `Person`, not on the profile — but the Speakers
+      // table is where an organizer notices a misspelling, so it is writable
+      // here and applied through the identity service.
+      f("full_name", "Name", "text", { primary: true, writable: true, derived: true }),
+      f("email", "Email", "email", { derived: true, pii: true }),
+      f("headline", "Headline", "text", { writable: true }),
+      f("job_title", "Job title", "text", { writable: true }),
+      f("company", "Company", "text", { writable: true }),
+      f("bio", "Bio", "long_text", { writable: true }),
+      f("short_bio", "Short bio", "long_text", { writable: true }),
+      f("location", "Location", "text", { writable: true }),
+      // The column that makes a gallery view worth opening. Pushed as a file the
+      // provider fetches and keeps its own copy of; never read back, because a
+      // headshot arriving from outside would bypass the scan the asset pipeline
+      // runs on every upload.
+      f("headshot", "Headshot", "attachment", { derived: true }),
+      // INV-01-13: only the profile's own person may change these two, so no
+      // integration may. Pushed so the grid can show who is listed, never read.
+      f("is_listed", "Listed publicly", "boolean"),
+      f("phone", "Phone", "text", { pii: true }),
+      f("dietary_notes", "Dietary notes", "long_text", { pii: true }),
+      f("accessibility_notes", "Accessibility notes", "long_text", { pii: true }),
     ],
   },
 
@@ -233,41 +367,17 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     scope: "org",
     personColumn: "id",
     fields: [
-      text("full_name", "Full name", { writable: true }),
-      text("display_name", "Display name", { writable: true }),
-      text("pronouns", "Pronouns", { writable: true }),
-      text("timezone", "Timezone", { writable: true }),
-      text("locale", "Locale", { writable: true }),
-      { field: "tags", label: "Tags", kind: "list", writable: true },
-      { field: "status", label: "Status", kind: "select" },
-      // Push-only on purpose. `Person.email` is unique per org (INV-01-1) and
-      // is what authentication resolves against; a typo in a spreadsheet cell
-      // should not be able to take somebody's login away.
-      text("email", "Email", { pii: true }),
-    ],
-  },
-
-  speaker_profile: {
-    subject: "speaker_profile",
-    table: "speaker_profile",
-    label: "Speaker profiles",
-    scope: "org",
-    personColumn: "person_id",
-    fields: [
-      text("headline", "Headline", { writable: true }),
-      text("job_title", "Job title", { writable: true }),
-      text("company", "Company", { writable: true }),
-      { field: "bio", label: "Bio", kind: "long_text", writable: true },
-      { field: "short_bio", label: "Short bio", kind: "long_text", writable: true },
-      text("location", "Location", { writable: true }),
-      // INV-01-13: only the profile's own person may change these two, so no
-      // integration may. Pushed so the grid can show who is listed, never read.
-      { field: "is_listed", label: "Listed publicly", kind: "boolean" },
-      text("phone", "Phone", { pii: true }),
-      { field: "dietary_notes", label: "Dietary notes", kind: "long_text", pii: true },
-      { field: "accessibility_notes", label: "Accessibility notes", kind: "long_text", pii: true },
-      text("full_name", "Full name", { derived: true }),
-      text("person_id", "Person id", { derived: true }),
+      f("full_name", "Name", "text", { primary: true, writable: true }),
+      f("display_name", "Display name", "text", { writable: true }),
+      f("pronouns", "Pronouns", "text", { writable: true }),
+      f("timezone", "Timezone", "text", { writable: true }),
+      f("locale", "Locale", "text", { writable: true }),
+      f("tags", "Tags", "multi_select", { writable: true }),
+      f("status", "Status", "select"),
+      // Push-only on purpose. `Person.email` is unique per org (INV-01-1) and is
+      // what authentication resolves against; a typo in a cell should not be
+      // able to take somebody's login away.
+      f("email", "Email", "email", { pii: true }),
     ],
   },
 
@@ -279,12 +389,13 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     eventColumn: "event_id",
     personColumn: "person_id",
     fields: [
-      { field: "kind", label: "Kind", kind: "select" },
-      { field: "status", label: "Status", kind: "select", writable: true },
-      { field: "source", label: "Source", kind: "select" },
-      { field: "portal_access", label: "Portal access", kind: "select" },
-      text("full_name", "Full name", { derived: true }),
-      text("email", "Email", { derived: true, pii: true }),
+      f("full_name", "Name", "text", { primary: true, derived: true }),
+      f("person", "Person", "link", { derived: true, linkTo: "person" }),
+      f("kind", "Kind", "select"),
+      f("status", "Status", "select", { writable: true }),
+      f("source", "Source", "select"),
+      f("portal_access", "Portal access", "select"),
+      f("email", "Email", "email", { derived: true, pii: true }),
     ],
   },
 
@@ -294,14 +405,15 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     label: "Sponsors",
     scope: "org",
     fields: [
-      text("name", "Name", { writable: true }),
-      text("display_name", "Display name", { writable: true }),
-      text("website_url", "Website", { writable: true }),
-      { field: "description", label: "Description", kind: "long_text", writable: true },
-      { field: "industry_tags", label: "Industry tags", kind: "list", writable: true },
-      { field: "internal_notes", label: "Internal notes", kind: "long_text", writable: true },
-      { field: "status", label: "Status", kind: "select", writable: true },
-      text("slug", "Slug"),
+      f("name", "Name", "text", { primary: true, writable: true }),
+      f("display_name", "Display name", "text", { writable: true }),
+      f("website_url", "Website", "url", { writable: true }),
+      f("description", "Description", "long_text", { writable: true }),
+      f("industry_tags", "Industry", "multi_select", { writable: true }),
+      f("internal_notes", "Internal notes", "long_text", { writable: true }),
+      f("status", "Status", "select", { writable: true }),
+      f("logo", "Logo", "attachment", { derived: true }),
+      f("slug", "Slug", "text"),
     ],
   },
 
@@ -312,17 +424,18 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     scope: "event",
     eventColumn: "event_id",
     fields: [
+      f("sponsor_name", "Sponsor", "text", { primary: true, derived: true }),
+      f("sponsor", "Sponsor record", "link", { derived: true, linkTo: "sponsor" }),
+      f("tier_name", "Tier", "select", { derived: true }),
       // The documented seam to whatever the sales side actually runs on (03).
-      text("contract_reference", "Contract reference", { writable: true }),
-      { field: "internal_notes", label: "Internal notes", kind: "long_text", writable: true },
-      { field: "public_from", label: "Public from", kind: "date", writable: true },
-      { field: "sort_order_override", label: "Sort order", kind: "number", writable: true },
+      f("contract_reference", "Contract reference", "text", { writable: true }),
+      f("internal_notes", "Internal notes", "long_text", { writable: true }),
+      f("public_from", "Public from", "date", { writable: true }),
+      f("sort_order_override", "Sort order", "number", { writable: true }),
       // Push-only: confirming and cancelling grant and revoke entitlements (03),
       // which is a transition, not a cell.
-      { field: "status", label: "Status", kind: "select" },
-      { field: "confirmed_at", label: "Confirmed at", kind: "date" },
-      text("sponsor_name", "Sponsor", { derived: true }),
-      text("tier_name", "Tier", { derived: true }),
+      f("status", "Status", "select"),
+      f("confirmed_at", "Confirmed", "date"),
     ],
   },
 
@@ -331,16 +444,18 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     table: "entitlement",
     label: "Entitlements",
     scope: "event",
-    pushOnly: "consumed_count and remaining are derived from the proposals pointing at the entitlement (03). There is nothing to write.",
+    pushOnly:
+      "consumed_count and remaining are derived from the proposals pointing at the entitlement (03). There is nothing to write.",
     fields: [
-      { field: "entitlement_type", label: "Type", kind: "select" },
-      { field: "quantity", label: "Quantity", kind: "number" },
-      { field: "submission_deadline", label: "Submission deadline", kind: "date" },
-      { field: "expires_at", label: "Expires at", kind: "date" },
-      { field: "notes", label: "Notes", kind: "long_text" },
-      { field: "consumed_count", label: "Used", kind: "number", derived: true },
-      { field: "remaining", label: "Remaining", kind: "number", derived: true },
-      text("sponsor_name", "Sponsor", { derived: true }),
+      f("sponsor_name", "Sponsor", "text", { primary: true, derived: true }),
+      f("sponsorship", "Sponsorship", "link", { derived: true, linkTo: "sponsorship" }),
+      f("entitlement_type", "Type", "select"),
+      f("quantity", "Quantity", "number"),
+      f("consumed_count", "Used", "number", { derived: true }),
+      f("remaining", "Remaining", "number", { derived: true }),
+      f("submission_deadline", "Submission deadline", "date"),
+      f("expires_at", "Expires", "date"),
+      f("notes", "Notes", "long_text"),
     ],
   },
 
@@ -353,14 +468,15 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     pushOnly:
       "Placement writes serialise through one writer per event (08) because concurrent edits produce conflicts no retry untangles. A spreadsheet row is the opposite of that discipline.",
     fields: [
-      { field: "starts_at", label: "Starts at", kind: "date" },
-      { field: "ends_at", label: "Ends at", kind: "date" },
-      { field: "status", label: "Status", kind: "select" },
-      { field: "is_public", label: "Public", kind: "boolean" },
-      { field: "notes", label: "Notes", kind: "long_text" },
-      text("session_title", "Session", { derived: true }),
-      text("room_name", "Room", { derived: true }),
-      text("day", "Day", { derived: true }),
+      f("session_title", "Session", "text", { primary: true, derived: true }),
+      f("session", "Session record", "link", { derived: true, linkTo: "session" }),
+      f("room_name", "Room", "select", { derived: true }),
+      f("day", "Day", "date", { derived: true }),
+      f("starts_at", "Starts", "date"),
+      f("ends_at", "Ends", "date"),
+      f("status", "Status", "select"),
+      f("is_public", "Public", "boolean"),
+      f("notes", "Notes", "long_text"),
     ],
   },
 
@@ -374,14 +490,14 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     fields: [
       // `feedback_for_speaker` and `rationale` are absent on purpose: one is a
       // letter to a person, the other is the committee's private reasoning.
-      { field: "outcome", label: "Outcome", kind: "select" },
-      { field: "status", label: "Status", kind: "select" },
-      { field: "decided_at", label: "Decided at", kind: "date" },
-      { field: "published_at", label: "Published at", kind: "date" },
-      { field: "confirmation_deadline", label: "Confirmation deadline", kind: "date" },
-      { field: "assigned_duration_minutes", label: "Assigned duration (min)", kind: "number" },
-      text("proposal_reference", "Proposal", { derived: true }),
-      text("proposal_title", "Title", { derived: true }),
+      f("proposal_reference", "Proposal", "text", { primary: true, derived: true }),
+      f("proposal", "Proposal record", "link", { derived: true, linkTo: "proposal" }),
+      f("outcome", "Outcome", "select"),
+      f("status", "Status", "select"),
+      f("decided_at", "Decided", "date"),
+      f("published_at", "Published", "date"),
+      f("confirmation_deadline", "Confirmation deadline", "date"),
+      f("assigned_duration_minutes", "Assigned duration (min)", "number"),
     ],
   },
 
@@ -394,16 +510,13 @@ export const SUBJECT_SPECS: Record<SyncSubject, SyncSubjectSpec> = {
     fields: [
       // `rationale` is absent: the card's private judgement about a person does
       // not leave the organization (INV-14-6), and a shared grid is leaving.
-      text("topic", "Topic", { writable: true }),
-      { field: "score", label: "Score", kind: "number", writable: true },
-      { field: "next_action_at", label: "Next action", kind: "date", writable: true },
-      // Push-only: a stage move runs a state machine and records how long the
-      // card sat in the previous stage (14). Dragging a card is the board's
-      // job, and a cell edit cannot express the same fact.
-      text("stage_id", "Stage id"),
-      text("full_name", "Name", { derived: true }),
-      text("stage_name", "Stage", { derived: true }),
-      text("pipeline_name", "Pipeline", { derived: true }),
+      f("full_name", "Name", "text", { primary: true, derived: true }),
+      f("person", "Person", "link", { derived: true, linkTo: "person" }),
+      f("stage_name", "Stage", "select", { derived: true }),
+      f("pipeline_name", "Pipeline", "select", { derived: true }),
+      f("topic", "Topic", "text", { writable: true }),
+      f("score", "Score", "number", { writable: true }),
+      f("next_action_at", "Next action", "date", { writable: true }),
     ],
   },
 };
@@ -432,12 +545,68 @@ export function pushableFields(subject: string, includePii = true): SyncFieldSpe
 export function writableFields(subject: string): SyncFieldSpec[] {
   const spec = subjectSpec(subject);
   if (spec.pushOnly) return [];
-  return spec.fields.filter((f) => f.writable && !f.derived && !f.pii);
+  return spec.fields.filter((f) => isWritable(spec, f));
+}
+
+/**
+ * One field being writable, with every reason it might not be, in one place.
+ *
+ * `speaker_profile.full_name` is the case that makes this worth a function
+ * rather than a filter: it is derived (the value lives on `Person`) *and*
+ * writable, because the Speakers table is exactly where somebody notices a
+ * misspelling. Derived normally implies push-only; this is the one place the two
+ * are decided separately, so the adapter has somewhere to apply it.
+ */
+function isWritable(spec: SyncSubjectSpec, f: SyncFieldSpec): boolean {
+  if (spec.pushOnly) return false;
+  if (!f.writable) return false;
+  if (f.pii) return false;
+  // A relationship or a file is never accepted back: adding a speaker to a
+  // session has consequences a cell edit cannot express (an invitation, a
+  // confirmation state, materialised tasks), and a file arriving from outside
+  // would bypass the scan every upload goes through.
+  if (f.kind === "link" || f.kind === "attachment") return false;
+  return true;
 }
 
 /** The derived fields the worker must compute before a push can be projected. */
 export function derivedFields(subject: string): string[] {
   return subjectSpec(subject).fields.filter((f) => f.derived).map((f) => f.field);
+}
+
+/** The column a provider shows in every linked-record chip and record card. */
+export function primaryField(subject: string): SyncFieldSpec {
+  const spec = subjectSpec(subject);
+  const found = spec.fields.find((f) => f.primary);
+  if (!found) throw invariantError("INV-09-17", "no_primary_field", `${subject} declares no primary field.`, { subject });
+  return found;
+}
+
+/** Relationship fields, and the subject each points at (INV-09-24). */
+export function linkFields(subject: string): SyncFieldSpec[] {
+  return subjectSpec(subject).fields.filter((f) => f.kind === "link" && f.linkTo);
+}
+
+/** Select fields whose options are rows in Podium, resolved by name in both directions. */
+export function optionFields(subject: string): SyncFieldSpec[] {
+  return subjectSpec(subject).fields.filter((f) => f.optionsFrom);
+}
+
+/** Files the provider should fetch and keep its own copy of. */
+export function attachmentFields(subject: string): SyncFieldSpec[] {
+  return subjectSpec(subject).fields.filter((f) => f.kind === "attachment");
+}
+
+/**
+ * The subjects that must already be mapped for this one's links to carry.
+ *
+ * A record id is meaningful only inside the base that minted it, so a Sessions
+ * table whose Speakers column points at an unmapped subject has nothing to point
+ * *to*. Rather than push a dangling value, the field is omitted and the mapping
+ * screen says which table to add first (INV-09-24).
+ */
+export function requiredLinkTargets(subject: string): SyncSubject[] {
+  return [...new Set(linkFields(subject).map((f) => f.linkTo!))];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -510,7 +679,26 @@ export function validateFieldMap(subject: string, fieldMap: SyncFieldMap[], incl
 
     if (entry.direction !== "both") continue;
 
-    if (f.derived) throw derivedFieldWrite(`${subject}.${entry.field}`);
+    if (f.kind === "link") {
+      throw invariantError(
+        "INV-09-24",
+        "link_not_writable",
+        `${f.label} is a relationship. Adding a speaker to a session creates an invitation, a confirmation state and a set of tasks — more than a cell edit can mean, so it is managed here and mirrored out.`,
+        { subject, field: entry.field, links_to: f.linkTo },
+      );
+    }
+    if (f.kind === "attachment") {
+      throw invariantError(
+        "INV-09-17",
+        "attachment_not_writable",
+        `${f.label} is a file. Files arrive through the upload pipeline so they are scanned and versioned; one appearing in a table cannot be.`,
+        { subject, field: entry.field },
+      );
+    }
+    // `derived` normally implies push-only, but a field may be computed here and
+    // still writable where a service exists to apply it — `full_name` on the
+    // Speakers table is read from `Person` and written back to it.
+    if (f.derived && !isWritable(spec, f)) throw derivedFieldWrite(`${subject}.${entry.field}`);
     if (spec.pushOnly) {
       throw invariantError(
         "INV-09-23",
@@ -527,7 +715,7 @@ export function validateFieldMap(subject: string, fieldMap: SyncFieldMap[], incl
         { subject, field: entry.field },
       );
     }
-    if (!f.writable) {
+    if (!isWritable(spec, f)) {
       throw invariantError(
         "INV-09-17",
         "field_not_writable",
@@ -563,7 +751,8 @@ export function revokesApproval(subject: string, fieldMap: SyncFieldMap[]): bool
  * this is the only place they are allowed to be resolved.
  */
 export function canonical(kind: SyncFieldKind, raw: unknown): string | number | boolean | string[] | null {
-  if (raw === undefined || raw === null || raw === "") return kind === "list" ? [] : null;
+  const multi = kind === "multi_select" || kind === "link" || kind === "attachment";
+  if (raw === undefined || raw === null || raw === "") return multi ? [] : null;
   switch (kind) {
     case "number": {
       const n = typeof raw === "number" ? raw : Number(String(raw).replace(/,/g, "").trim());
@@ -579,7 +768,9 @@ export function canonical(kind: SyncFieldKind, raw: unknown): string | number | 
       const d = new Date(String(raw));
       return Number.isNaN(d.getTime()) ? null : d.toISOString();
     }
-    case "list": {
+    case "multi_select":
+    case "link":
+    case "attachment": {
       const items = Array.isArray(raw)
         ? raw
         : typeof raw === "string" && raw.trim().startsWith("[")
@@ -587,6 +778,8 @@ export function canonical(kind: SyncFieldKind, raw: unknown): string | number | 
           : String(raw).split(",");
       return items.map((x) => String(x).trim()).filter(Boolean);
     }
+    case "email":
+      return String(raw).trim().toLowerCase();
     default:
       return String(raw).trim();
   }
@@ -601,23 +794,40 @@ function safeArray(raw: string): unknown[] {
   }
 }
 
-/** How a canonical value crosses to the provider. Lists go as text: a multi-select
- *  needs its options to exist first, and a sync that fails on an unknown option is
- *  worse than one that writes "ai, agents" into a text cell. */
+/**
+ * How a canonical value crosses to the provider.
+ *
+ * A `multi_select` goes as an array so the provider can render chips rather than
+ * a sentence — with `typecast` on, an unknown option is created rather than
+ * refused, which is what makes a new keyword just work. `link` and `attachment`
+ * arrive here already resolved by the worker: a link as provider record ids, an
+ * attachment as `{url}` objects the provider fetches for itself.
+ */
 export function toExternal(kind: SyncFieldKind, value: ReturnType<typeof canonical>): unknown {
   if (value === null) return null;
-  if (kind === "list") return (value as string[]).join(", ");
+  if (kind === "attachment") return (value as string[]).map((url) => ({ url }));
+  if (kind === "multi_select" || kind === "link") return value as string[];
   return value;
 }
 
 /** And how it comes back, so that `canonical(fromExternal(x)) === canonical(x)`. */
 export function fromExternal(kind: SyncFieldKind, raw: unknown): ReturnType<typeof canonical> {
+  if (kind === "attachment") {
+    const items = Array.isArray(raw) ? raw : [];
+    return items.map((a) => String((a as { url?: unknown })?.url ?? "")).filter(Boolean);
+  }
+  if (kind === "link") {
+    const items = Array.isArray(raw) ? raw : [];
+    // Providers return either bare record ids or `{id, name}` objects depending
+    // on the endpoint; take whichever is there rather than guessing per call.
+    return items.map((v) => String((v as { id?: unknown })?.id ?? v)).filter(Boolean);
+  }
   return canonical(kind, raw);
 }
 
 /** The stored form, for the columns the writeback patches. Lists are JSON in TEXT. */
 export function toStored(kind: SyncFieldKind, value: ReturnType<typeof canonical>): unknown {
-  if (kind === "list") return JSON.stringify(value ?? []);
+  if (kind === "multi_select") return JSON.stringify(value ?? []);
   if (kind === "boolean") return value ? 1 : 0;
   return value;
 }
@@ -630,9 +840,26 @@ export interface ProjectOptions {
   includePii: boolean;
   /** Values the worker computed — every `derived` field the map names. */
   derived?: Record<string, unknown>;
+  /**
+   * Link targets already resolved to provider record ids, keyed by field.
+   * A field absent here is a field whose target subject has no mapping on this
+   * integration, and is omitted from the push rather than sent dangling
+   * (INV-09-24).
+   */
+  links?: Record<string, string[]>;
+  /** Signed, no-login URLs the provider can fetch, keyed by field. */
+  attachments?: Record<string, string[]>;
 }
 
-/** The canonical Podium-space values of every mapped field. The hash input. */
+/**
+ * The canonical Podium-space values of the mapped fields that can be hashed.
+ *
+ * Deliberately not every mapped field: `link` and `attachment` carry provider
+ * record ids and fetched file copies, neither of which this system can
+ * reproduce, so hashing them would make every record look changed on every pull
+ * and defeat INV-09-19. Both are push-only, so there is no inbound value to
+ * compare and nothing is lost by leaving them out.
+ */
 export function projectCanonical(
   subject: string,
   row: Record<string, unknown>,
@@ -642,7 +869,7 @@ export function projectCanonical(
   const out: Record<string, ReturnType<typeof canonical>> = {};
   for (const entry of fieldMap) {
     const spec = fieldSpec(subject, entry.field);
-    if (!spec) continue;
+    if (!spec || !isHashable(spec.kind)) continue;
     if (spec.pii && !opts.includePii) continue;
     const raw = spec.derived ? opts.derived?.[entry.field] : row[entry.field];
     out[entry.field] = canonical(spec.kind, raw);
@@ -657,13 +884,31 @@ export function projectForPush(
   fieldMap: SyncFieldMap[],
   opts: ProjectOptions,
 ): Record<string, unknown> {
-  const values = projectCanonical(subject, row, fieldMap, opts);
+  const hashable = projectCanonical(subject, row, fieldMap, opts);
   const out: Record<string, unknown> = {};
+
   for (const entry of fieldMap) {
-    if (!(entry.field in values)) continue;
     const spec = fieldSpec(subject, entry.field);
     if (!spec) continue;
-    out[entry.external_field] = toExternal(spec.kind, values[entry.field]);
+    if (spec.pii && !opts.includePii) continue;
+
+    if (spec.kind === "link") {
+      const resolved = opts.links?.[entry.field];
+      // Omitted, not blanked: a mapping added later should fill the column in,
+      // and writing `[]` first would clear links an organizer may have made by
+      // hand in the meantime.
+      if (!resolved) continue;
+      out[entry.external_field] = toExternal("link", resolved);
+      continue;
+    }
+    if (spec.kind === "attachment") {
+      const urls = opts.attachments?.[entry.field];
+      if (!urls) continue;
+      out[entry.external_field] = toExternal("attachment", urls);
+      continue;
+    }
+    if (!(entry.field in hashable)) continue;
+    out[entry.external_field] = toExternal(spec.kind, hashable[entry.field]);
   }
   return out;
 }
@@ -671,17 +916,23 @@ export function projectForPush(
 /**
  * The inbound half: an external record, in Podium's value space.
  *
- * Returns every mapped field, not only the writable ones, because the hash that
- * detects an echo (INV-09-19) has to cover exactly what the push covered.
- * `patch` is separately the subset that may actually be written.
+ * Returns every hashable mapped field, not only the writable ones, because the
+ * hash that detects an echo (INV-09-19) has to cover exactly what the push
+ * hashed. `patch` is separately the subset that may actually be written.
  */
 export interface InboundProjection {
-  /** Canonical values for every mapped field the record carried. */
+  /** Canonical values for every hashable mapped field the record carried. */
   values: Record<string, ReturnType<typeof canonical>>;
   /** The writable subset, in stored form, ready for a service call. */
   patch: Record<string, unknown>;
   /** Mapped fields the record did not carry at all — absent, not blank. */
   absent: string[];
+  /**
+   * Writable `select` values that name a row here — a track, a format. Carried
+   * separately because they are still names at this point: resolving one needs
+   * the event's tracks, which is a query, and this file does not do queries.
+   */
+  options: Record<string, { optionsFrom: string; name: string | null }>;
 }
 
 export function projectInbound(
@@ -692,12 +943,13 @@ export function projectInbound(
 ): InboundProjection {
   const values: Record<string, ReturnType<typeof canonical>> = {};
   const patch: Record<string, unknown> = {};
+  const options: Record<string, { optionsFrom: string; name: string | null }> = {};
   const absent: string[] = [];
   const writable = new Set(writableEntries(subject, fieldMap).map((e) => e.field));
 
   for (const entry of fieldMap) {
     const spec = fieldSpec(subject, entry.field);
-    if (!spec) continue;
+    if (!spec || !isHashable(spec.kind)) continue;
     if (spec.pii && !opts.includePii) continue;
     if (!(entry.external_field in external)) {
       absent.push(entry.field);
@@ -705,9 +957,14 @@ export function projectInbound(
     }
     const value = fromExternal(spec.kind, external[entry.external_field]);
     values[entry.field] = value;
-    if (writable.has(entry.field)) patch[entry.field] = toStored(spec.kind, value);
+    if (!writable.has(entry.field)) continue;
+    if (spec.optionsFrom) {
+      options[entry.field] = { optionsFrom: spec.optionsFrom, name: value === null ? null : String(value) };
+      continue;
+    }
+    patch[entry.field] = toStored(spec.kind, value);
   }
-  return { values, patch, absent };
+  return { values, patch, absent, options };
 }
 
 /**

@@ -20,6 +20,11 @@ import { newId } from "@podiumconf/domain/shared/ids.js";
 import {
   EMPTY_COUNTS,
   assertSyncLinkTransition,
+  attachmentFields,
+  columnOf,
+  fieldSpec,
+  linkFields,
+  requiredLinkTargets,
   isEcho,
   projectCanonical,
   projectForPush,
@@ -35,9 +40,9 @@ import {
   type SyncRunTrigger,
   type SyncSubject,
 } from "@podiumconf/domain/platform/sync.js";
-import type { SyncPlugin, SyncRecordInput } from "@podiumconf/plugins/registry.js";
+import type { SyncColumnSpec, SyncPlugin, SyncRecordInput } from "@podiumconf/plugins/registry.js";
 
-import { resolvePluginForIntegration, type ResolvedPlugin } from "./service.js";
+import { resolvePlugin, resolvePluginForIntegration, type ResolvedPlugin } from "./service.js";
 import { adapterFor, personLinkedSubjects, type MappingScope } from "./sync-subjects.js";
 
 /** How many links one push sweep drains. Bounded so a sweep fits a Worker invocation. */
@@ -327,6 +332,135 @@ async function finishRun(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Resolving links, attachments and named options                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Podium ids → provider record ids, for one subject's link fields (INV-09-24).
+ *
+ * A record id is meaningful only inside the base that minted it, so a link can
+ * only be written once the *target* subject is mirrored on the same integration.
+ * Where it is not, the field is left out of `links` entirely and
+ * `projectForPush` omits the column — rather than writing an empty array, which
+ * would clear whatever an organizer had linked by hand.
+ */
+async function resolveLinks(
+  app: AppContext,
+  mapping: Row,
+  subject: SyncSubject,
+  related: Record<string, string[]>,
+): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  const siblings = await app.db.select<Row>("sync_mapping", { integration_id: str(mapping.integration_id), is_active: 1 });
+
+  for (const spec of linkFields(subject)) {
+    const ids = related[spec.field];
+    if (!ids) continue;
+    const target = siblings.find((m) => str(m.subject) === spec.linkTo);
+    if (!target) continue; // not mirrored — the column stays untouched
+    if (ids.length === 0) {
+      out[spec.field] = [];
+      continue;
+    }
+    const links = await app.db.raw<Row>(
+      `SELECT subject_id, external_id FROM external_record_link
+        WHERE mapping_id = ? AND org_id = ? AND external_id IS NOT NULL
+          AND subject_id IN (${ids.map(() => "?").join(",")})`,
+      [str(target.id), app.orgId, ...ids],
+    );
+    const byId = new Map(links.map((l) => [str(l.subject_id), str(l.external_id)]));
+    // Order follows the related ids, which the adapter sorted by billing order.
+    // A related record not yet pushed simply has no chip yet; the next sweep
+    // over that mapping creates it and this one picks it up.
+    out[spec.field] = ids.map((id) => byId.get(id)).filter((x): x is string => Boolean(x));
+  }
+  return out;
+}
+
+/**
+ * Asset ids → signed, no-login URLs the provider fetches for itself.
+ *
+ * Airtable and its kin take a URL, download it once, and keep their own copy —
+ * which is what makes a headshot render as a face in gallery view rather than as
+ * a link. The URL is short-lived and that is fine: it only has to survive the
+ * one fetch.
+ */
+async function resolveAttachments(
+  app: AppContext,
+  subject: SyncSubject,
+  assets: Record<string, string[]>,
+): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  const fields = attachmentFields(subject).filter((f) => assets[f.field]);
+  if (fields.length === 0) return out;
+
+  const storage = await resolvePlugin(app, "storage", null);
+  if (!storage || storage.plugin.capability !== "storage") return out;
+
+  for (const spec of fields) {
+    const urls: string[] = [];
+    for (const assetId of assets[spec.field]) {
+      const asset = await app.db.byId<Row>("asset", assetId);
+      // INV-11-3's sibling concern: never hand out a file that failed its scan.
+      if (!asset || str(asset.scan_status) === "infected") continue;
+      try {
+        const signed = await storage.plugin.presign_download(
+          { storage_key: str(asset.storage_key), filename: str(asset.filename) || "file" },
+          storage.ctx,
+        );
+        urls.push(signed.url);
+      } catch (err) {
+        console.warn("attachment presign failed", { asset_id: assetId, error: String(err) });
+      }
+    }
+    out[spec.field] = urls;
+  }
+  return out;
+}
+
+/**
+ * A name chosen from a dropdown, back to the id it stands for.
+ *
+ * Organizers pick "Platform Engineering", not `trk_01J…`, so a track arrives as
+ * a name and has to be resolved inside the event. An unrecognised name is
+ * refused rather than nulled: somebody typing a new track into a cell means
+ * something, and silently clearing the field would lose both the old value and
+ * the intent.
+ */
+async function resolveOptions(
+  app: AppContext,
+  subject: SyncSubject,
+  eventId: string | null,
+  options: Record<string, { optionsFrom: string; name: string | null }>,
+): Promise<{ patch: Record<string, unknown>; unknown: { field: string; name: string }[] }> {
+  const patch: Record<string, unknown> = {};
+  const unknown: { field: string; name: string }[] = [];
+
+  for (const [field, want] of Object.entries(options)) {
+    const spec = fieldSpec(subject, field);
+    if (!spec) continue;
+    const column = columnOf(spec);
+    if (!want.name) {
+      patch[column] = null;
+      continue;
+    }
+    if (!eventId) {
+      unknown.push({ field, name: want.name });
+      continue;
+    }
+    const rows = await app.db.raw<Row>(
+      `SELECT id, name FROM ${want.optionsFrom === "track" ? "track" : "session_format"}
+        WHERE event_id = ? AND deleted_at IS NULL`,
+      [eventId],
+    );
+    const match = rows.find((r) => str(r.name).trim().toLowerCase() === want.name!.trim().toLowerCase());
+    if (!match) unknown.push({ field, name: want.name });
+    else patch[column] = str(match.id);
+  }
+  return { patch, unknown };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Push                                                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -380,11 +514,17 @@ export async function runPush(app: AppContext, mapping: Row, trigger: SyncRunTri
       counts.skipped++;
       continue;
     }
-    const derived = await adapter.derived(app, row);
-    const opts = { includePii, derived };
+    const opts = {
+      includePii,
+      derived: await adapter.derived(app, row),
+      links: adapter.links ? await resolveLinks(app, mapping, subject, await adapter.links(app, row)) : undefined,
+      attachments: adapter.assets ? await resolveAttachments(app, subject, await adapter.assets(app, row)) : undefined,
+    };
     staged.push({
       link,
       record: { external_id: strOrNull(link.external_id), fields: projectForPush(subject, row, fieldMap, opts) },
+      // Over the hashable fields only: links and attachments carry provider-side
+      // ids and fetched copies, which this system cannot reproduce (INV-09-19).
       hash: await syncHash(projectCanonical(subject, row, fieldMap, opts)),
       version: num(row.row_version, 1),
     });
@@ -590,62 +730,51 @@ async function applyInboundChange(
   // values are kept and a human is shown both — and Podium's current value goes
   // back out so the spreadsheet converges rather than sitting on a lie.
   if (pushedVersion === null || currentVersion !== pushedVersion) {
-    await moveLink(app, link, "conflict", {
-      conflict_payload: JSON.stringify({
-        rejected: projected.patch,
-        expected_version: pushedVersion,
-        current_version: currentVersion,
-        seen_at: app.now(),
-      }),
-    });
-    app.events.emit({
-      type: "sync_link.conflicted",
-      subject: { type: "sync_link", id: str(link.id) },
-      event_id: strOrNull(mapping.event_id),
-      data: {
-        link_id: str(link.id),
-        mapping_id: str(mapping.id),
-        subject_type: subject,
-        subject_id: str(link.subject_id),
-        fields: Object.keys(projected.patch),
-        expected_version: pushedVersion,
-        current_version: currentVersion,
-      },
+    await recordConflict(app, mapping, subject, link, {
+      rejected: projected.patch,
+      expected_version: pushedVersion,
+      current_version: currentVersion,
     });
     counts.conflicted++;
     return;
   }
 
-  if (Object.keys(projected.patch).length === 0) {
+  // A track or format arrives as the name in the dropdown, not as an id.
+  const resolved = await resolveOptions(app, subject, strOrNull(mapping.event_id), projected.options);
+  if (resolved.unknown.length > 0) {
+    // Somebody typed a track this event does not have. That is a real intent —
+    // possibly a new track, possibly a typo — and neither guessing nor silently
+    // clearing the field is an answer a human would accept.
+    const named = resolved.unknown.map((u) => `"${u.name}"`).join(", ");
+    await recordConflict(app, mapping, subject, link, {
+      rejected: { ...projected.patch, ...Object.fromEntries(resolved.unknown.map((u) => [u.field, u.name])) },
+      refused_because: `No ${resolved.unknown[0].field.includes("track") ? "track" : "format"} called ${named} in this event. Create it here first, or correct the cell.`,
+      expected_version: pushedVersion,
+      current_version: currentVersion,
+    });
+    counts.conflicted++;
+    return;
+  }
+
+  const patch = { ...projected.patch, ...resolved.patch };
+  if (Object.keys(patch).length === 0) {
     counts.skipped++;
     return;
   }
 
   let changed: string[];
   try {
-    changed = (await adapter.apply?.(app, row, projected.patch)) ?? [];
+    changed = (await adapter.apply?.(app, row, patch)) ?? [];
   } catch (err) {
     // A service refusing the write is the system working: an illegal status
     // transition, a duration outside its format, a version that moved under us.
     // It is recorded as a conflict rather than an error, because the organizer's
     // next move is the same either way — look at both values and decide.
-    await moveLink(app, link, "conflict", {
-      conflict_payload: JSON.stringify({ rejected: projected.patch, refused_because: errorMessage(err), seen_at: app.now() }),
-      last_error: errorMessage(err),
-    });
-    app.events.emit({
-      type: "sync_link.conflicted",
-      subject: { type: "sync_link", id: str(link.id) },
-      event_id: strOrNull(mapping.event_id),
-      data: {
-        link_id: str(link.id),
-        mapping_id: str(mapping.id),
-        subject_type: subject,
-        subject_id: str(link.subject_id),
-        fields: Object.keys(projected.patch),
-        expected_version: pushedVersion,
-        current_version: currentVersion,
-      },
+    await recordConflict(app, mapping, subject, link, {
+      rejected: patch,
+      refused_because: errorMessage(err),
+      expected_version: pushedVersion,
+      current_version: currentVersion,
     });
     counts.conflicted++;
     return;
@@ -670,6 +799,49 @@ async function applyInboundChange(
   });
   counts.pulled += changed.length > 0 ? 1 : 0;
   if (changed.length === 0) counts.skipped++;
+}
+
+/**
+ * One conflict, recorded the same way whichever gate refused it.
+ *
+ * Three things can refuse an inbound change — a local edit since the last push,
+ * a name that matches no track here, a service that rejects the write — and an
+ * organizer's next move is identical in all three: look at both values and
+ * decide. So they produce one record, one event, and one row in one queue, with
+ * `refused_because` carrying the difference.
+ */
+async function recordConflict(
+  app: AppContext,
+  mapping: Row,
+  subject: SyncSubject,
+  link: Row,
+  detail: {
+    rejected: Record<string, unknown>;
+    refused_because?: string;
+    expected_version: number | null;
+    current_version: number;
+  },
+): Promise<void> {
+  await moveLink(app, link, "conflict", {
+    conflict_payload: JSON.stringify({ ...detail, seen_at: app.now() }),
+    last_error: detail.refused_because ?? null,
+  });
+  app.events.emit({
+    type: "sync_link.conflicted",
+    subject: { type: "sync_link", id: str(link.id) },
+    event_id: strOrNull(mapping.event_id),
+    data: {
+      link_id: str(link.id),
+      mapping_id: str(mapping.id),
+      subject_type: subject,
+      subject_id: str(link.subject_id),
+      // Names only, never values (10): a conflict payload quoting a bio would
+      // put it into the webhook fan-out under a different consumer's rules.
+      fields: Object.keys(detail.rejected),
+      expected_version: detail.expected_version,
+      current_version: detail.current_version,
+    },
+  });
 }
 
 function errorMessage(err: unknown): string {
@@ -725,6 +897,97 @@ export async function resolveConflict(app: AppContext, linkId: string, resolutio
   });
 
   return (await app.db.byId<Row>("external_record_link", linkId))!;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scaffolding                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Create the table in the provider, or add the columns it is missing.
+ *
+ * The setup this replaces is an organizer reading a list of twenty column names
+ * off one screen and typing them into another, where a single typo produces a
+ * column that silently never syncs. Here the mapping already knows the names and
+ * the types, so it can just make them.
+ *
+ * A `link` column needs its target table to exist first, so the target's mapping
+ * is scaffolded before this one's link columns are declared; where the target is
+ * not mapped at all, the column is left out and the mapping screen says so
+ * (INV-09-24).
+ */
+export async function scaffoldMapping(app: AppContext, mapping: Row): Promise<{ created: boolean; table: string; skipped: string[] }> {
+  const resolved = await resolveForMapping(app, mapping);
+  if (!resolved) throw new DomainError({ code: "no_sync_integration", message: "This mapping has no active sync integration.", status: 409 });
+  if (!resolved.plugin.ensure_table) {
+    throw new DomainError({
+      code: "provider_cannot_scaffold",
+      message: `${resolved.plugin.display_name} has no schema API, so the table has to be made by hand.`,
+      status: 422,
+    });
+  }
+
+  const subject = str(mapping.subject) as SyncSubject;
+  const siblings = await app.db.select<Row>("sync_mapping", { integration_id: str(mapping.integration_id), is_active: 1 });
+  const columns: SyncColumnSpec[] = [];
+  const skipped: string[] = [];
+
+  for (const entry of fieldMapOf(mapping)) {
+    const spec = fieldSpec(subject, entry.field);
+    if (!spec) continue;
+    if (spec.kind === "link") {
+      const target = siblings.find((m) => str(m.subject) === spec.linkTo);
+      if (!target || !strOrNull(target.external_table_id)) {
+        skipped.push(spec.label);
+        continue;
+      }
+      columns.push({
+        external_field: entry.external_field,
+        kind: "link",
+        links_to_table_id: str(target.external_table_id),
+      });
+      continue;
+    }
+    columns.push({ external_field: entry.external_field, kind: spec.kind, primary: spec.primary });
+  }
+
+  const existing = strOrNull(mapping.external_table_id);
+  const table = await resolved.plugin.ensure_table(
+    { external_table_id: existing, name: str(mapping.external_table_name) || subjectSpec(subject).label, columns },
+    resolved.ctx,
+  );
+
+  await app.db.update("sync_mapping", str(mapping.id), {
+    external_table_id: table.external_table_id,
+    external_table_name: table.name,
+    updated_at: app.now(),
+  });
+  app.audit.record({
+    action: "sync_mapping.scaffold",
+    entity_type: "sync_mapping",
+    entity_id: str(mapping.id),
+    after: { external_table_id: table.external_table_id, columns: columns.length, skipped },
+  });
+
+  return { created: !existing, table: table.name, skipped };
+}
+
+/**
+ * Which mappings this one's link columns need, and whether they are there yet.
+ *
+ * Shown on the mapping screen so "Speakers is empty" has an answer other than
+ * reading the source.
+ */
+export async function linkReadiness(app: AppContext, mapping: Row): Promise<{ target: SyncSubject; label: string; mapped: boolean }[]> {
+  const subject = str(mapping.subject) as SyncSubject;
+  const targets = requiredLinkTargets(subject);
+  if (targets.length === 0) return [];
+  const siblings = await app.db.select<Row>("sync_mapping", { integration_id: str(mapping.integration_id), is_active: 1 });
+  return targets.map((target) => ({
+    target,
+    label: subjectSpec(target).label,
+    mapped: siblings.some((m) => str(m.subject) === target),
+  }));
 }
 
 /* -------------------------------------------------------------------------- */

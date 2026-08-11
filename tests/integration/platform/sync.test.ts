@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { AppContext } from "@podiumconf/data/context.js";
 import { str, type Row } from "@podiumconf/data/db.js";
-import { editExternally, externalRecords, insertExternally, resetExternalTables } from "@podiumconf/plugins/registry.js";
+import { editExternally, externalRecords, insertExternally, resetExternalTables, type SyncPlugin } from "@podiumconf/plugins/registry.js";
+import { resolvePluginForIntegration } from "@podiumconf/web/contexts/platform/service.js";
 import {
   backfillMapping,
   createMapping,
@@ -11,6 +12,7 @@ import {
   resolveConflict,
   runPull,
   runPush,
+  scaffoldMapping,
 } from "@podiumconf/web/contexts/platform/sync.js";
 import { erasePersonEverywhere } from "@podiumconf/web/contexts/platform/sync.js";
 
@@ -94,7 +96,8 @@ async function makeMapping(app: AppContext): Promise<Row> {
       { field: "title", external_field: "Title", direction: "both" },
       { field: "keywords", external_field: "Keywords", direction: "both" },
       { field: "status", external_field: "Status", direction: "push" },
-      { field: "speaker_names", external_field: "Speakers", direction: "push" },
+      { field: "speakers", external_field: "Speakers", direction: "push" },
+      { field: "track", external_field: "Track", direction: "both" },
     ],
   });
 }
@@ -103,6 +106,15 @@ async function linkFor(sessionId: string): Promise<Row> {
   const row = await env.DB.prepare("SELECT * FROM external_record_link WHERE subject_id = ?").bind(sessionId).first<Row>();
   if (!row) throw new Error(`no link for ${sessionId}`);
   return row;
+}
+
+/** What the provider now says the table has, after a scaffold. */
+async function describeExternal(app: AppContext, mappingId: string): Promise<{ external_field: string; type: string }[]> {
+  const mapping = await getMapping(app, mappingId);
+  const integration = await app.db.byId<Row>("integration", str(mapping.integration_id));
+  const resolved = await resolvePluginForIntegration(app, integration!);
+  const table = await (resolved!.plugin as SyncPlugin).describe_table(str(mapping.external_table_id), resolved!.ctx);
+  return table.fields.map((f) => ({ external_field: f.external_field, type: f.type }));
 }
 
 async function eventsOfType(type: string): Promise<Row[]> {
@@ -138,8 +150,10 @@ describe("push", () => {
     const rows = externalRecords(INTEGRATION, TABLE);
     expect(rows).toHaveLength(1);
     expect(rows[0].fields.Title).toBe("Agents in production");
-    // A derived column an organizer can read but never write.
-    expect(rows[0].fields).toHaveProperty("Speakers");
+    // INV-09-24: the Speakers table is not mapped, so the relationship column is
+    // left out rather than written as an empty list — which would clear links an
+    // organizer had made by hand.
+    expect(rows[0].fields).not.toHaveProperty("Speakers");
 
     const link = await linkFor("ses_push_1");
     expect(str(link.status)).toBe("in_sync");
@@ -231,7 +245,7 @@ describe("write-back", () => {
     await app.flush();
 
     const link = await linkFor("ses_readonly");
-    editExternally(INTEGRATION, TABLE, str(link.external_id), { Status: "cancelled", Speakers: "Someone" });
+    editExternally(INTEGRATION, TABLE, str(link.external_id), { Status: "cancelled", Speakers: ["recFake"] });
 
     const puller = ctx();
     await runPull(puller, await getMapping(puller, str(mapping.id)), "manual");
@@ -395,5 +409,185 @@ describe("push-only subjects (INV-09-23)", () => {
     const counts = await runPull(puller, await getMapping(puller, str(mapping.id)), "manual");
     await puller.flush();
     expect(counts).toMatchObject({ pulled: 0, conflicted: 0, echoed: 0 });
+  });
+});
+
+describe("relationships (INV-09-24)", () => {
+  async function makeSpeaker(personId: string, profileId: string, name: string, sessionId: string): Promise<void> {
+    const now = new Date().toISOString();
+    await run(
+      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+      [personId, ORG, `${personId}@example.com`, name, "active", 0, now, now],
+    );
+    await run("INSERT OR IGNORE INTO speaker_profile (id, person_id, org_id, bio, visibility, is_listed, updated_at) VALUES (?,?,?,?,?,?,?)", [
+      profileId,
+      personId,
+      ORG,
+      "A bio.",
+      "{}",
+      1,
+      now,
+    ]);
+    await run(
+      "INSERT OR IGNORE INTO session_speaker (id, session_id, person_id, speaker_role, sort_order, confirmation_status, added_at) VALUES (?,?,?,?,?,?,?)",
+      [`ssp_${profileId}`, sessionId, personId, "primary", 0, "confirmed", now],
+    );
+  }
+
+  async function speakerMapping(app: AppContext): Promise<Row> {
+    return createMapping(app, {
+      integration_id: INTEGRATION,
+      subject: "speaker_profile",
+      external_table_id: "Speakers",
+      external_table_name: "Speakers",
+      include_pii: false,
+      field_map: [
+        { field: "full_name", external_field: "Name", direction: "both" },
+        { field: "bio", external_field: "Bio", direction: "both" },
+      ],
+    });
+  }
+
+  it("pushes speakers as links to the Speakers table once it is mapped", async () => {
+    await makeSession("ses_linked", "A linked talk");
+    await makeSpeaker("per_link_a", "spk_link_a", "Ada Speaker", "ses_linked");
+    await makeSpeaker("per_link_b", "spk_link_b", "Bea Speaker", "ses_linked");
+
+    // The Speakers table has to exist and be pushed first: a record id means
+    // nothing until the record on the other end is there.
+    const app = ctx();
+    const speakers = await speakerMapping(app);
+    await backfillMapping(app, speakers);
+    await runPush(app, speakers, "manual");
+    await app.flush();
+
+    const sessions = ctx();
+    const mapping = await makeMapping(sessions);
+    await backfillMapping(sessions, mapping);
+    await runPush(sessions, mapping, "manual");
+    await sessions.flush();
+
+    const record = externalRecords(INTEGRATION, TABLE).find((r) => r.fields.Title === "A linked talk")!;
+    const speakerRows = externalRecords(INTEGRATION, "Speakers");
+    const expected = ["spk_link_a", "spk_link_b"].map(
+      (id) => speakerRows.find((r) => r.fields.Name === (id === "spk_link_a" ? "Ada Speaker" : "Bea Speaker"))!.external_id,
+    );
+
+    // Real record ids, in billing order — not a comma-joined string.
+    expect(record.fields.Speakers).toEqual(expected);
+  });
+
+  it("leaves the relationship out of the hash, so linking is not an edit", async () => {
+    await makeSession("ses_hash", "Hash me");
+    await makeSpeaker("per_hash", "spk_hash", "Cy Speaker", "ses_hash");
+
+    const app = ctx();
+    const speakers = await speakerMapping(app);
+    await backfillMapping(app, speakers);
+    await runPush(app, speakers, "manual");
+    const mapping = await makeMapping(app);
+    await backfillMapping(app, mapping);
+    await runPush(app, mapping, "manual");
+    await app.flush();
+
+    const puller = ctx();
+    const counts = await runPull(puller, await getMapping(puller, str(mapping.id)), "manual");
+    await puller.flush();
+
+    // A record whose only unhashable column is populated must still read as an
+    // echo, or every pull would look like a change forever.
+    expect(counts.conflicted).toBe(0);
+    expect(counts.pulled).toBe(0);
+    expect(counts.echoed).toBeGreaterThan(0);
+  });
+});
+
+describe("named options", () => {
+  async function makeTrack(id: string, name: string): Promise<void> {
+    await run("INSERT OR IGNORE INTO track (id, event_id, name, slug, sort_order) VALUES (?,?,?,?,?)", [id, EVENT, name, id, 0]);
+  }
+
+  it("resolves a track picked by name in the table", async () => {
+    await makeTrack("trk_platform", "Platform Engineering");
+    await makeSession("ses_track", "Needs a track");
+
+    const app = ctx();
+    const mapping = await makeMapping(app);
+    await backfillMapping(app, mapping);
+    await runPush(app, mapping, "manual");
+    await app.flush();
+
+    const link = await linkFor("ses_track");
+    editExternally(INTEGRATION, TABLE, str(link.external_id), { Track: "Platform Engineering" });
+
+    const puller = ctx();
+    const counts = await runPull(puller, await getMapping(puller, str(mapping.id)), "manual");
+    await puller.flush();
+
+    expect(counts.pulled).toBe(1);
+    const session = await env.DB.prepare("SELECT track_id FROM session WHERE id = ?").bind("ses_track").first<Row>();
+    expect(str(session!.track_id)).toBe("trk_platform");
+  });
+
+  it("pushes the track back as its name, not its id", async () => {
+    await makeTrack("trk_named", "Developer Experience");
+    await makeSession("ses_named", "Already tracked");
+    await run("UPDATE session SET track_id = ? WHERE id = ?", ["trk_named", "ses_named"]);
+
+    const app = ctx();
+    const mapping = await makeMapping(app);
+    await backfillMapping(app, mapping);
+    await runPush(app, mapping, "manual");
+    await app.flush();
+
+    const record = externalRecords(INTEGRATION, TABLE).find((r) => r.fields.Title === "Already tracked")!;
+    expect(record.fields.Track).toBe("Developer Experience");
+  });
+
+  it("refuses a track this event does not have, rather than clearing the field", async () => {
+    await makeTrack("trk_real", "Real Track");
+    await makeSession("ses_bad_track", "Mistyped");
+    await run("UPDATE session SET track_id = ? WHERE id = ?", ["trk_real", "ses_bad_track"]);
+
+    const app = ctx();
+    const mapping = await makeMapping(app);
+    await backfillMapping(app, mapping);
+    await runPush(app, mapping, "manual");
+    await app.flush();
+
+    const link = await linkFor("ses_bad_track");
+    editExternally(INTEGRATION, TABLE, str(link.external_id), { Track: "Trakc Nmae Typo" });
+
+    const puller = ctx();
+    const counts = await runPull(puller, await getMapping(puller, str(mapping.id)), "manual");
+    await puller.flush();
+
+    // Somebody typing a track that does not exist means something. Guessing is
+    // wrong and silently nulling the field loses both the value and the intent.
+    expect(counts.conflicted).toBe(1);
+    const session = await env.DB.prepare("SELECT track_id FROM session WHERE id = ?").bind("ses_bad_track").first<Row>();
+    expect(str(session!.track_id)).toBe("trk_real");
+
+    const after = await linkFor("ses_bad_track");
+    expect(str(after.status)).toBe("conflict");
+    expect(str(after.last_error)).toContain("Trakc Nmae Typo");
+  });
+});
+
+describe("scaffolding", () => {
+  it("declares the columns the mapping needs, with the primary field first", async () => {
+    const app = ctx();
+    const mapping = await makeMapping(app);
+    const result = await scaffoldMapping(app, mapping);
+    await app.flush();
+
+    expect(result.created).toBe(false); // the table id was given, so it extended it
+    // Speakers is not mapped yet, so its link column cannot be declared.
+    expect(result.skipped).toContain("Speakers");
+
+    const declared = await describeExternal(app, str(mapping.id));
+    expect(declared.map((c) => c.external_field)).toContain("Title");
+    expect(declared.find((c) => c.external_field === "Track")?.type).toBe("select");
+    expect(declared.find((c) => c.external_field === "Keywords")?.type).toBe("multi_select");
   });
 });

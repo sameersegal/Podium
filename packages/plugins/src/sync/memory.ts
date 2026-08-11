@@ -21,9 +21,11 @@
 import type {
   PluginContext,
   SyncChangePage,
+  SyncColumnSpec,
   SyncPlugin,
   SyncRecordInput,
   SyncTable,
+  SyncTableSpec,
   SyncUpsertResult,
 } from "../contracts.js";
 
@@ -34,6 +36,8 @@ interface MemoryRecord {
 }
 
 const TABLES = new Map<string, Map<string, MemoryRecord>>();
+/** What `ensure_table` was told, so `describe_table` can answer before any record exists. */
+const SCHEMAS = new Map<string, SyncColumnSpec[]>();
 let counter = 0;
 
 function keyFor(ctx: PluginContext, table: string): string {
@@ -78,7 +82,31 @@ export const syncMemoryPlugin: SyncPlugin = {
     }));
   },
 
+  /**
+   * There is no schema to create — a Map takes whatever it is given — so this
+   * records the declared columns and hands them back. Enough for the scaffolding
+   * path to be exercised end to end without a provider that has a schema API.
+   */
+  async ensure_table(spec: SyncTableSpec, ctx: PluginContext): Promise<SyncTable> {
+    const id = spec.external_table_id ?? spec.name;
+    tableOf(ctx, id); // create the store
+    SCHEMAS.set(keyFor(ctx, id), spec.columns);
+    return {
+      external_table_id: id,
+      name: spec.name,
+      fields: spec.columns.map((c) => ({ external_field: c.external_field, label: c.external_field, type: c.kind })),
+    };
+  },
+
   async describe_table(externalTableId: string, ctx: PluginContext): Promise<SyncTable> {
+    const declared = SCHEMAS.get(keyFor(ctx, externalTableId));
+    if (declared) {
+      return {
+        external_table_id: externalTableId,
+        name: externalTableId,
+        fields: declared.map((c) => ({ external_field: c.external_field, label: c.external_field, type: c.kind })),
+      };
+    }
     const rows = tableOf(ctx, externalTableId);
     return {
       external_table_id: externalTableId,
@@ -163,5 +191,6 @@ export function externalRecords(integrationId: string, table: string): MemoryRec
 
 export function resetExternalTables(): void {
   TABLES.clear();
+  SCHEMAS.clear();
   counter = 0;
 }

@@ -247,6 +247,51 @@ correct, and it means a mapping that accepts `Session.title` back will un-approv
 the first time somebody fixes a typo in the spreadsheet. The install surface says so where
 the field is chosen, rather than leaving it to be discovered.
 
+### Mirror the shape, not just the values
+
+A conference base is not a spreadsheet. It has a **Sessions** table whose *Speakers* column
+links to a **Speakers** table, a *Track* column you can group and colour the grid by, and a
+*Headshot* column that shows a face in gallery view. Those three things are most of why an
+organizer chose this tool, and a sync that flattens them into text hands back the spreadsheet
+they were trying to leave.
+
+So a synced field declares what it *is*, not what it can be squeezed into, and the adapter
+maps that to the provider's own type. The core never names one.
+
+| Field kind | What it carries | Why not just text |
+|---|---|---|
+| `select` | one value from a small set — a track, a status | a text column cannot group, filter or colour |
+| `multi_select` | keywords, tags | chips are filterable; `"ai, agents"` is a sentence |
+| `link` | a relationship, as real links between two mirrored tables | answers "what else is she on this year", which a name string cannot |
+| `attachment` | a file the provider fetches and keeps its own copy of | a headshot should be a face, not a URL |
+| `url`, `email`, `date`, `number`, `boolean` | what they say | the provider gets to render and validate them |
+
+Three consequences follow, and each is a rule rather than a preference:
+
+- **A relationship is mapped from one side only.** Providers create the reverse column
+  automatically, so declaring both ends would leave two mappings fighting over one pair of
+  columns. `Session.speakers` is declared; `SpeakerProfile.sessions` is not.
+- **A `select` whose options are rows here travels by name.** An organizer picks "Platform
+  Engineering" from a dropdown, not `trk_01J…`, so the name is what crosses and the name is
+  what is resolved on the way back. A name that matches nothing in the event is a conflict,
+  not a silent null: somebody typing an unknown track means something, and clearing the field
+  would lose both the old value and the intent.
+- **Links and attachments are never accepted back** (INV-09-24). Adding a speaker to a session
+  creates an invitation, a confirmation state and a set of onboarding tasks — more than a cell
+  edit can mean — and a file arriving from outside would bypass the scan every upload goes
+  through. Both are pushed; neither is read.
+
+The table's **primary field** is declared too, because providers show it in every
+linked-record chip and record card. It has to be the human name of the thing — a session's
+title, a person's name — and never an id or a status, and it must be a plain scalar, which is
+what providers accept in that position.
+
+Setting all of this up by hand means typing twenty column names that have to match exactly,
+and finding out at the first sync that one of them is a text column where a date was needed.
+So the contract has `ensure_table`: the mapping already knows the names and the types, and can
+just make them. Additive only — it never renames, retypes or deletes, because a column
+somebody else made and a column of ours that drifted are indistinguishable from this side.
+
 ### Why the loop terminates
 
 A push changes the external record; the external tool reports a change; the pull writes it
@@ -282,7 +327,7 @@ system hearing its own echo, and is dropped without a write, an event, or a run 
 |---|---|---|---|
 | `field` | `string` | Y | a Podium field the subject declares pushable |
 | `external_field` | `string` | Y | column name in the external table |
-| `direction` | `enum(push, both)` | Y | `both` only where the subject declares the field writable (INV-09-17) |
+| `direction` | `enum(push, both)` | Y | `both` only where the subject declares the field writable (INV-09-17). Never for a `link` or an `attachment` (INV-09-24) |
 
 <!-- entity: ExternalRecordLink -->
 | ExternalRecordLink field | Type | Req | Notes |
@@ -341,6 +386,7 @@ upsert_records(external_table_id, [{external_id?, fields}]) -> [{external_id, er
 list_changes(external_table_id, cursor) -> {changes: [{external_id, fields, deleted}], next_cursor, has_more}
 delete_records(external_table_id, [external_id])                  // erasure, INV-09-22
 handle_inbound_webhook(payload) -> {external_table_ids | null}    // a ping, not a payload
+ensure_table({external_table_id?, name, columns}) -> {fields}     // optional; additive only
 ```
 
 Two shapes here are deliberate. `list_changes` takes a cursor because a provider with a real
@@ -582,6 +628,11 @@ model depends on these choices.
 - **INV-09-22** Deactivating or erasing a `Person` deletes every external record linked to it
   on every mapping, active or not, before its links are dropped. A sync target is not a place
   personal data outlives its erasure.
+- **INV-09-24** A `link` field is pushed only where its target subject also has an active
+  mapping on the same `Integration`; otherwise the column is omitted from the push rather than
+  written empty, since blanking it would clear links an organizer made by hand. A `link` or an
+  `attachment` is never accepted back: a relationship carries consequences a cell edit cannot
+  express, and a file that did not come through the upload pipeline was never scanned.
 - **INV-09-23** `Decision`, `Entitlement` and `Placement` are push-only: their writable field
   set is empty and no mapping can configure otherwise, because each one either notifies
   people, is derived, or serialises through a single writer. `Review` is not a sync subject
