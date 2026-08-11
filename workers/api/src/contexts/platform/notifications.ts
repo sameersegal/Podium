@@ -471,6 +471,36 @@ export async function listTemplates(app: AppContext, eventId?: string | null): P
   return app.db.select<Row>("notification_template", where, { orderBy: "key, locale" });
 }
 
+/**
+ * Copy an event's template overrides onto another event (02, "Cloning an
+ * edition").
+ *
+ * Only the overrides: a key with no row resolves to the shipped default
+ * (`resolveTemplate`), and copying one row per key would replace working
+ * defaults with copies that stop tracking them. That is also why the starter
+ * blueprint writes none at all.
+ */
+export async function copyTemplatesToEvent(app: AppContext, fromEventId: string, toEventId: string): Promise<Row[]> {
+  const source = await app.db.select<Row>("notification_template", { event_id: fromEventId }, { orderBy: "key, locale" });
+  const created: Row[] = [];
+  for (const t of source) {
+    const existing = await app.db.first<Row>("notification_template", { event_id: toEventId, key: str(t.key), locale: str(t.locale, "en") });
+    if (existing) continue;
+    created.push(
+      await createTemplate(app, {
+        key: str(t.key),
+        channel: str(t.channel, "email") as NotificationChannel,
+        subject: strOrNull(t.subject),
+        body_markdown: str(t.body_markdown),
+        locale: str(t.locale, "en"),
+        event_id: toEventId,
+        is_active: bool(t.is_active),
+      }),
+    );
+  }
+  return created;
+}
+
 export async function getTemplateRow(app: AppContext, id: string): Promise<Row> {
   const row = await app.db.byId<Row>("notification_template", id);
   if (!row) throw notFound("Notification template", id);

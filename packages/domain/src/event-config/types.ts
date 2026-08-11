@@ -12,6 +12,14 @@ export type EventMode = (typeof EVENT_MODE)[number];
 export const EVENT_VISIBILITY = ["private", "public"] as const;
 export type EventVisibility = (typeof EVENT_VISIBILITY)[number];
 
+/**
+ * 02, "Starting an event" — where a new event's configuration comes from. A
+ * property of the creation command, never stored: once created, a starter event
+ * and a hand-built one are indistinguishable.
+ */
+export const PROVISIONING_SOURCE = ["starter", "clone", "empty"] as const;
+export type ProvisioningSource = (typeof PROVISIONING_SOURCE)[number];
+
 export const CFP_AUDIENCE = ["public", "sponsors_only", "invite_only"] as const;
 export type CfpAudience = (typeof CFP_AUDIENCE)[number];
 

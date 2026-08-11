@@ -99,12 +99,37 @@ export function calendarDateInZone(instant: Instant, timezone: string): Calendar
 }
 
 /**
+ * The wall-clock time an instant reads as in the given zone, `HH:MM:SS`.
+ *
+ * The inverse of `zonedDateTimeToInstant`, and only useful with it: rebasing a
+ * cloned deadline (INV-02-16) means keeping the time an organizer wrote — "the
+ * call closes at 23:59" — while moving the date, which no amount of millisecond
+ * arithmetic gets right across a daylight-saving boundary.
+ */
+export function wallClockTimeInZone(instant: Instant, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(instant));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  // `en-GB` renders midnight as 24 in some runtimes; the day has already been
+  // taken from `calendarDateInZone`, so it is hour zero of that day.
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return `${hour}:${get("minute")}:${get("second")}`;
+}
+
+/**
  * The UTC instant for a wall-clock time on a calendar date in a timezone.
  * Authoring a placement at "09:00 on day 1" means 09:00 in `Event.timezone`.
+ * Seconds are optional: `09:00` and `23:59:59` both parse.
  */
 export function zonedDateTimeToInstant(date: CalendarDate, time: string, timezone: string): Instant {
-  const [h, m] = time.split(":").map((n) => parseInt(n, 10));
-  const naive = Date.parse(`${date}T${String(h).padStart(2, "0")}:${String(m ?? 0).padStart(2, "0")}:00Z`);
+  const [h, m, s] = time.split(":").map((n) => parseInt(n, 10));
+  const pad = (n: number | undefined) => String(n ?? 0).padStart(2, "0");
+  const naive = Date.parse(`${date}T${pad(h)}:${pad(m)}:${pad(s)}Z`);
   // Two passes converge for every real zone offset, including half-hour ones.
   let guess = naive;
   for (let i = 0; i < 2; i++) {

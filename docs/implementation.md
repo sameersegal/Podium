@@ -58,6 +58,7 @@ await app.flush();               // persists the event log + audit, then publish
 | Dead-letter recording (`podium-dlq`) | `consumers/dead-letter.ts` + `dead_letter` |
 | Cron cadence (elapsed time, not epoch modulus) | `consumers/cron.ts` + `cron_job_run` |
 | INV-01-12 password hashing (Argon2id) | `packages/domain/src/identity/credentials.ts` |
+| INV-02-14…17 event provisioning (starter blueprint, clone) | `contexts/event-config/provisioning.ts` over `packages/domain/src/event-config/blueprint.ts` |
 
 ### Password hashing is currently below the OWASP floor, on purpose
 
@@ -105,6 +106,20 @@ writes misses the transition that landed in between, and the next check then pas
 edit that was in fact stale. An edit form renders the version it read (`versionField`) and
 returns it on submit; a stale submission is refused with `409` and a warning rather than
 overwriting the other writer (INV-11-14).
+
+### Provisioning a new event
+
+`contexts/event-config/provisioning.ts` is the one module that reaches across contexts on
+purpose. Creating an event applies the starter blueprint or clones an earlier edition (02,
+"Starting an event"), and both need rows that belong to review, onboarding, sponsorship and
+platform — so each of those exposes its own copier (`copyRubricToEvent`,
+`copyTaskDefinitionsToEvent`, `copyTiersToEvent`, `copyTemplatesToEvent`) and provisioning
+only sequences them. Nothing here writes another context's table directly, and every row
+goes through the same service a hand-built event would use, so a provisioned event has no
+second class of row in it.
+
+The pure half — the shipped blueprint data, day generation and the day-shift rebasing of
+INV-02-16 — is `packages/domain/src/event-config/blueprint.ts`, with no I/O in it.
 
 ## Derived fields
 

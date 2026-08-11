@@ -45,6 +45,7 @@ erDiagram
 | `status` | `enum(draft, active, archived)` | Y | see state machine |
 | `visibility` | `enum(private, public)` | Y | `public` exposes the event to unauthenticated read endpoints |
 | `settings` | `json` | Y | overrides of org settings, same keys |
+| `cloned_from_event_id` | `ref(Event)` | N | the edition this one was provisioned from; provenance only, never followed at read time |
 | `created_at` / `updated_at` / `archived_at` | `timestamptz` | Y/Y/N | |
 
 ```mermaid
@@ -323,6 +324,97 @@ Two things the surface must get right, because both are visible failures:
 `committee_only` and `organizer_only` fields never appear here (INV-02-12), which is what
 makes it safe to serve the form definition to the world.
 
+## Starting an event: the starter blueprint and cloning
+
+Everything above is configuration that has to exist before anything else in the product does
+anything at all. A call has nothing to offer without tracks and formats; the schedule grid
+has no columns without days and rooms; review has nothing to score against without a rubric.
+An event created empty is therefore an event that owes its organizer a dozen forms before it
+shows a single sign of life, and the second edition owes them the same dozen again.
+
+So **an event is never created empty unless that is asked for**. Creating one takes a
+*source*:
+
+| Source | What it means |
+|---|---|
+| `starter` | Apply the shipped starter blueprint below. The default. |
+| `clone` | Copy the configuration of an existing event of the same organization. |
+| `empty` | The `Event` row and nothing else — for an organizer importing configuration another way ([`11`](11-cross-cutting.md), "Import"). |
+
+The three are the members of `ProvisioningSource`, an argument to the creation command
+rather than a stored field.
+
+The source is a property of the *creation command*, not of the event: once created, a
+starter event and a hand-built one are indistinguishable, and every row the blueprint wrote
+is an ordinary row that can be renamed, archived or deleted. The one trace kept is
+`Event.cloned_from_event_id`, which exists so "this is last year again" is answerable
+without archaeology.
+
+### The starter blueprint
+
+The rule the blueprint follows: **default what is universal, and create exactly one
+placeholder for what is not, so that nothing downstream is blocked.** A thirty-minute
+conference talk is universal. The tracks a conference runs are not, and inventing five of
+them means five things to delete before the real ones can be typed.
+
+| Aggregate | What the blueprint creates |
+|---|---|
+| `EventDay` | one per date from `starts_on` to `ends_on`, labelled `Day 1`…, public |
+| `Track` | exactly one, `General`, described as the placeholder it is |
+| `SessionFormat` | keynote, conference talk, lightning talk, workshop, sponsor session — the five whose durations and origins are the same at every conference |
+| `Venue` / `Room` | one venue, one main stage, one breakout room, one workshop room; skipped entirely when `mode = online`, where INV-02-11 does not ask for a room |
+| `CallForProposals` | one `public` call opening immediately and closing far enough ahead of the event to review what it collects, with the conventional four-step form already **published** |
+| `Rubric` | the programme scorecard and the one-criterion sponsor compliance rubric (R17) ([`05`](05-review-and-selection.md)) |
+| `TaskDefinition` | the speaker onboarding checklist ([`07`](07-onboarding.md)) |
+
+Two absences are deliberate, because in both cases seeding would be worse than not:
+
+- **Notification templates.** Every template key already resolves to a shipped default body
+  ([`09`](09-api-and-integrations.md)); a `NotificationTemplate` row is an *override*.
+  Writing one row per key at creation replaces a working default with a copy that stops
+  tracking it, and the organizer inherits the maintenance of text they never wrote.
+- **Sponsorship tiers.** A tier is a commercial term ([`03`](03-sponsorship.md)). A wrong
+  default here is not a rename, it is a number somebody may quote to a sponsor. A clone
+  copies them, because last year's rate card is a real starting point; the blueprint does
+  not invent one.
+
+The blueprint leaves the event `draft`. It satisfies INV-02-11, so the next thing the
+organizer sees is an event that can be activated, not a list of what is missing.
+
+### Cloning an edition
+
+A clone copies **configuration and nothing else**. The line is not a matter of taste: an
+event's configuration describes what the event will accept, while its records describe what
+actually happened to real people, and a copied record is a fabricated fact about somebody.
+
+| Copied | Never copied |
+|---|---|
+| `Track`, `SessionFormat` | `Person`, `EventParticipant`, `RoleGrant` |
+| `Venue`, `Room` | `Proposal`, `ProposalSpeaker`, and every answer and revision |
+| `CallForProposals`, `CfpTrackOption`, `CfpFormatOption` | `ReviewRound`, `ReviewAssignment`, `Review`, `Decision` |
+| the published `SubmissionForm` — steps, fields and all — as the clone's version 1 | `Session`, `Placement`, `SchedulePublication`, `PublishedSession` |
+| `Rubric`, `RubricCriterion` | `Sponsorship` and its `Entitlement` rows — the deal, as opposed to the rate card |
+| `TaskDefinition`, `TaskReminderRule` | `TaskInstance` — an obligation belongs to a person |
+| `SponsorshipTier`, `TierEntitlementTemplate` | `Asset`, `EmbedConfig` — an embed points at a publication that does not exist yet |
+| event-scoped `NotificationTemplate` overrides | `CustomFieldDefinition`, whose `key` is already unique per subject type across the organization, so the new event sees it without a copy |
+| | `ReviewRound` — a round is a run of the process, not configuration; its rubric is copied so the next one takes a minute to open |
+| | anything org-scoped, which the new event already inherits |
+
+`EventDay` is regenerated rather than copied: the dates belong to the new event's own range,
+and last year's Friday is not this year's. Labels carry over positionally, so "Day 1 —
+Workshops" survives.
+
+Everything else with a date on it is **rebased by the whole number of days between the two
+events' `starts_on`**. A call that opened five months before last year's doors opened five
+months before this year's, at the same wall-clock time in the event's timezone. Rebasing is
+the only transformation applied; a clone that landed with last year's deadlines would be a
+clone that has to be edited everywhere before it can be used, which is the thing it exists
+to avoid.
+
+A clone always lands `draft` and `private`, with its own slug, no `published_at` on any
+copied call, and every copied call's form published as version 1 — the version an early
+draft would otherwise bind to does not exist yet.
+
 ## Invariants
 
 - **INV-02-1** All stored instants are UTC. Any time rendered to a human for an event is
@@ -355,8 +447,24 @@ makes it safe to serve the form definition to the world.
 - **INV-02-13** A CFP in derived `status = closed` accepts no new proposal and no edit to an
   existing one, except where `Proposal.status = changes_requested`
   ([`04`](04-submissions.md)) or the CFP's `grace_period_minutes` window is still open.
+- **INV-02-14** Provisioning an event — from the starter blueprint or from a clone — writes
+  configuration only. It never writes a `Person`, `EventParticipant`, `RoleGrant`,
+  `Proposal`, `Review`, `Decision`, `Session`, `Placement`, `SchedulePublication`,
+  `Sponsorship`, `Entitlement`, `TaskInstance` or `Asset` row. A copied record would be a
+  fabricated fact about a real person.
+- **INV-02-15** A clone's source must be an `Event` of the same organization, and the clone
+  lands `draft` and `private`, with its own `slug`, `cloned_from_event_id` set to the
+  source, no `published_at` on any copied `CallForProposals`, and each copied call's
+  `SubmissionForm` published as version 1 (INV-02-5).
+- **INV-02-16** Every copied instant is shifted by the whole number of days between the two
+  events' `starts_on`, preserving its wall-clock time in the event timezone. A rebased CFP
+  window still satisfies INV-02-4; one that would not is refused, not silently corrected.
+- **INV-02-17** A copied `CfpTrackOption` or `CfpFormatOption` references the clone's own
+  `Track` or `SessionFormat`, never the source event's. An option pointing across events is
+  a configuration leak, not a shortcut.
 
 ## Emitted events
 
-`event.created`, `event.activated`, `event.archived`, `cfp.opened`, `cfp.closed`,
-`submission_form.published`, `track.created`, `session_format.created`, `room.created`.
+`event.created`, `event.cloned`, `event.activated`, `event.archived`, `cfp.opened`,
+`cfp.closed`, `submission_form.published`, `track.created`, `session_format.created`,
+`room.created`.

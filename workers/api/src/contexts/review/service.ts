@@ -27,6 +27,7 @@ import {
   type ReviewableProjection,
 } from "@podiumconf/domain/review/anonymity.js";
 import {
+  PROGRAMME_SCORECARD_RUBRIC,
   SPONSOR_COMPLIANCE_RUBRIC,
   validateCriterion,
   validateReviewForSubmit,
@@ -233,6 +234,28 @@ function toDraft(c: CriterionView): CriterionDraft {
 /** R17 — the one-criterion sponsor compliance rubric, as a creatable preset. */
 export async function createSponsorComplianceRubric(app: AppContext, eventId: string): Promise<string> {
   return createRubric(app, { event_id: eventId, ...SPONSOR_COMPLIANCE_RUBRIC });
+}
+
+/** 05, "The starter scorecard" — what a blueprinted event's rubric is built as. */
+export async function createProgrammeScorecardRubric(app: AppContext, eventId: string): Promise<string> {
+  return createRubric(app, { event_id: eventId, ...PROGRAMME_SCORECARD_RUBRIC });
+}
+
+/**
+ * Copy a rubric and its criteria onto another event (02, "Cloning an edition").
+ * Reviews reference criteria by id, so the copy is a new rubric with new
+ * criterion ids — the source's scores stay attached to the source's rubric.
+ */
+export async function copyRubricToEvent(app: AppContext, rubricId: string, targetEventId: string): Promise<string> {
+  const { rubric, criteria } = await requireRubric(app, rubricId);
+  return createRubric(app, {
+    event_id: targetEventId,
+    name: rubric.name,
+    description: rubric.description,
+    overall_scale: rubric.overall_scale,
+    requires_comment: rubric.requires_comment,
+    criteria: criteria.map(toDraft),
+  });
 }
 
 /* ========================================================================== */
