@@ -1,0 +1,242 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  SYNC_LINK_STATUSES,
+  SYNC_SUBJECTS,
+  SUBJECT_SPECS,
+  canTransitionSyncLink,
+  canonical,
+  fromExternal,
+  isEcho,
+  projectCanonical,
+  projectForPush,
+  projectInbound,
+  syncHash,
+  toExternal,
+  validateFieldMap,
+  writableFields,
+  type SyncFieldMap,
+} from "@podiumconf/domain/platform/sync.js";
+import { DomainError } from "@podiumconf/domain/shared/errors.js";
+
+/** The error an invariant raised, so a test can name the invariant rather than the message. */
+function invariantOf(fn: () => unknown): string {
+  try {
+    fn();
+  } catch (err) {
+    if (err instanceof DomainError) return err.invariant ?? err.code;
+    throw err;
+  }
+  throw new Error("expected the call to be refused, and it was not");
+}
+
+const map = (field: string, direction: "push" | "both" = "push"): SyncFieldMap => ({
+  field,
+  external_field: field,
+  direction,
+});
+
+describe("field maps (INV-09-17)", () => {
+  it("accepts a plain push map", () => {
+    expect(() => validateFieldMap("session", [map("title"), map("status")], false)).not.toThrow();
+  });
+
+  it("refuses a field the subject does not have", () => {
+    expect(invariantOf(() => validateFieldMap("session", [map("salary")], false))).toBe("INV-09-17");
+  });
+
+  it("refuses a derived field as writable, naming INV-11-6", () => {
+    // The rule every other service satisfies by omission: a derived column has
+    // no route that can write it, because nothing asks. A field map asks.
+    expect(invariantOf(() => validateFieldMap("session", [map("speaker_names", "both")], false))).toBe("INV-11-6");
+  });
+
+  it("refuses a pushable-but-not-writable field as writable", () => {
+    expect(invariantOf(() => validateFieldMap("session", [map("content_status", "both")], false))).toBe("INV-09-17");
+  });
+
+  it("refuses two Podium fields mapped onto one column", () => {
+    const clash: SyncFieldMap[] = [
+      { field: "title", external_field: "Name", direction: "push" },
+      { field: "subtitle", external_field: "Name", direction: "push" },
+    ];
+    expect(invariantOf(() => validateFieldMap("session", clash, false))).toBe("INV-09-17");
+  });
+
+  it("refuses PII without include_pii, in either direction (INV-09-21)", () => {
+    expect(invariantOf(() => validateFieldMap("person", [map("email")], false))).toBe("INV-09-21");
+    expect(invariantOf(() => validateFieldMap("person", [map("email", "both")], true))).toBe("INV-09-21");
+  });
+
+  it("allows PII outbound once include_pii is set", () => {
+    expect(() => validateFieldMap("person", [map("email")], true)).not.toThrow();
+  });
+});
+
+describe("push-only subjects (INV-09-23)", () => {
+  it.each(["decision", "entitlement", "placement"] as const)("%s has no writable field at all", (subject) => {
+    expect(writableFields(subject)).toEqual([]);
+  });
+
+  it("refuses a mapping that tries to make one writable", () => {
+    expect(invariantOf(() => validateFieldMap("decision", [map("outcome", "both")], false))).toBe("INV-09-23");
+    expect(invariantOf(() => validateFieldMap("placement", [map("notes", "both")], false))).toBe("INV-09-23");
+  });
+
+  it("does not offer `review` as a subject in either direction", () => {
+    // Push-only would not be enough: review visibility differs per reader
+    // (INV-11-7) and a shared table has one visibility for everybody.
+    expect(SYNC_SUBJECTS).not.toContain("review");
+  });
+
+  it("states a reason on every push-only subject", () => {
+    for (const subject of SYNC_SUBJECTS) {
+      const spec = SUBJECT_SPECS[subject];
+      if (!spec.pushOnly) continue;
+      expect(spec.pushOnly.length, `${subject} is push-only without saying why`).toBeGreaterThan(20);
+    }
+  });
+
+  it("never marks a derived or PII field writable, on any subject", () => {
+    for (const subject of SYNC_SUBJECTS) {
+      for (const f of writableFields(subject)) {
+        expect(f.derived, `${subject}.${f.field}`).toBeFalsy();
+        expect(f.pii, `${subject}.${f.field}`).toBeFalsy();
+      }
+    }
+  });
+
+  it("keeps `visibility` and `is_listed` out of the writable set (INV-01-13)", () => {
+    const writable = writableFields("speaker_profile").map((f) => f.field);
+    expect(writable).not.toContain("visibility");
+    expect(writable).not.toContain("is_listed");
+  });
+
+  it("never pushes a decision's feedback or rationale", () => {
+    const fields = SUBJECT_SPECS.decision.fields.map((f) => f.field);
+    expect(fields).not.toContain("feedback_for_speaker");
+    expect(fields).not.toContain("rationale");
+  });
+});
+
+describe("the value space", () => {
+  it("reads a list from JSON, from CSV, and from an array alike", () => {
+    expect(canonical("list", '["ai","agents"]')).toEqual(["ai", "agents"]);
+    expect(canonical("list", "ai, agents")).toEqual(["ai", "agents"]);
+    expect(canonical("list", ["ai", " agents "])).toEqual(["ai", "agents"]);
+  });
+
+  it("treats the ways a table tool says yes as one value", () => {
+    for (const yes of [true, 1, "true", "TRUE", "Yes", "checked"]) expect(canonical("boolean", yes)).toBe(true);
+    for (const no of [false, 0, "false", "no", ""]) expect(canonical("boolean", no) ?? false).toBe(false);
+  });
+
+  it("normalises dates so a provider's rendering is not a change", () => {
+    expect(canonical("date", "2026-03-01T09:00:00Z")).toBe(canonical("date", "2026-03-01T09:00:00.000+00:00"));
+  });
+
+  it("survives a round trip to the provider and back", () => {
+    for (const [kind, value] of [
+      ["text", "  Keynote  "],
+      ["number", "1,200"],
+      ["boolean", "yes"],
+      ["list", "ai, agents"],
+      ["date", "2026-03-01T09:00:00Z"],
+    ] as const) {
+      const there = canonical(kind, value);
+      expect(fromExternal(kind, toExternal(kind, there))).toEqual(there);
+    }
+  });
+});
+
+describe("echo suppression (INV-09-19)", () => {
+  const fieldMap = [map("title"), map("keywords"), map("duration_minutes")];
+  const row = { title: "Agents in production", keywords: '["ai","agents"]', duration_minutes: 30 };
+
+  it("hashes the same values identically whatever order the map is in", async () => {
+    const a = await syncHash(projectCanonical("session", row, fieldMap, { includePii: false }));
+    const b = await syncHash(projectCanonical("session", row, [...fieldMap].reverse(), { includePii: false }));
+    expect(a).toBe(b);
+  });
+
+  it("hashes a changed value differently", async () => {
+    const a = await syncHash(projectCanonical("session", row, fieldMap, { includePii: false }));
+    const b = await syncHash(projectCanonical("session", { ...row, title: "Agents in prod" }, fieldMap, { includePii: false }));
+    expect(a).not.toBe(b);
+  });
+
+  it("recognises the record it just pushed, coming back in the provider's shape", async () => {
+    // The loop this closes: push writes "ai, agents" into a cell, the provider
+    // reports the row as changed, and the pull must see its own handwriting.
+    const pushed = await syncHash(projectCanonical("session", row, fieldMap, { includePii: false }));
+    const external = projectForPush("session", row, fieldMap, { includePii: false });
+    const back = projectInbound("session", external, fieldMap, { includePii: false });
+    expect(await syncHash(back.values)).toBe(pushed);
+    expect(isEcho(pushed, { last_pushed_hash: pushed, last_pulled_hash: null })).toBe(true);
+  });
+
+  it("does not call a genuine edit an echo", async () => {
+    const pushed = await syncHash(projectCanonical("session", row, fieldMap, { includePii: false }));
+    const edited = projectInbound(
+      "session",
+      { ...projectForPush("session", row, fieldMap, { includePii: false }), title: "Agents, revisited" },
+      fieldMap,
+      { includePii: false },
+    );
+    expect(isEcho(await syncHash(edited.values), { last_pushed_hash: pushed, last_pulled_hash: null })).toBe(false);
+  });
+});
+
+describe("inbound projection", () => {
+  const fieldMap = [map("title", "both"), map("status"), map("speaker_names")];
+
+  it("patches only the fields marked two-way", () => {
+    const result = projectInbound(
+      "session",
+      { title: "New title", status: "cancelled", speaker_names: "Someone Else" },
+      fieldMap,
+      { includePii: false },
+    );
+    // `status` is pushable but not writable; `speaker_names` is derived. Both
+    // are hashed — the echo check has to cover what the push covered — and
+    // neither reaches the patch.
+    expect(Object.keys(result.patch)).toEqual(["title"]);
+    expect(Object.keys(result.values).sort()).toEqual(["speaker_names", "status", "title"]);
+  });
+
+  it("tells absent from blank", () => {
+    const result = projectInbound("session", { title: "" }, fieldMap, { includePii: false });
+    expect(result.absent).toContain("status");
+    expect(result.patch.title).toBe(null);
+  });
+
+  it("drops PII from the projection entirely when the mapping may not carry it", () => {
+    const result = projectInbound("person", { email: "a@example.com" }, [map("email")], { includePii: false });
+    expect(result.values).toEqual({});
+  });
+});
+
+describe("the link state machine", () => {
+  it("draws every status the enum allows", () => {
+    for (const status of SYNC_LINK_STATUSES) {
+      const reachable = SYNC_LINK_STATUSES.some((from) => from !== status && canTransitionSyncLink(from, status));
+      expect(reachable || status === "pending_push", `nothing reaches ${status}`).toBe(true);
+    }
+  });
+
+  it("lets a conflict be resolved back into the push queue", () => {
+    expect(canTransitionSyncLink("conflict", "pending_push")).toBe(true);
+  });
+
+  it("never resurrects an unlinked record", () => {
+    // INV-09-22: erasure is the end of the line, not a pause.
+    for (const to of SYNC_LINK_STATUSES) {
+      if (to === "unlinked") continue;
+      expect(canTransitionSyncLink("unlinked", to), `unlinked → ${to}`).toBe(false);
+    }
+  });
+
+  it("refuses to move straight from in_sync to error without a push", () => {
+    expect(canTransitionSyncLink("in_sync", "error")).toBe(false);
+  });
+});

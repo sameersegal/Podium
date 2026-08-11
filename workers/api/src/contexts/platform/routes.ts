@@ -16,6 +16,7 @@ import type { AudienceCriteria } from "@podiumconf/domain/platform/types.js";
 import { writableFields } from "@podiumconf/domain/platform/sync.js";
 import { activeMappings } from "./sync.js";
 import { schedulePull } from "./sync-delivery.js";
+import { registerSyncRoutes } from "./sync-routes.js";
 import {
   applyDeliveryStatusUpdates,
   inboundWebhookUrl,
@@ -114,6 +115,9 @@ export function registerPlatformRoutes(router: Router<RequestContext>): void {
   registerEventLogRoutes(router);
   registerUnsubscribeRoutes(router);
   registerInboundWebhookRoutes(router);
+  // Before the management API, so `/admin/sync/:mappingId` is matched by its own
+  // handler rather than by a broader pattern registered later.
+  registerSyncRoutes(router);
   registerManagementApi(router);
 }
 
@@ -659,9 +663,12 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
     if (!plugin) throw notFound("Plugin", str(integration.plugin_key));
     const config = parseJson<Record<string, unknown>>(integration.config, {});
     const canWrite = ctx.canWrite("org.configure");
-    // Only email plugins receive provider callbacks today (09, `email`:
-    // `handle_inbound_webhook`); nothing else in the contract set has one.
-    const inbound = plugin.capability === "email" ? await inboundWebhookUrl(ctx.env, str(integration.id)) : null;
+    // `email` receives delivery-status callbacks; `sync` receives a change ping
+    // (09). Nothing else in the contract set has an inbound side.
+    const hasInbound = plugin.capability === "email" || plugin.capability === "sync";
+    const inbound = hasInbound ? await inboundWebhookUrl(ctx.env, str(integration.id)) : null;
+    const isSync = plugin.capability === "sync";
+    const mappingCount = isSync ? await app.db.count("sync_mapping", { integration_id: str(integration.id) }) : 0;
     return htmlResponse(
       adminPage(
         ctx,
@@ -684,15 +691,28 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
                 "Settings",
               )
             : raw("")}
+          ${isSync
+            ? card(
+                html`<p class="small muted">
+                    ${mappingCount === 0
+                      ? "Nothing is mirrored yet. A mapping points one kind of record at one table in the base."
+                      : `${mappingCount} table(s) mapped.`}
+                  </p>
+                  <p><a class="button" href="/admin/integrations/${str(integration.id)}/sync">Tables and fields</a>
+                    <a class="button secondary" href="/admin/sync">Conflicts</a></p>`,
+                "Two-way sync",
+              )
+            : raw("")}
           ${inbound
             ? card(
                 html`<p class="small muted">
-                    Paste this into the provider's delivery-event webhook setting. Bounces and complaints arriving here move the outbox row past
-                    <code>sent</code> and put a hard bounce on the suppression list.
+                    ${isSync
+                      ? "Call this from an automation in the base whenever a record changes. It is only a hint that makes the sync feel live — a scheduled sweep runs either way, so a ping that never arrives costs a few minutes, not a change."
+                      : "Paste this into the provider's delivery-event webhook setting. Bounces and complaints arriving here move the outbox row past `sent` and put a hard bounce on the suppression list."}
                   </p>
                   <p class="mono small">${inbound}</p>
                   <p class="small muted">The signature in the URL is what authenticates the provider, so treat it as a credential.</p>`,
-                "Delivery events webhook",
+                isSync ? "Change ping" : "Delivery events webhook",
               )
             : raw("")}`,
       ),

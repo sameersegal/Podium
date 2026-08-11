@@ -91,10 +91,29 @@ async function makeTaskInstance(id: string, assignee: string) {
 /** A queue mock swapped into `AppContext.env` so the test observes the exact
  * `DELIVERY_QUEUE.send` call the fix adds, without depending on Miniflare's
  * real (asynchronous, timing-sensitive) local queue consumer. */
+/**
+ * Mid-morning, fixed.
+ *
+ * `attemptSend` defers an email inside quiet hours (21:00–08:00 in the
+ * recipient's timezone) and returns before it ever asks whether a provider is
+ * installed — so the `no_provider` assertion below is only reachable in
+ * daylight. Reading the wall clock made this suite pass during the working day
+ * and fail overnight, which is the worst of both: green when anyone looks, red
+ * in a nightly run. The quiet-hours path has its own tests; this one is about
+ * the delivery queue.
+ */
+const DAYTIME = "2026-06-01T10:00:00.000Z";
+
 function appWithMockQueue(): { app: AppContext; sendMock: ReturnType<typeof vi.fn> } {
   const sendMock = vi.fn(async () => undefined);
   const mockEnv = { ...(env as unknown as Env), DELIVERY_QUEUE: { send: sendMock, sendBatch: vi.fn() } } as unknown as Env;
-  const app = new AppContext({ env: mockEnv, orgId: ORG, eventId: EVENT, actor: SYSTEM_ACTOR });
+  const app = new AppContext({
+    env: mockEnv,
+    orgId: ORG,
+    eventId: EVENT,
+    actor: SYSTEM_ACTOR,
+    clock: { now: () => DAYTIME },
+  });
   return { app, sendMock };
 }
 
