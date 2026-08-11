@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { applyResultFilters, type ResultRow, type ScopedProposal } from "@podiumconf/web/contexts/review/scoring.js";
 import { resultsCsvRow, toCsv } from "@podiumconf/web/contexts/review/views.js";
 import { reviewerAssignmentView } from "@podiumconf/web/contexts/review/reviewer-views.js";
-import { reviewableProjection, type ReviewableProposal } from "@podiumconf/domain/review/anonymity.js";
+import {
+  reviewableContentHash,
+  reviewableProjection,
+  type ReviewableProposal,
+} from "@podiumconf/domain/review/anonymity.js";
 import type { CriterionView } from "@podiumconf/domain/review/types.js";
 import type { ProposalScore } from "@podiumconf/domain/review/scoring.js";
 
@@ -169,7 +173,7 @@ describe("the review_results export row shape (05, 'Aggregation')", () => {
 /* Anonymity — stripping speaker identity from a reviewer's view              */
 /* -------------------------------------------------------------------------- */
 
-function reviewableFixture(): ReviewableProposal {
+function reviewableFixture(overrides: Partial<ReviewableProposal> = {}): ReviewableProposal {
   return {
     id: "prp_1",
     reference: "EVT-0001",
@@ -186,6 +190,7 @@ function reviewableFixture(): ReviewableProposal {
     sponsor_id: null,
     sponsor_name: null,
     answers: [],
+    reference_labels: {},
     speakers: [
       {
         person_id: "per_speaker",
@@ -197,11 +202,41 @@ function reviewableFixture(): ReviewableProposal {
         email: "kenji@orbital.example",
       },
     ],
+    ...overrides,
   };
 }
 
-function scorecardHtml(anonymity: "open" | "single_blind" | "double_blind"): string {
-  const projection = reviewableProjection(reviewableFixture(), anonymity);
+/** The reference-valued answers a seeded form actually produces (04). */
+function referenceAnswers(): Pick<ReviewableProposal, "answers" | "reference_labels"> {
+  return {
+    answers: [
+      { field_key: "track", label: "Track", type: "track_picker", value: "trk_ai", pii: false },
+      { field_key: "format", label: "Session format", type: "format_picker", value: "fmt_talk", pii: false },
+      { field_key: "speakers", label: "Speakers", type: "speaker_list", value: ["per_speaker"], pii: false },
+      { field_key: "slides", label: "Draft slides", type: "file", value: { asset_ids: ["ast_1"] }, pii: false },
+      {
+        field_key: "level",
+        label: "Audience level",
+        type: "single_select",
+        options: [{ value: "intermediate", label: "Intermediate" }],
+        value: "intermediate",
+        pii: false,
+      },
+    ],
+    reference_labels: {
+      trk_ai: "Applied AI",
+      fmt_talk: "Conference talk",
+      per_speaker: "Kenji Watanabe",
+      ast_1: "kenji-watanabe-slides.pdf",
+    },
+  };
+}
+
+function scorecardHtml(
+  anonymity: "open" | "single_blind" | "double_blind",
+  overrides: Partial<ReviewableProposal> = {},
+): string {
+  const projection = reviewableProjection(reviewableFixture(overrides), anonymity);
   const view = reviewerAssignmentView({
     assignment: { id: "asg_1", status: "assigned", due_at: null },
     roundName: "Screening",
@@ -237,5 +272,46 @@ describe("INV-05-8 / 'Fairness rules made explicit': double_blind hides speaker 
   it("shows the speaker under single_blind — only double_blind hides speakers from reviewers", () => {
     const html = scorecardHtml("single_blind");
     expect(html).toContain("Kenji Watanabe");
+  });
+});
+
+describe("a reviewer reads answers, not ids (04, `ProposalAnswer.display`)", () => {
+  it("renders reference-valued answers as names, never as the id the answer stores", () => {
+    const html = scorecardHtml("open", referenceAnswers());
+    expect(html).toContain("Applied AI");
+    expect(html).toContain("Conference talk");
+    expect(html).toContain("Intermediate");
+    expect(html).toContain("kenji-watanabe-slides.pdf");
+    expect(html).not.toContain("trk_ai");
+    expect(html).not.toContain("fmt_talk");
+    expect(html).not.toContain("per_speaker");
+    expect(html).not.toContain("ast_1");
+    expect(html).not.toContain("asset_ids");
+  });
+
+  it("drops the speaker_list answer and withholds filenames under double_blind, rather than naming the speaker twice over", () => {
+    const html = scorecardHtml("double_blind", referenceAnswers());
+    expect(html).not.toContain("Kenji Watanabe");
+    expect(html).not.toContain("kenji-watanabe-slides.pdf");
+    expect(html).not.toContain("per_speaker");
+    expect(html).toContain("1 file");
+    // Everything that is not identity still reads normally.
+    expect(html).toContain("Applied AI");
+  });
+
+  it("INV-05-8: a blind round's content_hash covers only the answers it shows, so a new co-speaker does not stale it", () => {
+    const shown = reviewableProjection(reviewableFixture(referenceAnswers()), "double_blind");
+    expect(shown.answers.map((a) => a.field_key)).not.toContain("speakers");
+
+    const withCoSpeaker = reviewableFixture(referenceAnswers());
+    withCoSpeaker.answers = withCoSpeaker.answers.map((a) =>
+      a.field_key === "speakers" ? { ...a, value: ["per_speaker", "per_new_cospeaker"] } : a,
+    );
+    expect(reviewableContentHash(reviewableProjection(withCoSpeaker, "double_blind"))).toBe(
+      reviewableContentHash(shown),
+    );
+    expect(reviewableContentHash(reviewableProjection(withCoSpeaker, "open"))).not.toBe(
+      reviewableContentHash(reviewableProjection(reviewableFixture(referenceAnswers()), "open")),
+    );
   });
 });

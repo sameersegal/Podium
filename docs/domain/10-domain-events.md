@@ -97,6 +97,7 @@ log can be queried by actor or subject without unpacking JSON.
 | Type | Subject | `data` |
 |---|---|---|
 | `event.created` | event | `event_id, name, slug, starts_on, ends_on, timezone` |
+| `event.cloned` | event | `event_id, source_event_id, day_shift, copied{day, track, session_format, venue, room, cfp, rubric, task_definition, sponsorship_tier, notification_template}` |
 | `event.activated` | event | `event_id` |
 | `event.archived` | event | `event_id` |
 | `cfp.opened` | cfp | `cfp_id, name, audience, opens_at, closes_at` |

@@ -15,6 +15,9 @@ login screen and the invoice, not in a rejection letter.
 | **Event** | One conference occurrence — "AI Engineer World's Fair 2026". | *Domain event*; always qualify when both are in play |
 | **Event day** | One calendar day of an event, an explicit record. | A date computed from `starts_on` |
 | **Track** | A thematic lane (Agents, Evals, RAG). Owns reviewers, quotas and schedule columns. | Room, Format |
+| **Starter blueprint** | The shipped configuration a new event is created with unless told otherwise: days, one placeholder track, the universal formats, rooms, a call with a published form, rubrics and the onboarding checklist. | Seed data (a development fixture) |
+| **Clone** | Creating an event by copying an existing edition's *configuration* — never its people, proposals, sessions or decisions — with every date rebased onto the new event. | Snapshot, Import |
+| **Rebasing** | Shifting a copied instant by the whole number of days between two events' `starts_on`, keeping its wall-clock time in the event timezone. | Timezone conversion |
 | **Session format** | The kind of program item: talk, workshop, lightning talk, keynote, sponsor demo. | Track, Duration |
 | **CFP / Call for proposals** | An intake window with its own audience, deadline and form. An event may run several. | Submission form |
 | **Submission form** | The versioned, multi-step questionnaire a CFP presents. | CFP |

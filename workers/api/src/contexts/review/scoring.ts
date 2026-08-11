@@ -48,6 +48,8 @@ import type {
   ScoreView,
 } from "@podiumconf/domain/review/types.js";
 import { notFound } from "@podiumconf/domain/shared/errors.js";
+import type { FieldType } from "@podiumconf/domain/event-config/types.js";
+import { referenceLabels } from "../submissions/answer-labels.js";
 
 /* -------------------------------------------------------------------------- */
 /* Row shapes                                                                  */
@@ -559,7 +561,7 @@ export async function loadReviewableProposal(app: AppContext, proposalId: string
   const fieldIds = [...new Set(answerRows.map((a) => str(a.form_field_id)).filter(Boolean))];
   const fields = fieldIds.length
     ? await app.db.raw<Row>(
-        `SELECT id, key, label, pii, audience FROM form_field WHERE id IN (${fieldIds.map(() => "?").join(",")})`,
+        `SELECT id, key, label, type, options, pii, audience FROM form_field WHERE id IN (${fieldIds.map(() => "?").join(",")})`,
         fieldIds,
       )
     : [];
@@ -569,6 +571,10 @@ export async function loadReviewableProposal(app: AppContext, proposalId: string
     return {
       field_key: str(a.field_key),
       label: field ? str(field.label) : str(a.field_key),
+      // A `short_text` fallback keeps an answer whose field version was hard
+      // deleted readable as itself, rather than resolving as a reference.
+      type: field ? (str(field.type) as FieldType) : ("short_text" as FieldType),
+      options: field ? parseJson<{ value: string; label: string }[] | null>(field.options, null) : null,
       value: parseJson<unknown>(a.value, str(a.value)),
       pii: field ? bool(field.pii) : false,
     };
@@ -616,6 +622,9 @@ export async function loadReviewableProposal(app: AppContext, proposalId: string
     sponsor_id: strOrNull(proposal.sponsor_id),
     sponsor_name: sponsor ? str(sponsor.name) : null,
     answers,
+    // Resolved here, blinded in `reviewableProjection`: what a reviewer may read
+    // is the projection's decision, not this loader's.
+    reference_labels: await referenceLabels(app, answers),
     speakers,
   };
 }

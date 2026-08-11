@@ -237,6 +237,102 @@ export function validateReviewForSubmit(
 }
 
 /* -------------------------------------------------------------------------- */
+/* The starter scorecard                                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface RubricPreset {
+  name: string;
+  description: string;
+  overall_scale: RubricView["overall_scale"];
+  requires_comment: boolean;
+  criteria: CriterionDraft[];
+}
+
+/**
+ * 05, "The starter scorecard" — what a new event's `Rubric` is built as, so a
+ * committee is arguing about anchors rather than inventing a form.
+ *
+ * The shape is the model's: "two or three numbers, one categorical verdict, and
+ * a box where the actual reasoning goes". The verdict carries `score`, which is
+ * what lets a categorical criterion into the weighted aggregate; the anchors are
+ * written out because `description` is the highest-leverage field there is for
+ * score consistency.
+ */
+export const PROGRAMME_SCORECARD_RUBRIC: RubricPreset = {
+  name: "Programme scorecard",
+  description:
+    "Two numbers, a verdict and the reasoning behind it. Reweight or rewrite the anchors before " +
+    "the first round opens — after that, changing them mid-round makes the scores incomparable.",
+  overall_scale: "recommendation",
+  requires_comment: true, // INV-05-5
+  criteria: [
+    {
+      key: "fit-for-track",
+      label: "Fit for the track",
+      description: "1 — barely related to the track it was submitted to. 5 — exactly what this track exists for.",
+      type: "numeric",
+      scale_min: 1,
+      scale_max: 5,
+      weight: 1,
+      is_required: true,
+      allows_na: false,
+      sort_order: 0,
+    },
+    {
+      key: "technical-depth",
+      label: "Technical depth",
+      description:
+        "1 — an overview you could get from the product page. 3 — solid, but nothing an experienced attendee " +
+        "has not seen. 5 — hard-won specifics that only come from having built the thing.",
+      type: "numeric",
+      scale_min: 1,
+      scale_max: 5,
+      weight: 1.5,
+      is_required: true,
+      allows_na: true,
+      sort_order: 1,
+    },
+    {
+      key: "speaker-credibility",
+      label: "Speaker credibility",
+      description: "Have they done the thing they are describing? Mark N/A rather than guessing from a thin bio.",
+      type: "numeric",
+      scale_min: 1,
+      scale_max: 5,
+      weight: 1,
+      is_required: false,
+      allows_na: true,
+      sort_order: 2,
+    },
+    {
+      key: "verdict",
+      label: "Verdict",
+      description: "The field the chair sorts on. Say what you would do if it were only your call.",
+      type: "select",
+      options: [
+        { value: "accept", label: "Accept", description: "Put it in the programme.", score: 5 },
+        { value: "maybe", label: "Maybe", description: "Worth a slot if there is room after the clear yeses.", score: 3 },
+        { value: "reject", label: "Reject", description: "Not this year, whatever else gets in.", score: 1 },
+      ],
+      weight: 1,
+      is_required: true,
+      allows_na: false,
+      sort_order: 3,
+    },
+    {
+      key: "notes-for-the-committee",
+      label: "Notes for the committee",
+      description: "What the numbers do not say. Never shown to the submitter — feedback for them is written at decision time.",
+      type: "text",
+      max_length: 2000,
+      is_required: false,
+      allows_na: false,
+      sort_order: 4,
+    },
+  ],
+};
+
+/* -------------------------------------------------------------------------- */
 /* The sponsor compliance rubric (R17)                                         */
 /* -------------------------------------------------------------------------- */
 

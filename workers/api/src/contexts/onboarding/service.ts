@@ -281,6 +281,65 @@ export async function createDefaultTaskDefinitions(app: AppContext, eventId: str
   return created;
 }
 
+/**
+ * Copy an event's checklist onto another event (02, "Cloning an edition").
+ *
+ * Definitions are templates, so copying one is copying configuration —
+ * `TaskInstance` rows are obligations belonging to named people and are never
+ * copied (INV-02-14). Retired definitions are skipped: they were switched off
+ * on purpose, and a clone that resurrects them is a clone nobody trusts. Each
+ * copy lands `draft` and is activated after, so `assertAcyclic` (INV-07-3) is
+ * checked against the new event exactly as a hand-built definition would be.
+ */
+export async function copyTaskDefinitionsToEvent(app: AppContext, fromEventId: string, toEventId: string): Promise<Row[]> {
+  const source = await app.db.select<Row>("task_definition", { event_id: fromEventId }, { orderBy: "sort_order, key" });
+  const created: Row[] = [];
+  for (const [i, d] of source.entries()) {
+    if (str(d.status) === "retired") continue;
+    const existing = await app.db.first<Row>("task_definition", { event_id: toEventId, key: str(d.key) });
+    if (existing) continue;
+    const def = await createTaskDefinition(app, toEventId, {
+      key: str(d.key),
+      title: str(d.title),
+      instructions: strOrNull(d.instructions),
+      category: str(d.category, "other") as TaskCategory,
+      requirement_type: str(d.requirement_type) as RequirementType,
+      config: parseJson<Record<string, unknown>>(d.config, {}),
+      subject_type: str(d.subject_type, "session") as TaskSubjectType,
+      assignee_rule: str(d.assignee_rule),
+      // A named assignee is an organizer, not a speaker: the same people
+      // usually run the next edition, and a wrong one is a dropdown to change.
+      assignee_person_id: strOrNull(d.assignee_person_id),
+      assignee_person_ids: parseJson<string[]>(d.assignee_person_ids, []),
+      applies_to: parseJson<Record<string, unknown> | null>(d.applies_to, null),
+      trigger: str(d.trigger, "on_session_confirmed"),
+      trigger_task_key: strOrNull(d.trigger_task_key),
+      due_rule: str(d.due_rule, "none"),
+      due_value: parseJson<Record<string, unknown> | null>(d.due_value, null),
+      is_blocking: bool(d.is_blocking),
+      is_required: bool(d.is_required),
+      requires_review: bool(d.requires_review),
+      auto_complete_on_event: strOrNull(d.auto_complete_on_event),
+      depends_on_task_keys: parseJson<string[]>(d.depends_on_task_keys, []),
+      sort_order: num(d.sort_order, i),
+    });
+    const rules = await app.db.select<Row>("task_reminder_rule", { definition_id: str(d.id) });
+    for (const rule of rules) {
+      await app.db.insert("task_reminder_rule", {
+        id: newId("TaskReminderRule"),
+        definition_id: str(def.id),
+        offset_days: num(rule.offset_days),
+        channel: str(rule.channel, "email"),
+        template_key: str(rule.template_key),
+        escalate_to: strOrNull(rule.escalate_to),
+        only_if_status: strOrNull(rule.only_if_status),
+      });
+    }
+    created.push(str(d.status) === "active" ? await activateTaskDefinition(app, str(def.id)) : def);
+  }
+  return created;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Ad-hoc tasks — the same machinery, a one-form UI (07, "Ad-hoc tasks")       */
 /* -------------------------------------------------------------------------- */

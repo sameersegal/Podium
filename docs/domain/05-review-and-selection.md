@@ -143,6 +143,18 @@ participate in the weighted aggregate ("Accept" = 5, "Maybe" = 3, "Reject" = 1).
 `score` is omitted the criterion is reported as a histogram and excluded from the mean —
 some verdicts genuinely are not numbers and averaging them invents precision.
 
+### The starter scorecard
+
+The shape above is not a matter of taste, so a new event gets it built
+([`02`](02-event-configuration.md), "the starter blueprint"): two weighted numbers — *fit
+for the track* and *technical depth* — one optional number for *speaker credibility*, a
+`select` verdict carrying scores, and a required comment. Every criterion ships with anchor
+text, because `description` is the single highest-leverage field for score consistency and a
+committee that has to invent its own anchors mid-round will not.
+
+It is an ordinary `Rubric` once created: renamed, reweighted, or deleted before the first
+round opens.
+
 ### The sponsor compliance rubric
 
 Sponsor sessions are not selected — they hold a slot the sponsor already bought, and

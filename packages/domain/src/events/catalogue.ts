@@ -26,6 +26,7 @@ export const EVENT_TYPES = [
 
   // Event configuration
   "event.created",
+  "event.cloned",
   "event.activated",
   "event.archived",
   "cfp.opened",
