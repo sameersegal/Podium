@@ -157,16 +157,6 @@ function registerSettingsRoutes(router: Router<RequestContext>): void {
               })}
               ${canWrite ? html`<button type="submit">Save settings</button>` : html`<p class="muted small">Read-only.</p>`}
             </form>`,
-          )}
-          ${card(
-            html`<p class="muted">Everything sent from this organization, by whatever means.</p>
-              <p>
-                <a href="/admin/api-keys">API keys</a> · <a href="/admin/webhooks">Webhooks</a> ·
-                <a href="/admin/integrations">Integrations</a> · <a href="/admin/templates">Message templates</a> ·
-                <a href="/admin/outbox">Outbox</a> · <a href="/admin/audit">Audit log</a> · <a href="/admin/custom-fields">Custom fields</a> ·
-                <a href="/admin/imports">Imports</a> · <a href="/admin/exports">Exports</a>
-              </p>`,
-            "More configuration",
           )}`,
       ),
     );
@@ -222,7 +212,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "API keys", active: "settings", width: "wide" },
+        { title: "API keys", active: "api-keys", width: "wide" },
         html`${pageHead(
             "API keys",
             "Scoped credentials for the management API (09, ApiKey). The secret is shown once, here, and never again (INV-09-1).",
@@ -241,7 +231,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New API key", active: "settings", width: "narrow" },
+        { title: "New API key", active: "api-keys", width: "narrow" },
         html`${pageHead("New API key")}
           ${card(html`<form method="post" action="/admin/api-keys/new" class="stack">
             ${field({ name: "name", label: "Name", required: true, placeholder: "Marketing site" })}
@@ -327,7 +317,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Webhooks", active: "settings", width: "wide" },
+        { title: "Webhooks", active: "webhooks", width: "wide" },
         html`${pageHead(
             "Webhooks",
             "Push domain events to another system, signed with HMAC-SHA256 (INV-09-8).",
@@ -345,7 +335,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New webhook", active: "settings", width: "narrow" },
+        { title: "New webhook", active: "webhooks", width: "narrow" },
         html`${pageHead("New webhook")}
           ${card(html`<form method="post" action="/admin/webhooks/new" class="stack">${webhookForm(null, events)}<button type="submit">Create webhook</button></form>`)}`,
       ),
@@ -377,7 +367,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: str(webhook.name), active: "settings", width: "narrow" },
+        { title: str(webhook.name), active: "webhooks", width: "narrow" },
         html`${pageHead(str(webhook.name), str(webhook.url))}
           ${canWrite
             ? card(html`<form method="post" action="/admin/webhooks/${params.id}" class="stack">${webhookForm(webhook, events)}<button type="submit">Save</button></form>`)
@@ -490,7 +480,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: `${str(webhook.name)} — deliveries`, active: "settings", width: "wide" },
+        { title: `${str(webhook.name)} — deliveries`, active: "webhooks", width: "wide" },
         html`${pageHead(`Deliveries for ${str(webhook.name)}`, "At-least-once, ordered per subject (INV-09-8).")}
           ${table(["Delivery", "Attempt", "Status", "HTTP", "Scheduled", "Delivered", ""], rows, "No deliveries yet.")}
           ${page.next_cursor ? html`<p><a href="/admin/webhooks/${params.id}/deliveries?cursor=${page.next_cursor}">Older →</a></p>` : raw("")}`,
@@ -538,7 +528,7 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Integrations", active: "settings", width: "wide" },
+        { title: "Integrations", active: "integrations", width: "wide" },
         html`${pageHead("Integrations", "Capability contracts — the core never imports a vendor SDK (09).")}
           ${table(["Integration", "Capability", "Status", "Default", ""], rows, "Nothing installed. Without an active email integration, mail is recorded in the outbox and never sent (INV-09-12).")}
           ${canWrite
@@ -617,7 +607,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Message templates", active: "settings", width: "wide" },
+        { title: "Message templates", active: "templates", width: "wide" },
         html`${pageHead(
             "Message templates",
             "System-triggered messages. Unknown variables are rejected at save time (INV-09-13).",
@@ -634,7 +624,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New template", active: "settings", width: "narrow" },
+        { title: "New template", active: "templates", width: "narrow" },
         html`${pageHead("New template")}
           ${card(html`<form method="post" action="/admin/templates/new" class="stack">
             ${field({ name: "key", label: "Key", required: true, help: `One of: ${knownTemplateKeys().join(", ")} — or a custom key for a one-off variable set.` })}
@@ -681,7 +671,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: str(t.key), active: "settings", width: "narrow" },
+        { title: str(t.key), active: "templates", width: "narrow" },
         html`${pageHead(str(t.key), `Declared variables: ${templateVariableChoices(str(t.key)).join(", ")}`)}
           ${canWrite
             ? card(html`<form method="post" action="/admin/templates/${params.id}" class="stack">
@@ -921,7 +911,7 @@ function registerOutboxRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Outbox", active: "settings", width: "wide" },
+        { title: "Outbox", active: "outbox", width: "wide" },
         html`${pageHead("Outbox", "Every message the platform has sent or tried to — the answer to 'did we tell her?' (09, \"The outbox\").")}
           ${table(["When", "Template / source", "To", "Status", "Reason"], rows, "Nothing sent yet.")}
           ${page.next_cursor ? html`<p><a href="/admin/outbox?cursor=${page.next_cursor}">Older →</a></p>` : raw("")}`,
@@ -961,7 +951,7 @@ function registerAuditRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Audit log", active: "settings", width: "wide" },
+        { title: "Audit log", active: "audit", width: "wide" },
         html`${pageHead("Audit log", "Append-only, never deleted — even erasure retains the actor id and redacts the payload (11).")}
           ${table(["When", "Action", "Entity", "Actor", "Reason"], rowsHtml, "Nothing recorded yet.")}
           ${rows.length > limit ? html`<p><a href="/admin/audit?cursor=${str(items[items.length - 1]?.id)}">Older →</a></p>` : raw("")}`,

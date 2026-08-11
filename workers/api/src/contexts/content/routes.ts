@@ -350,7 +350,7 @@ function registerCustomFieldRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Custom fields", active: "settings", width: "wide" },
+        { title: "Custom fields", active: "custom-fields", width: "wide" },
         html`${pageHead(
             "Custom fields",
             "Adding a field means deciding its PII class — pii and audience are required at creation and never defaulted (INV-11-11).",
@@ -367,7 +367,7 @@ function registerCustomFieldRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New custom field", active: "settings", width: "narrow" },
+        { title: "New custom field", active: "custom-fields", width: "narrow" },
         html`${pageHead("New custom field")}
           ${card(html`<form method="post" action="/admin/custom-fields/new" class="stack">
             ${field({ name: "subject_type", label: "Subject", type: "select", required: true, options: CUSTOM_FIELD_SUBJECTS.map((s) => ({ value: s, label: humanise(s) })) })}
@@ -449,7 +449,7 @@ function registerImportRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Imports", active: "settings", width: "wide" },
+        { title: "Imports", active: "imports", width: "wide" },
         html`${pageHead(
             "Imports",
             "Map, validate, preview, then run — nothing is written until the preview is confirmed (INV-11-13).",
@@ -467,7 +467,7 @@ function registerImportRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New import", active: "settings", width: "narrow" },
+        { title: "New import", active: "imports", width: "narrow" },
         html`${pageHead("New import", "A CSV of name,email,title,company,bio creates people, speaker profiles and roster rows.")}
           ${card(html`<form method="post" action="/admin/imports/new" enctype="multipart/form-data" class="stack">
             ${field({ name: "subject", label: "What are you importing", type: "select", required: true, options: IMPORT_SUBJECTS.map((s) => ({ value: s, label: humanise(s) })) })}
@@ -544,7 +544,7 @@ function registerImportRoutes(router: Router<RequestContext>): void {
       )}`;
     }
 
-    return htmlResponse(adminPage(ctx, { title: `Import — ${str(importRow.subject)}`, active: "settings", width: "wide" }, html`${pageHead(`Import: ${humanise(str(importRow.subject))}`, `${badge(status)}`)}${body}`));
+    return htmlResponse(adminPage(ctx, { title: `Import — ${str(importRow.subject)}`, active: "imports", width: "wide" }, html`${pageHead(`Import: ${humanise(str(importRow.subject))}`, `${badge(status)}`)}${body}`));
   });
 
   router.post("/admin/imports/:id/map", async (req, ctx, params) => {
@@ -598,7 +598,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Exports", active: "settings", width: "wide" },
+        { title: "Exports", active: "exports", width: "wide" },
         html`${pageHead(
             "Exports",
             "Generated exactly under your own permissions — never a side door around the authorization matrix (INV-11-12). Expire after 7 days.",
@@ -617,7 +617,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New export", active: "settings", width: "narrow" },
+        { title: "New export", active: "exports", width: "narrow" },
         html`${pageHead("New export")}
           ${card(html`<form method="post" action="/admin/exports/new" class="stack">
             ${field({ name: "subject", label: "Subject", type: "select", required: true, options: EXPORT_SUBJECTS.map((s) => ({ value: s, label: humanise(s) })) })}
@@ -662,7 +662,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: `Export — ${str(row.subject)}`, active: "settings", width: "narrow" },
+        { title: `Export — ${str(row.subject)}`, active: "exports", width: "narrow" },
         html`${pageHead(`${humanise(str(row.subject))} export`, `${badge(str(row.status))}`)}
           ${card(
             html`<p>Format: <strong>${str(row.format)}</strong></p>
