@@ -25,7 +25,7 @@ import { isBlank, type AnswerMap } from "@podiumconf/domain/submissions/answers.
 import { nextAction, type EditAffordance, type NextAction } from "@podiumconf/domain/submissions/types.js";
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, table } from "../../ui/layout.js";
+import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import { visibleSteps, editAffordance, allFields } from "./service.js";
 import type { ProposalDetail, DashboardInvitation, DashboardSession, DashboardTask, SubmitterDashboard } from "./views.js";
@@ -372,7 +372,7 @@ export function renderWizardPage(data: StepPageData): SafeHtml {
         : raw("")}
       ${card(reviewSummary(data), "Review your answers")}
       <p>
-        <a class="button secondary" href="/portal/proposals/${str(data.proposal.id)}">Save and finish later</a>
+        <a class="btn secondary" href="/portal/proposals/${str(data.proposal.id)}">Save and finish later</a>
         <form method="post" action="${basePath}/submit" class="inline-form">
           <button type="submit">Submit proposal</button>
         </form>
@@ -443,7 +443,7 @@ export function dashboardView(dash: SubmitterDashboard): SafeHtml {
       <td>${p.event_name}</td>
       <td>${badge(p.status)}</td>
       <td class="${urgencyClass(p.next_action.urgency)}">${p.next_action.label}</td>
-      <td class="right">${p.edit.editable ? html`<a class="button secondary small" href="/portal/proposals/${p.id}">Continue</a>` : raw("")}</td>
+      <td class="right">${p.edit.editable ? html`<a class="btn secondary small" href="/portal/proposals/${p.id}">Continue</a>` : raw("")}</td>
     </tr>`,
   );
 
@@ -480,20 +480,27 @@ export function dashboardView(dash: SubmitterDashboard): SafeHtml {
     </tr>`,
   );
 
+  const overdue = dash.tasks.filter((t) => t.overdue).length;
+  // A zero state that only states the absence is a dead end. Where there is a
+  // next step it says so and links to it.
+  const noProposals = html`<p class="empty">You have not started a proposal yet.<br><a class="btn" href="/">Find an open call</a></p>`;
+
   return html`${pageHead("My dashboard", "Everything you have outstanding across every event.")}
     <div class="stats">
-      ${dash.proposals.length} proposal${dash.proposals.length === 1 ? "" : "s"} ·
-      ${dash.tasks.filter((t) => t.overdue).length} overdue task${dash.tasks.filter((t) => t.overdue).length === 1 ? "" : "s"} ·
-      ${dash.profile.completeness}% profile complete
+      ${stat("proposals", dash.proposals.length, "/portal/proposals")}
+      ${stat("sessions", dash.sessions.length, "/portal/sessions")}
+      ${stat("open tasks", dash.tasks.length, "/portal/tasks")}
+      ${stat("overdue", overdue, "/portal/tasks")}
+      ${stat("profile complete", `${dash.profile.completeness}%`, "/portal/profile")}
     </div>
-    ${card(table(["Proposal", "Event", "Status", "Next action", ""], proposalRows, "You have not started a proposal yet."), "My proposals")}
+    ${proposalRows.length ? card(table(["Proposal", "Event", "Status", "Next action", ""], proposalRows), "My proposals") : card(noProposals, "My proposals")}
     ${dash.invitations.length ? card(table(["Proposal", "Role", ""], invitationRows, ""), "Speaking invitations") : raw("")}
     ${card(table(["Session", "Event", "Status", "When"], sessionRows, "Nothing confirmed yet."), "My sessions")}
     ${card(table(["Task", "Event", "Due", "Status"], taskRows, "No open tasks."), "My tasks")}
     ${card(
-      html`${progressBar(dash.profile.completeness)}
-        <p class="small muted">${dash.profile.completeness}% complete · ${dash.profile.is_listed ? "listed in the speaker directory" : "not listed publicly"}.</p>
-        <p><a href="/portal/profile">Edit my profile</a></p>`,
+      html`<div class="progress-row">${progressBar(dash.profile.completeness)}<span class="small muted">${dash.profile.completeness}% complete</span></div>
+        <p class="small muted">${dash.profile.is_listed ? "Listed in the speaker directory." : "Not listed publicly."}</p>
+        <p class="actions"><a class="btn secondary" href="/portal/profile">Edit my profile</a></p>`,
       "Profile",
     )}`;
 }
@@ -515,7 +522,7 @@ export function proposalsListView(proposals: SubmitterDashboard["proposals"]): S
       <td class="${urgencyClass(p.next_action.urgency)}">${p.next_action.label}</td>
     </tr>`,
   );
-  return html`${pageHead("My proposals", "Every proposal you submitted or are credited on, across every event.", html`<a class="button" href="/portal/proposals/new">Start a proposal</a>`)}
+  return html`${pageHead("My proposals", "Every proposal you submitted or are credited on, across every event.", html`<a class="btn" href="/portal/proposals/new">Start a proposal</a>`)}
     ${table(["Proposal", "Event", "Status", "Next action"], rows, "You have not started a proposal yet.")}`;
 }
 
@@ -565,7 +572,7 @@ export function proposalReadView(detail: ProposalDetail, next: NextAction, canEd
   return html`${pageHead(
       str(p.title) || "Untitled proposal",
       `${str(p.reference)} · ${detail.event ? str(detail.event.name) : ""}`,
-      html`${badge(str(p.status))} ${canEdit ? html`<a class="button secondary" href="/portal/proposals/${str(p.id)}/step/${str(detail.progress?.current_step_key ?? detail.form.steps[0]?.key ?? "")}">Continue editing</a>` : raw("")}`,
+      html`${badge(str(p.status))} ${canEdit ? html`<a class="btn secondary" href="/portal/proposals/${str(p.id)}/step/${str(detail.progress?.current_step_key ?? detail.form.steps[0]?.key ?? "")}">Continue editing</a>` : raw("")}`,
     )}
     <p class="${urgencyClass(next.urgency)}">${next.label}</p>
     ${detail.decision && detail.decision.published_at

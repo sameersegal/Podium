@@ -27,8 +27,13 @@ import {
   verifyPasswordLogin,
 } from "./service.js";
 
+/**
+ * `bodyClass: "auth"` is what centres the card in the window rather than
+ * pinning it to the top of an otherwise empty page — the sign-in screen is one
+ * short form and nothing else, so there is nothing below it to be above.
+ */
 function authPage(title: string, body: ReturnType<typeof html>, flash?: RequestContext["flash"]) {
-  return page({ title, surface: "auth", width: "narrow", flash: flash ?? null, nav: [] }, body);
+  return page({ title, surface: "auth", width: "narrow", flash: flash ?? null, nav: [], bodyClass: "auth" }, body);
 }
 
 export function registerAuthRoutes(router: Router<RequestContext>): void {
@@ -47,7 +52,7 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
                 <input type="hidden" name="next" value="${next}">
                 ${field({ name: "email", label: "Email", type: "email", required: true, id: "email" })}
                 ${field({ name: "password", label: "Password", type: "password", required: true, id: "password" })}
-                ${submitButton("Sign in")}
+                ${submitButton("Sign in", "block")}
               </form>`
             : html`<p class="notice warn">Password sign-in is disabled for this organization. Use the invitation link you were sent.</p>`}
           <p class="small muted">No account yet? <a href="/signup${next ? `?next=${encodeURIComponent(next)}` : ""}">Create one</a>.</p>
@@ -74,7 +79,7 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
             <form method="post" action="/login" class="stack">
               ${field({ name: "email", label: "Email", type: "email", required: true, value: input.str("email") })}
               ${field({ name: "password", label: "Password", type: "password", required: true })}
-              ${submitButton("Sign in")}
+              ${submitButton("Sign in", "block")}
             </form>
             <p class="small muted">No account yet? <a href="/signup">Create one</a>.</p>
           </div>`,
@@ -102,7 +107,7 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
             ${field({ name: "full_name", label: "Full name", required: true, help: "As you write it. It is never split into first and last." })}
             ${field({ name: "email", label: "Email", type: "email", required: true })}
             ${field({ name: "password", label: "Password", type: "password", required: true, help: "At least 8 characters." })}
-            ${submitButton("Create account")}
+            ${submitButton("Create account", "block")}
           </form>
           <p class="small muted">Already have an account? <a href="/login">Sign in</a>.</p>
         </div>`,

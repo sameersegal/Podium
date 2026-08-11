@@ -195,6 +195,32 @@ export function card(body: SafeHtml, title?: string): SafeHtml {
   return html`<section class="card">${title ? html`<h2>${title}</h2>` : raw("")}${body}</section>`;
 }
 
+/**
+ * Which day of the event you are looking at — the public schedule and the
+ * agenda builder both need it and both used to build it by hand out of
+ * `.subnav`, whose spacing lives on `nav > a` and not on its own children. The
+ * days therefore rendered run together as one string ("Day 1 — WorkshopsDay
+ * 2Day 3"). It is a segmented control, not a borrowed navigation.
+ */
+export function dayBar(days: { id: string; label: string }[], hrefFor: (id: string) => string, activeId: string | null): SafeHtml {
+  if (days.length === 0) return raw("");
+  return html`<nav class="daybar" aria-label="Day">
+    ${days.map((d) => html`<a href="${hrefFor(d.id)}"${d.id === activeId ? raw(' aria-current="page"') : raw("")}>${d.label}</a>`)}
+  </nav>`;
+}
+
+/**
+ * The sort choices above a table. A row of targets with the current one filled
+ * in, rather than a sentence of underlined words separated by middots — which
+ * is what "Sort by newest · oldest · reference · title" was.
+ */
+export function sortBar(options: { href: string; label: string; current: boolean }[]): SafeHtml {
+  if (options.length === 0) return raw("");
+  return html`<div class="sortbar"><span>Sort by</span>
+    ${options.map((o) => html`<a href="${o.href}"${o.current ? raw(' aria-current="true"') : raw("")}>${o.label}</a>`)}
+  </div>`;
+}
+
 export function stat(label: string, value: unknown, href?: string): SafeHtml {
   const inner = html`<span class="n">${value}</span><span class="l">${label}</span>`;
   return href ? html`<a class="stat" href="${href}" style="text-decoration:none">${inner}</a>` : html`<div class="stat">${inner}</div>`;
@@ -204,9 +230,14 @@ export function empty(message: string): SafeHtml {
   return html`<p class="empty">${message}</p>`;
 }
 
-export function table(headers: (string | SafeHtml)[], rows: SafeHtml[], emptyMessage = "Nothing here yet."): SafeHtml {
+/**
+ * `tall` makes the table its own vertical scroller, which is what activates the
+ * sticky header — worth it only for a board long enough to lose its column
+ * names while you read it. Everything else scrolls with the page.
+ */
+export function table(headers: (string | SafeHtml)[], rows: SafeHtml[], emptyMessage = "Nothing here yet.", opts: { tall?: boolean } = {}): SafeHtml {
   if (rows.length === 0) return empty(emptyMessage);
-  return html`<div class="table-wrap"><table>
+  return html`<div class="table-wrap ${opts.tall ? "tall" : ""}"><table>
     <thead><tr>${headers.map((h) => html`<th>${h}</th>`)}</tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
@@ -366,6 +397,16 @@ export function field(o: FieldOptions): SafeHtml {
 
 export function submitButton(label: string, className = ""): SafeHtml {
   return html`<button type="submit" class="${className}">${label}</button>`;
+}
+
+/**
+ * The "add one of these" form under a table on a setup screen. Closed by
+ * default: four of them permanently expanded is what made `/admin/events/:id/setup`
+ * read as one endless form with tables interleaved rather than as four lists
+ * you can add to.
+ */
+export function addForm(label: string, body: SafeHtml): SafeHtml {
+  return html`<details class="disclosure row-form"><summary>${label}</summary>${body}</details>`;
 }
 
 /** A one-button POST, for state transitions that need no form. */

@@ -338,7 +338,7 @@ export function personView(d: PersonPageData): SafeHtml {
     ${pageHead(
       str(person.full_name),
       `${str(person.email)}${profile.company ? ` · ${str(profile.company)}` : ""}`,
-      html`<a class="button secondary" href="/admin/contacts">Back to contacts</a>`,
+      html`<a class="btn secondary" href="/admin/contacts">Back to contacts</a>`,
     )}
     ${bool(person.is_placeholder) ? html`<p class="notice warn">Created from a name and an email on a proposal — they have never signed in.</p>` : raw("")}
     ${person.merged_into_person_id

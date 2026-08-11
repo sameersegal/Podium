@@ -73,14 +73,14 @@ export function roundsOverviewView(d: { event: EventRef; rounds: RoundSummary[];
       <td>${s.proposalCount}</td>
       <td>${s.poolSize}</td>
       <td>${s.submittedCount} / ${s.assignmentCount}</td>
-      <td class="right"><a class="button secondary small" href="/admin/rounds/${s.round.id}">Open</a></td>
+      <td class="right"><a class="btn secondary small" href="/admin/rounds/${s.round.id}">Open</a></td>
     </tr>`,
   );
   return html`
     ${pageHead(
       "Review",
       "Rounds are plural on purpose — a light screening pass, then a deep round on the survivors, then a shortlist meeting.",
-      d.canWrite ? html`<a class="button" href="/admin/events/${d.event.id}/review/rounds/new">New round</a>` : raw(""),
+      d.canWrite ? html`<a class="btn" href="/admin/events/${d.event.id}/review/rounds/new">New round</a>` : raw(""),
     )}
     ${table(["Round", "Status", "Window", "Rubric", "Proposals", "Pool", "Submitted / assigned", ""], rows, "No review rounds yet.")}
   `;
@@ -516,7 +516,7 @@ export function resultsView(d: {
   });
 
   return html`
-    ${pageHead(`Results · ${d.round.name}`, "The chair's working surface. Ranking is never automatic — the numbers and the disagreement signal are, the decision is yours.", html`<a class="button secondary" href="${base}?${csvQuery(d.filters)}">Download CSV</a>`)}
+    ${pageHead(`Results · ${d.round.name}`, "The chair's working surface. Ranking is never automatic — the numbers and the disagreement signal are, the decision is yours.", html`<a class="btn secondary" href="${base}?${csvQuery(d.filters)}">Download CSV</a>`)}
     ${card(
       html`<form method="get" action="${base}" class="filter-bar">
         ${field({ name: "track_id", label: "Track", type: "select", value: d.filters.track_id ?? "", options: d.tracks.map((t) => ({ value: str(t.id), label: str(t.name) })) })}
@@ -782,7 +782,7 @@ export function decisionsListView(d: { event: EventRef; rows: DecisionRowView[];
     </tr>`,
   );
   return html`
-    ${pageHead("Decisions", "Provisional until published. Nothing reaches a speaker until you publish, as a deliberate batch.", html`<a class="button secondary" href="/admin/events/${d.event.id}/decisions/publish">Review and publish</a>`)}
+    ${pageHead("Decisions", "Provisional until published. Nothing reaches a speaker until you publish, as a deliberate batch.", html`<a class="btn secondary" href="/admin/events/${d.event.id}/decisions/publish">Review and publish</a>`)}
     ${table(["Proposal", "Quorum", "Outcome", "Status", ""], rows, "Nothing to decide yet.")}
   `;
 }

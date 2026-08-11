@@ -83,7 +83,7 @@ function assignmentCard(r: ReviewerAssignmentRow): SafeHtml {
     html`<p class="mono small muted">${r.proposal ? str(r.proposal.reference) : str(r.assignment.proposal_id)}</p>
       <h3>${r.proposal ? str(r.proposal.title) : "(proposal unavailable)"}</h3>
       <p class="small">${badge(status)} ${str(r.assignment.due_at) ? html`· due ${str(r.assignment.due_at).slice(0, 10)}` : raw("")}</p>
-      <p><a class="button" href="/review/${str(r.assignment.id)}">${status === "submitted" ? "View my review" : actionable ? "Score this proposal" : "Open"}</a></p>`,
+      <p><a class="btn" href="/review/${str(r.assignment.id)}">${status === "submitted" ? "View my review" : actionable ? "Score this proposal" : "Open"}</a></p>`,
   );
 }
 

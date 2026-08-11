@@ -4,6 +4,7 @@
  */
 
 import { str, type Row } from "@podiumconf/data/db.js";
+import { formatDateInZone } from "@podiumconf/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { html, raw, type SafeHtml } from "./html.js";
 import { badge, externalLink, page, type NavItem } from "./layout.js";
@@ -125,10 +126,15 @@ function markCurrent(path: string, items: NavItem[], stated = false): NavItem[] 
 
 /** The event every event-scoped admin screen is acting on, stated once. */
 function eventBar(ev: EventRef): SafeHtml {
+  // The dates an organizer reads most often in the product, rendered the way
+  // the public page renders the same pair rather than as raw `YYYY-MM-DD`.
+  // `starts_on`/`ends_on` are calendar dates in the event timezone and are
+  // never converted (11, "Time"), so they are formatted from UTC midnight.
+  const day = (d: string) => formatDateInZone(`${d}T00:00:00Z`, "UTC");
   return html`<div class="eventbar">
     <a class="name" href="/admin/events/${ev.id}">${ev.name}</a>
     ${badge(ev.status)}
-    <span class="meta">${ev.starts_on} → ${ev.ends_on} · <span class="mono">${ev.timezone}</span></span>
+    <span class="meta">${day(ev.starts_on)} – ${day(ev.ends_on)} · <span class="mono">${ev.timezone}</span></span>
     <span class="spacer"></span>
     ${externalLink(`/e/${ev.slug}`, "Public page")}
   </div>`;

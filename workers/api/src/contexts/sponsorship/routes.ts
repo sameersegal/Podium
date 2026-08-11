@@ -80,7 +80,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
         html`${pageHead(
           "Sponsors",
           "Companies, carried across events. The same sponsor comes back next year — that is half the value of having events be plural.",
-          html`<a class="button" href="/admin/sponsors/new">Add a sponsor</a>`,
+          html`<a class="btn" href="/admin/sponsors/new">Add a sponsor</a>`,
         )}
         ${table(
           ["Sponsor", "Slug", "Status", "Events", ""],
@@ -444,7 +444,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
         html`${pageHead(
           "Sponsorships",
           "Who has bought what, and how much of it they have used.",
-          html`<a class="button secondary" href="/admin/events/${params.eventId}/tiers">Manage tiers</a>`,
+          html`<a class="btn secondary" href="/admin/events/${params.eventId}/tiers">Manage tiers</a>`,
         )}
         ${table(
           ["Sponsor", "Tier", "Status", "Entitlements used", "Public", ""],

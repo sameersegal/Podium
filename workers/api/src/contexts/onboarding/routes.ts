@@ -28,6 +28,7 @@ import {
   type TaskViewer,
 } from "@podiumconf/domain/onboarding/types.js";
 import { ATTENDANCE_MODE, SPEAKER_ROLE } from "@podiumconf/domain/program/types.js";
+import { formatDateInZone } from "@podiumconf/domain/shared/time.js";
 import { ORIGIN } from "@podiumconf/domain/event-config/types.js";
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { eventRow } from "../event-config/views.js";
@@ -412,24 +413,30 @@ function registerAdminBoardRoutes(router: Router<RequestContext>): void {
     const filters = readBoardFilters(ctx);
     const [rows, defs, tracks] = await Promise.all([organizerBoard(app, ref.id, filters), listDefinitions(app, ref.id), app.db.select<Row>("track", { event_id: ref.id })]);
 
-    const q = (name: string, value: string) => `${name}=${encodeURIComponent(value)}`;
-    const filterForm = html`<form method="get" class="inline-grid">
-      ${field({ name: "track_id", label: "Track", type: "select", value: filters.track_id ?? "", options: tracks.map((t) => ({ value: str(t.id), label: str(t.name) })) })}
-      ${field({ name: "definition_id", label: "Task", type: "select", value: filters.definition_id ?? "", options: defs.map((d) => ({ value: str(d.id), label: str(d.title) })) })}
-      ${field({ name: "status", label: "Status", type: "select", value: filters.status ?? "", options: opts(["blocked", "not_started", "in_progress", "submitted", "changes_requested", "completed", "waived", "cancelled"]) })}
-      ${field({ name: "overdue", label: "Overdue only", type: "checkbox", value: filters.overdue })}
-      <button type="submit" class="small secondary">Filter</button>
-    </form>`;
+    const activeFilters = [filters.track_id, filters.definition_id, filters.status, filters.overdue ? "1" : ""].filter(Boolean).length;
+    const filterForm = html`<details class="filter-bar"${activeFilters > 0 ? raw(" open") : raw("")}>
+      <summary>Filters${activeFilters > 0 ? html` <span class="badge info">${activeFilters}</span>` : raw("")}</summary>
+      <form method="get" class="inline-grid">
+        ${field({ name: "track_id", label: "Track", type: "select", value: filters.track_id ?? "", options: tracks.map((t) => ({ value: str(t.id), label: str(t.name) })) })}
+        ${field({ name: "definition_id", label: "Task", type: "select", value: filters.definition_id ?? "", options: defs.map((d) => ({ value: str(d.id), label: str(d.title) })) })}
+        ${field({ name: "status", label: "Status", type: "select", value: filters.status ?? "", options: opts(["blocked", "not_started", "in_progress", "submitted", "changes_requested", "completed", "waived", "cancelled"]) })}
+        ${field({ name: "overdue", label: "Overdue only", type: "checkbox", value: filters.overdue })}
+        <div class="actions">
+          <button type="submit">Filter</button>
+          ${activeFilters > 0 ? html`<a class="btn secondary" href="/admin/events/${ref.id}/onboarding">Clear</a>` : raw("")}
+        </div>
+      </form>
+    </details>`;
 
     const rows_ = rows.map(
       (r) => html`<tr>
         <td><input type="checkbox" name="task_ids" value="${str(r.instance.id)}" form="board-actions"></td>
-        <td>${r.session_title ?? r.sponsor_name ?? "—"}</td>
+        <td style="min-width:14rem">${r.session_title ?? r.sponsor_name ?? "—"}</td>
         <td>${str(r.instance.title)}</td>
-        <td>${r.assignee_name}</td>
+        <td class="nowrap">${r.assignee_name}</td>
         <td>${badge(str(r.instance.status))}</td>
-        <td class="${r.is_overdue ? "warn" : ""}">${str(r.instance.due_at) ? str(r.instance.due_at).slice(0, 10) : "—"}${r.is_overdue ? " (overdue)" : ""}</td>
-        <td class="right"><a class="button secondary small" href="/admin/tasks/${str(r.instance.id)}">Open</a></td>
+        <td class="nowrap">${str(r.instance.due_at) ? formatDateInZone(str(r.instance.due_at), ref.timezone) : "—"}${r.is_overdue ? html` <span class="badge err">overdue</span>` : raw("")}</td>
+        <td class="right"><a class="btn secondary small" href="/admin/tasks/${str(r.instance.id)}">Open</a></td>
       </tr>`,
     );
 
@@ -438,18 +445,21 @@ function registerAdminBoardRoutes(router: Router<RequestContext>): void {
         ctx,
         { title: "Onboarding board", event: ref, active: "onboarding", width: "wide" },
         html`${pageHead("Onboarding board", "Every session and sponsor's obligations, filterable to exactly the set worth chasing. Select rows, then remind or waive.")}
-          ${card(filterForm)}
+          ${filterForm}
           <form method="post" action="/admin/events/${ref.id}/onboarding/remind" id="board-actions">
-            ${table(["", "Session / sponsor", "Task", "Assignee", "Status", "Due"], rows_, "Nothing matches these filters.")}
             ${canRemind || canWaive
-              ? html`<div class="actions">
+              ? html`<div class="bulk-actions">
+                  <span class="muted small">Tick the rows you want, then:</span>
                   ${canRemind ? html`<button type="submit" formaction="/admin/events/${ref.id}/onboarding/remind">Remind selected</button>` : raw("")}
                   ${canWaive
-                    ? html`<input type="text" name="reason" placeholder="Reason for waiving" form="board-waive-reason">
-                        <button type="submit" formaction="/admin/events/${ref.id}/onboarding/waive">Waive selected</button>`
+                    ? html`<span class="copy-url">
+                        <input type="text" name="reason" placeholder="Reason for waiving" form="board-waive-reason">
+                        <button type="submit" class="secondary" formaction="/admin/events/${ref.id}/onboarding/waive">Waive selected</button>
+                      </span>`
                     : raw("")}
                 </div>`
               : raw("")}
+            ${table(["", "Session / sponsor", "Task", "Assignee", "Status", "Due", ""], rows_, "Nothing matches these filters.", { tall: true })}
           </form>
           <form id="board-waive-reason"></form>
           ${card(
@@ -462,7 +472,7 @@ function registerAdminBoardRoutes(router: Router<RequestContext>): void {
                   <td>${s.waived}</td>
                   <td>${s.outstanding}</td>
                   <td>${s.cancelled}</td>
-                  <td>${progressBar(s.percent)} ${s.percent}%</td>
+                  <td style="min-width:8rem"><div class="progress-row">${progressBar(s.percent)}<span class="small muted">${s.percent}%</span></div></td>
                   <td>${s.median_days_to_complete ?? "—"}</td>
                 </tr>`,
               ),

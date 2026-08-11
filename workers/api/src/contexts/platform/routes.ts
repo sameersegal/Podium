@@ -223,7 +223,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "API keys",
             "Scoped credentials for the management API. The secret is shown once, here, and never again.",
-            canWrite ? html`<a class="button" href="/admin/api-keys/new">New API key</a>` : raw(""),
+            canWrite ? html`<a class="btn" href="/admin/api-keys/new">New API key</a>` : raw(""),
           )}
           ${ctx.flash?.kind === "ok" && ctx.flash.message.startsWith("secret:")
             ? html`<p class="notice ok">Secret (copy it now — it will not be shown again): <span class="mono">${ctx.flash.message.slice(7)}</span></p>`
@@ -312,7 +312,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
         <td>${badge(str(w.status), str(w.status) === "active" ? "ok" : "err")}</td>
         <td>${num(w.consecutive_failures)}</td>
         <td class="right">
-          <a class="button secondary small" href="/admin/webhooks/${str(w.id)}/deliveries">Deliveries</a>
+          <a class="btn secondary small" href="/admin/webhooks/${str(w.id)}/deliveries">Deliveries</a>
           ${canWrite && str(w.status) !== "active"
             ? actionForm(`/admin/webhooks/${str(w.id)}/resume`, "Resume")
             : canWrite
@@ -328,7 +328,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Webhooks",
             "Push domain events to another system, signed with HMAC-SHA256.",
-            canWrite ? html`<a class="button" href="/admin/webhooks/new">New webhook</a>` : raw(""),
+            canWrite ? html`<a class="btn" href="/admin/webhooks/new">New webhook</a>` : raw(""),
           )}
           ${table(["Webhook", "Event types", "Status", "Consecutive failures", ""], rows, "No webhooks yet.")}`,
       ),
@@ -618,7 +618,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Message templates",
             "System-triggered messages. Unknown variables are rejected at save time.",
-            canWrite ? html`<a class="button" href="/admin/templates/new">New template</a>` : raw(""),
+            canWrite ? html`<a class="btn" href="/admin/templates/new">New template</a>` : raw(""),
           )}
           ${table(["Key", "Channel", "Locale", "Version", "Status"], rows, "No org-level overrides yet — defaults from the catalogue are used.")}
           <p class="muted small">Known keys: ${knownTemplateKeys().join(", ")}</p>`,
@@ -754,7 +754,7 @@ function registerCampaignRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Campaigns",
             "Organizer-composed bulk messaging — every recipient gets an ordinary notification delivery, tracked in the outbox like any other.",
-            canWrite ? html`<a class="button" href="/admin/events/${params.eventId}/campaigns/new">Compose</a>` : raw(""),
+            canWrite ? html`<a class="btn" href="/admin/events/${params.eventId}/campaigns/new">Compose</a>` : raw(""),
           )}
           ${table(["Name", "Channel", "Status", "Sent / scheduled"], rows, "No campaigns yet.")}`,
       ),
@@ -1027,7 +1027,7 @@ function registerEventLogRoutes(router: Router<RequestContext>): void {
                 ${field({ name: "type", label: "Type", value: type ?? "", help: "Exact, or a `noun.*` wildcard." })}
                 ${field({ name: "subject_id", label: "Subject id", value: subjectId ?? "" })}
                 <button type="submit">Filter</button>
-                ${type || subjectId || correlationId ? html`<a class="button secondary" href="/admin/event-log">Clear</a>` : raw("")}
+                ${type || subjectId || correlationId ? html`<a class="btn secondary" href="/admin/event-log">Clear</a>` : raw("")}
               </form>`,
             )}
           ${table(["When", "Type", "Subject", "Actor", "Request"], rowsHtml, "No events recorded yet.")}

@@ -8,12 +8,16 @@
  */
 
 import { num, str, type Row } from "@podiumconf/data/db.js";
+import { formatDateInZone } from "@podiumconf/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, redirect } from "../http/responses.js";
 import type { Router } from "../http/router.js";
 import { html, raw } from "../ui/html.js";
 import { badge, card, empty, pageHead, stat, table } from "../ui/layout.js";
 import { adminPage, toEventRef } from "../ui/shell.js";
+
+/** `starts_on`/`ends_on` are calendar dates and are never converted (11, "Time"). */
+const eventDay = (d: string) => (d ? formatDateInZone(`${d}T00:00:00Z`, "UTC") : "—");
 
 export function registerAdminHomeRoutes(router: Router<RequestContext>): void {
   router.get("/admin", async (_req, ctx) => {
@@ -121,7 +125,7 @@ export function registerAdminHomeRoutes(router: Router<RequestContext>): void {
     const eventRows = events.map(
       (row) => html`<tr>
         <td><a href="/admin/events/${str(row.id)}"><strong>${str(row.name)}</strong></a><br><span class="small muted mono">${str(row.slug)}</span></td>
-        <td>${str(row.starts_on)} → ${str(row.ends_on)}</td>
+        <td class="nowrap">${eventDay(str(row.starts_on))} – ${eventDay(str(row.ends_on))}</td>
         <td>${badge(str(row.status))} ${badge(str(row.visibility), str(row.visibility) === "public" ? "ok" : "")}</td>
         <td class="small"><a href="/e/${str(row.slug)}">Public page</a></td>
       </tr>`,

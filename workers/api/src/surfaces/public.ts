@@ -38,8 +38,8 @@ import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.j
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json, text } from "../http/responses.js";
 import type { Router } from "../http/router.js";
-import { html, jsonScript, markdown, raw, type SafeHtml } from "../ui/html.js";
-import { card, empty, pageHead } from "../ui/layout.js";
+import { html, jsonScript, prose, raw, type SafeHtml } from "../ui/html.js";
+import { card, dayBar, empty, pageHead } from "../ui/layout.js";
 import { publicPage, type EventRef } from "../ui/shell.js";
 
 /* -------------------------------------------------------------------------- */
@@ -71,6 +71,16 @@ function toRef(row: Row): EventRef {
     starts_on: str(row.starts_on),
     ends_on: str(row.ends_on),
   };
+}
+
+/**
+ * "Talk (30 min)", not "Talk (30 min) (30 min)". A `SessionFormat.name` is free
+ * text an organizer writes, and writing the duration into it is the obvious
+ * thing to do — the seeded event does it for all six formats — so the duration
+ * is appended only when the name has not already said it.
+ */
+function withDuration(name: string, minutes: number): string {
+  return new RegExp(`\\b${minutes}\\s*(min|minute)`, "i").test(name) ? name : `${name} (${minutes} min)`;
 }
 
 async function assetUrl(ctx: RequestContext, assetId: string | null): Promise<string | null> {
@@ -113,11 +123,11 @@ function registerLandingRoutes(router: Router<RequestContext>): void {
         { title: view.cfp.name, event: ref, width: "narrow" },
         html`${pageHead(view.cfp.name, view.event.tagline)}
           ${deadline}${closed}${notYetOpen}
-          ${view.cfp.intro_markdown ? card(markdown(view.cfp.intro_markdown)) : raw("")}
+          ${view.cfp.intro_markdown ? card(prose(view.cfp.intro_markdown)) : raw("")}
           ${view.tracks.length || view.formats.length
             ? card(
                 html`${view.tracks.length ? html`<p><strong>Tracks:</strong> ${view.tracks.map((t) => t.name).join(", ")}</p>` : raw("")}
-                  ${view.formats.length ? html`<p><strong>Formats:</strong> ${view.formats.map((f) => `${f.name} (${f.default_duration_minutes} min)`).join(", ")}</p>` : raw("")}
+                  ${view.formats.length ? html`<p><strong>Formats:</strong> ${view.formats.map((f) => withDuration(f.name, f.default_duration_minutes)).join(", ")}</p>` : raw("")}
                   ${view.cfp.guidelines_url ? html`<p><a href="${view.cfp.guidelines_url}">Submission guidelines</a></p>` : raw("")}`,
                 "What we're looking for",
               )
@@ -180,25 +190,33 @@ export async function renderEventLanding(ctx: RequestContext, row: Row): Promise
   return publicPage(
     ctx,
     { title: ref.name, event: ref },
-    html`<section class="hero"><div class="inner">
+    // `.bleed` cancels `main`'s gutter so the hero is a band across the window.
+    // It used to open a second `<main>` for the body under it, which is invalid
+    // — the shell already opened one — and rendered the hero as a boxed panel
+    // floating inside the page rather than as the top of it.
+    html`<section class="hero bleed"><div class="inner">
         ${logoUrl ? html`<img src="${logoUrl}" alt="${ref.name}" style="height:48px;margin-bottom:1rem">` : raw("")}
         <h1>${ref.name}</h1>
         ${row.tagline ? html`<p>${str(row.tagline)}</p>` : raw("")}
         <p>${formatDateInZone(new Date(`${ref.starts_on}T00:00:00Z`).toISOString(), ref.timezone)} – ${formatDateInZone(new Date(`${ref.ends_on}T00:00:00Z`).toISOString(), ref.timezone)}${venue ? html` · ${str(venue.name)}` : raw("")}</p>
         <p class="actions">
           <a class="btn" href="/e/${ref.slug}/schedule">Schedule</a>
-          <a class="btn" href="/e/${ref.slug}/speakers">Speakers</a>
-          ${openCfps.length ? html`<a class="btn" href="#cfps">Submit a talk</a>` : raw("")}
-          <a class="btn secondary" href="/login">Sign in</a>
+          <a class="btn secondary" href="/e/${ref.slug}/speakers">Speakers</a>
+          ${openCfps.length ? html`<a class="btn secondary" href="#cfps">Submit a talk</a>` : raw("")}
         </p>
       </div></section>
-      <main class="narrow" style="padding-top:1.5rem">
-        ${row.description ? card(markdown(str(row.description))) : raw("")}
-        ${openCfps.length ? card(html`<ul id="cfps">${openCfps}</ul>`, "Open calls for proposals") : raw("")}
-        ${snapshot
-          ? card(html`<p>${snapshot.sessions.length} sessions across ${snapshot.event.days.length} day${snapshot.event.days.length === 1 ? "" : "s"}. <a href="/e/${ref.slug}/schedule">View the schedule →</a></p>`, "Schedule")
-          : raw("")}
-      </main>`,
+      <div class="grid two">
+        <div>
+          ${row.description ? card(prose(str(row.description))) : raw("")}
+          ${snapshot
+            ? card(html`<p>${snapshot.sessions.length} sessions across ${snapshot.event.days.length} day${snapshot.event.days.length === 1 ? "" : "s"}.</p>
+                <p class="actions"><a class="btn secondary" href="/e/${ref.slug}/schedule">View the schedule</a><a class="btn secondary" href="/e/${ref.slug}/speakers">Meet the speakers</a></p>`, "Schedule")
+            : raw("")}
+        </div>
+        <div>
+          ${openCfps.length ? card(html`<ul id="cfps" class="notes">${openCfps}</ul>`, "Open calls for proposals") : raw("")}
+        </div>
+      </div>`,
   );
 }
 
@@ -306,12 +324,11 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
 }
 
 function daySwitcher(ref: EventRef, snapshot: ScheduleSnapshot, activeDayId: string | null): SafeHtml {
-  if (snapshot.event.days.length === 0) return raw("");
-  return html`<nav class="subnav" style="margin:0 0 1rem;border:1px solid var(--line);border-radius:var(--radius)">
-    ${snapshot.event.days.map(
-      (d) => html`<a href="/e/${ref.slug}/schedule?day=${d.id}"${d.id === activeDayId ? raw(' aria-current="page"') : raw("")}>${d.label ?? d.date}</a>`,
-    )}
-  </nav>`;
+  return dayBar(
+    snapshot.event.days.map((d) => ({ id: d.id, label: d.label ?? d.date })),
+    (id) => `/e/${ref.slug}/schedule?day=${id}`,
+    activeDayId,
+  );
 }
 
 function scheduleControls(ref: EventRef): SafeHtml {
