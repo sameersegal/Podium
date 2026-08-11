@@ -48,7 +48,12 @@ export function directoryFiltersFrom(url: URL): DirectoryCriteria {
 }
 
 function filterForm(c: DirectoryCriteria, facets: { companies: string[]; tags: string[] }, events: Row[]): SafeHtml {
-  return html`<form method="get" action="/admin/contacts" class="inline-grid">
+  // Ten criteria, one per row, was 700 px of chrome above the first contact.
+  // Closed unless something is filtering, and the count says what is.
+  const active = Object.values(c).filter((v) => v !== null && v !== undefined && v !== "").length;
+  return html`<details class="filter-bar"${active > 0 ? raw(" open") : raw("")}>
+    <summary>Filters${active > 0 ? html` <span class="badge info">${active}</span>` : raw("")}</summary>
+    <form method="get" action="/admin/contacts" class="inline-grid">
     ${field({ name: "q", label: "Search", value: c.q ?? "", placeholder: "Name, email, company or bio" })}
     ${field({ name: "company", label: "Company", type: "select", value: c.company ?? "", options: facets.companies.map((v) => ({ value: v, label: v })) })}
     ${field({ name: "job_title", label: "Job title contains", value: c.job_title ?? "" })}
@@ -59,9 +64,12 @@ function filterForm(c: DirectoryCriteria, facets: { companies: string[]; tags: s
     ${field({ name: "participant_status", label: "Roster status", type: "select", value: c.participant_status ?? "", options: PARTICIPANT_STATUS.map((v) => ({ value: v, label: humanise(v) })) })}
     ${field({ name: "spoken", label: "Has spoken", type: "select", value: c.spoken ?? "", options: [{ value: "yes", label: "Has spoken" }, { value: "no", label: "Never spoken" }] })}
     ${field({ name: "last_contacted_before", label: "Not contacted since", type: "date", value: c.last_contacted_before ?? "" })}
-    <button type="submit" class="small">Filter</button>
-    <a class="button secondary small" href="/admin/contacts">Clear</a>
-  </form>`;
+    <div class="actions">
+      <button type="submit">Filter</button>
+      ${active > 0 ? html`<a class="btn secondary" href="/admin/contacts">Clear</a>` : raw("")}
+    </div>
+    </form>
+  </details>`;
 }
 
 export function directoryView(input: {
@@ -89,30 +97,33 @@ export function directoryView(input: {
     </tr>`,
   );
 
+  // Three destinations side by side rather than three stacked rows of one
+  // full-width select and one button: they are alternatives, and reading them
+  // as a column made them look like steps.
   const bulk = canWrite
-    ? html`<div class="card">
+    ? html`<div class="card bulk-panel">
         <h2>Act on the selected contacts</h2>
         <p class="muted small">Tick rows above, then choose what to do with them.</p>
         <div class="inline-grid">
-          ${field({ name: "segment_id", label: "Add to segment", type: "select", options: segments.filter((s) => s.kind === "static").map((s) => ({ value: s.id, label: s.name })) })}
-          <button type="submit" name="action" value="add_to_segment" class="small">Add to segment</button>
+          <div class="field">
+            ${field({ name: "segment_id", label: "Add to segment", type: "select", options: segments.filter((s) => s.kind === "static").map((s) => ({ value: s.id, label: s.name })) })}
+            <button type="submit" name="action" value="add_to_segment" class="small">Add to segment</button>
+          </div>
+          <div class="field">
+            ${field({ name: "pipeline_id", label: "Enrol in pipeline", type: "select", options: pipelines.map((p) => ({ value: str(p.id), label: str(p.name) })) })}
+            <button type="submit" name="action" value="enrol_pipeline" class="small">Enrol</button>
+          </div>
+          <div class="field">
+            ${field({ name: "event_id", label: "Push to event", type: "select", options: events.map((e) => ({ value: str(e.id), label: str(e.name) })) })}
+            <button type="submit" name="action" value="push_to_event" class="small">Push to event</button>
+          </div>
         </div>
-        <div class="inline-grid">
-          ${field({ name: "pipeline_id", label: "Enrol in pipeline", type: "select", options: pipelines.map((p) => ({ value: str(p.id), label: str(p.name) })) })}
-          <button type="submit" name="action" value="enrol_pipeline" class="small">Enrol</button>
-        </div>
-        <div class="inline-grid">
-          ${field({ name: "event_id", label: "Push to event", type: "select", options: events.map((e) => ({ value: str(e.id), label: str(e.name) })) })}
-          <button type="submit" name="action" value="push_to_event" class="small">Push to event</button>
-        </div>
-        <div class="inline-grid">
-          <button type="submit" name="action" value="campaign" class="small secondary">Start a campaign with these contacts</button>
-        </div>
+        <p class="actions"><button type="submit" name="action" value="campaign" class="secondary">Start a campaign with these contacts</button></p>
       </div>`
     : raw("");
 
-  return html`${pageHead("Contacts", `${total} ${total === 1 ? "person" : "people"} in the directory — the compounding asset a conference builds is the people it knows.`, html`<a class="button secondary" href="/admin/contacts/dashboard">Dashboard</a>`)}
-    ${card(filterForm(criteria, facets, events))}
+  return html`${pageHead("Contacts", `${total} ${total === 1 ? "person" : "people"} in the directory — the compounding asset a conference builds is the people it knows.`, html`<a class="btn secondary" href="/admin/contacts/dashboard">Dashboard</a>`)}
+    ${filterForm(criteria, facets, events)}
     <form method="post" action="/admin/contacts/bulk">
       ${Object.entries(criteria).map(([k, v]) => html`<input type="hidden" name="criteria.${k}" value="${String(v)}">`)}
       ${table(["", "Name", "Email", "Job title", "Company", "Tags", "Events", "Sessions", "Last activity"], trs, "No contacts match these filters.")}
@@ -199,7 +210,7 @@ export function segmentListView(segments: SegmentView[], canWrite: boolean): Saf
   return html`${pageHead(
       "Segments",
       "Saved queries, so “AI infra people we have not asked since 2025” is rebuilt once, not slightly differently every time.",
-      canWrite ? html`<a class="button" href="#new-segment">New segment</a>` : raw(""),
+      canWrite ? html`<a class="btn" href="#new-segment">New segment</a>` : raw(""),
     )}
     ${table(["Name", "Kind", "Criteria", "Members", "Visibility"], rows, "No segments yet.")}
     ${canWrite
@@ -235,7 +246,7 @@ export function segmentDetailView(input: { segment: SegmentView; members: Direct
   const rows = members.map(
     (m) => html`<tr><td><a href="/admin/people/${m.id}">${m.full_name}</a></td><td class="mono small">${m.email}</td><td>${m.company ?? "—"}</td></tr>`,
   );
-  return html`${pageHead(s.name, s.criteria_description, html`<a class="button secondary" href="${directoryLink(s.criteria)}">View in directory</a>`)}
+  return html`${pageHead(s.name, s.criteria_description, html`<a class="btn secondary" href="${directoryLink(s.criteria)}">View in directory</a>`)}
     <div class="stats">
       ${stat("kind", badge(s.kind, s.kind === "dynamic" ? "info" : ""))}
       ${stat("members", s.member_count)}
@@ -248,7 +259,7 @@ export function segmentDetailView(input: { segment: SegmentView; members: Direct
               <input type="hidden" name="to" value="${s.kind === "dynamic" ? "static" : "dynamic"}">
               <button type="submit" class="small secondary">Convert to ${s.kind === "dynamic" ? "static" : "dynamic"}</button>
             </form>
-            <a class="button secondary small" href="/admin/campaigns/new?segment_id=${s.id}">Send a campaign to this segment</a>`,
+            <a class="btn secondary small" href="/admin/campaigns/new?segment_id=${s.id}">Send a campaign to this segment</a>`,
           "Manage",
         )
       : raw("")}
@@ -267,7 +278,7 @@ export function pipelineListView(pipelines: Row[], canWrite: boolean): SafeHtml 
       <td>${strOrNull(p.event_id) ?? html`<span class="muted">standing</span>`}</td>
     </tr>`,
   );
-  return html`${pageHead("Sourcing pipelines", "The conversation between “we should ask her” and “she has accepted.”", canWrite ? html`<a class="button" href="/admin/pipelines/new">New pipeline</a>` : raw(""))}
+  return html`${pageHead("Sourcing pipelines", "The conversation between “we should ask her” and “she has accepted.”", canWrite ? html`<a class="btn" href="/admin/pipelines/new">New pipeline</a>` : raw(""))}
     ${table(["Pipeline", "Status", "Event"], rows, "No pipelines yet.")}`;
 }
 
@@ -344,7 +355,7 @@ export function cardDetailView(input: {
 }): SafeHtml {
   const { card: c, pipeline, stages, transitions, notes, personName, canWrite } = input;
   const stageOptions = stages.map((s) => ({ value: str(s.id), label: str(s.name) }));
-  return html`${pageHead(`${personName} — ${str(pipeline.name)}`, str(c.topic) || null, html`<a class="button secondary" href="/admin/pipelines/${str(pipeline.id)}">Back to board</a>`)}
+  return html`${pageHead(`${personName} — ${str(pipeline.name)}`, str(c.topic) || null, html`<a class="btn secondary" href="/admin/pipelines/${str(pipeline.id)}">Back to board</a>`)}
     <div class="stats">
       ${stat("score", c.score ?? "—")}
       ${stat("owner", strOrNull(c.owner_person_id) ? "assigned" : "unowned")}

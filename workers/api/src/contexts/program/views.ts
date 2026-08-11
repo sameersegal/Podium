@@ -446,7 +446,10 @@ function filterForm(ev: EventRef, filters: BoardFilters, tracks: Row[], formats:
   const contentOpts = ["draft", "in_review", "approved", "changes_requested"].map((v) => ({ value: v, label: humanise(v) }));
   const trackOpts = tracks.map((t) => ({ value: str(t.id), label: str(t.name) }));
   const formatOpts = formats.map((f) => ({ value: str(f.id), label: str(f.name) }));
-  return html`<form method="get" action="/admin/events/${ev.id}/sessions" class="inline-grid">
+  const active = Object.values(filters).filter((v) => v !== null && v !== undefined && v !== "").length;
+  return html`<details class="filter-bar"${active > 0 ? raw(" open") : raw("")}>
+    <summary>Filters${active > 0 ? html` <span class="badge info">${active}</span>` : raw("")}</summary>
+    <form method="get" action="/admin/events/${ev.id}/sessions" class="inline-grid">
     ${field({ name: "q", label: "Search", value: filters.q ?? "", placeholder: "Title, reference or speaker" })}
     ${field({ name: "status", label: "Status", type: "select", value: filters.status ?? "", options: statusOpts })}
     ${field({ name: "track_id", label: "Track", type: "select", value: filters.track_id ?? "", options: trackOpts })}
@@ -463,9 +466,12 @@ function filterForm(ev: EventRef, filters: BoardFilters, tracks: Row[], formats:
         { value: "0", label: "Not diverged" },
       ],
     })}
-    <button type="submit" class="small">Filter</button>
-    <a class="button secondary small" href="/admin/events/${ev.id}/sessions">Clear</a>
-  </form>`;
+    <div class="actions">
+      <button type="submit">Filter</button>
+      ${active > 0 ? html`<a class="btn secondary" href="/admin/events/${ev.id}/sessions">Clear</a>` : raw("")}
+    </div>
+    </form>
+  </details>`;
 }
 
 function speakerCell(speakers: BoardSpeaker[]): SafeHtml {
@@ -492,25 +498,25 @@ export function programBoardView(input: {
   const { event, rows, filters, health, tracks, formats, canWrite } = input;
   const trs = rows.map(
     (r) => html`<tr>
-      <td><a href="/admin/sessions/${r.id}"><strong>${r.reference}</strong></a></td>
-      <td><a href="/admin/sessions/${r.id}">${r.title}</a>${r.content_diverged ? html` <span class="badge warn" title="The session has been edited since it was accepted">diverged</span>` : raw("")}</td>
+      <td class="mono small nowrap"><a href="/admin/sessions/${r.id}">${r.reference}</a></td>
+      <td style="min-width:16rem"><a href="/admin/sessions/${r.id}"><strong>${r.title}</strong></a>${r.content_diverged ? html` <span class="badge warn" title="The session has been edited since it was accepted">diverged</span>` : raw("")}</td>
       <td>${speakerCell(r.speakers)}</td>
       <td>${r.track_name ?? html`<span class="muted">—</span>`}</td>
-      <td>${r.format_name}<br><span class="small muted">${r.duration_minutes} min</span></td>
+      <td class="nowrap">${r.format_name}<br><span class="small muted">${r.duration_minutes} min</span></td>
       <td>${badge(r.origin)}${r.sponsor_name ? html`<br><span class="small muted">${r.sponsor_name}</span>` : raw("")}</td>
       <td>${badge(r.status)}</td>
       <td>${badge(r.content_status)}</td>
-      <td>${progressBar(r.onboarding_progress)}${r.blocking_tasks_outstanding > 0 ? html`<span class="small muted">${r.blocking_tasks_outstanding} blocking</span>` : raw("")}</td>
-      <td>${placementCell(r.placement)}</td>
+      <td style="min-width:7rem">${progressBar(r.onboarding_progress)}${r.blocking_tasks_outstanding > 0 ? html`<span class="small muted">${r.blocking_tasks_outstanding} blocking</span>` : raw("")}</td>
+      <td class="nowrap">${placementCell(r.placement)}</td>
     </tr>`,
   );
   return html`${pageHead(
       "Sessions",
       "The programme board — every session in this event, whether it came from the CFP, a sponsor, an invitation, or an organizer.",
-      canWrite ? html`<a class="button" href="/admin/events/${event.id}/sessions/new">New session</a>` : raw(""),
+      canWrite ? html`<a class="btn" href="/admin/events/${event.id}/sessions/new">New session</a>` : raw(""),
     )}
     ${healthTiles(event, health)}
-    ${card(filterForm(event, filters, tracks, formats))}
+    ${filterForm(event, filters, tracks, formats)}
     ${table(
       ["Reference", "Title", "Speakers", "Track", "Format", "Origin", "Status", "Content", "Onboarding", "Placement"],
       trs,
@@ -689,7 +695,7 @@ export function sessionDetailView(d: DetailInput): SafeHtml {
       s.title ? str(s.title) : "Untitled session",
       `${str(s.reference)} · ${humanise(str(s.origin))}`,
       d.canWrite && str(s.status) !== "cancelled"
-        ? html`<details class="row-edit"><summary class="button danger small">Cancel</summary>
+        ? html`<details class="row-edit"><summary class="btn danger small">Cancel</summary>
             <form method="post" action="/admin/sessions/${sid}/cancel" class="inline-grid">
               ${field({ name: "reason", label: "Reason", required: true, help: "Cancellation is audited with a reason." })}
               <button type="submit" class="small danger">Cancel session</button>

@@ -96,6 +96,17 @@ export function markdown(src: string | null | undefined): SafeHtml {
   return raw(out.join(""));
 }
 
+/**
+ * Rendered Markdown as body copy: a measure, list indents, and the link
+ * underline that the rest of the app deliberately does not have. `markdown()`
+ * itself stays unwrapped because notification bodies render through it into an
+ * email, where a stylesheet class means nothing.
+ */
+export function prose(src: string | null | undefined): SafeHtml {
+  if (!src) return raw("");
+  return html`<div class="prose">${markdown(src)}</div>`;
+}
+
 export function joinHtml(parts: unknown[], separator = ""): SafeHtml {
   return raw(parts.map(render).join(separator));
 }

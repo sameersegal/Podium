@@ -444,7 +444,10 @@ export function renderPublicForm(
       <h3>Step ${i + 1} · ${step.title}${step.is_optional ? html` <span class="badge">optional</span>` : raw("")}</h3>
       ${step.description ? html`<p class="muted">${step.description}</p>` : raw("")}
       ${step.fields.length === 0
-        ? html`<p class="empty">Nothing to fill in on this step.</p>`
+        ? // A dashed empty box for a step that legitimately collects nothing —
+          // "Review and submit" always does — reads as a step that failed to
+          // load. One muted line says the same thing without the alarm.
+          html`<p class="small muted">No questions on this step.</p>`
         : joinHtml(step.fields.map((f) => renderPublicField(f, { tracks, formats, prefix, disabled: opts.disabled, labelOf })))}
     </section>`,
   );

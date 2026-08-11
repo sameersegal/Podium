@@ -4,6 +4,7 @@
  */
 
 import { str, type Row } from "@podiumconf/data/db.js";
+import { formatDateInZone } from "@podiumconf/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { html, raw, type SafeHtml } from "./html.js";
 import { badge, externalLink, page, type NavItem } from "./layout.js";
@@ -125,10 +126,15 @@ function markCurrent(path: string, items: NavItem[], stated = false): NavItem[] 
 
 /** The event every event-scoped admin screen is acting on, stated once. */
 function eventBar(ev: EventRef): SafeHtml {
+  // The dates an organizer reads most often in the product, rendered the way
+  // the public page renders the same pair rather than as raw `YYYY-MM-DD`.
+  // `starts_on`/`ends_on` are calendar dates in the event timezone and are
+  // never converted (11, "Time"), so they are formatted from UTC midnight.
+  const day = (d: string) => formatDateInZone(`${d}T00:00:00Z`, "UTC");
   return html`<div class="eventbar">
     <a class="name" href="/admin/events/${ev.id}">${ev.name}</a>
     ${badge(ev.status)}
-    <span class="meta">${ev.starts_on} → ${ev.ends_on} · <span class="mono">${ev.timezone}</span></span>
+    <span class="meta">${day(ev.starts_on)} – ${day(ev.ends_on)} · <span class="mono">${ev.timezone}</span></span>
     <span class="spacer"></span>
     ${externalLink(`/e/${ev.slug}`, "Public page")}
   </div>`;
@@ -147,6 +153,14 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
   // A settings screen is organization-wide even when an event is loaded, so it
   // neither claims the Events tab nor flies an event's banner.
   const ev = isSettingsSection(opts.active ?? "") ? null : (opts.event ?? null);
+  // Which top-level tab an organization-wide screen sits under. Path matching
+  // gets `/admin/contacts/:id` for free but not `/admin/segments` or the ten
+  // settings sections, whose URLs sit under no tab at all — and on a phone the
+  // row is one button labelled with the current tab, so "no tab" now reads as
+  // "Menu" and the answer to "where am I" is gone. An event-scoped screen keeps
+  // deciding by its event: `sponsors` is both an event section and an
+  // organization screen, and two filled tabs is worse than none.
+  const orgTab = ev ? null : (opts.active ?? null);
   return page(
     {
       // The event is in the tab title too — admin and the portal are now two
@@ -163,10 +177,10 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
         // An event-scoped screen belongs to Events however flat its own URL is
         // (`/admin/proposals/:id` is one), so the event decides the tab.
         { href: "/admin/events", label: "Events", current: ev ? true : undefined },
-        { href: "/admin/contacts", label: "Contacts" },
-        { href: "/admin/sponsors", label: "Sponsors" },
-        { href: "/admin/team", label: "Team" },
-        { href: "/admin/settings", label: "Settings" },
+        { href: "/admin/contacts", label: "Contacts", current: orgTab === "contacts" || undefined },
+        { href: "/admin/sponsors", label: "Sponsors", current: orgTab === "sponsors" || undefined },
+        { href: "/admin/team", label: "Team", current: orgTab === "team" || undefined },
+        { href: "/admin/settings", label: "Settings", current: (orgTab !== null && isSettingsSection(orgTab)) || undefined },
         { href: "/portal", label: "Speaker portal", external: true },
       ]),
       banner: ev ? eventBar(ev) : raw(""),

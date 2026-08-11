@@ -213,7 +213,7 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
                   <td>${num(m.row.size_bytes)} bytes</td>
                   <td>${badge(str(m.row.scan_status), str(m.row.scan_status) === "clean" ? "ok" : "warn")}</td>
                   <td class="small">${str(m.row.created_at)}</td>
-                  <td class="right"><a class="button secondary small" href="/files/${m.id}/download">Download</a></td>
+                  <td class="right"><a class="btn secondary small" href="/files/${m.id}/download">Download</a></td>
                 </tr>`,
               ),
               "No versions.",
@@ -354,7 +354,7 @@ function registerCustomFieldRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Custom fields",
             "Adding a field means deciding its PII class — whether it holds personal data, and who is allowed to see it, are both answered when you create it and never guessed for you.",
-            canWrite ? html`<a class="button" href="/admin/custom-fields/new">New field</a>` : raw(""),
+            canWrite ? html`<a class="btn" href="/admin/custom-fields/new">New field</a>` : raw(""),
           )}
           ${warnings.length ? html`<p class="notice warn">${warnings.join("; ")} — proliferation is surfaced, not capped (R27).</p>` : raw("")}
           ${table(["Field", "Subject", "Type", "Classification", "Fill rate", "Last used", "Status", ""], rows, "No custom fields yet.")}`,
@@ -453,7 +453,7 @@ function registerImportRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Imports",
             "Map, validate, preview, then run — nothing is written until the preview is confirmed.",
-            html`<a class="button" href="/admin/imports/new">New import</a>`,
+            html`<a class="btn" href="/admin/imports/new">New import</a>`,
           )}
           ${table(["Subject", "Status", "Started"], rows, "No imports yet.")}`,
       ),
@@ -592,7 +592,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
         <td>${badge(str(e.format))}</td>
         <td>${badge(str(e.status), str(e.status) === "ready" ? "ok" : str(e.status) === "failed" ? "err" : "")}</td>
         <td class="small">${str(e.created_at)}</td>
-        <td class="right">${str(e.status) === "ready" ? html`<a class="button secondary small" href="/admin/exports/${str(e.id)}/download">Download</a>` : raw("")}</td>
+        <td class="right">${str(e.status) === "ready" ? html`<a class="btn secondary small" href="/admin/exports/${str(e.id)}/download">Download</a>` : raw("")}</td>
       </tr>`);
     }
     return htmlResponse(
@@ -602,7 +602,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Exports",
             "Generated exactly under your own permissions — never a side door around what you may already see. Expire after 7 days.",
-            html`<a class="button" href="/admin/exports/new">New export</a>`,
+            html`<a class="btn" href="/admin/exports/new">New export</a>`,
           )}
           ${table(["Subject", "Format", "Status", "Requested", ""], rows, "No exports yet.")}`,
       ),
@@ -669,7 +669,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
               <p>Includes personal data: ${bool(row.include_pii) ? "yes" : "no"}</p>
               ${size.byte_size !== null ? html`<p>Size: ${size.byte_size} bytes</p>` : raw("")}
               <p>Expires: ${str(row.expires_at)}</p>
-              ${str(row.status) === "ready" ? html`<p><a class="button" href="/admin/exports/${params.id}/download">Download</a></p>` : raw("")}
+              ${str(row.status) === "ready" ? html`<p><a class="btn" href="/admin/exports/${params.id}/download">Download</a></p>` : raw("")}
               ${str(row.status) === "failed" ? html`<p class="notice err">Generation failed.</p>` : raw("")}`,
           )}`,
       ),

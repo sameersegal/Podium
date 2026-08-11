@@ -34,7 +34,7 @@ import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, joinHtml, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, table } from "../../ui/layout.js";
+import { actionForm, badge, card, dayBar, empty, field, humanise, pageHead, table } from "../../ui/layout.js";
 import { adminPage, loadEvent, type EventRef } from "../../ui/shell.js";
 import { acknowledgeConflict, listConflicts, type ConflictView } from "./conflicts.js";
 import { listPublications as listPublicationRows, pendingChanges, publishSchedule, rollbackPublication } from "./publication.js";
@@ -263,12 +263,11 @@ function registerAgendaRoutes(router: Router<RequestContext>): void {
 /* -------------------------------------------------------------------------- */
 
 function daySwitcher(ref: EventRef, days: AgendaBuilderData["days"], activeDayId: string | null): SafeHtml {
-  if (days.length === 0) return raw("");
-  return html`<nav class="subnav" style="margin:0 0 1rem;border:1px solid var(--line);border-radius:var(--radius)">
-    ${days.map(
-      (d) => html`<a href="/admin/events/${ref.id}/schedule?day=${d.id}"${d.id === activeDayId ? raw(' aria-current="page"') : raw("")}>${d.label ?? d.date}</a>`,
-    )}
-  </nav>`;
+  return dayBar(
+    days.map((d) => ({ id: d.id, label: d.label ?? d.date })),
+    (id) => `/admin/events/${ref.id}/schedule?day=${id}`,
+    activeDayId,
+  );
 }
 
 function dayGrid(ref: EventRef, data: AgendaBuilderData, dayId: string): SafeHtml {

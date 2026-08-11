@@ -7,9 +7,10 @@
 import { num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import { AUDIENCE_LEVEL, ORIGIN, RECORDING_CONSENT } from "@podiumconf/domain/event-config/types.js";
 import type { FieldError } from "@podiumconf/domain/shared/errors.js";
+import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
 import { PROPOSAL_STATUS } from "@podiumconf/domain/submissions/types.js";
 import { html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, table } from "../../ui/layout.js";
+import { actionForm, badge, card, empty, field, humanise, pageHead, sortBar, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import type { ProposalDetail, QueueFilters, QueueRow } from "./views.js";
 
@@ -42,9 +43,14 @@ function qs(url: URL, overrides: Record<string, string | null>): string {
   return `?${p.toString()}`;
 }
 
-function sortLink(url: URL, label: string, key: string, current: string): SafeHtml {
-  return html`<a href="${qs(url, { sort: key })}"${current === key ? raw(' class="active"') : raw("")}>${label}</a>`;
-}
+const SORTS: { key: string; label: string }[] = [
+  { key: "newest", label: "Newest" },
+  { key: "oldest", label: "Oldest" },
+  { key: "reference", label: "Reference" },
+  { key: "title", label: "Title" },
+  { key: "submitted", label: "Submitted" },
+  { key: "status", label: "Status" },
+];
 
 export interface QueuePageData {
   event: EventRef;
@@ -70,15 +76,18 @@ export function proposalQueueView(data: QueuePageData): SafeHtml {
       <td>${r.format_name ?? html`<span class="muted">—</span>`}</td>
       <td>${badge(str(r.origin))}${r.sponsor_name ? html`<br><span class="small muted">${r.sponsor_name}</span>` : raw("")}</td>
       <td>${badge(str(r.status))}</td>
-      <td class="small muted">${strOrNull(r.submitted_at) ?? "—"}</td>
+      <td class="small muted nowrap">${strOrNull(r.submitted_at) ? formatDateInZone(str(r.submitted_at), data.event.timezone) : "—"}</td>
     </tr>`,
   );
 
   const statusOptions = PROPOSAL_STATUS.map((s) => ({ value: s, label: humanise(s) }));
   const originOptions = ORIGIN.map((o) => ({ value: o, label: humanise(o) }));
+  const activeFilters = [data.filters.q, ...(data.filters.status ?? []), ...(data.filters.origin ?? []), ...(data.filters.track_id ?? []), ...(data.filters.format_id ?? []), ...(data.filters.cfp_id ?? [])].filter(Boolean).length;
 
   return html`${pageHead("Proposals", `${data.total} proposal${data.total === 1 ? "" : "s"} for ${data.event.name}.`)}
-    <form method="get" class="inline-grid filter-bar">
+    <details class="filter-bar"${activeFilters > 0 ? raw(" open") : raw("")}>
+      <summary>Filters${activeFilters > 0 ? html` <span class="badge info">${activeFilters}</span>` : raw("")}</summary>
+    <form method="get" class="inline-grid">
       ${field({ name: "q", label: "Search", value: data.filters.q ?? "", placeholder: "Title, reference or submitter" })}
       ${field({ name: "status", label: "Status", type: "multi_select", options: statusOptions, value: data.filters.status ?? [] })}
       ${field({ name: "origin", label: "Origin", type: "multi_select", options: originOptions, value: data.filters.origin ?? [] })}
@@ -103,16 +112,13 @@ export function proposalQueueView(data: QueuePageData): SafeHtml {
         options: data.cfps.map((c) => ({ value: str(c.id), label: str(c.name) })),
         value: data.filters.cfp_id ?? [],
       })}
-      <button type="submit">Filter</button>
+      <div class="actions">
+        <button type="submit">Filter</button>
+        ${activeFilters > 0 ? html`<a class="btn secondary" href="${url.pathname}">Clear</a>` : raw("")}
+      </div>
     </form>
-    <p class="small muted">
-      Sort by ${sortLink(url, "newest", "newest", data.filters.sort ?? "newest")} ·
-      ${sortLink(url, "oldest", "oldest", data.filters.sort ?? "newest")} ·
-      ${sortLink(url, "reference", "reference", data.filters.sort ?? "newest")} ·
-      ${sortLink(url, "title", "title", data.filters.sort ?? "newest")} ·
-      ${sortLink(url, "submitted", "submitted", data.filters.sort ?? "newest")} ·
-      ${sortLink(url, "status", "status", data.filters.sort ?? "newest")}
-    </p>
+    </details>
+    ${sortBar(SORTS.map((s) => ({ href: qs(url, { sort: s.key }), label: s.label, current: (data.filters.sort ?? "newest") === s.key })))}
     <form method="post" action="/admin/events/${data.event.id}/proposals/bulk">
       <div class="bulk-actions" id="bulk-actions">
         <label class="checkline"><input type="checkbox" id="select-all"> Select all</label>
@@ -183,7 +189,7 @@ export function proposalAdminDetailView(data: AdminDetailData): SafeHtml {
       ([f, d]) => html`<tr><td>${f}</td><td class="small">${String(d.from ?? "—")}</td><td class="small">${String(d.to ?? "—")}</td></tr>`,
     );
     return html`<div class="review-step">
-      <h4>#${num(r.revision_number)} — ${badge(str(r.change_kind))} <span class="small muted">${str(r.created_at)}</span></h4>
+      <h4>#${num(r.revision_number)} — ${badge(str(r.change_kind))} <span class="small muted">${formatInZone(str(r.created_at), data.event.timezone)}</span></h4>
       ${diffRows.length ? table(["Field", "From", "To"], diffRows, "") : html`<p class="small muted">No content diff recorded.</p>`}
     </div>`;
   });

@@ -57,7 +57,7 @@ import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
-import { actionForm, badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
+import { actionForm, addForm, badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
 import { adminPage, toEventRef, type EventRef } from "../../ui/shell.js";
 import {
   activationCheck,
@@ -519,9 +519,9 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
         <td>${humanise(str(e.mode))}</td>
         <td>${badge(str(e.visibility), str(e.visibility) === "public" ? "ok" : "")}</td>
         <td>${cfps}</td>
-        <td class="right"><a class="button secondary small" href="/admin/events/${str(e.id)}/setup">Setup</a>
+        <td class="right"><a class="btn secondary small" href="/admin/events/${str(e.id)}/setup">Setup</a>
           ${ctx.canWrite("event.configure")
-            ? html` <a class="button secondary small" href="/admin/events/new?from=${str(e.id)}">Duplicate</a>`
+            ? html` <a class="btn secondary small" href="/admin/events/new?from=${str(e.id)}">Duplicate</a>`
             : raw("")}</td>
       </tr>`);
     }
@@ -532,7 +532,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Events",
             "Every edition you run. An event holds its own days, tracks, formats, rooms and calls for proposals.",
-            ctx.canWrite("event.configure") ? html`<a class="button" href="/admin/events/new">New event</a>` : raw(""),
+            ctx.canWrite("event.configure") ? html`<a class="btn" href="/admin/events/new">New event</a>` : raw(""),
           )}
           ${table(["Event", "Dates", "Status", "Mode", "Visibility", "CFPs", ""], rows, "No events yet. Create the first one.")}`,
       ),
@@ -651,7 +651,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
             ref.name,
             str(row.tagline) || "Overview and settings.",
             html`${badge(ref.status)}
-              ${canWrite ? html`<a class="button secondary" href="/admin/events/new?from=${ref.id}">Duplicate</a>` : raw("")}
+              ${canWrite ? html`<a class="btn secondary" href="/admin/events/new?from=${ref.id}">Duplicate</a>` : raw("")}
               ${canWrite && ref.status === "draft" ? actionForm(`/admin/events/${ref.id}/activate`, "Activate event", { className: "" }) : raw("")}
               ${canWrite && ref.status === "active" ? actionForm(`/admin/events/${ref.id}/archive`, "Archive event", { confirm: "Archive this event? Its calls for proposals close." }) : raw("")}
               ${canWrite && ref.status === "archived" ? actionForm(`/admin/events/${ref.id}/activate`, "Unarchive", { hidden: { reason: "Unarchived from the event overview." } }) : raw("")}`,
@@ -676,7 +676,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
                   : html`<p class="notice warn">
                         Before this event can go active it needs ${check.blockers.join(", ")}.
                       </p>
-                      <p><a class="button secondary" href="/admin/events/${ref.id}/setup">Go to setup</a></p>`,
+                      <p><a class="btn secondary" href="/admin/events/${ref.id}/setup">Go to setup</a></p>`,
                 "Readiness",
               )
             : raw("")}
@@ -1020,12 +1020,12 @@ function daysSection(ev: EventRef, row: Row, days: Row[], canWrite: boolean): Sa
     html`<p class="muted">Days exist so the schedule grid and per-day publication are not derived by date arithmetic across timezone boundaries. Dates are calendar dates in <span class="mono">${ev.timezone}</span>.</p>
       ${table(["Date", "Label", "Visibility", ""], rows, "No days yet.")}
       ${canWrite
-        ? html`<form method="post" action="/admin/events/${ev.id}/days" class="inline-grid">
+        ? addForm("Add a day", html`<form method="post" action="/admin/events/${ev.id}/days" class="inline-grid">
             ${field({ name: "date", label: "Date", type: "date", required: true, min: str(row.starts_on), max: str(row.ends_on) })}
             ${field({ name: "label", label: "Label", placeholder: "Day 1 — Workshops" })}
             ${field({ name: "is_public", label: "On the public schedule", type: "checkbox", value: true })}
             <button type="submit">Add day</button>
-          </form>`
+          </form>`)
         : raw("")}`,
     "Days",
   );
@@ -1067,14 +1067,14 @@ function tracksSection(ev: EventRef, tracks: Row[], canWrite: boolean): SafeHtml
     html`<p class="muted">Tracks are more than labels: reviewer pools, track leads, quotas and schedule columns are all per-track. Archiving keeps them on anything already using them.</p>
       ${table(["Track", "Description", "Target", "Visibility", ""], rows, "No tracks yet.")}
       ${canWrite
-        ? html`<form method="post" action="/admin/events/${ev.id}/tracks" class="inline-grid">
+        ? addForm("Add a track", html`<form method="post" action="/admin/events/${ev.id}/tracks" class="inline-grid">
             ${field({ name: "name", label: "Name", required: true, placeholder: "Agents" })}
             ${field({ name: "slug", label: "Slug", placeholder: "agents" })}
             ${field({ name: "description", label: "Description", type: "textarea", rows: 2, help: "Shown on the CFP form to guide submitters." })}
             ${field({ name: "color", label: "Colour", type: "color", value: "#4b5563" })}
             ${field({ name: "target_session_count", label: "Target sessions", type: "number", min: 0 })}
             <button type="submit">Add track</button>
-          </form>`
+          </form>`)
         : raw("")}`,
     "Tracks",
   );
@@ -1134,10 +1134,10 @@ function formatsSection(ev: EventRef, formats: Row[], canWrite: boolean): SafeHt
   return card(
     html`${table(["Format", "Duration", "Speakers", "Origins", "Review", "Capacity", ""], rows, "No session formats yet. An event needs at least one to go active.")}
       ${canWrite
-        ? html`<form method="post" action="/admin/events/${ev.id}/formats" class="inline-grid">
+        ? addForm("Add a session format", html`<form method="post" action="/admin/events/${ev.id}/formats" class="inline-grid">
             ${formatFields(null)}
             <button type="submit">Add format</button>
-          </form>`
+          </form>`)
         : raw("")}`,
     "Session formats",
   );
@@ -1203,11 +1203,11 @@ function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], tracks: Row
       ${venue
         ? html`${table(["Room", "Capacity", "Floor", "AV", "Visibility", ""], roomRows, "No rooms yet. An in-person or hybrid event needs at least one to go active.")}
             ${canWrite
-              ? html`<form method="post" action="/admin/events/${ev.id}/rooms" class="inline-grid">
+              ? addForm("Add a room", html`<form method="post" action="/admin/events/${ev.id}/rooms" class="inline-grid">
                   <input type="hidden" name="venue_id" value="${str(venue.id)}">
                   ${roomFields(null)}
                   <button type="submit">Add room</button>
-                </form>`
+                </form>`)
               : raw("")}`
         : empty("Add the venue first — rooms belong to it.")}`,
     "Venue and rooms",
@@ -1241,7 +1241,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
         <td>${published ? html`v${published.version} ${badge("published", "ok")}` : badge("no published form", "warn")}</td>
         <td>${copyableUrl(publicUrl, str(c.id))}</td>
         <td class="right">
-          <a class="button secondary small" href="/admin/cfps/${str(c.id)}/form">Form builder</a>
+          <a class="btn secondary small" href="/admin/cfps/${str(c.id)}/form">Form builder</a>
           ${canWrite && !c.published_at ? actionForm(`/admin/cfps/${str(c.id)}/publish`, "Publish call", { className: "" }) : raw("")}
           ${canWrite && status === "open" ? actionForm(`/admin/cfps/${str(c.id)}/close`, "Close now", { confirm: "Close this call now?" }) : raw("")}
         </td>
@@ -1255,7 +1255,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             "Calls for proposals",
             "An event may run several at once — a main call, a workshops call with its own deadline, and a sponsor intake that opens later.",
-            canWrite ? html`<a class="button" href="/admin/events/${ref.id}/cfps/new">New call</a>` : raw(""),
+            canWrite ? html`<a class="btn" href="/admin/events/${ref.id}/cfps/new">New call</a>` : raw(""),
           )}
           ${str(row.status) !== "active" || str(row.visibility) !== "public"
             ? html`<p class="notice warn">Public call pages need an <strong>active</strong>, <strong>public</strong> event. This event is ${str(row.status)} and ${str(row.visibility)}.</p>`
@@ -1324,7 +1324,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
             str(cfp.name),
             `Derived status: ${status}. ${cfp.published_at ? "" : "Not published yet."}`,
             html`${badge(status)}
-              <a class="button secondary" href="/admin/cfps/${params.cfpId}/form">Form builder</a>
+              <a class="btn secondary" href="/admin/cfps/${params.cfpId}/form">Form builder</a>
               ${canWrite && !cfp.published_at ? actionForm(`/admin/cfps/${params.cfpId}/publish`, "Publish call", { className: "" }) : raw("")}
               ${canWrite && status === "open" ? actionForm(`/admin/cfps/${params.cfpId}/close`, "Close now", { confirm: "Close this call now?" }) : raw("")}`,
           )}
@@ -1373,9 +1373,9 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
           ${card(
             published
               ? html`<p>Published form <strong>version ${published.version}</strong> with ${published.steps.length} steps and ${published.steps.reduce((n, s) => n + s.fields.length, 0)} fields.</p>
-                  <p><a class="button secondary" href="/admin/cfps/${params.cfpId}/form">Open the form builder</a></p>`
+                  <p><a class="btn secondary" href="/admin/cfps/${params.cfpId}/form">Open the form builder</a></p>`
               : html`<p class="notice warn">No published form yet. A call cannot open without one.</p>
-                  <p><a class="button" href="/admin/cfps/${params.cfpId}/form">Open the form builder</a></p>`,
+                  <p><a class="btn" href="/admin/cfps/${params.cfpId}/form">Open the form builder</a></p>`,
             "Submission form",
           )}`,
       ),
@@ -1530,7 +1530,7 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
             `${str(cfp.name)} — submission form`,
             "Steps, fields, conditional visibility and what each answer becomes on the proposal. A published form is versioned, not edited in place.",
             html`${badge(spec.status)} <span class="badge">version ${spec.version}</span>
-              <a class="button secondary" href="/admin/cfps/${params.cfpId}/form/preview">Preview the public form</a>
+              <a class="btn secondary" href="/admin/cfps/${params.cfpId}/form/preview">Preview the public form</a>
               ${canWrite && spec.status === "draft"
                 ? actionForm(`/admin/cfps/${params.cfpId}/form/publish`, "Publish this version", { className: "", hidden: { form_id: spec.id } })
                 : raw("")}
@@ -1580,7 +1580,7 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
         html`${pageHead(
             `${str(cfp.name)} — what the public sees`,
             "This is the form as an applicant sees it: committee-only, organizer-only and personal-data fields are absent. Conditional fields appear and disappear as you change the answers.",
-            html`<a class="button secondary" href="/admin/cfps/${params.cfpId}/form">Back to the builder</a>`,
+            html`<a class="btn secondary" href="/admin/cfps/${params.cfpId}/form">Back to the builder</a>`,
           )}
           ${view?.cfp.intro_markdown ? card(markdown(view.cfp.intro_markdown), "Introduction") : raw("")}
           <noscript><p class="notice">With scripts off, every conditional field is shown with a note saying when it applies.</p></noscript>
