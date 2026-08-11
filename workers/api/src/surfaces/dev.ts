@@ -7,11 +7,10 @@
  * the reminder sweep now" turns a fifteen-minute wait into a click.
  */
 
-import { deliverEvent } from "../consumers/dispatch.js";
 import { runAllCron } from "../consumers/cron.js";
+import { replayUnprocessedEvents } from "../consumers/replay.js";
 import { str, type Row } from "@podiumconf/data/db.js";
 import { forbidden } from "@podiumconf/domain/shared/errors.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
 import type { RequestContext } from "../http/context.js";
 import { json } from "../http/responses.js";
 import type { Router } from "../http/router.js";
@@ -71,35 +70,16 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
   });
 
   /**
-   * Replay every stored domain event that no reaction has processed. Recovery
-   * for a queue outage, and how a test drives the reaction map end to end.
+   * Replay every stored domain event with an incomplete reaction map — the
+   * same `replayUnprocessedEvents` the `platform.replay_unprocessed_events`
+   * cron job runs in production (contexts/platform/cron.ts), on demand and
+   * unbounded by recency (no `lookbackHours`), since an operator asking for
+   * this manually has decided a full scan is worth it once. Recovery for a
+   * queue outage, and how a test drives the reaction map end to end.
    */
   router.post("/dev/drain", async (_req, ctx) => {
     guard(ctx);
-    const app = ctx.app();
-    const rows = await app.db.raw<Row>(
-      `SELECT * FROM domain_event_record
-        WHERE id NOT IN (SELECT event_id FROM event_reaction_log)
-        ORDER BY occurred_at LIMIT 200`,
-    );
-    let handled = 0;
-    for (const row of rows) {
-      const ev: DomainEvent = {
-        id: str(row.id),
-        type: str(row.type) as DomainEvent["type"],
-        version: Number(row.version ?? 1),
-        occurred_at: str(row.occurred_at),
-        org_id: str(row.org_id),
-        event_id: row.event_id ? str(row.event_id) : null,
-        actor: { type: str(row.actor_type) as "system", id: row.actor_id ? str(row.actor_id) : null, display_name: row.actor_display ? str(row.actor_display) : null },
-        subject: { type: str(row.subject_type), id: str(row.subject_id) },
-        data: JSON.parse(str(row.data, "{}")),
-        correlation_id: row.correlation_id ? str(row.correlation_id) : null,
-        causation_id: row.causation_id ? str(row.causation_id) : null,
-      };
-      await deliverEvent(ctx.env, ev);
-      handled++;
-    }
-    return json({ replayed: handled });
+    const result = await replayUnprocessedEvents(ctx.env, { now: ctx.now, graceMinutes: 0 });
+    return json({ replayed: result.replayed, scanned: result.scanned });
   });
 }

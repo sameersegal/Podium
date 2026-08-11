@@ -13,6 +13,7 @@ import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { sendCampaignNow } from "./campaigns.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
+import { replayUnprocessedEvents } from "../../consumers/replay.js";
 
 export const PLATFORM_CRON: CronJob[] = [
   {
@@ -72,6 +73,29 @@ export const PLATFORM_CRON: CronJob[] = [
         }
       }
       return n;
+    },
+  },
+  {
+    // Recovery for the gap `publishEvents` leaves on purpose
+    // (packages/data/src/context.ts): a queue-send failure there is logged
+    // and swallowed rather than losing the already-committed fact. Runs at
+    // the 15-minute trigger's own floor — the fastest this can ever go — so
+    // a queue outage self-heals within one tick of recovering, without
+    // needing production access to `POST /dev/drain` (which refuses outright
+    // when `ENVIRONMENT === "production"`).
+    //
+    // `lookbackHours: 24` bounds the scan to the last day: every
+    // fully-processed event stays in the append-only log forever, so without
+    // a bound this would re-scan the deployment's entire history on every
+    // tick. An outage that outlives a day is an incident an operator is
+    // already looking at, not something a background sweep should keep
+    // paying to rediscover — `/dev/drain` (non-production only) has no such
+    // bound for exactly that manual, one-time case.
+    name: "platform.replay_unprocessed_events",
+    everyMinutes: 15,
+    async run(env, now) {
+      const { replayed } = await replayUnprocessedEvents(env, { now, graceMinutes: 5, lookbackHours: 24 });
+      return replayed;
     },
   },
 ];

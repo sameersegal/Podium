@@ -231,7 +231,11 @@ export async function publishEvents(env: Env, events: DomainEvent[]): Promise<vo
     await env.EVENT_QUEUE.sendBatch(events.map((e) => ({ body: e })));
   } catch (err) {
     // The log row is already committed, so a queue outage costs latency on the
-    // reaction, not the fact. The sweeper re-publishes unprocessed events.
+    // reaction, not the fact. `platform.replay_unprocessed_events`
+    // (workers/api/src/contexts/platform/cron.ts, backed by
+    // workers/api/src/consumers/replay.ts) re-delivers any event whose
+    // reaction map is still incomplete on its next tick, at most 15 minutes
+    // later — the Cron Trigger's own floor (wrangler.jsonc).
     console.warn("event publish failed", { count: events.length, error: String(err) });
   }
 }

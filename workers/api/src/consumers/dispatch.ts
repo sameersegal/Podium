@@ -16,6 +16,7 @@ import { eventTypeMatches } from "@podiumconf/domain/events/catalogue.js";
 import { nowIso } from "@podiumconf/domain/shared/time.js";
 import { REACTIONS, type Reaction } from "./reactions.js";
 import { runDelivery, type DeliveryMessage } from "./delivery.js";
+import { recordDeadLetter } from "./dead-letter.js";
 
 export function reactionsFor(type: string): Reaction[] {
   return REACTIONS.filter((r) => r.types.some((p) => eventTypeMatches(p, type)));
@@ -26,6 +27,7 @@ export function reactionsFor(type: string): Reaction[] {
  * can drive the reaction map without a queue round-trip.
  */
 export async function deliverEvent(env: Env, ev: DomainEvent): Promise<string[]> {
+  const started = Date.now();
   const db = new D1Db(env.DB, ev.org_id);
   const ran: string[] = [];
   const failures: { handler: string; error: unknown }[] = [];
@@ -67,11 +69,41 @@ export async function deliverEvent(env: Env, ev: DomainEvent): Promise<string[]>
       cause: failures[0].error,
     });
   }
+
+  // The success path used to be silent — only `reaction failed` and the
+  // caller's `queue handler failed` existed, so a healthy delivery left no
+  // trace to reconstruct a cascade from except the rows themselves. One line
+  // per delivered event, including a no-op redelivery (`handler_count: 0`):
+  // per (H), "silent idempotency is indistinguishable from a lost event",
+  // and it is the event and correlation ids that let one request's cascade
+  // be pulled back out of the logs — never the payload (`data`), which may
+  // carry PII (catalogue.ts, `PII_EVENT_TYPES`).
+  console.log(
+    JSON.stringify({
+      level: "info",
+      event: "domain_event.delivered",
+      event_id: ev.id,
+      type: ev.type,
+      org_id: ev.org_id,
+      correlation_id: ev.correlation_id ?? null,
+      handler_count: ran.length,
+      duration_ms: Date.now() - started,
+    }),
+  );
   return ran;
 }
 
 export async function runQueueBatch(batch: MessageBatch<unknown>, env: Env, execCtx: ExecutionContext): Promise<void> {
   for (const message of batch.messages) {
+    // `podium-dlq` is the dead-letter queue for both queues below (wrangler.jsonc)
+    // — a message here has already exhausted `max_retries` on its home queue.
+    // There is nowhere further to retry it to, so it is always acknowledged:
+    // the point is to record it loudly (dead-letter.ts), not to keep looping.
+    if (batch.queue === "podium-dlq") {
+      await recordDeadLetter(env, message.body, nowIso());
+      message.ack();
+      continue;
+    }
     try {
       if (batch.queue === "podium-delivery") {
         await runDelivery(env, message.body as DeliveryMessage);

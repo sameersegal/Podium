@@ -65,6 +65,17 @@
         "max_batch_timeout": 1,
         "max_retries": 6,
         "dead_letter_queue": "podium-dlq"
+      },
+      {
+        // The DLQ for both queues above. No `dead_letter_queue` of its own:
+        // a message here has already exhausted retries once, and a second
+        // DLQ hop would only hide the same failure one layer further away.
+        // `runQueueBatch` (consumers/dispatch.ts) always acks these — see
+        // consumers/dead-letter.ts for why retrying is not the right move.
+        "queue": "podium-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 3
       }
     ]
   },
