@@ -40,9 +40,18 @@ import { eventDashboard } from "./dashboard.js";
  * console that boots and then 403s on its first fetch.
  */
 const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
+  // Organization-wide: no event in the path, so the shell flies no event bar.
+  { segments: ["admin", "events"], capability: "config.manage" },
   { segments: ["admin", "events", ":eventId"], capability: "config.manage" },
   { segments: ["admin", "events", ":eventId", "schedule"], capability: "schedule.place" },
   { segments: ["admin", "events", ":eventId", "proposals"], capability: "proposal.read_any" },
+  { segments: ["admin", "events", ":eventId", "setup"], capability: "config.manage" },
+  { segments: ["admin", "events", ":eventId", "cfps"], capability: "cfp.configure" },
+  { segments: ["admin", "events", ":eventId", "sessions"], capability: "session.manage" },
+  { segments: ["admin", "events", ":eventId", "review"], capability: "review.read" },
+  { segments: ["admin", "events", ":eventId", "roster"], capability: "session.manage" },
+  { segments: ["admin", "events", ":eventId", "onboarding"], capability: "task.define" },
+  { segments: ["admin", "events", ":eventId", "publications"], capability: "schedule.read_published" },
   { segments: ["admin", "cfps", ":cfpId", "form"], capability: "cfp.configure" },
 ];
 
@@ -71,24 +80,30 @@ function matchConsolePath(pathname: string): ConsoleMatch | null {
 }
 
 /**
- * The event the console should open in. `/admin/events/:eventId` says it;
- * `/admin/cfps/:cfpId/form` reaches it through the call, because the event bar
- * and the section nav are chrome the screen should not have to fetch before it
- * can be drawn.
+ * The event the console should open in, and whether the path needs one.
+ *
+ * `/admin/events/:eventId` says it; `/admin/cfps/:cfpId/form` reaches it
+ * through the call, because the event bar and the section nav are chrome the
+ * screen should not have to fetch before it can be drawn. An organization-wide
+ * path names no event and gets none — the shell then flies no event bar, which
+ * is what `adminPage` does on the server for the same screens.
  */
-async function eventForMatch(ctx: RequestContext, hit: ConsoleMatch): Promise<EventRef | null> {
+async function eventForMatch(
+  ctx: RequestContext,
+  hit: ConsoleMatch,
+): Promise<{ event: EventRef | null; missing: boolean }> {
   const app = ctx.app();
   if (hit.params.eventId) {
     const row = await app.db.byId<Row>("event", hit.params.eventId);
-    return row ? toEventRef(row) : null;
+    return { event: row ? toEventRef(row) : null, missing: !row };
   }
   if (hit.params.cfpId) {
     const cfp = await app.db.byId<Row>("call_for_proposals", hit.params.cfpId);
-    if (!cfp) return null;
+    if (!cfp) return { event: null, missing: true };
     const row = await app.db.byId<Row>("event", str(cfp.event_id));
-    return row ? toEventRef(row) : null;
+    return { event: row ? toEventRef(row) : null, missing: !row };
   }
-  return null;
+  return { event: null, missing: false };
 }
 
 /**
@@ -158,16 +173,16 @@ export async function consoleDocument(req: Request, ctx: RequestContext): Promis
   const hit = matchConsolePath(url.pathname);
   if (!hit) return null;
 
-  const ev = await eventForMatch(ctx, hit);
-  if (!ev) return null; // no such event or call — let the server page 404 properly
-  ctx.eventId = ev.id;
-  if (!ctx.canRead(hit.capability, { event_id: ev.id })) return null;
+  const { event: ev, missing } = await eventForMatch(ctx, hit);
+  if (missing) return null; // no such event or call — let the server page 404 properly
+  if (ev) ctx.eventId = ev.id;
+  if (!ctx.canRead(hit.capability, ev ? { event_id: ev.id } : undefined)) return null;
 
   const boot = await bootPayload(ctx, ev);
   return htmlResponse(shell(ev, boot, url));
 }
 
-function shell(ev: EventRef, boot: Record<string, unknown>, url: URL): string {
+function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL): string {
   // `</script>` inside a JSON string would close this block early. The payload
   // is org data, not user-authored markup, but the escape costs one replace and
   // removes the question.
@@ -177,7 +192,7 @@ function shell(ev: EventRef, boot: Record<string, unknown>, url: URL): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(ev.name)} · Podium</title>
+  <title>${escapeHtml(ev ? ev.name : "Admin")} · Podium</title>
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">

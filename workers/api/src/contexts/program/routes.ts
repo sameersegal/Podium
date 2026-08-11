@@ -521,7 +521,44 @@ function registerManagementApi(router: Router<RequestContext>): void {
     sql += ` ORDER BY id LIMIT ${limit + 1}`;
     const rows = await app.db.raw<Row>(sql, params);
     const page = pageOf(rows, limit);
-    return json({ ...page, data: page.data.map((r) => sessionJson(r)) });
+
+    // The names behind the ids, in one pass. `sessionJson` is the entity as the
+    // API models it, which is right for an integration and unreadable as a
+    // table: a programme listing `trk_01J…` in the track column is one nobody
+    // can scan. Presentation only — nothing here changes what may be read.
+    const trackIds = new Set<string>();
+    const formatIds = new Set<string>();
+    for (const r of page.data) {
+      if (r.track_id) trackIds.add(str(r.track_id));
+      if (r.session_format_id) formatIds.add(str(r.session_format_id));
+    }
+    const inList = (ids: Set<string>) => [...ids].map(() => "?").join(",");
+    const [tracks, formats, speakers] = await Promise.all([
+      trackIds.size ? app.db.raw<Row>(`SELECT id, name FROM track WHERE id IN (${inList(trackIds)})`, [...trackIds]) : Promise.resolve([]),
+      formatIds.size ? app.db.raw<Row>(`SELECT id, name FROM session_format WHERE id IN (${inList(formatIds)})`, [...formatIds]) : Promise.resolve([]),
+      page.data.length
+        ? app.db.raw<Row>(
+            `SELECT ss.session_id, GROUP_CONCAT(COALESCE(pe.display_name, pe.full_name), ', ') AS names
+               FROM session_speaker ss JOIN person pe ON pe.id = ss.person_id
+              WHERE ss.session_id IN (${page.data.map(() => "?").join(",")}) AND ss.confirmation_status != 'replaced'
+              GROUP BY ss.session_id`,
+            page.data.map((r) => str(r.id)),
+          )
+        : Promise.resolve([]),
+    ]);
+    const trackName = new Map(tracks.map((t) => [str(t.id), str(t.name)]));
+    const formatName = new Map(formats.map((f) => [str(f.id), str(f.name)]));
+    const speakerNames = new Map(speakers.map((s) => [str(s.session_id), str(s.names)]));
+
+    return json({
+      ...page,
+      data: page.data.map((r) => ({
+        ...sessionJson(r),
+        track_name: r.track_id ? (trackName.get(str(r.track_id)) ?? null) : null,
+        format_name: r.session_format_id ? (formatName.get(str(r.session_format_id)) ?? null) : null,
+        speaker_names: speakerNames.get(str(r.id)) ?? null,
+      })),
+    });
   });
 
   router.get("/v1/sessions/:sessionId", async (_req, ctx, params) => {

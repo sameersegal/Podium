@@ -336,7 +336,7 @@ describe("admin proposal queue — PII redaction (INV-09-5 / INV-11-4)", () => {
 
   it("an owner (pii.read) sees the submitter's email in the queue", async () => {
     const cookie = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
-    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/proposals`, withCookie(cookie));
+    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/proposals?nojs=1`, withCookie(cookie));
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain(OTHER_SPEAKER_EMAIL);
@@ -344,10 +344,36 @@ describe("admin proposal queue — PII redaction (INV-09-5 / INV-11-4)", () => {
 
   it("a reviewer (no pii.read) sees the email redacted", async () => {
     const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
-    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/proposals`, withCookie(cookie));
+    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/proposals?nojs=1`, withCookie(cookie));
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).not.toContain(OTHER_SPEAKER_EMAIL);
     expect(body).toContain("[redacted]");
+  });
+
+  /**
+   * The same invariant on the surface the admin console reads (R30). The board
+   * offers a "Submitter email" column, so the list endpoint decides — the
+   * client is never handed the address and told not to draw it.
+   */
+  it("withholds the address from /v1/proposals for a reader without pii.read", async () => {
+    const reviewer = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
+    const res = await SELF.fetch(`http://localhost/v1/proposals?event_id=${EVENT}`, {
+      headers: { cookie: reviewer, accept: "application/json" },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { submitter_email: string | null; submitter_name: string | null }[] };
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body.data.every((r) => r.submitter_email === null)).toBe(true);
+    // The name is not the address: staff screens have always shown it, and a
+    // board with no names in it is a board nobody can use.
+    expect(body.data.some((r) => r.submitter_name)).toBe(true);
+
+    const owner = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
+    const asOwner = await SELF.fetch(`http://localhost/v1/proposals?event_id=${EVENT}`, {
+      headers: { cookie: owner, accept: "application/json" },
+    });
+    const ownerBody = (await asOwner.json()) as { data: { submitter_email: string | null }[] };
+    expect(ownerBody.data.some((r) => r.submitter_email === OTHER_SPEAKER_EMAIL)).toBe(true);
   });
 });

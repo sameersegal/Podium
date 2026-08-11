@@ -182,10 +182,25 @@ the server-rendered page, which is still registered and still works. So the port
 incremental rather than a flag day, `<noscript>` has somewhere to point, and
 `tests/integration/foundation/concurrency.test.ts` still drives the real HTML forms.
 
-**Ported so far:** `/admin/events/:eventId` (the dashboard) and `/admin/cfps/:cfpId/form`
-(the form builder). `public/console/app.js` and `surfaces/console.ts` each hold the list and
-the two have to agree — a path the server boots and the client cannot match renders an empty
-shell.
+**Ported so far:** the event dashboard, the agenda grid, the proposal board, the form
+builder, and the events / setup / calls / sessions / review / speakers / onboarding / publish
+lists. `public/console/app.js` and `surfaces/console.ts` each hold the list and the two have
+to agree — a path the server boots and the client cannot match renders an empty shell.
+
+**Testing a ported path.** An integration test asserting server-rendered HTML for a URL the
+console owns must ask for `?nojs=1`, or it will assert against the boot document. That is not
+a workaround: the server-rendered page is still the fallback and still has to work, so the
+test is exercising something real. Where the console reaches the same guarantee by a
+different route — conflicts in a placement's response, compare-and-set on a `PATCH`, PII
+withheld from a list endpoint — assert **both**, because each surface has its own way of
+losing it.
+
+**Ids are not a presentation.** Several `/v1` list endpoints grew display names beside their
+ids (`track_name`, `speaker_names`, `assignee_name`). The entity shape is right for an
+integration syncing into another system and unreadable as a table — nobody can scan a column
+of `trk_01J…`. The names are resolved in one pass in the route, never per row, and never past
+a visibility rule: `/v1/tasks` adds them only to rows this reader may see in full, because
+INV-07-10 keeps a restricted row to its title and status and a name is neither.
 
 Two properties R30 named as making this cheap are now relied upon rather than assumed, and
 should not be changed without reading it first:

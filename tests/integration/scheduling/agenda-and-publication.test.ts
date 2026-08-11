@@ -304,7 +304,7 @@ describe("publish, roll back, and pending changes", () => {
 
     await env.DB.prepare("UPDATE session SET title = ?, updated_at = ? WHERE id = ?").bind("A retitled session", new Date().toISOString(), SESSION_1).run();
 
-    const pendingPage = await SELF.fetch(`http://localhost/admin/events/${EVENT}/publications`, { headers: { cookie } });
+    const pendingPage = await SELF.fetch(`http://localhost/admin/events/${EVENT}/publications?nojs=1`, { headers: { cookie } });
     const body = await pendingPage.text();
     expect(body).toContain("not yet published");
 

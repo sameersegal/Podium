@@ -24,6 +24,7 @@ import { dashboard } from "./views/dashboard.js";
 import { formBuilder } from "./views/form-builder.js";
 import { agenda } from "./views/agenda.js";
 import { proposals } from "./views/proposals.js";
+import { cfps, events, onboarding, publications, review, roster, sessions, setup } from "./views/tables.js";
 
 /* -------------------------------------------------------------------------- */
 /* The route table                                                             */
@@ -32,6 +33,14 @@ import { proposals } from "./views/proposals.js";
 route("/admin/events/:eventId", dashboard);
 route("/admin/events/:eventId/schedule", agenda);
 route("/admin/events/:eventId/proposals", proposals);
+route("/admin/events", events);
+route("/admin/events/:eventId/setup", setup);
+route("/admin/events/:eventId/cfps", cfps);
+route("/admin/events/:eventId/sessions", sessions);
+route("/admin/events/:eventId/review", review);
+route("/admin/events/:eventId/roster", roster);
+route("/admin/events/:eventId/onboarding", onboarding);
+route("/admin/events/:eventId/publications", publications);
 route("/admin/cfps/:cfpId/form", formBuilder);
 
 /* -------------------------------------------------------------------------- */

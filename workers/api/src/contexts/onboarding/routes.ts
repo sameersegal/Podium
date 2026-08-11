@@ -13,7 +13,7 @@
  * Management API: /v1/task-definitions…, /v1/tasks…
  */
 
-import { bool, num, parseJson, str, type Row } from "@podiumconf/data/db.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import {
   ASSIGNEE_RULE,
   DUE_RULE,
@@ -919,10 +919,37 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const page = await cursorPage(app, "task_instance", where, cursor, limit);
     const viewer = await buildViewer(ctx);
     const now = app.now();
-    const data = page.items
+    const visible = page.items
       .map((row) => ({ row, visibility: visibilityOf(row, viewer) }))
-      .filter((x) => x.visibility !== "none")
-      .map((x) => instanceJson(x.row, { visibility: x.visibility, now }));
+      .filter((x) => x.visibility !== "none");
+
+    // Names for the ids, resolved in one pass rather than one lookup per row.
+    // A board of `per_01J…` is a board nobody can work from — but only rows
+    // this reader may see in full get them: INV-07-10 keeps a restricted row to
+    // its title and status, and a name is neither.
+    const personIds = new Set<string>();
+    const sessionIds = new Set<string>();
+    for (const x of visible) {
+      if (x.visibility !== "full") continue;
+      if (x.row.assignee_person_id) personIds.add(str(x.row.assignee_person_id));
+      if (x.row.session_id) sessionIds.add(str(x.row.session_id));
+    }
+    const [people, sessionRows] = await Promise.all([
+      personIds.size ? app.db.raw<Row>(`SELECT id, full_name, display_name FROM person WHERE id IN (${[...personIds].map(() => "?").join(",")})`, [...personIds]) : Promise.resolve([]),
+      sessionIds.size ? app.db.raw<Row>(`SELECT id, title FROM session WHERE id IN (${[...sessionIds].map(() => "?").join(",")})`, [...sessionIds]) : Promise.resolve([]),
+    ]);
+    const nameOf = new Map(people.map((p) => [str(p.id), strOrNull(p.display_name) ?? str(p.full_name)]));
+    const titleOf = new Map(sessionRows.map((r) => [str(r.id), str(r.title)]));
+
+    const data = visible.map((x) => {
+      const base = instanceJson(x.row, { visibility: x.visibility, now });
+      if (x.visibility !== "full") return base;
+      return {
+        ...base,
+        assignee_name: nameOf.get(str(x.row.assignee_person_id)) ?? null,
+        session_title: x.row.session_id ? (titleOf.get(str(x.row.session_id)) ?? null) : null,
+      };
+    });
     return json({ data, next_cursor: page.next_cursor });
   });
 

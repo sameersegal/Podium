@@ -16,6 +16,6 @@ export const chrome = { section: "overview" };
 export function setChrome(options) {
   if (options.section) chrome.section = options.section;
   const suffix = boot.event ? " · " + boot.event.name : "";
-  const title = (options.title ? options.title + suffix : "Podium") + " · Podium";
+  const title = (options.title ? options.title + suffix : "Admin") + " · Podium";
   if (document.title !== title) document.title = title;
 }

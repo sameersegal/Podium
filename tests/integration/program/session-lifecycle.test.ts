@@ -270,7 +270,7 @@ describe("Program HTTP surface", () => {
   });
 
   it("renders the programme board for staff", async () => {
-    const res = await SELF.fetch(`http://localhost/admin/events/${fixtures.eventId}/sessions`, { headers: { cookie: staffCookie } });
+    const res = await SELF.fetch(`http://localhost/admin/events/${fixtures.eventId}/sessions?nojs=1`, { headers: { cookie: staffCookie } });
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("An HTTP-Visible Talk");
