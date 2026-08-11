@@ -374,6 +374,27 @@ export async function attemptSend(app: AppContext, notificationId: string): Prom
 /* Inbound provider webhooks — bounces and complaints                         */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * How far along a delivery a status is. Provider callbacks are at-least-once
+ * and unordered, so the same `bounce` arrives twice and a `delivered` can land
+ * after the `complained` that followed it. Applying only a strictly-higher
+ * status makes both harmless: a replay is a no-op (and so raises no second
+ * `notification.bounced`), and a late `delivered` cannot resurrect a bounced
+ * row. `delivered` → `complained` still moves, because being marked spam after
+ * arriving is exactly what happens.
+ */
+const DELIVERY_STATUS_RANK: Record<string, number> = {
+  queued: 0,
+  sent: 1,
+  delivered: 2,
+  failed: 3,
+  bounced: 4,
+  complained: 5,
+  // Terminal on our side: the message was never handed to a provider, so no
+  // callback should reach it, and none may overwrite the reason it was held.
+  suppressed: 99,
+};
+
 /** A hard bounce or complaint joins the global suppression list (09, "Suppression"). */
 export async function applyDeliveryStatusUpdates(
   app: AppContext,
@@ -383,7 +404,9 @@ export async function applyDeliveryStatusUpdates(
     const row = u.provider_message_id
       ? await app.db.first<Row>("notification_delivery", { provider_message_id: u.provider_message_id })
       : null;
-    if (row) {
+    const current = row ? (DELIVERY_STATUS_RANK[str(row.status)] ?? 0) : 0;
+    const incoming = DELIVERY_STATUS_RANK[u.status] ?? 0;
+    if (row && incoming > current) {
       const patch: Row = { status: u.status };
       if (u.status === "delivered") patch.delivered_at = app.now();
       if (u.status === "bounced" || u.status === "failed") patch.error = u.error ?? null;

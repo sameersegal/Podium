@@ -319,6 +319,8 @@ export interface IntegrationInput {
   display_name?: string | null;
   config?: Record<string, unknown>;
   secret_ref?: string | null;
+  /** Pointer to the inbound-callback signing secret, where the provider uses one (INV-09-16). */
+  webhook_secret_ref?: string | null;
   is_default_for_capability?: boolean;
 }
 
@@ -361,6 +363,7 @@ export async function installIntegration(app: AppContext, input: IntegrationInpu
     display_name: input.display_name || plugin.display_name,
     config: JSON.stringify(input.config ?? {}),
     secret_ref: input.secret_ref ?? "",
+    webhook_secret_ref: input.webhook_secret_ref ?? "",
     is_default_for_capability: input.is_default_for_capability ? 1 : 0,
     status: "active",
     created_at: app.now(),
@@ -380,7 +383,14 @@ export async function installIntegration(app: AppContext, input: IntegrationInpu
 export async function updateIntegration(
   app: AppContext,
   id: string,
-  patch: { display_name?: string; config?: Record<string, unknown>; secret_ref?: string | null; is_default_for_capability?: boolean; status?: "active" | "disabled" },
+  patch: {
+    display_name?: string;
+    config?: Record<string, unknown>;
+    secret_ref?: string | null;
+    webhook_secret_ref?: string | null;
+    is_default_for_capability?: boolean;
+    status?: "active" | "disabled";
+  },
 ): Promise<void> {
   const integration = await app.db.byId<Row>("integration", id);
   if (!integration) throw notFound("Integration", id);
@@ -395,6 +405,7 @@ export async function updateIntegration(
     update.config = JSON.stringify(patch.config);
   }
   if (patch.secret_ref !== undefined) update.secret_ref = patch.secret_ref ?? "";
+  if (patch.webhook_secret_ref !== undefined) update.webhook_secret_ref = patch.webhook_secret_ref ?? "";
   if (patch.status !== undefined) update.status = patch.status;
   if (patch.is_default_for_capability !== undefined) {
     update.is_default_for_capability = patch.is_default_for_capability ? 1 : 0;
@@ -472,6 +483,7 @@ async function pluginContextFor(env: Env, integration: Row | null, pluginKey?: s
     plugin_key: key,
     config: integration ? parseJson<Record<string, unknown>>(integration.config, {}) : {},
     secret: integration ? resolveSecret(env, str(integration.secret_ref)) : null,
+    webhook_secret: integration ? resolveSecret(env, str(integration.webhook_secret_ref)) : null,
     base_url: env.PUBLIC_BASE_URL || "http://localhost:8787",
     bindings: { bucket: env.ASSETS_BUCKET },
     now: () => new Date().toISOString(),
@@ -508,6 +520,25 @@ export async function resolvePlugin(app: AppContext, capability: PluginCapabilit
   const plugin = pluginFor(fallbackKey);
   if (!plugin) return null;
   return { plugin, integration: null, ctx: await pluginContextFor(app.env, null, fallbackKey) };
+}
+
+/**
+ * The named integration an inbound provider callback claims to come from.
+ *
+ * Deliberately narrow, because the caller is unauthenticated. It resolves only
+ * an `email` integration that is `active`, so a disabled one stops accepting
+ * callbacks on the very next request (INV-09-11) — the same immediacy that
+ * disabling gives the outbound path. Everything else is `null`, which the
+ * route turns into one indistinguishable 404: an anonymous caller learns
+ * nothing about which ids exist or what capability they hold.
+ */
+export async function resolveEmailIntegrationForCallback(app: AppContext, integrationId: string): Promise<ResolvedPlugin | null> {
+  const integration = await app.db.byId<Row>("integration", integrationId);
+  if (!integration) return null;
+  if (str(integration.capability) !== "email" || str(integration.status) !== "active") return null;
+  const plugin = pluginFor(str(integration.plugin_key));
+  if (!plugin || plugin.capability !== "email") return null;
+  return { plugin, integration, ctx: await pluginContextFor(app.env, integration) };
 }
 
 /** Whether an *active* `email` Integration exists for this scope — INV-09-12's gate. */

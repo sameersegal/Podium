@@ -41,6 +41,16 @@ export const emailLogPlugin: EmailPlugin = {
     return { verified: true, records: [{ type: "note", name: domain, value: "No provider configured; nothing to verify." }] };
   },
 
+  /**
+   * There is no provider, so nothing can legitimately call back — and this is
+   * the *fallback* plugin, reached whenever nothing else is installed. Saying
+   * "verified" here would hand an unauthenticated stranger the suppression
+   * list on every default deployment. It refuses (INV-09-16).
+   */
+  async verify_webhook(): Promise<boolean> {
+    return false;
+  },
+
   async handle_inbound_webhook(): Promise<DeliveryStatusUpdate[]> {
     return [];
   },

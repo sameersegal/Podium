@@ -13,7 +13,7 @@ import { API_SCOPES, type ApiScope } from "@podiumconf/domain/shared/authorizati
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumconf/domain/platform/types.js";
 import type { AudienceCriteria } from "@podiumconf/domain/platform/types.js";
-import { verifyUnsubscribeSignature, recordSuppression } from "./notifications.js";
+import { applyDeliveryStatusUpdates, verifyUnsubscribeSignature, recordSuppression } from "./notifications.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
@@ -37,6 +37,7 @@ import {
   availablePlugins,
   redeliverWebhookDelivery,
   replayEventType,
+  resolveEmailIntegrationForCallback,
   revokeApiKey,
   rotateApiKey,
   rotateWebhookSecret,
@@ -103,6 +104,7 @@ export function registerPlatformRoutes(router: Router<RequestContext>): void {
   registerAuditRoutes(router);
   registerEventLogRoutes(router);
   registerUnsubscribeRoutes(router);
+  registerInboundEmailWebhookRoutes(router);
   registerManagementApi(router);
 }
 
@@ -514,9 +516,23 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
     const app = ctx.app();
     const installed = await listIntegrations(app);
     const canWrite = ctx.canWrite("org.configure");
+    const baseUrl = ctx.env.PUBLIC_BASE_URL || ctx.url.origin;
     const rows = installed.map(
       (i) => html`<tr>
-        <td><strong>${str(i.display_name)}</strong><br><span class="mono small muted">${str(i.plugin_key)}</span></td>
+        <td>
+          <strong>${str(i.display_name)}</strong><br><span class="mono small muted">${str(i.plugin_key)}</span>
+          ${str(i.capability) === "email"
+            ? html`<br><span class="small muted"
+                  >Bounce callback: <span class="mono">${baseUrl}/hooks/email/${str(i.id)}</span>
+                  ${str(i.plugin_key) === "email.sendgrid" && !parseJson<Record<string, unknown>>(i.config, {}).event_webhook_public_key
+                    ? html`<br>${badge("unverifiable", "err")} No verification key set — bounces are rejected, so nothing is ever suppressed.`
+                    : raw("")}
+                  ${str(i.plugin_key) === "email.resend" && !str(i.webhook_secret_ref)
+                    ? html`<br>${badge("unverifiable", "err")} No webhook secret ref set — bounces are rejected, so nothing is ever suppressed.`
+                    : raw("")}
+                </span>`
+            : raw("")}
+        </td>
         <td>${badge(str(i.capability))}</td>
         <td>${badge(str(i.status), str(i.status) === "active" ? "ok" : "err")}</td>
         <td>${bool(i.is_default_for_capability) ? badge("default", "ok") : raw("")}</td>
@@ -550,6 +566,24 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
                   })}
                   ${field({ name: "display_name", label: "Display name" })}
                   ${field({ name: "secret_ref", label: "Secret ref", help: "The name of a Workers Secret holding the credential — never the secret itself." })}
+                  ${field({
+                    name: "webhook_secret_ref",
+                    label: "Webhook secret ref",
+                    help: "For providers that sign inbound callbacks with a shared secret (Resend). Also a Workers Secret name, never the secret. SendGrid signs with a public key instead — put that in config as event_webhook_public_key.",
+                  })}
+                  ${field({
+                    name: "config",
+                    label: "Config (JSON)",
+                    type: "textarea",
+                    rows: 4,
+                    placeholder: '{"from_email": "hello@example.com"}',
+                    help:
+                      "Non-secret settings (INV-09-3). Keys each plugin accepts — " +
+                      plugins
+                        .filter((p) => ((p.config_fields as { key: string }[]) ?? []).length > 0)
+                        .map((p) => `${String(p.key)}: ${((p.config_fields as { key: string }[]) ?? []).map((f) => f.key).join(", ")}`)
+                        .join(" · "),
+                  })}
                   ${field({ name: "is_default_for_capability", label: "Make this the default for its capability", type: "checkbox", value: true })}
                   <button type="submit">Install</button>
                 </form>`,
@@ -568,6 +602,8 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
       plugin_key: input.str("plugin_key"),
       display_name: input.optional("display_name"),
       secret_ref: input.optional("secret_ref"),
+      webhook_secret_ref: input.optional("webhook_secret_ref"),
+      config: input.json<Record<string, unknown>>("config", {}),
       is_default_for_capability: input.bool("is_default_for_capability"),
     });
     await app.flush();
@@ -1143,6 +1179,67 @@ function registerUnsubscribeRoutes(router: Router<RequestContext>): void {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Inbound provider callbacks — bounces and complaints                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `POST /hooks/email/:integrationId` — where the provider tells us a message
+ * bounced or was marked as spam.
+ *
+ * This is the return path for `email`. Without it a `NotificationDelivery`
+ * never leaves `sent`, and the global suppression list in 09 ("Suppression is
+ * global per email address" for hard bounces and complaints) can only ever be
+ * filled by someone clicking unsubscribe — so the platform keeps mailing an
+ * address that hard-bounced, forever.
+ *
+ * Unauthenticated by necessity: the caller is SendGrid, which holds no session
+ * and no API key. `verify_webhook` is therefore the whole of the authentication
+ * (INV-09-16), and it runs before the payload is parsed, let alone applied.
+ */
+function registerInboundEmailWebhookRoutes(router: Router<RequestContext>): void {
+  router.post("/hooks/email/:integrationId", async (req, ctx, params) => {
+    // The signature covers the exact bytes sent, so the raw text is read once
+    // and parsed only after it is trusted.
+    const rawBody = await req.text();
+    const app = ctx.app();
+
+    const resolved = await resolveEmailIntegrationForCallback(app, params.integrationId);
+    // One shape of answer for "no such integration", "not an email one" and
+    // "disabled", so an anonymous prober cannot enumerate them apart.
+    if (!resolved || resolved.plugin.capability !== "email") {
+      return json({ error: "not_found", message: "No such endpoint." }, { status: 404 });
+    }
+
+    const headers: Record<string, string> = {};
+    for (const [k, v] of req.headers) headers[k.toLowerCase()] = v;
+
+    const verified = await resolved.plugin.verify_webhook({ headers, raw_body: rawBody, received_at_ms: Date.parse(ctx.now) }, resolved.ctx);
+    if (!verified) {
+      // Deliberately says nothing about which part failed, and logs no header,
+      // body or key material (11, "Never logged").
+      console.warn("inbound email webhook rejected", { integration_id: params.integrationId, plugin_key: resolved.plugin.key });
+      return json({ error: "invalid_signature", message: "This callback could not be verified." }, { status: 401 });
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return json({ error: "invalid_payload", message: "Body is not JSON." }, { status: 400 });
+    }
+
+    const updates = await resolved.plugin.handle_inbound_webhook(payload, resolved.ctx);
+    await applyDeliveryStatusUpdates(app, updates);
+    await app.flush();
+
+    // 200 with a count rather than 204: providers surface the response body in
+    // their own delivery log, and "accepted 0 of 3" is the first clue when a
+    // correlation id stops matching.
+    return json({ received: updates.length });
+  });
+}
+
+/* -------------------------------------------------------------------------- */
 /* Management API                                                              */
 /* -------------------------------------------------------------------------- */
 
@@ -1260,6 +1357,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
       display_name: input.optional("display_name"),
       config: input.json<Record<string, unknown>>("config", {}),
       secret_ref: input.optional("secret_ref"),
+      webhook_secret_ref: input.optional("webhook_secret_ref"),
       is_default_for_capability: input.bool("is_default_for_capability"),
     });
     await app.flush();
@@ -1273,6 +1371,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
       display_name: input.optional("display_name") ?? undefined,
       config: input.has("config") ? input.json<Record<string, unknown>>("config", {}) : undefined,
       secret_ref: input.has("secret_ref") ? input.optional("secret_ref") : undefined,
+      webhook_secret_ref: input.has("webhook_secret_ref") ? input.optional("webhook_secret_ref") : undefined,
       is_default_for_capability: input.has("is_default_for_capability") ? input.bool("is_default_for_capability") : undefined,
       status: input.has("status") ? (input.str("status") as "active" | "disabled") : undefined,
     });

@@ -17,6 +17,7 @@ how public schedule traffic ends up authenticated and slow.
 | **Portal** `/v1/me/...` | session cookie | the caller's own proposals, sessions, tasks, profile | Relationship-derived scope, never role-derived |
 | **Management** `/v1/...` | API key or session | everything permitted by scope/role | The integration surface |
 | **Webhooks** (outbound) | HMAC signature | push | The reactive half of J11 |
+| **Provider callbacks** (inbound) `/hooks/...` | provider signature only (INV-09-16) | none | Bounces and complaints coming back from an `Integration`. Not the same surface as outbound webhooks and easily confused with them: this one is written *to* by a third party |
 
 Design rules the model must support:
 
@@ -126,6 +127,7 @@ one or more capability contracts; the core calls the contract.
 | `display_name` | `string` | Y | |
 | `config` | `json` | Y | non-secret settings (sender name, channel id, list id) |
 | `secret_ref` | `string` | Y | pointer into the secret store; **never the secret itself** (INV-09-3) |
+| `webhook_secret_ref` | `string` | Y | pointer to the secret an *inbound* callback is verified against, where the provider signs with one; empty where it signs with a public key (which is ordinary `config`) or where the provider has no callback. Same rule: a pointer, never the secret (INV-09-3, INV-09-16) |
 | `is_default_for_capability` | `bool` | Y | one default per capability per scope (INV-09-4) |
 | `status` | `enum(active, misconfigured, disabled)` | Y | |
 | `last_health_check_at` / `last_error` | | N | |
@@ -144,12 +146,30 @@ send(message: {
 }) -> {provider_message_id, status}
 
 verify_sender(domain) -> {verified: bool, records?: [...]}
+
+verify_webhook(request: {headers, raw_body, received_at_ms}) -> bool
 handle_inbound_webhook(payload) -> DeliveryStatusUpdate[]   // bounces, complaints
 ```
 
 Templating, batching, quiet hours, digesting and suppression are **core concerns**, not
 provider ones. The plugin does one thing: put this rendered message on the wire. That is
 what keeps "swap Resend for SES" a config change.
+
+**The callback is the return path, and it is the plugin's job to authenticate.** A provider
+holds no session and no API key, so the inbound endpoint cannot be authorized the way every
+other surface is: the signature is the authentication, and only the plugin knows the scheme
+its provider signs with. Hence `verify_webhook` alongside `handle_inbound_webhook` — a
+separate call, so the core can reject a payload without ever parsing it, and so the "is this
+genuine" decision cannot be accidentally skipped by a plugin that only implements parsing.
+
+It takes the request rather than a parsed body because **every scheme signs the exact bytes
+sent**. Parsing JSON and re-serialising it reorders keys and drops whitespace; a
+`handle_inbound_webhook(payload)` signature alone cannot verify anything.
+
+Without this path a `NotificationDelivery` never leaves `sent`, and the global suppression
+list below can never be populated by a bounce — so a hard-bounced address keeps being
+mailed indefinitely. That makes the callback route part of the `email` capability, not an
+optional extra.
 
 **`chat`** — `post(channel, blocks|text)`, for "new proposal submitted" into a committee
 channel.
@@ -370,6 +390,14 @@ model depends on these choices.
   configuration value such as an environment name, and never logged. Generating or verifying
   one without that secret configured fails closed rather than falling back to a default an
   attacker could reproduce.
+- **INV-09-16** An inbound provider callback is applied only if the receiving
+  `Integration` is `active` and its plugin's `verify_webhook` returns true for the exact
+  bytes received. Verification fails closed: no configured key, a missing or stale
+  signature header, or a timestamp outside the replay window is a rejection, never a
+  fallback to trusting the payload. A rejected callback changes nothing — no delivery
+  status, no suppression, no event — because the alternative is that anyone who can reach
+  the endpoint can add any address to the global suppression list and silently stop that
+  person's mail.
 
 ## Emitted events
 

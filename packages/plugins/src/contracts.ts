@@ -24,6 +24,13 @@ export interface PluginContext {
   plugin_key: string;
   config: Record<string, unknown>;
   secret: string | null;
+  /**
+   * Resolved from `Integration.webhook_secret_ref` — what an inbound callback
+   * is verified against. Separate from `secret` because providers issue a
+   * distinct signing secret for webhooks, and because the send credential must
+   * not be reachable from the unauthenticated inbound path at all.
+   */
+  webhook_secret: string | null;
   /** `PUBLIC_BASE_URL` — plugins that mint URLs back into the platform need it. */
   base_url: string;
   /** Bindings a plugin needs. `storage.r2` takes the bucket. */
@@ -76,6 +83,20 @@ export interface SenderVerification {
   records?: { type: string; name: string; value: string }[];
 }
 
+/**
+ * A provider callback as it arrived, before anything trusts it.
+ *
+ * `raw_body` is the unparsed request body: every provider signs the exact
+ * bytes it sent, so parsing and re-serialising invalidates the signature.
+ * `headers` keys are lowercased by the caller.
+ */
+export interface InboundWebhookRequest {
+  headers: Record<string, string>;
+  raw_body: string;
+  /** Now, in epoch milliseconds — the replay window is measured against it. */
+  received_at_ms: number;
+}
+
 /** What `handle_inbound_webhook` turns a provider callback into. */
 export interface DeliveryStatusUpdate {
   provider_message_id: string | null;
@@ -91,6 +112,14 @@ export interface EmailPlugin extends PluginBase {
   capability: "email";
   send(message: EmailMessage, ctx: PluginContext): Promise<EmailSendResult>;
   verify_sender(domain: string, ctx: PluginContext): Promise<SenderVerification>;
+  /**
+   * INV-09-16: whether this callback really came from the provider. The
+   * inbound route has no other authentication, so a `false` here is the only
+   * thing standing between a stranger and the global suppression list. It runs
+   * *before* `handle_inbound_webhook` and fails closed — an unconfigured
+   * verification key means unverifiable, which means rejected.
+   */
+  verify_webhook(req: InboundWebhookRequest, ctx: PluginContext): Promise<boolean>;
   handle_inbound_webhook(payload: unknown, ctx: PluginContext): Promise<DeliveryStatusUpdate[]>;
 }
 

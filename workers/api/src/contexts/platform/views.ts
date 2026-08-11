@@ -156,6 +156,7 @@ export function integrationJson(row: Row): Record<string, unknown> {
     display_name: str(row.display_name),
     config: parseJson<Record<string, unknown>>(row.config, {}),
     secret_ref: strOrNull(row.secret_ref) || null,
+    webhook_secret_ref: strOrNull(row.webhook_secret_ref) || null,
     is_default_for_capability: bool(row.is_default_for_capability),
     status: str(row.status),
     last_health_check_at: strOrNull(row.last_health_check_at),

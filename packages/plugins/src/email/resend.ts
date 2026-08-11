@@ -16,9 +16,11 @@ import {
   type EmailMessage,
   type EmailPlugin,
   type EmailSendResult,
+  type InboundWebhookRequest,
   type PluginContext,
   type SenderVerification,
 } from "../contracts.js";
+import { base64ToBytes, hmacSha256Base64, timingSafeEqual, withinTolerance } from "../webhook-verify.js";
 
 const API = "https://api.resend.com";
 
@@ -78,6 +80,32 @@ export const emailResendPlugin: EmailPlugin = {
       verified: match?.status === "verified",
       records: (match?.records as SenderVerification["records"]) ?? [],
     };
+  },
+
+  /**
+   * Resend signs webhooks with the Svix scheme: HMAC-SHA256 over
+   * `{id}.{timestamp}.{body}`, keyed on the base64 body of a `whsec_` secret,
+   * with the result base64 in a space-separated `v1,<sig>` list so a rotation
+   * can present two valid signatures at once.
+   */
+  async verify_webhook(req: InboundWebhookRequest, ctx: PluginContext): Promise<boolean> {
+    const secret = ctx.webhook_secret;
+    const id = req.headers["svix-id"];
+    const timestamp = req.headers["svix-timestamp"];
+    const header = req.headers["svix-signature"];
+    if (!secret || !id || !timestamp || !header) return false;
+    if (!withinTolerance(Number(timestamp), req.received_at_ms)) return false;
+
+    let expected: string;
+    try {
+      expected = await hmacSha256Base64(base64ToBytes(secret.replace(/^whsec_/, "")), `${id}.${timestamp}.${req.raw_body}`);
+    } catch {
+      return false;
+    }
+    return header
+      .split(" ")
+      .filter((part) => part.startsWith("v1,"))
+      .some((part) => timingSafeEqual(part.slice(3), expected));
   },
 
   /**

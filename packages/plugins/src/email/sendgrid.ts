@@ -12,11 +12,22 @@ import {
   type EmailMessage,
   type EmailPlugin,
   type EmailSendResult,
+  type InboundWebhookRequest,
   type PluginContext,
   type SenderVerification,
 } from "../contracts.js";
+import { verifyEcdsaP256, withinTolerance } from "../webhook-verify.js";
 
 const API = "https://api.sendgrid.com/v3";
+
+/**
+ * The Event Webhook signs `timestamp + raw_body` with ECDSA P-256 and sends
+ * the signature DER-encoded in these headers. The verification key is an
+ * elliptic-curve *public* key, so it is ordinary configuration rather than a
+ * credential — INV-09-3 governs secrets, and this is not one.
+ */
+const SIGNATURE_HEADER = "x-twilio-email-event-webhook-signature";
+const TIMESTAMP_HEADER = "x-twilio-email-event-webhook-timestamp";
 
 export const emailSendgridPlugin: EmailPlugin = {
   key: "email.sendgrid",
@@ -26,6 +37,11 @@ export const emailSendgridPlugin: EmailPlugin = {
   config_fields: [
     { key: "from_email", label: "From address", required: true, help: "Must be a verified sender or on an authenticated domain." },
     { key: "from_name", label: "From name", help: "Left empty, the event's name is used." },
+    {
+      key: "event_webhook_public_key",
+      label: "Event Webhook verification key",
+      help: "From Settings → Mail Settings → Event Webhook, with signature verification enabled. A public key, not a secret. Without it, bounces are rejected unverified and no address is ever suppressed.",
+    },
   ],
 
   async send(message: EmailMessage, ctx: PluginContext): Promise<EmailSendResult> {
@@ -75,6 +91,17 @@ export const emailSendgridPlugin: EmailPlugin = {
     };
   },
 
+  async verify_webhook(req: InboundWebhookRequest, ctx: PluginContext): Promise<boolean> {
+    const publicKey = configString(ctx, "event_webhook_public_key");
+    const signature = req.headers[SIGNATURE_HEADER];
+    const timestamp = req.headers[TIMESTAMP_HEADER];
+    if (!publicKey || !signature || !timestamp) return false;
+    // The timestamp is inside the signed payload, so a replayer cannot move it
+    // into the window without invalidating the signature.
+    if (!withinTolerance(Number(timestamp), req.received_at_ms)) return false;
+    return verifyEcdsaP256(publicKey, signature, timestamp + req.raw_body);
+  },
+
   async handle_inbound_webhook(payload: unknown): Promise<DeliveryStatusUpdate[]> {
     const events = Array.isArray(payload) ? payload : [payload];
     const out: DeliveryStatusUpdate[] = [];
@@ -93,7 +120,13 @@ export const emailSendgridPlugin: EmailPlugin = {
                 : null;
       if (!status) continue;
       out.push({
-        provider_message_id: e.sg_message_id ?? null,
+        // `sg_message_id` on an event is the id `send` returned in
+        // `X-Message-Id` plus a per-delivery suffix
+        // (`<id>.filterdrecv-...`). Correlating on it whole never matches the
+        // stored `provider_message_id`, so every bounce would land as
+        // recipient-only and no `NotificationDelivery` would ever change
+        // status. Take the id back off the front.
+        provider_message_id: e.sg_message_id ? (e.sg_message_id.split(".")[0] ?? null) : null,
         recipient_email: e.email,
         status,
         // SendGrid's `type` is `bounce` (hard) or `blocked` (soft).
