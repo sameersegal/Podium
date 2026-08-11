@@ -50,12 +50,18 @@ await app.flush();               // persists the event log + audit, then publish
 | INV-09-7 idempotency replay | `workers/api/src/http/idempotency.ts` |
 | Authorization matrix, INV-11-7 | `packages/domain/src/shared/authorization.ts` |
 | INV-09-5 / INV-11-4 PII redaction | `packages/domain/src/shared/pii.ts` |
-| Concurrency (compare-and-set) | `Db.updateVersioned` on `row_version` |
+| Concurrency (compare-and-set), INV-11-14 | `Db.updateVersioned` on `row_version`; forms round-trip it via `http/concurrency.ts` |
+| Live updates (per-event room, no payload) | `durable/room.ts` + `packages/data/src/live.ts` + `surfaces/live.ts` |
 | Placement serialisation | `workers/api/src/durable/schedule.ts` |
 | Reaction idempotency | `consumers/dispatch.ts` + `event_reaction_log` |
 
 `row_version` is the optimistic-concurrency counter. It is not called `version` because
-several entities already use that name with a domain meaning.
+several entities already use that name with a domain meaning. **Every** write to a versioned
+row bumps it, not only the compare-and-set ones — a counter that advances solely on checked
+writes misses the transition that landed in between, and the next check then passes for an
+edit that was in fact stale. An edit form renders the version it read (`versionField`) and
+returns it on submit; a stale submission is refused with `409` and a warning rather than
+overwriting the other writer (INV-11-14).
 
 ## Derived fields
 
@@ -85,3 +91,31 @@ exceptions are the publication snapshot (immutable once live) and `schedule_conf
   the JSON layer as the documented body shape.
 - Enum members live as `as const` arrays in `packages/domain/src/<context>/types.ts`, so a
   drift checker can compare them with the model.
+| Live | `/live/subscribe` (WebSocket upgrade), `/live.js` (static asset) |
+
+### Live updates
+
+One Durable Object per event (`ROOM_DO`, `durable/room.ts`), holding hibernatable WebSockets.
+Four properties, in the order they matter:
+
+- **A frame carries no domain data** — only `{type, subject, occurred_at}`. The client
+  refetches through the ordinary authorized route, so blinding and PII redaction are
+  inherited rather than reimplemented on a broadcast path where a divergence would fail
+  silently. This is also what makes a long-lived socket tractable: authorization happens once
+  at the handshake, and the side channel's worst case is bounded by a 30-minute lifetime cap
+  plus an immediate kick on `role_grant.revoked` and sign-out.
+- **No payload is not no information**, so every frame carries an audience and every socket is
+  tagged `role:staff` / `role:member`. Review-internal types are staff-only: a reviewer is
+  deliberately not staff here, because 05 blinds them from their peers and *when* a review
+  landed correlates.
+- **Two transports, one frame.** `AppContext.flush()` pokes the room directly (~100ms, allowed
+  to fail); `platform.room_broadcast` pokes it again off the queue (seconds, durable). The
+  room dedupes on `DomainEvent.id`. Topics are an allowlist in
+  `packages/domain/src/events/catalogue.ts`, beside `PII_EVENT_TYPES` — not `*`, which would
+  cost an `event_reaction_log` insert per event to decide it had nothing to say.
+- **The client is one vanilla file**, `public/live.js`, loaded only on screens that opt in via
+  `PageOptions.live`. No framework and no build step; it either shows a "N changes · Reload"
+  bar or, on read-only dashboards, refetches the current URL and swaps `<main>` — never while
+  a control in it is dirty. Public surfaces do not opt in and still render fully with scripts
+  blocked. It is the first `.js` file on disk; the rule it has to keep is "no framework, no
+  build step, public surfaces work without scripts", and it keeps all three.

@@ -27,6 +27,11 @@ Design rules the model must support:
 - **Public reads are versioned by `content_etag`** and answer conditional requests.
 - **Errors are typed**, naming the invariant where one was violated
   (`entitlement_exhausted` beats `400 Bad Request`).
+- **A write may carry `row_version`** to make it compare-and-set (INV-11-14). It is optional
+  on the management surface — a caller that omits it gets last-write-wins, which is what
+  every existing integration already assumes — and a stale value is refused with
+  `409 version_conflict` carrying `expected_version`, `current_version` and `current_state`.
+  The HTML surfaces always send it.
 
 ## ApiKey
 

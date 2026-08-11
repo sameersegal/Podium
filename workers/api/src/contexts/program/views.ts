@@ -15,6 +15,7 @@ import { bool, num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import { isNonTerminalTask, onboardingProgress, type TaskInstanceStatus } from "@podiumconf/domain/onboarding/types.js";
 import { contentDiverged, type ContentSnapshot } from "@podiumconf/domain/program/types.js";
 import { addDays } from "@podiumconf/domain/shared/time.js";
+import { versionField } from "../../http/concurrency.js";
 import { badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import type { EventRef } from "../../ui/shell.js";
@@ -709,6 +710,7 @@ export function sessionDetailView(d: DetailInput): SafeHtml {
     ${card(
       html`${contentEditWarn}
         <form method="post" action="/admin/sessions/${sid}" class="stack">
+          ${versionField(s)}
           ${field({ name: "title", label: "Title", required: true, value: str(s.title), attrs: d.canWrite ? "" : "disabled" })}
           ${field({ name: "subtitle", label: "Subtitle", value: str(s.subtitle) })}
           ${field({ name: "abstract", label: "Abstract", type: "textarea", rows: 4, value: str(s.abstract) })}

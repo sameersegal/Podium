@@ -9,7 +9,8 @@
 import { AppContext, type Env } from "@podiumconf/data/context.js";
 import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { eventTypeMatches } from "@podiumconf/domain/events/catalogue.js";
+import { eventTypeMatches, liveEventTypes } from "@podiumconf/domain/events/catalogue.js";
+import { kickFromRoom, pokeRooms } from "@podiumconf/data/live.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { queueNotification } from "./notifications.js";
 import { scheduleWebhookDelivery } from "./service.js";
@@ -180,6 +181,34 @@ export const PLATFORM_REACTIONS: Reaction[] = [
         });
       }
       await app.flush();
+    },
+  },
+  {
+    /**
+     * The durable half of live updates. `AppContext.flush` already poked the
+     * room directly, in the request, within ~100ms; this is what happens when
+     * that poke never landed — the Worker died, the object was unreachable,
+     * the event arrived through the replay sweeper instead. The room dedupes
+     * on `DomainEvent.id`, so the common case where both arrive is one frame.
+     *
+     * An explicit `types` list rather than `["*"]`: the dispatcher filters on
+     * it *before* writing to `event_reaction_log`, so a wildcard would pay a
+     * D1 insert on every one of the 130 event types to decide it had nothing
+     * to broadcast.
+     */
+    name: "platform.room_broadcast",
+    types: liveEventTypes(),
+    async handle(ev, env) {
+      if (ev.type === "role_grant.revoked") {
+        // Not a screen update. Permissions are recomputed per request by
+        // design, so a socket opened before the revocation would otherwise
+        // stay live until its lifetime cap — this closes it now and makes the
+        // client reconnect through the authorized route.
+        const personId = str((ev.data as Record<string, unknown>).person_id);
+        if (personId) await kickFromRoom(env, ev.org_id, ev.event_id ?? null, personId);
+        return;
+      }
+      await pokeRooms(env, [ev]);
     },
   },
 ];

@@ -82,13 +82,17 @@ export const conflict = (code: string, message: string, details?: Record<string,
 
 /**
  * Compare-and-set failure — 11-cross-cutting.md, "Concurrency": a conflicting
- * write returns 409 with the current state, never a silent overwrite.
+ * write returns 409 with the current state, never a silent overwrite
+ * (INV-11-14). The HTML surfaces render this as a warning and re-read the row
+ * (`workers/api/src/http/concurrency.ts`); the version numbers below are for
+ * the JSON API, which is where a caller can actually retry with them.
  */
 export const versionConflict = (entity: string, expected: number, current: number, state?: unknown) =>
   new DomainError({
     code: "version_conflict",
     message: `${entity} has changed since you loaded it (expected version ${expected}, current ${current}).`,
     status: 409,
+    invariant: "INV-11-14",
     details: { expected_version: expected, current_version: current, current_state: state },
   });
 

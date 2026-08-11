@@ -246,6 +246,9 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
         correlationId,
         ip: req.headers.get("cf-connecting-ip"),
         userAgent: req.headers.get("user-agent"),
+        // Lets `flush()` poke the live rooms after the response has gone out
+        // rather than in front of it.
+        waitUntil,
       });
     },
     can(capability, target) {

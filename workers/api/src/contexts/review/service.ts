@@ -296,7 +296,7 @@ export async function updateRound(
   app: AppContext,
   roundId: string,
   patch: Partial<RoundInput>,
-  expectedVersion?: number,
+  expectedVersion?: number | null,
 ): Promise<void> {
   const round = await requireRound(app, roundId);
   if (round.status === "finalised") {
@@ -326,8 +326,17 @@ export async function updateRound(
   }
   if (patch.discussion_enabled !== undefined) values.discussion_enabled = patch.discussion_enabled ? 1 : 0;
 
-  // 11, "Concurrency": writes to an aggregate root are compare-and-set.
-  await app.db.updateVersioned("review_round", roundId, expectedVersion ?? round.row_version, values);
+  // 11, "Concurrency": writes to an aggregate root are compare-and-set
+  // (INV-11-14). This used to fall back to the version it had just read a few
+  // lines above, which compares a value against itself — the check could not
+  // fail, and two chairs editing one round still clobbered each other. A
+  // caller with no version to offer gets a plain write, as the other update
+  // services do, rather than a check that only looks like one.
+  if (expectedVersion != null) {
+    await app.db.updateVersioned("review_round", roundId, expectedVersion, values);
+  } else {
+    await app.db.update("review_round", roundId, values);
+  }
   app.audit.record({ action: "review_round.update", entity_type: "review_round", entity_id: roundId, after: values });
 }
 

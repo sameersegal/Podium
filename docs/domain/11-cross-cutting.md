@@ -388,7 +388,13 @@ the top.
 ## Concurrency
 
 - Aggregate roots carry a `version` integer; writes are compare-and-set. A conflicting write
-  returns `409` with the current state, never a silent overwrite.
+  returns `409` with the current state, never a silent overwrite (INV-11-14).
+- **Every** write to a versioned root moves the counter, not only the compare-and-set ones.
+  A version that advances solely on checked writes misses the status transition that landed
+  in between, and the next check then passes for an edit that was in fact stale.
+- The check is only as good as what the client sends back. An edit form renders the version
+  it read and returns it on submit; a form that omits it is last-write-wins, which is the
+  defect this rule exists to prevent rather than a lighter version of it.
 - Autosave uses `DraftProgress.client_revision` (INV-04-6).
 - Schedule placement is serialised per event — one writer at a time — because concurrent
   drags produce conflicts that no amount of retry logic untangles.
@@ -425,6 +431,9 @@ the top.
   can never contain a record or column that person could not read through the API.
 - **INV-11-13** A `BulkImport` writes nothing before the operator confirms its preview, and
   reports failures per row; a malformed row never aborts the rows around it.
+- **INV-11-14** A field edit submitted against a stale version of an aggregate root is
+  refused with `409` and the current state. It is never silently applied, and the refusal
+  costs the writer their edit rather than costing the other writer theirs.
 
 ## Emitted events
 

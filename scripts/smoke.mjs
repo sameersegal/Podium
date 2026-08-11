@@ -57,6 +57,11 @@ const PUBLIC_PATHS = (ctx) => [
   "/login",
   "/signup",
   "/app.css",
+  // `/live/*` is worker-first so the WebSocket upgrade is never answered by
+  // the asset router; `/live.js` deliberately is not, so it serves from the
+  // edge. A slip that widened that prefix to `/live*` would swallow the
+  // script, and nothing but a real server can show it.
+  "/live.js",
 ];
 
 const ORGANIZER_PATHS = (ctx) => [

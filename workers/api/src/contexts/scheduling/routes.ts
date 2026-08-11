@@ -106,7 +106,18 @@ function registerAgendaRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "Agenda", event: ref, active: "schedule", width: "wide" },
+        {
+          title: "Agenda",
+          event: ref,
+          active: "schedule",
+          width: "wide",
+          // Placement already serialises through SCHEDULE_DO, so two
+          // organizers cannot corrupt the grid — but the loser of that race
+          // finds out by having their move rejected. This tells them the grid
+          // moved while they were reading it. Nudge, because every row here
+          // has an inline move form in it.
+          live: { mode: "nudge", subjects: ["placement", "session", "schedule"] },
+        },
         html`${pageHead(
             "Agenda",
             "Place confirmed sessions into rooms and times. Conflicts are computed on every write and shown below — placing a broken schedule is allowed; publishing one is not.",

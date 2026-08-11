@@ -1,4 +1,5 @@
 import { html, raw, type SafeHtml, escapeHtml } from "./html.js";
+import { liveRegion, type LiveOptions } from "./live.js";
 
 export interface NavItem {
   href: string;
@@ -29,6 +30,12 @@ export interface PageOptions {
   flash?: { kind: "ok" | "err" | "warn" | "info"; message: string } | null;
   bodyClass?: string;
   head?: SafeHtml;
+  /**
+   * Opt this screen into live updates (`ui/live.ts`). Authenticated surfaces
+   * only — a public page that passed this would start depending on a script,
+   * which 08, "Degrade gracefully" forbids.
+   */
+  live?: LiveOptions;
 }
 
 const HEAD_ICONS = raw(`
@@ -58,6 +65,7 @@ export function page(opts: PageOptions, body: SafeHtml): SafeHtml {
     ${opts.flash ? html`<div class="flash ${opts.flash.kind}" role="status">${opts.flash.message}</div>` : raw("")}
     ${body}
   </main>
+  ${opts.live ? liveRegion(opts.live) : raw("")}
 </body>
 </html>`;
 }

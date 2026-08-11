@@ -11,6 +11,7 @@
 
 import type { Env } from "@podiumconf/data/context.js";
 import { DomainError } from "@podiumconf/domain/shared/errors.js";
+import { STALE_WRITE_MESSAGE } from "./http/concurrency.js";
 import { buildContext, FLASH_COOKIE, clearCookie, type RequestContext } from "./http/context.js";
 import { isMutating, remember, replayIfSeen } from "./http/idempotency.js";
 import { errorResponse, htmlResponse, json, redirect, wantsJson } from "./http/responses.js";
@@ -22,6 +23,7 @@ import { page } from "./ui/layout.js";
 import { escapeHtml, html, raw } from "./ui/html.js";
 
 export { ScheduleDurableObject } from "./durable/schedule.js";
+export { RoomDurableObject } from "./durable/room.js";
 
 const router = new Router<RequestContext>();
 registerRoutes(router);
@@ -57,6 +59,14 @@ export default {
       if (!match) return notFound(req, ctx);
 
       let res = await match.handler(req, ctx, match.params);
+
+      // A 101 carries its socket on the response object, not in the body.
+      // `new Response(res.body, res)` below drops `webSocket` silently — no
+      // throw, no log, just a handshake the browser waits on forever. Nothing
+      // downstream applies to an upgrade anyway: there is no flash to clear on
+      // a connection that renders nothing, and `remember` only sees mutating
+      // methods, which an upgrade GET is not.
+      if (res.status === 101) return res;
 
       // A flash survives exactly one render.
       if (ctx.flash && !res.headers.has("set-cookie")) {
@@ -103,8 +113,8 @@ function errorPage(err: DomainError): Response {
       // `docs/domain/` gains nothing from "INV-05-9", and a bug report can still recover it
       // from the markup. The JSON surface keeps carrying it as a documented field.
       html`<div class="card"${err.invariant ? raw(` data-rule="${escapeHtml(err.invariant)}"`) : raw("")}>
-        <h1>${err.status === 403 ? "Not permitted" : err.status === 401 ? "Sign in required" : "That did not work"}</h1>
-        <p class="flash err">${err.message}</p>
+        <h1>${err.code === "version_conflict" ? "Someone else changed this" : err.status === 403 ? "Not permitted" : err.status === 401 ? "Sign in required" : "That did not work"}</h1>
+        <p class="flash err">${err.code === "version_conflict" ? STALE_WRITE_MESSAGE : err.message}</p>
         ${err.fieldErrors?.length
           ? html`<ul>${err.fieldErrors.map((f) => html`<li><strong>${f.field_key}</strong>: ${f.message}</li>`)}</ul>`
           : html``}

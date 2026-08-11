@@ -536,7 +536,22 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     const includePii = ctx.includePii({ event_id: event.id });
     const rowsForView = includePii ? rows : rows.map((r) => ({ ...r, submitter_email: "[redacted]" }));
     const data: QueuePageData = { event, rows: rowsForView, filters, total, nextCursor: next_cursor, url: ctx.url, cfps, tracks, formats };
-    return htmlResponse(adminPage(ctx, { title: "Proposals", event, active: "proposals", width: "wide" }, proposalQueueView(data)));
+    return htmlResponse(
+      adminPage(
+        ctx,
+        {
+          title: "Proposals",
+          event,
+          active: "proposals",
+          width: "wide",
+          // Several admins triaging one list, with a checkbox column and bulk
+          // actions — nudge, so nobody's selection is swapped out from under
+          // the button they were about to press.
+          live: { mode: "nudge", subjects: ["proposal", "decision"] },
+        },
+        proposalQueueView(data),
+      ),
+    );
   });
 
   router.get("/admin/proposals/:proposalId", async (_req, ctx, params) => {

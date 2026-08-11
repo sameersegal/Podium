@@ -269,4 +269,27 @@ details.disclosure > summary { cursor: pointer; font-weight: 600; }
 .timeline li { border-left: 2px solid var(--line); padding: 0 0 .9rem 1rem; margin-left: .4rem; position: relative; }
 .timeline li::before { content: ""; position: absolute; left: -5px; top: .4rem; width: 8px; height: 8px; border-radius: 50%; background: var(--indigo); }
 
-@media print { .topbar, .subnav, .actions { display: none; } }
+/*
+ * The live-update bar (public/live.js). Fixed to the bottom rather than
+ * inserted into the flow, because it appears while someone is reading and
+ * reflowing the page under them is the thing it exists to warn about.
+ */
+.live-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 1rem;
+  z-index: 20;
+  max-width: calc(100vw - 2rem);
+  padding: .55rem .9rem;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: var(--indigo-soft);
+  color: var(--indigo-dark);
+  font-size: .9rem;
+  box-shadow: 0 2px 10px rgb(0 0 0 / .12);
+}
+.live-bar[hidden] { display: none; }
+.live-bar a { font-weight: 600; }
+
+@media print { .topbar, .subnav, .actions, .live-bar { display: none; } }

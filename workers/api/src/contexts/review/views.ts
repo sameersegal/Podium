@@ -30,6 +30,7 @@ import {
 } from "@podiumconf/domain/review/types.js";
 import type { ResultFilters, ResultRow, RoundView } from "./scoring.js";
 import type { PublishPreviewRow } from "./service.js";
+import { versionField } from "../../http/concurrency.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
@@ -104,6 +105,7 @@ export function roundFormView(d: RoundFormData): SafeHtml {
   const scope = (r?.scope ?? {}) as { track_ids?: string[]; format_ids?: string[]; cfp_ids?: string[]; min_prior_score?: number | null };
   return card(
     html`<form method="post" action="${action}" class="stack">
+      ${r ? versionField(r) : raw("")}
       ${field({ name: "name", label: "Name", required: true, value: r?.name ?? "", placeholder: "Screening" })}
       ${field({ name: "sequence", label: "Sequence", type: "number", required: true, min: 1, value: r?.sequence ?? 1, help: "Order within the event — 1 for the first pass." })}
       ${field({

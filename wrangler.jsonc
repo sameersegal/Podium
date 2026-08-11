@@ -20,7 +20,11 @@
   "assets": {
     "directory": "./public",
     "binding": "STATIC",
-    "run_worker_first": ["/e/*", "/admin/*", "/portal/*", "/v1/*", "/embed/*"]
+    // `/live/*` is the WebSocket upgrade — worker-first so the handshake is
+    // never answered by the asset router. `/live.js` is deliberately *not*
+    // listed: the client script is a static asset and should be served from
+    // the edge like `/app.css`.
+    "run_worker_first": ["/e/*", "/admin/*", "/portal/*", "/v1/*", "/embed/*", "/live/*"]
   },
 
   "d1_databases": [
@@ -69,12 +73,21 @@
     "bindings": [
       // One writer per event's schedule — placement writes serialise here
       // (11-cross-cutting.md, "Concurrency").
-      { "name": "SCHEDULE_DO", "class_name": "ScheduleDurableObject" }
+      { "name": "SCHEDULE_DO", "class_name": "ScheduleDurableObject" },
+      // One live-update room per event, holding hibernatable WebSockets. A
+      // frame carries no domain data — only {type, subject, occurred_at} — so
+      // a socket can never leak PII or cross a review blinding boundary; the
+      // client refetches through the normal authorized route. See
+      // workers/api/src/durable/room.ts.
+      { "name": "ROOM_DO", "class_name": "RoomDurableObject" }
     ]
   },
 
+  // Append only. Editing `v1` would rewrite history the deployed fleet has
+  // already applied.
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["ScheduleDurableObject"] }
+    { "tag": "v1", "new_sqlite_classes": ["ScheduleDurableObject"] },
+    { "tag": "v2", "new_sqlite_classes": ["RoomDurableObject"] }
   ],
 
   "triggers": {

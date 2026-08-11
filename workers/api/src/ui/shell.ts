@@ -7,6 +7,7 @@ import { str, type Row } from "@podiumconf/data/db.js";
 import type { RequestContext } from "../http/context.js";
 import { html, raw, type SafeHtml } from "./html.js";
 import { badge, externalLink, page, type NavItem } from "./layout.js";
+import type { LiveOptions } from "./live.js";
 
 export interface EventRef {
   id: string;
@@ -133,6 +134,8 @@ export interface ShellOptions {
   event?: EventRef | null;
   active?: string;
   width?: "narrow" | "default" | "wide";
+  /** Opt this screen into live updates — `ui/live.ts`. */
+  live?: LiveOptions;
 }
 
 export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtml): SafeHtml {
@@ -163,6 +166,9 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
       ]),
       banner: ev ? eventBar(ev) : raw(""),
       subnav: markCurrent(ctx.url.pathname, adminNav(ev, opts.active ?? ""), Boolean(opts.active)),
+      // The room defaults to the event this screen is already on, so a caller
+      // opting in rarely has to name it.
+      live: opts.live ? { eventId: opts.event?.id ?? null, ...opts.live } : undefined,
     },
     body,
   );

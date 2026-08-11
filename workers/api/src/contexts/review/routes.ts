@@ -33,6 +33,7 @@ import { isTerminalAssignment, type OverallScale, type RoundScope } from "@podiu
 import { reviewerIdentityVisible } from "@podiumconf/domain/review/anonymity.js";
 import { notFound, validationError } from "@podiumconf/domain/shared/errors.js";
 import { zonedDateTimeToInstant } from "@podiumconf/domain/shared/time.js";
+import { expectedVersion, staleWriteRedirect } from "../../http/concurrency.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect, text } from "../../http/responses.js";
@@ -542,7 +543,15 @@ function registerRoundRoutes(router: Router<RequestContext>): void {
     ctx.requireWrite("decision.manage", { event_id: event.id });
     const input = await readInput(req);
     const app = ctx.app(event.id);
-    await updateRound(app, round.id, readRoundFields(input, event.timezone), round.row_version);
+    try {
+      // INV-11-14 — the version the chair's browser rendered, not the one this
+      // request just read.
+      await updateRound(app, round.id, readRoundFields(input, event.timezone), expectedVersion(input));
+    } catch (err) {
+      const stale = await staleWriteRedirect(err, app, `/admin/rounds/${round.id}`);
+      if (stale) return stale;
+      throw err;
+    }
     await app.flush();
     return redirect(`/admin/rounds/${round.id}`, 303, OK("Settings saved."));
   });
@@ -760,7 +769,18 @@ function registerProgressRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: `Progress · ${round.name}`, event, active: "review", width: "wide" },
+        {
+          title: `Progress · ${round.name}`,
+          event,
+          active: "review",
+          width: "wide",
+          // This page's header has claimed to be "Live — recomputed on every
+          // assignment and review change" since it was written, and until now
+          // that meant "recomputed whenever you reload it". Read-only apart
+          // from the reminder checkboxes, which the dirty guard in live.js
+          // covers, so it can safely refresh itself.
+          live: { mode: "refresh", subjects: ["review", "review_assignment"] },
+        },
         progressView({ event, round, rows, canWrite: ctx.canWrite("decision.manage", { event_id: event.id }) }),
       ),
     );
@@ -816,7 +836,15 @@ function registerResultsRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: `Results · ${round.name}`, event, active: "review", width: "wide" },
+        {
+          title: `Results · ${round.name}`,
+          event,
+          active: "review",
+          width: "wide",
+          // The chair's working surface while reviews land. Sorting and
+          // filtering are query parameters, so a refresh keeps them.
+          live: { mode: "refresh", subjects: ["review", "decision", "proposal"] },
+        },
         resultsView({ event, round, criteria: view.criteria, rows: filteredRows, filters, tracks, formats }),
       ),
     );
@@ -1087,7 +1115,16 @@ function registerDiscussionRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: str(proposal.title), event, active: "review", width: "wide" },
+        {
+          title: str(proposal.title),
+          event,
+          active: "review",
+          width: "wide",
+          // Two chairs arguing past each other is exactly what this screen is
+          // for. Nudge rather than refresh: there is a reply box on it, and
+          // half a comment is not worth losing to a swap.
+          live: { mode: "nudge", subjects: ["review_comment", "review", "decision", "conflict_of_interest"] },
+        },
         proposalDiscussionView({
           event,
           proposal,

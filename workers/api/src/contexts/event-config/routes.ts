@@ -49,6 +49,7 @@ import {
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { slugify } from "@podiumconf/domain/shared/ids.js";
 import { calendarDateInZone, formatInZone, formatTimeInZone, zonedDateTimeToInstant } from "@podiumconf/domain/shared/time.js";
+import { expectedVersion, staleWriteRedirect, versionField } from "../../http/concurrency.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
@@ -568,6 +569,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
             : raw("")}
           ${card(
             html`<form method="post" action="/admin/events/${ref.id}" class="stack">
+              ${versionField(row)}
               ${field({ name: "name", label: "Name", required: true, value: str(row.name) })}
               ${field({ name: "edition", label: "Edition", value: str(row.edition) })}
               ${field({ name: "tagline", label: "Tagline", value: str(row.tagline) })}
@@ -599,19 +601,33 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
     ctx.requireWrite("event.configure", { event_id: params.eventId });
     const input = await readInput(req);
     const app = ctx.app(params.eventId);
-    await updateEvent(app, params.eventId, {
-      name: input.str("name"),
-      edition: input.optional("edition"),
-      tagline: input.optional("tagline"),
-      description: input.optional("description"),
-      timezone: input.str("timezone"),
-      starts_on: input.str("starts_on"),
-      ends_on: input.str("ends_on"),
-      mode: input.str("mode"),
-      website_url: input.optional("website_url"),
-      visibility: input.str("visibility"),
-      venue_id: input.optional("venue_id"),
-    });
+    try {
+      // INV-11-14 — the form round-trips `row_version`, so an edit written
+      // against a stale copy is refused rather than overwriting the other
+      // organizer's.
+      await updateEvent(
+        app,
+        params.eventId,
+        {
+          name: input.str("name"),
+          edition: input.optional("edition"),
+          tagline: input.optional("tagline"),
+          description: input.optional("description"),
+          timezone: input.str("timezone"),
+          starts_on: input.str("starts_on"),
+          ends_on: input.str("ends_on"),
+          mode: input.str("mode"),
+          website_url: input.optional("website_url"),
+          visibility: input.str("visibility"),
+          venue_id: input.optional("venue_id"),
+        },
+        expectedVersion(input),
+      );
+    } catch (err) {
+      const stale = await staleWriteRedirect(err, app, `/admin/events/${params.eventId}`);
+      if (stale) return stale;
+      throw err;
+    }
     await app.flush();
     return redirect(`/admin/events/${params.eventId}`, 303, OK("Settings saved."));
   });
@@ -1187,6 +1203,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
             : raw("")}
           ${card(
             html`<form method="post" action="/admin/cfps/${params.cfpId}" class="stack">
+              ${versionField(cfp)}
               ${field({ name: "name", label: "Name", required: true, value: str(cfp.name) })}
               ${field({ name: "audience", label: "Audience", type: "select", required: true, value: str(cfp.audience), options: opts(CFP_AUDIENCE) })}
               ${field({ name: "opens_at", label: `Opens (${ref.timezone})`, type: "datetime-local", required: true, value: toLocalInput(str(cfp.opens_at), ref.timezone) })}
@@ -1230,20 +1247,32 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
     const input = await readInput(req);
     const app = ctx.app(ref.id);
     const values = readCfpInput(input, ref.timezone, false);
-    await updateCfp(app, params.cfpId, {
-      name: values.name,
-      audience: values.audience,
-      intro_markdown: values.intro_markdown,
-      guidelines_url: values.guidelines_url,
-      opens_at: values.opens_at,
-      closes_at: values.closes_at,
-      grace_period_minutes: values.grace_period_minutes,
-      late_submission_policy: values.late_submission_policy,
-      max_proposals_per_person: values.max_proposals_per_person,
-      allow_edit_after_submit: values.allow_edit_after_submit,
-      withdraw_allowed_until: values.withdraw_allowed_until,
-      notify_on_submit: values.notify_on_submit,
-    });
+    try {
+      // INV-11-14 — see the event settings route above.
+      await updateCfp(
+        app,
+        params.cfpId,
+        {
+          name: values.name,
+          audience: values.audience,
+          intro_markdown: values.intro_markdown,
+          guidelines_url: values.guidelines_url,
+          opens_at: values.opens_at,
+          closes_at: values.closes_at,
+          grace_period_minutes: values.grace_period_minutes,
+          late_submission_policy: values.late_submission_policy,
+          max_proposals_per_person: values.max_proposals_per_person,
+          allow_edit_after_submit: values.allow_edit_after_submit,
+          withdraw_allowed_until: values.withdraw_allowed_until,
+          notify_on_submit: values.notify_on_submit,
+        },
+        expectedVersion(input),
+      );
+    } catch (err) {
+      const stale = await staleWriteRedirect(err, app, `/admin/cfps/${params.cfpId}`);
+      if (stale) return stale;
+      throw err;
+    }
     await app.flush();
     return redirect(`/admin/cfps/${params.cfpId}`, 303, OK("Call settings saved."));
   });

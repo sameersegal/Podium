@@ -12,6 +12,7 @@ import { newId } from "@podiumconf/domain/shared/ids.js";
 import type { AuditEntry, AuditSink, Clock, EventSink } from "@podiumconf/domain/shared/ports.js";
 import { nowIso, type Instant } from "@podiumconf/domain/shared/time.js";
 import { D1Db, type Db } from "./db.js";
+import { pokeRooms } from "./live.js";
 
 export interface Env {
   DB: D1Database;
@@ -26,6 +27,13 @@ export interface Env {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SCHEDULE_DO: DurableObjectNamespace<any>;
+  /**
+   * The live-update rooms, one per event. Typed loosely for the same reason as
+   * `SCHEDULE_DO`; callers reach it through `pokeRooms` / `kickFromRoom` in
+   * `./live.js`, which own the request contract.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ROOM_DO: DurableObjectNamespace<any>;
   ENVIRONMENT: string;
   PUBLIC_BASE_URL: string;
   /**
@@ -93,6 +101,12 @@ export interface AppContextInit {
   userAgent?: string | null;
   causationId?: string | null;
   clock?: Clock;
+  /**
+   * Work that must outlive the response but must not delay it — today, the
+   * live-room poke in `flush()`. Absent for contexts built off the request
+   * path (reactions, cron), which simply await it.
+   */
+  waitUntil?: (p: Promise<unknown>) => void;
 }
 
 export class AppContext {
@@ -107,8 +121,10 @@ export class AppContext {
   readonly clock: Clock;
   readonly events: CollectingEventSink;
   readonly audit: CollectingAuditSink;
+  private readonly waitUntil?: (p: Promise<unknown>) => void;
 
   constructor(init: AppContextInit) {
+    this.waitUntil = init.waitUntil;
     this.env = init.env;
     this.orgId = init.orgId;
     this.eventId = init.eventId ?? null;
@@ -193,6 +209,13 @@ export class AppContext {
 
     if (events.length > 0) {
       await publishEvents(this.env, events);
+      // The second transport: browsers watching this event's screens. Awaited
+      // only when there is no `waitUntil` to hand it to — a Durable Object
+      // round trip on the way to a 303 is exactly the latency this path exists
+      // to remove, and a poke that never lands costs a refresh, not a fact.
+      const poke = pokeRooms(this.env, events);
+      if (this.waitUntil) this.waitUntil(poke);
+      else await poke;
     }
     return events;
   }

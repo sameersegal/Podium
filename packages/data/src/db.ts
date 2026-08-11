@@ -74,8 +74,53 @@ const ORG_SCOPED_TABLES = new Set([
   "speaker_profile",
 ]);
 
+/**
+ * Aggregate roots carrying `row_version` — 11-cross-cutting.md, "Concurrency".
+ *
+ * Every write to one of these bumps the counter, not just the compare-and-set
+ * writes: a version that only moves on `updateVersioned` is a version that
+ * misses the concurrent status transition, and a compare against it then passes
+ * for an edit that was in fact stale. `tests/unit/data/versioned-tables.test.ts`
+ * reads the migrations and fails if this set and the schema disagree.
+ */
+const VERSIONED_TABLES = new Set([
+  "bulk_import",
+  "call_for_proposals",
+  "campaign",
+  "contact_segment",
+  "decision",
+  "entitlement",
+  "event",
+  "event_participant",
+  "integration",
+  "invitation",
+  "notification_template",
+  "organization",
+  "person",
+  "placement",
+  "proposal",
+  "prospect_card",
+  "review",
+  "review_round",
+  "rubric",
+  "schedule_publication",
+  "session",
+  "sourcing_pipeline",
+  "speaker_profile",
+  "sponsor",
+  "sponsorship",
+  "submission_form",
+  "task_definition",
+  "task_instance",
+  "webhook",
+]);
+
 export function isOrgScoped(table: string): boolean {
   return ORG_SCOPED_TABLES.has(table);
+}
+
+export function isVersioned(table: string): boolean {
+  return VERSIONED_TABLES.has(table);
 }
 
 export function hasSoftDelete(table: string): boolean {
@@ -139,7 +184,11 @@ export function buildInsert(table: string, values: Row, orgId: string): { statem
 /** Builds an `UPDATE` statement without executing it — see `buildInsert`. */
 export function buildUpdate(table: string, id: string, values: Row, orgId: string): Statement {
   const keys = Object.keys(values);
-  const sets = keys.map((k) => `${k} = ?`).join(",");
+  // An unversioned write to a versioned row still has to move the counter, or a
+  // later compare-and-set silently compares against a version that never saw it
+  // (VERSIONED_TABLES). `updateVersioned` assembles its own SQL and sets
+  // `row_version` explicitly, so it never reaches this branch.
+  const sets = [...keys.map((k) => `${k} = ?`), ...(VERSIONED_TABLES.has(table) ? ["row_version = row_version + 1"] : [])].join(",");
   const params: unknown[] = keys.map((k) => encode(values[k]));
   let sql = `UPDATE ${table} SET ${sets} WHERE id = ?`;
   params.push(id);

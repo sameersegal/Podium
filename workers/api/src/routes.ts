@@ -25,6 +25,7 @@ import { registerPublicRoutes } from "./surfaces/public.js";
 import { registerHomeRoutes } from "./surfaces/home.js";
 import { registerAdminHomeRoutes } from "./surfaces/admin-home.js";
 import { registerDevRoutes } from "./surfaces/dev.js";
+import { registerLiveRoutes } from "./surfaces/live.js";
 
 export function registerRoutes(router: Router<RequestContext>): void {
   registerSetupRoutes(router);
@@ -32,6 +33,7 @@ export function registerRoutes(router: Router<RequestContext>): void {
   registerHomeRoutes(router);
   registerAdminHomeRoutes(router);
   registerDevRoutes(router);
+  registerLiveRoutes(router);
 
   registerEventConfigRoutes(router);
   registerIdentityRoutes(router);

@@ -10,6 +10,7 @@ import { str } from "@podiumconf/data/db.js";
 import { normaliseEmail } from "@podiumconf/domain/identity/types.js";
 import { DomainError } from "@podiumconf/domain/shared/errors.js";
 import { cookiesOf, flashCookie, SESSION_COOKIE, setCookie, clearCookie, type RequestContext } from "../../http/context.js";
+import { closeSocketsFor } from "../../surfaces/live.js";
 import { readInput } from "../../http/input.js";
 import { htmlResponse, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
@@ -165,7 +166,12 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
 
   router.post("/logout", async (req, ctx) => {
     const token = cookiesOf(req)[SESSION_COOKIE];
+    const personId = ctx.person?.id ?? null;
     if (token) await endSession(ctx.app(), token);
+    // A session that has ended must not keep a live channel open, even one
+    // that says as little as this one does. Deferred: closing a socket is not
+    // worth delaying the sign-out redirect.
+    if (personId) ctx.waitUntil(closeSocketsFor(ctx.env, ctx.orgId, personId));
     return redirect("/", 303, { "set-cookie": clearCookie(SESSION_COOKIE) });
   });
 

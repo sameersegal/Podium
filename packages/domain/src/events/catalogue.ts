@@ -185,6 +185,88 @@ export const PII_EVENT_TYPES = new Set<DomainEventType>([
 export const EVENT_PII_DATA_FIELDS = ["email", "full_name", "recipient_email", "resolved_email"] as const;
 
 /**
+ * Who a live frame may reach — `workers/api/src/durable/room.ts`.
+ *
+ * `staff` is anyone holding a write capability on the event: chairs, admins,
+ * organizers. `member` is everyone else with a session — speakers in the
+ * portal, sponsor contacts, and reviewers, who are deliberately *not* staff
+ * here. A live frame carries no domain data, but "a review landed just now" is
+ * still information, and 05 blinds a reviewer from their peers' work until
+ * they submit their own. Timing correlates; the audience split is what keeps
+ * the side channel on the right side of that line.
+ */
+export type LiveAudience = "staff" | "member";
+
+/**
+ * The subset of the catalogue that is worth waking a browser for — the same
+ * shape as `PII_EVENT_TYPES` above: a slice of the published contract with a
+ * transport meaning, not a second contract.
+ *
+ * Deliberately an allowlist rather than `*`. The dispatcher filters on a
+ * reaction's `types` *before* it writes to `event_reaction_log`, so a wildcard
+ * would cost a D1 insert for every one of the 130 event types to decide it had
+ * nothing to say. Adding a type here is how a screen becomes live; nothing
+ * else needs to change.
+ */
+export const LIVE_EVENT_TYPES = {
+  // Review — the chair watching a round fill up. Staff only: see LiveAudience.
+  "review.submitted": "staff",
+  "review.overridden": "staff",
+  "review.stale": "staff",
+  "review_assignment.created": "staff",
+  "review_assignment.declined": "staff",
+  "conflict_of_interest.declared": "staff",
+  "decision.recorded": "staff",
+
+  // Selection and the submission queue.
+  "decision.published": "member",
+  "proposal.submitted": "staff",
+  "proposal.withdrawn": "staff",
+  "proposal.accepted": "member",
+  "proposal.waitlisted": "member",
+  "proposal.rejected": "member",
+
+  // The programme board and one session's record.
+  "session.created": "staff",
+  "session.updated": "member",
+  "session.cancelled": "member",
+  "session.content_approved": "member",
+  "session.content_approval_revoked": "member",
+
+  // The schedule builder — two organizers in the same grid.
+  "placement.created": "staff",
+  "placement.moved": "staff",
+  "placement.removed": "staff",
+  "schedule.conflict_detected": "staff",
+  "schedule.published": "member",
+
+  // Threads and obligations.
+  "asset_comment.added": "member",
+  "task_instance.completed": "staff",
+
+  // Not a screen update: the room closes this person's sockets, so a revoked
+  // grant cannot keep a live channel open until its lifetime cap expires.
+  "role_grant.revoked": "staff",
+} as const satisfies Record<string, LiveAudience>;
+
+export type LiveEventType = keyof typeof LIVE_EVENT_TYPES;
+
+const LIVE_TYPE_LIST = Object.keys(LIVE_EVENT_TYPES) as LiveEventType[];
+
+/** The reaction's `types`, and the `flush()` filter. */
+export function liveEventTypes(): LiveEventType[] {
+  return [...LIVE_TYPE_LIST];
+}
+
+export function isLiveEventType(t: string): t is LiveEventType {
+  return t in LIVE_EVENT_TYPES;
+}
+
+export function liveAudience(t: LiveEventType): LiveAudience {
+  return LIVE_EVENT_TYPES[t];
+}
+
+/**
  * `*` and `<noun>.*` wildcards, per `Webhook.event_types`.
  */
 export function eventTypeMatches(pattern: string, type: string): boolean {

@@ -13,6 +13,7 @@ import { onboardingProgress, type TaskInstanceStatus } from "@podiumconf/domain/
 import type { SpeakerRole } from "@podiumconf/domain/program/types.js";
 import { forbidden, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
 import { redactList } from "@podiumconf/domain/shared/pii.js";
+import { expectedVersion, staleWriteRedirect } from "../../http/concurrency.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
@@ -258,7 +259,19 @@ function registerSessionDetailRoutes(router: Router<RequestContext>): void {
     for (const f of ["title", "subtitle", "abstract", "description", "session_format_id", "track_id", "duration_minutes", "audience_level", "language", "visibility"]) {
       if (input.has(f)) patch[f] = f === "duration_minutes" ? input.int(f) : input.optional(f) ?? input.str(f);
     }
-    await updateSessionContent(app, session.id, patch, { change_kind: "organizer_edit" });
+    try {
+      // INV-11-14. The highest-stakes of the versioned forms: an organizer and
+      // a speaker editing one abstract is the collision this catches, and a
+      // silent overwrite here loses prose nobody can reconstruct.
+      await updateSessionContent(app, session.id, patch, {
+        change_kind: "organizer_edit",
+        expected_version: expectedVersion(input),
+      });
+    } catch (err) {
+      const stale = await staleWriteRedirect(err, app, `/admin/sessions/${session.id}`);
+      if (stale) return stale;
+      throw err;
+    }
     await app.flush();
     return redirect(`/admin/sessions/${session.id}`, 303, OK("Content saved."));
   });
