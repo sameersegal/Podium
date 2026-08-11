@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Podium \u2014 an open-source SessionBoard alternative for AI Engineer-style conferences",
+  "description": "Podium — an open-source SessionBoard alternative for AI Engineer-style conferences",
   "license": "Apache-2.0",
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -26,6 +26,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.21.0",
     "@cloudflare/workers-types": "^5.20260810.1",
+    "@types/node": "^24.13.3",
     "typescript": "^5.9.2",
     "vitest": "^4.1.10",
     "wrangler": "^4.120.1"
