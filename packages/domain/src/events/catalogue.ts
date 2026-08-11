@@ -8,6 +8,7 @@
 
 export const EVENT_TYPES = [
   // Identity
+  "organization.created",
   "person.created",
   "person.merged",
   "person.merge_candidate_detected",

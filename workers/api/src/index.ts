@@ -13,7 +13,7 @@ import type { Env } from "@podiumconf/data/context.js";
 import { DomainError } from "@podiumconf/domain/shared/errors.js";
 import { buildContext, FLASH_COOKIE, clearCookie, type RequestContext } from "./http/context.js";
 import { isMutating, remember, replayIfSeen } from "./http/idempotency.js";
-import { errorResponse, htmlResponse, json, wantsJson } from "./http/responses.js";
+import { errorResponse, htmlResponse, json, redirect, wantsJson } from "./http/responses.js";
 import { Router } from "./http/router.js";
 import { registerRoutes } from "./routes.js";
 import { runQueueBatch } from "./consumers/dispatch.js";
@@ -31,6 +31,22 @@ export default {
     const url = new URL(req.url);
     try {
       const ctx = await buildContext(req, env, (p) => execCtx.waitUntil(p));
+
+      // 01, "First-run setup": nothing seeds the one Organization a
+      // deployment needs, so `resolveOrgId` (inside `buildContext`, fresh
+      // every request — never cached) resolving to "" means there is nowhere
+      // for any other route to scope its reads or writes. Send everything but
+      // the setup screen itself there, rather than letting every surface fail
+      // as "not found", which is the production defect this fixes.
+      if (!ctx.orgId && url.pathname !== "/setup") {
+        if (wantsJson(req)) {
+          return json(
+            { error: "not_configured", message: "This deployment has not been set up yet. Visit /setup to create the first organization." },
+            { status: 503 },
+          );
+        }
+        return redirect("/setup", 303);
+      }
 
       if (isMutating(req.method)) {
         const replay = await replayIfSeen(env, ctx.orgId, req);

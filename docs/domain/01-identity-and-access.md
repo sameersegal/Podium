@@ -63,6 +63,14 @@ erDiagram
 `review.default_visibility`, `submissions.allow_public_gallery`,
 `onboarding.reminder_default_offsets`, `branding.*`, `privacy.retention_days`.
 
+**First-run setup.** Nothing seeds the one Organization a deployment needs — it does not
+exist until someone creates it. A freshly migrated deployment directs an anonymous visitor to
+a setup screen that creates, as one unit of work, the Organization, the first Person, their
+`password` AuthIdentity and an `owner` RoleGrant, then signs them in exactly as `/signup`
+does. That screen is reachable only while no Organization row exists (INV-01-16) — once one
+does, it is refused on every method, checked against the database on every request, because
+it runs with no principal and creates an administrator.
+
 ## Person
 
 <!-- entity: Person -->
@@ -405,11 +413,17 @@ stateDiagram-v2
 - **INV-01-15** An invitation's `accept_url` is returned exactly once, in the response to
   the command that created it, and is never re-readable. Every invitation kind must offer
   it, so that provisioning an account never depends on mail delivery.
+- **INV-01-16** At most one `Organization` row may ever exist per deployment. It is created,
+  atomically with its first `Person`, `AuthIdentity` and `owner` `RoleGrant`, by the first-run
+  setup screen and by nothing else; that screen is refused, on every method and checked
+  against the database rather than a cached or in-memory flag, once an `Organization` row
+  exists.
 
 ## Emitted events
 
-`person.created`, `person.merged`, `person.merge_candidate_detected`, `person.deactivated`,
-`speaker_profile.updated`, `person_note.added`, `event_participant.added`,
-`event_participant.status_changed`, `event_participant.portal_invited`,
-`role_grant.created`, `role_grant.revoked`, `invitation.sent`, `invitation.accepted`,
-`invitation.expired`. Payloads in [`10-domain-events.md`](10-domain-events.md).
+`organization.created`, `person.created`, `person.merged`, `person.merge_candidate_detected`,
+`person.deactivated`, `speaker_profile.updated`, `person_note.added`,
+`event_participant.added`, `event_participant.status_changed`,
+`event_participant.portal_invited`, `role_grant.created`, `role_grant.revoked`,
+`invitation.sent`, `invitation.accepted`, `invitation.expired`. Payloads in
+[`10-domain-events.md`](10-domain-events.md).

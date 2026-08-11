@@ -47,6 +47,22 @@ export function overlaps(aStart: Instant, aEnd: Instant, bStart: Instant, bEnd: 
 }
 
 /**
+ * `Event.timezone` is free text elsewhere in the model (validated for
+ * presence only), but `Organization.default_timezone` is set once, at
+ * first-run setup, with nobody around afterwards to notice a typo — every
+ * event created from then on inherits it. Worth the one extra check here.
+ */
+export function isValidTimezone(tz: string): boolean {
+  if (!tz.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Render an instant in an IANA timezone. Event time is the default everywhere
  * a human reads a schedule (INV-02-1).
  */

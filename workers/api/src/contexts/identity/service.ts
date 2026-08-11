@@ -4,7 +4,7 @@
  * Aggregate roots: `Organization`, `Person`, `Invitation`.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
+import { AppContext, type Env } from "@podiumconf/data/context.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import { hashToken, newToken, hashPassword, verifyPassword } from "@podiumconf/domain/identity/credentials.js";
 import {
@@ -19,9 +19,10 @@ import {
   type ParticipantSource,
   type ParticipantStatus,
 } from "@podiumconf/domain/identity/types.js";
+import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
 import { DomainError, forbidden, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { addDays, nowIso } from "@podiumconf/domain/shared/time.js";
+import { newId, slugify } from "@podiumconf/domain/shared/ids.js";
+import { addDays, isValidTimezone, nowIso } from "@podiumconf/domain/shared/time.js";
 import type { Role, ScopeType } from "@podiumconf/domain/shared/authorization.js";
 
 export interface PersonRow extends Row {
@@ -32,6 +33,140 @@ export interface PersonRow extends Row {
   display_name: string | null;
   status: string;
   is_placeholder: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Organization — first-run setup                                             */
+/* -------------------------------------------------------------------------- */
+
+export interface SetupOrganizationInput {
+  org_name: string;
+  org_slug?: string | null;
+  default_timezone: string;
+  contact_email: string;
+  owner_full_name: string;
+  owner_email: string;
+  owner_password: string;
+}
+
+export interface SetupOrganizationResult {
+  /** Bound to the new org id — the caller signs the owner in through this. */
+  app: AppContext;
+  organization_id: string;
+  person_id: string;
+}
+
+/**
+ * First-run bootstrap (01, "Tenancy": "One Organization per deployment";
+ * "First-run setup"). Every other function in this file takes an `AppContext`
+ * whose `orgId` already names a real `Organization` row; this one cannot,
+ * because that row does not exist yet — it builds its own, bound to a freshly
+ * minted id, and hands it back so the caller (the `/setup` route) can sign
+ * the new owner in exactly as `/signup` does.
+ *
+ * SECURITY (INV-01-16): this runs with no principal and creates an
+ * administrator. The route MUST refuse the request before calling this when
+ * `resolveOrgId` already finds a row — but that check and this function's
+ * first write are not the same statement, so the real backstop against two
+ * concurrent requests both bootstrapping the deployment is `bootstrap_state`:
+ * its primary key holds exactly one value, and claiming it is deliberately
+ * the very first write below. The loser's `INSERT` fails immediately, before
+ * an `Organization`, `Person`, `AuthIdentity` or `RoleGrant` is created.
+ */
+export async function setupOrganization(env: Env, input: SetupOrganizationInput): Promise<SetupOrganizationResult> {
+  const orgName = input.org_name.trim();
+  if (!orgName) throw new DomainError({ code: "invalid_organization", message: "An organization needs a name.", status: 422 });
+
+  const contactEmail = normaliseEmail(input.contact_email);
+  if (!contactEmail.includes("@")) {
+    throw new DomainError({ code: "invalid_email", message: `"${input.contact_email}" is not an email address.`, status: 422 });
+  }
+
+  const timezone = input.default_timezone.trim();
+  if (!isValidTimezone(timezone)) {
+    throw new DomainError({ code: "invalid_timezone", message: `"${input.default_timezone}" is not a recognised IANA timezone.`, status: 422 });
+  }
+
+  const ownerName = input.owner_full_name.trim();
+  if (!ownerName) throw new DomainError({ code: "invalid_person", message: "Your name is required.", status: 422 });
+
+  const ownerEmail = normaliseEmail(input.owner_email);
+  if (!ownerEmail.includes("@")) {
+    throw new DomainError({ code: "invalid_email", message: `"${input.owner_email}" is not an email address.`, status: 422 });
+  }
+
+  // Fail fast on the password before claiming the bootstrap lock — `setPassword`
+  // enforces the same rule, but there is no reason to spend the one-shot lock
+  // on a request that was always going to fail validation.
+  if (input.owner_password.length < 8) {
+    throw new DomainError({ code: "weak_password", message: "Use at least 8 characters.", status: 422 });
+  }
+
+  const orgId = newId("Organization");
+  const app = new AppContext({ env, orgId, actor: SYSTEM_ACTOR });
+  const now = app.now();
+
+  try {
+    // INV-01-16: the first write, and the one that decides who wins a race.
+    await app.db.rawRun("INSERT INTO bootstrap_state (id, organization_id, created_at) VALUES (1, ?, ?)", [orgId, now]);
+  } catch {
+    throw invariantError(
+      "INV-01-16",
+      "organization_already_exists",
+      "This deployment has already been set up. Sign in instead.",
+      undefined,
+      403,
+    );
+  }
+
+  const slug = await uniqueOrganizationSlug(app, input.org_slug?.trim() || orgName);
+
+  await app.db.insert("organization", {
+    id: orgId,
+    name: orgName,
+    slug,
+    primary_domain: null,
+    logo_asset_id: null,
+    default_timezone: timezone,
+    contact_email: contactEmail,
+    // Deliberately no `auth` key: leaving it unset lets `passwordLoginEnabled`
+    // fall through to its dynamic default — on, because a brand-new
+    // deployment has no `email` integration (R23) — rather than baking in an
+    // explicit `false` that could lock the owner who just created it out.
+    settings: JSON.stringify({}),
+    created_at: now,
+    updated_at: now,
+    row_version: 1,
+  });
+  app.events.emit({
+    type: "organization.created",
+    subject: { type: "organization", id: orgId },
+    data: { organization_id: orgId, name: orgName, slug },
+  });
+  app.audit.record({ action: "organization.create", entity_type: "organization", entity_id: orgId, after: { name: orgName, slug } });
+
+  const person = await findOrCreatePerson(app, {
+    email: ownerEmail,
+    full_name: ownerName,
+    status: "active",
+    source: "setup",
+  });
+  await setPassword(app, person.id, input.owner_password);
+  await grantRole(app, { person_id: person.id, role: "owner", scope_type: "org", scope_id: orgId });
+
+  return { app, organization_id: orgId, person_id: person.id };
+}
+
+/** `Organization.slug` is unique globally, not per org (there being none yet). */
+async function uniqueOrganizationSlug(app: AppContext, desired: string): Promise<string> {
+  const base = slugify(desired);
+  let candidate = base;
+  for (let i = 2; i < 200; i++) {
+    const existing = await app.db.first<Row>("organization", { slug: candidate });
+    if (!existing) return candidate;
+    candidate = `${base}-${i}`;
+  }
+  return `${base}-${Date.now()}`;
 }
 
 /* -------------------------------------------------------------------------- */

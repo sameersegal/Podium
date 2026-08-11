@@ -76,6 +76,7 @@ log can be queried by actor or subject without unpacking JSON.
 
 | Type | Subject | `data` | PII |
 |---|---|---|---|
+| `organization.created` | organization | `organization_id, name, slug` | |
 | `person.created` | person | `person_id, full_name, email, source` | yes |
 | `person.merged` | person | `surviving_person_id, merged_person_id, merged_by` | yes |
 | `person.merge_candidate_detected` | person | `person_id, candidate_person_id, signals[], confidence` | yes |

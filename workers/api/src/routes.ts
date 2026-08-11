@@ -9,6 +9,7 @@ import type { RequestContext } from "./http/context.js";
 import type { Router } from "./http/router.js";
 
 import { registerAuthRoutes } from "./contexts/identity/auth-routes.js";
+import { registerSetupRoutes } from "./contexts/identity/setup-routes.js";
 import { registerIdentityRoutes } from "./contexts/identity/routes.js";
 import { registerEventConfigRoutes } from "./contexts/event-config/routes.js";
 import { registerSponsorshipRoutes } from "./contexts/sponsorship/routes.js";
@@ -26,6 +27,7 @@ import { registerAdminHomeRoutes } from "./surfaces/admin-home.js";
 import { registerDevRoutes } from "./surfaces/dev.js";
 
 export function registerRoutes(router: Router<RequestContext>): void {
+  registerSetupRoutes(router);
   registerAuthRoutes(router);
   registerHomeRoutes(router);
   registerAdminHomeRoutes(router);
