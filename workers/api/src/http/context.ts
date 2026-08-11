@@ -278,9 +278,54 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
   return ctx;
 }
 
+/**
+ * What each capability lets somebody do, said the way the person refused it would
+ * say it. The keys are the authorization matrix's vocabulary; unfolding one into
+ * prose ("org configure") reads as a leaked identifier, so every member spells
+ * itself out. Typed as a full `Record`, so a new capability fails the build here
+ * rather than falling back to its own key at runtime.
+ */
+const CAPABILITY_PHRASE: Record<Capability, string> = {
+  "org.configure": "change organization settings",
+  "event.configure": "change this event's settings",
+  "config.manage": "manage this event's configuration",
+  "cfp.configure": "configure calls for proposals",
+  "proposal.submit": "submit a proposal",
+  "proposal.read_any": "read other people's proposals",
+  "proposal.edit": "edit this proposal",
+  "review.read": "read reviews",
+  "review.submit": "submit a review",
+  "decision.manage": "record or publish decisions",
+  "sponsor.manage": "manage sponsors",
+  "session.manage": "manage sessions",
+  "session.approve_content": "approve session content",
+  "session.restore_revision": "restore an earlier revision",
+  "roster.manage": "manage the roster",
+  "speaker_profile.edit": "edit this speaker profile",
+  "speaker_profile.set_visibility": "change what a speaker profile shows publicly",
+  "person_note.manage": "read or write internal notes",
+  "contact_directory.read": "browse the contact directory",
+  "segment.manage": "manage segments",
+  "pipeline.manage": "manage pipelines",
+  "asset.comment": "comment on this file",
+  "campaign.send": "send campaigns",
+  "communications.read": "read sent messages",
+  "bulk.import": "import data",
+  "export.request": "request an export",
+  "custom_field.manage": "manage custom fields",
+  "task.define": "define tasks",
+  "task.complete": "complete this task",
+  "task.approve": "approve a completed task",
+  "schedule.place": "place sessions on the schedule",
+  "schedule.publish": "publish the schedule",
+  "schedule.read_published": "read the published schedule",
+  "pii.read": "see personal contact details",
+  "audit.read": "read the audit log",
+};
+
 function denial(ctx: RequestContext, capability: Capability) {
   if (!ctx.person && !ctx.apiKeyId) return unauthorized("Sign in to continue.");
-  return forbidden(`You do not have permission to ${capability.replace(/[._]/g, " ")}.`);
+  return forbidden(`You do not have permission to ${CAPABILITY_PHRASE[capability]}.`);
 }
 
 /**

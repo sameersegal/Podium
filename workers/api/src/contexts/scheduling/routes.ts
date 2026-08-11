@@ -109,7 +109,7 @@ function registerAgendaRoutes(router: Router<RequestContext>): void {
         { title: "Agenda", event: ref, active: "schedule", width: "wide" },
         html`${pageHead(
             "Agenda",
-            "Place confirmed sessions into rooms and times. Conflicts are computed on every write and shown below — placing a broken schedule is allowed; publishing one is not (INV-08-4).",
+            "Place confirmed sessions into rooms and times. Conflicts are computed on every write and shown below — placing a broken schedule is allowed; publishing one is not.",
           )}
           ${data.pendingCount > 0
             ? html`<p class="notice warn">${data.pendingCount} change${data.pendingCount === 1 ? "" : "s"} not yet published. <a href="/admin/events/${ref.id}/publications">Review and publish</a>.</p>`
@@ -208,7 +208,7 @@ function registerAgendaRoutes(router: Router<RequestContext>): void {
     const app = ctx.app(ref.id);
     await acknowledgeConflict(app, input.str("conflict_id"), input.str("reason"));
     await app.flush();
-    return redirect(`/admin/events/${ref.id}/schedule`, 303, OK("Conflict acknowledged. It stays visible, and it is on the record (INV-11-5)."));
+    return redirect(`/admin/events/${ref.id}/schedule`, 303, OK("Conflict acknowledged. It stays visible, and it is on the record."));
   });
 
   router.post("/admin/events/:eventId/schedule/auto-place", async (req, ctx, params) => {
@@ -574,7 +574,7 @@ function registerPublicationRoutes(router: Router<RequestContext>): void {
         <td>${formatInZone(p.published_at, ref.timezone)}</td>
         <td>${p.session_count}</td>
         <td class="mono small">${p.content_etag}</td>
-        <td class="small">${p.note ?? "—"}${p.override_reasons ? html`<br><span class="small" style="color:var(--warn)">Published with ${Object.keys(p.override_reasons).length} override${Object.keys(p.override_reasons).length === 1 ? "" : "s"} (INV-11-5).</span>` : raw("")}</td>
+        <td class="small">${p.note ?? "—"}${p.override_reasons ? html`<br><span class="small" style="color:var(--warn)">Published with ${Object.keys(p.override_reasons).length} override${Object.keys(p.override_reasons).length === 1 ? "" : "s"}.</span>` : raw("")}</td>
         <td class="right">
           ${diff.length
             ? html`<details class="row-edit"><summary>${diff.length} change${diff.length === 1 ? "" : "s"}</summary><ul class="small">${diff.map(diffLine)}</ul></details>`
@@ -720,8 +720,8 @@ function registerEmbedRoutes(router: Router<RequestContext>): void {
     const embedFields = (e: EmbedConfigRow | null) => html`
       ${field({ name: "name", label: "Name", required: true, value: e?.name ?? "", placeholder: "Main site — full schedule" })}
       ${field({ name: "widget_type", label: "Widget", type: "select", required: true, value: e?.widget_type, options: widgetOptions, help: "What is rendered." })}
-      ${field({ name: "format", label: "Format", type: "select", required: true, value: e?.format, options: formatOptions, help: "How it is delivered. An impossible pair (e.g. speaker_gallery as ics) is rejected on save (INV-08-12)." })}
-      ${field({ name: "allowed_origins", label: "Allowed origins", required: true, value: e?.allowed_origins.join(", ") ?? "", placeholder: "https://example.com, https://blog.example.com", help: "CORS and frame-ancestors allowlist (INV-08-6). Exact origins, space or comma separated." })}
+      ${field({ name: "format", label: "Format", type: "select", required: true, value: e?.format, options: formatOptions, help: "How it is delivered. An impossible pair (e.g. speaker_gallery as ics) is rejected on save." })}
+      ${field({ name: "allowed_origins", label: "Allowed origins", required: true, value: e?.allowed_origins.join(", ") ?? "", placeholder: "https://example.com, https://blog.example.com", help: "CORS and frame-ancestors allowlist. Exact origins, space or comma separated." })}
       ${field({ name: "filter_track_ids", label: "Limit to tracks", type: "multi_select", value: e?.filters.track_ids ?? [], options: trackOptions })}
       ${field({ name: "filter_event_day_ids", label: "Limit to days", type: "multi_select", value: e?.filters.event_day_ids ?? [], options: dayOptions })}
       ${field({ name: "filter_format_ids", label: "Limit to session formats", type: "multi_select", value: e?.filters.format_ids ?? [], options: formatFilterOptions })}
@@ -736,7 +736,7 @@ function registerEmbedRoutes(router: Router<RequestContext>): void {
       return html`<tr>
         <td><strong>${e.name}</strong><br><span class="small muted">${WIDGET_LABELS[e.widget_type]}</span></td>
         <td>${badge(e.widget_type)} ${badge(e.format, "info")}</td>
-        <td>${e.allowed_origins.length ? e.allowed_origins.join(", ") : html`<span class="muted">none — every origin refused (INV-08-6)</span>`}</td>
+        <td>${e.allowed_origins.length ? e.allowed_origins.join(", ") : html`<span class="muted">none — every origin refused</span>`}</td>
         <td>${e.status === "active" ? badge("active", "ok") : badge("disabled", "err")}${e.show_unpublished ? html`<br>${badge("preview", "warn")}` : raw("")}</td>
         <td class="small">
           <div class="copy-url"><input class="mono" readonly value="${url}" size="30" onfocus="this.select()"></div>
@@ -757,7 +757,7 @@ function registerEmbedRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Embeds", event: ref, active: "publish", width: "wide" },
-        html`${pageHead("Embeds", "Each embed answers two questions independently: what to show, and how to deliver it (INV-08-12). Every one reads the published schedule, never live data, unless marked preview.")}
+        html`${pageHead("Embeds", "Each embed answers two questions independently: what to show, and how to deliver it. Every one reads the published schedule, never live data, unless marked preview.")}
           ${table(["Embed", "Type", "Allowed origins", "Status", "Public URL / snippet", ""], rows, "No embeds yet.")}
           ${canWrite
             ? card(

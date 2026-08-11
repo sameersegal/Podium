@@ -217,7 +217,7 @@ export function segmentListView(segments: SegmentView[], canWrite: boolean): Saf
                 { value: "dynamic", label: "Dynamic", description: "Re-resolves the filter below on every read." },
                 { value: "static", label: "Static", description: "A frozen list — start it from the directory's checkboxes." },
               ],
-              help: "INV-14-1: choose explicitly. A dynamic segment cannot become a decision, and a static one cannot become a query, without an explicit convert.",
+              help: "Choose now, and deliberately. Converting one into the other later is a separate, recorded action — it never happens by itself.",
             })}
             ${field({ name: "q", label: "Search (dynamic only)" })}
             ${field({ name: "company", label: "Company (dynamic only)" })}
@@ -243,7 +243,7 @@ export function segmentDetailView(input: { segment: SegmentView; members: Direct
     </div>
     ${canWrite
       ? card(
-          html`<p class="muted small">Converting is explicit and recorded (INV-14-1): a dynamic segment freezes its current members; a static list starts resolving a query instead.</p>
+          html`<p class="muted small">Converting is explicit and recorded: a dynamic segment freezes its current members; a static list starts resolving a query instead.</p>
             <form method="post" action="/admin/segments/${s.id}/convert" class="inline-form" onsubmit="return confirm('Convert this segment to ${s.kind === "dynamic" ? "static" : "dynamic"}?')">
               <input type="hidden" name="to" value="${s.kind === "dynamic" ? "static" : "dynamic"}">
               <button type="submit" class="small secondary">Convert to ${s.kind === "dynamic" ? "static" : "dynamic"}</button>

@@ -128,7 +128,7 @@ export function roundFormView(d: RoundFormData): SafeHtml {
       ${field({ name: "closes_at", label: "Closes", type: "datetime-local", required: true, value: r ? toLocal(r.closes_at) : "" })}
       ${field({ name: "target_reviews_per_proposal", label: "Reviews needed per proposal (quorum)", type: "number", required: true, min: 1, value: r?.target_reviews_per_proposal ?? 2 })}
       ${field({ name: "max_assignments_per_reviewer", label: "Max assignments per reviewer", type: "number", min: 1, value: r?.max_assignments_per_reviewer ?? "" })}
-      ${field({ name: "show_other_reviews_before_submit", label: "Let a reviewer see other reviews before their own is submitted", type: "checkbox", value: !!r?.show_other_reviews_before_submit, help: "Default off — anchoring is real (INV-05-6)." })}
+      ${field({ name: "show_other_reviews_before_submit", label: "Let a reviewer see other reviews before their own is submitted", type: "checkbox", value: !!r?.show_other_reviews_before_submit, help: "Default off — anchoring is real." })}
       ${field({ name: "discussion_enabled", label: "Discussion enabled", type: "checkbox", value: r ? r.discussion_enabled : true })}
       <fieldset class="field">
         <legend>Scope — which proposals are in play</legend>
@@ -224,11 +224,11 @@ export function poolView(d: {
     </tr>`,
   );
   return html`
-    ${pageHead(`Pool · ${d.round.name}`, "Membership of one round's pool implies nothing about any other round (INV-05-15).")}
+    ${pageHead(`Pool · ${d.round.name}`, "Membership of one round's pool implies nothing about any other round.")}
     ${d.acceptUrl
       ? card(
           html`<p class="lede">Reviewer invitation for <strong>${d.acceptUrl.email}</strong> is ready.</p>
-            <p class="notice warn">Shown once. Copy it now — provisioning a reviewer never depends on mail delivery (INV-01-15).</p>
+            <p class="notice warn">Shown once. Copy it now — provisioning a reviewer never depends on mail delivery.</p>
             <p class="mono" style="word-break:break-all;user-select:all;padding:.75rem;background:#f4f4f5;border-radius:6px">${d.acceptUrl.url}</p>`,
           "Copy this invitation link",
         )
@@ -593,7 +593,7 @@ export function rubricsListView(d: { event: EventRef | null; rubrics: RubricView
             "New rubric",
           )}
           ${card(
-            html`<p class="small muted">R17 — a sponsor session is checked, not selected. One criterion is the whole design.</p>
+            html`<p class="small muted">A sponsor session is checked, not selected. One criterion is the whole design.</p>
               ${actionForm(`/admin/rubrics/sponsor-preset?event_id=${d.event.id}`, "Create the sponsor compliance rubric")}`,
             "Sponsor compliance preset",
           )}
@@ -608,7 +608,7 @@ export function rubricFormView(d: { event: EventRef; rubric: RubricView; criteri
   const rows = [...d.criteria];
   while (rows.length < CRITERION_ROWS) rows.push(blankCriterion());
   return html`
-    ${pageHead(d.rubric.name, `v${d.rubric.version}${d.locked ? " — locked: a round that is not a draft uses this rubric, so an edit creates a new version (INV-05-1)." : ""}`)}
+    ${pageHead(d.rubric.name, `v${d.rubric.version}${d.locked ? " — locked: a round already using this rubric has started, so an edit creates a new version rather than changing what reviewers scored against." : ""}`)}
     ${d.canWrite
       ? card(
           html`<form method="post" action="/admin/rubrics/${d.rubric.id}" class="stack">
@@ -782,11 +782,11 @@ export function decisionFormView(d: { event: EventRef; proposal: Row; decision: 
             ${field({ name: "assigned_track_id", label: "Assign to track", type: "select", value: dec ? str(dec.assigned_track_id) : "", options: d.tracks.map((t) => ({ value: str(t.id), label: str(t.name) })) })}
             ${field({ name: "assigned_format_id", label: "Assign to format", type: "select", value: dec ? str(dec.assigned_format_id) : "", options: d.formats.map((f) => ({ value: str(f.id), label: str(f.name) })) })}
             ${field({ name: "assigned_duration_minutes", label: "Assigned duration (minutes)", type: "number", min: 1, value: dec?.assigned_duration_minutes ?? "" })}
-            ${field({ name: "confirmation_deadline", label: "Confirmation deadline", type: "datetime-local", value: dec ? toLocal(str(dec.confirmation_deadline)) : "", help: "Required to publish an acceptance (INV-05-9)." })}
+            ${field({ name: "confirmation_deadline", label: "Confirmation deadline", type: "datetime-local", value: dec ? toLocal(str(dec.confirmation_deadline)) : "", help: "Required to publish an acceptance." })}
             ${field({ name: "conditions", label: "Conditions of acceptance (shown to the speaker)", type: "textarea", rows: 2, value: dec ? str(dec.conditions) : "" })}
             ${field({ name: "feedback_for_speaker", label: "Feedback for the speaker", type: "textarea", rows: 4, value: dec ? str(dec.feedback_for_speaker) : "", help: "The one channel to the speaker." })}
             ${field({ name: "rationale", label: "Rationale (committee-only)", type: "textarea", rows: 3, value: dec ? str(dec.rationale) : "" })}
-            ${!d.hasQuorum ? field({ name: "quorum_waived_reason", label: "Reason to accept without quorum", type: "textarea", rows: 2, help: "Required to accept below quorum (INV-05-11)." }) : raw("")}
+            ${!d.hasQuorum ? field({ name: "quorum_waived_reason", label: "Reason to accept without quorum", type: "textarea", rows: 2, help: "Required to accept below quorum." }) : raw("")}
             ${submitButton("Record decision")}
           </form>`,
           "Decision",
@@ -812,7 +812,7 @@ export function publishPreviewView(d: { event: EventRef; rows: PublishPreviewRow
     </tr>`,
   );
   return html`
-    ${pageHead("Publish decisions", "Exactly who receives which message, before anything is sent. Nothing reaches a speaker until you confirm here (R5).")}
+    ${pageHead("Publish decisions", "Exactly who receives which message, before anything is sent. Nothing reaches a speaker until you confirm here.")}
     ${table(["Proposal", "Outcome", "Recipient", "Also notified", "Template", ""], rows, "Nothing provisional to publish.")}
     ${publishable.length > 0
       ? html`<form method="post" action="/admin/events/${d.event.id}/decisions/publish" class="stack">
@@ -868,7 +868,7 @@ export function proposalDiscussionView(d: {
   );
 
   return html`
-    ${pageHead(str(d.proposal.title), `${str(d.proposal.reference)} · committee discussion. Never speaker-visible (INV-05-7).`)}
+    ${pageHead(str(d.proposal.title), `${str(d.proposal.reference)} · committee discussion. Never speaker-visible.`)}
     ${card(
       html`<ul class="notes">${threadRows}</ul>
         ${d.canWriteComments

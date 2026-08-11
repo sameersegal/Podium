@@ -274,7 +274,7 @@ function organizerEditForm(data: AdminDetailData): SafeHtml {
     })}
     ${field({ name: "recording_conditions", label: "Recording conditions", type: "textarea", rows: 2, value: strOrNull(p.recording_conditions) ?? "" })}
     ${field({ name: "coi_disclosure", label: "Conflict of interest disclosure", type: "textarea", rows: 2, value: strOrNull(p.coi_disclosure) ?? "" })}
-    ${field({ name: "reason", label: "Reason for this edit", required: true, help: "Shown in the audit trail (INV-11-5)." })}
+    ${field({ name: "reason", label: "Reason for this edit", required: true, help: "Shown in the audit trail." })}
     <button type="submit">Save organizer edit</button>
   </form>`;
 }

@@ -489,7 +489,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
               options: sponsors
                 .filter((s) => !taken.has(str(s.id)))
                 .map((s) => ({ value: str(s.id), label: str(s.name) })),
-              help: "One sponsorship per sponsor per event (INV-03-1).",
+              help: "One sponsorship per sponsor per event.",
             })}
             ${field({
               name: "tier_id",
@@ -635,7 +635,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
               label: "Allowed formats",
               type: "multi_select",
               options: formats.map((f) => ({ value: str(f.id), label: str(f.name) })),
-              help: "Empty means any format (INV-03-5).",
+              help: "Empty means any format.",
             })}
             ${field({ name: "submission_deadline", label: "Submission deadline", type: "datetime-local", help: "Usually later than the CFP." })}
             ${field({ name: "expires_at", label: "Expires at", type: "datetime-local", help: "Unspent after this is forfeited — a nudge, not a hard delete." })}

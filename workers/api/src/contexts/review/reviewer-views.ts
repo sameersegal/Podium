@@ -243,7 +243,7 @@ function scorecardForm(d: {
       : raw("")}
     ${field({ name: "confidence", label: "Confidence", type: "select", value: review ? str(review.confidence) : "", options: opts(CONFIDENCE) })}
     ${field({ name: "flags", label: "Flags", type: "multi_select", options: opts(REVIEW_FLAG), value: review ? JSON.parse(str(review.flags, "[]") || "[]") : [] })}
-    ${field({ name: "comments_for_committee", label: "Comments for the committee", type: "textarea", rows: 4, value: review ? str(review.comments_for_committee) : "", help: "Never visible to the submitter (INV-05-7)." })}
+    ${field({ name: "comments_for_committee", label: "Comments for the committee", type: "textarea", rows: 4, value: review ? str(review.comments_for_committee) : "", help: "Never visible to the submitter." })}
     ${field({ name: "comments_for_speaker", label: "Comments for the speaker", type: "textarea", rows: 4, value: review ? str(review.comments_for_speaker) : "", help: "Released only if a decision using this feedback is published." })}
     ${d.rubric.requires_comment ? html`<p class="small muted">This rubric requires at least one written comment.</p>` : raw("")}
     <div class="actions">
@@ -268,7 +268,7 @@ function declineForm(assignment: Row): SafeHtml {
 function lockedCard(): SafeHtml {
   return card(
     html`<p class="notice info">
-      Other reviews, the aggregate and the discussion open once your own review is submitted or you decline (INV-05-6). Anchoring is real —
+      Other reviews, the aggregate and the discussion open once your own review is submitted or you decline. Anchoring is real —
       this is deliberate, not a bug.
     </p>`,
   );

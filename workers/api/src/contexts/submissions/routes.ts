@@ -565,7 +565,7 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     const input = await readInput(req);
     const reason = input.str("reason");
     if (!reason) {
-      throw validationError("An organizer edit needs a reason.", [{ field_key: "reason", message: "Say what changed and why (INV-11-5)." }]);
+      throw validationError("An organizer edit needs a reason.", [{ field_key: "reason", message: "Say what changed and why." }]); // INV-11-5
     }
     const patch = readOrganizerEditInput(input);
     await organizerEdit(app, proposal.id, patch, reason);

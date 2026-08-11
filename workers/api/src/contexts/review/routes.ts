@@ -892,7 +892,7 @@ function registerRubricRoutes(router: Router<RequestContext>): void {
     const app = ctx.app(eventId);
     const id = await createSponsorComplianceRubric(app, eventId);
     await app.flush();
-    return redirect(`/admin/rubrics/${id}`, 303, OK("Sponsor compliance rubric created (R17)."));
+    return redirect(`/admin/rubrics/${id}`, 303, OK("Sponsor compliance rubric created."));
   });
 
   router.get("/admin/rubrics/:rubricId", async (_req, ctx, params) => {
@@ -928,7 +928,7 @@ function registerRubricRoutes(router: Router<RequestContext>): void {
       criteria,
     });
     await app.flush();
-    return redirect(`/admin/rubrics/${result.rubric_id}`, 303, OK(result.new_version ? "Saved as a new version — a non-draft round already uses this rubric (INV-05-1)." : "Rubric saved."));
+    return redirect(`/admin/rubrics/${result.rubric_id}`, 303, OK(result.new_version ? "Saved as a new version — a round already using this rubric has started, so scores already given keep the rubric they were given under." : "Rubric saved."));
   });
 }
 

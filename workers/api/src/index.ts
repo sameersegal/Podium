@@ -19,7 +19,7 @@ import { registerRoutes } from "./routes.js";
 import { runQueueBatch } from "./consumers/dispatch.js";
 import { runScheduled } from "./consumers/cron.js";
 import { page } from "./ui/layout.js";
-import { html } from "./ui/html.js";
+import { escapeHtml, html, raw } from "./ui/html.js";
 
 export { ScheduleDurableObject } from "./durable/schedule.js";
 
@@ -99,10 +99,12 @@ function errorPage(err: DomainError): Response {
   return htmlResponse(
     page(
       { title: "Something went wrong", surface: "public", width: "narrow" },
-      html`<div class="card">
+      // The invariant stays on the element, not in the copy: a reader who has never seen
+      // `docs/domain/` gains nothing from "INV-05-9", and a bug report can still recover it
+      // from the markup. The JSON surface keeps carrying it as a documented field.
+      html`<div class="card"${err.invariant ? raw(` data-rule="${escapeHtml(err.invariant)}"`) : raw("")}>
         <h1>${err.status === 403 ? "Not permitted" : err.status === 401 ? "Sign in required" : "That did not work"}</h1>
         <p class="flash err">${err.message}</p>
-        ${err.invariant ? html`<p class="small muted">Rule: <span class="mono">${err.invariant}</span></p>` : html``}
         ${err.fieldErrors?.length
           ? html`<ul>${err.fieldErrors.map((f) => html`<li><strong>${f.field_key}</strong>: ${f.message}</li>`)}</ul>`
           : html``}

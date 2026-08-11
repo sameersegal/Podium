@@ -380,7 +380,7 @@ export function personView(d: PersonPageData): SafeHtml {
             : raw("")}
           <h3>Consent</h3>
           <p class="small muted">
-            Per-field visibility and the public listing are the speaker's consent, not the organizer's preference (INV-01-13).
+            Per-field visibility and the public listing are the speaker's consent, not the organizer's preference.
             They are read-only here; only ${str(person.full_name)} can change them, in their own portal.
           </p>
           <dl class="kv">
@@ -442,7 +442,7 @@ export function personView(d: PersonPageData): SafeHtml {
     ${d.canWriteNotes
       ? card(
           html`<p class="small muted" id="notes">
-              Internal and attributed. Notes are never visible to their subject, in any role, through any surface (INV-01-14).
+              Internal and attributed. Notes are never visible to their subject, in any role, through any surface.
             </p>
             <form method="post" action="/admin/people/${str(person.id)}/notes" class="stack">
               ${field({ name: "body", label: "Add a note", type: "textarea", rows: 3, required: true })}
@@ -547,7 +547,7 @@ export function mergeConfirmView(losing: Row, surviving: Row, impact: Record<str
           <strong>${str(surviving.full_name)}</strong> (${str(surviving.email)}).
         </p>
         <p>
-          The merged record keeps its row and gains a pointer; every read follows it (INV-01-9). Nothing is deleted.
+          The merged record keeps its row and gains a pointer; every read follows it. Nothing is deleted.
         </p>
         ${entries.length === 0
           ? empty("Nothing references the merged record yet.")
@@ -560,7 +560,7 @@ export function mergeConfirmView(losing: Row, surviving: Row, impact: Record<str
             type: "textarea",
             rows: 3,
             required: true,
-            help: "Recorded on the audit row — merges carry a reason (INV-11-5).",
+            help: "Recorded on the audit row — merges carry a reason.",
           })}
           ${submitButton("Merge these two people")}
         </form>
@@ -644,11 +644,11 @@ export function portalProfileView(d: PortalProfileData): SafeHtml {
             ? html`<p><img class="avatar" src="${headshotUrl(str(d.profile.headshot_asset_id))}" alt="Your headshot" width="120" height="120"></p>`
             : raw("")}
           ${field({ name: "headshot", label: "Headshot", type: "file", accept: "image/jpeg,image/png,image/webp,image/avif" })}
-          <p class="small muted">Uploading again never overwrites — the previous version stays stored and listed (INV-11-9).</p>`,
+          <p class="small muted">Uploading again never overwrites — the previous version stays stored and listed.</p>`,
         "Headshot",
       )}
       ${card(
-        html`<p class="small muted">Absolute https URLs only (INV-01-5).</p>
+        html`<p class="small muted">Absolute https URLs only.</p>
           ${[0, 1, 2, 3, 4].map((i) => {
             const l = d.profile.links[i] as Row | undefined;
             return html`<div class="link-row">
@@ -675,7 +675,7 @@ export function portalProfileView(d: PortalProfileData): SafeHtml {
             help: "You can opt out of the directory and still speak. Only you can change this.",
           })}
           <p class="small muted">
-            Phone, dietary and accessibility notes are for logistics and never appear on any public page, whatever you set here (INV-01-4).
+            Phone, dietary and accessibility notes are for logistics and never appear on any public page, whatever you set here.
           </p>
           ${field({ name: "phone", label: "Phone (logistics only)", value: d.profile.phone ?? "" })}
           ${field({ name: "dietary_notes", label: "Dietary notes (logistics only)", type: "textarea", rows: 2, value: d.profile.dietary_notes ?? "" })}

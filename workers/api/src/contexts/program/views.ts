@@ -492,7 +492,7 @@ export function programBoardView(input: {
   const trs = rows.map(
     (r) => html`<tr>
       <td><a href="/admin/sessions/${r.id}"><strong>${r.reference}</strong></a></td>
-      <td><a href="/admin/sessions/${r.id}">${r.title}</a>${r.content_diverged ? html` <span class="badge warn" title="Content differs from the decision snapshot (INV-06-9)">diverged</span>` : raw("")}</td>
+      <td><a href="/admin/sessions/${r.id}">${r.title}</a>${r.content_diverged ? html` <span class="badge warn" title="The session has been edited since it was accepted">diverged</span>` : raw("")}</td>
       <td>${speakerCell(r.speakers)}</td>
       <td>${r.track_name ?? html`<span class="muted">—</span>`}</td>
       <td>${r.format_name}<br><span class="small muted">${r.duration_minutes} min</span></td>
@@ -536,7 +536,7 @@ export function newSessionFormView(input: { event: EventRef; tracks: Row[]; form
         ],
         help: "CFP and invited sessions come from an accepted proposal, not this form.",
       })}
-      ${field({ name: "sponsor_id", label: "Sponsor", type: "select", options: sponsorOpts, help: "Required for a sponsor session; must have a confirmed sponsorship (INV-06-2)." })}
+      ${field({ name: "sponsor_id", label: "Sponsor", type: "select", options: sponsorOpts, help: "Required for a sponsor session; must have a confirmed sponsorship." })}
       ${field({ name: "title", label: "Title", required: true })}
       ${field({ name: "subtitle", label: "Subtitle" })}
       ${field({ name: "abstract", label: "Abstract", type: "textarea", rows: 4 })}
@@ -690,7 +690,7 @@ export function sessionDetailView(d: DetailInput): SafeHtml {
       d.canWrite && str(s.status) !== "cancelled"
         ? html`<details class="row-edit"><summary class="button danger small">Cancel</summary>
             <form method="post" action="/admin/sessions/${sid}/cancel" class="inline-grid">
-              ${field({ name: "reason", label: "Reason", required: true, help: "INV-11-5: cancellation is audited with a reason." })}
+              ${field({ name: "reason", label: "Reason", required: true, help: "Cancellation is audited with a reason." })}
               <button type="submit" class="small danger">Cancel session</button>
             </form>
           </details>`
@@ -704,7 +704,7 @@ export function sessionDetailView(d: DetailInput): SafeHtml {
       ${d.sponsor ? stat("sponsor", str(d.sponsor.display_name) || str(d.sponsor.name)) : raw("")}
     </div>
     ${publishedNotLive ? html`<p class="notice warn">This has been published before but the current edit has not gone live yet.</p>` : raw("")}
-    ${d.content_diverged ? html`<p class="notice warn">This session's content has diverged from the proposal's decision snapshot (INV-06-9) — normal, and not notified anywhere else.</p>` : raw("")}
+    ${d.content_diverged ? html`<p class="notice warn">This session has been edited since it was accepted, so it no longer matches the proposal the committee decided on. That is normal — the flag is here because nothing else announces it.</p>` : raw("")}
 
     ${card(
       html`${contentEditWarn}
@@ -733,7 +733,7 @@ export function sessionDetailView(d: DetailInput): SafeHtml {
               ${field({ name: "full_name", label: "Name" })}
               ${field({ name: "email", label: "Email", type: "email" })}
               ${field({ name: "speaker_role", label: "Role", type: "select", value: "co_speaker", options: ["primary", "co_speaker", "moderator", "panelist", "host"].map((v) => ({ value: v, label: humanise(v) })) })}
-              ${field({ name: "override_reason", label: "Override reason", help: "Only needed past the format's speaker limit (INV-06-3)." })}
+              ${field({ name: "override_reason", label: "Override reason", help: "Only needed past the format's speaker limit." })}
               <button type="submit" class="small">Add speaker</button>
             </form>`
           : raw("")}`,

@@ -191,7 +191,9 @@ export async function updateRubric(
       before: { rubric_id: rubricId, version: rubric.version },
       after: { rubric_id: id, version: rubric.version + 1 },
       // INV-05-1 is not an override; the reason records why a new row appeared.
-      reason: "A round that is no longer a draft references this rubric, so the change became a new version (INV-05-1).",
+      // INV-05-1 — the reason lands in the audit log, which organizers read, so it names the
+      // behaviour rather than the rule.
+      reason: "A round that is no longer a draft references this rubric, so the change became a new version.",
     });
     return { rubric_id: id, new_version: true };
   }
@@ -1184,7 +1186,8 @@ export async function submitReview(
       entity_id: id,
       before: { review_id: priorId },
       after: { review_id: id },
-      reason: "A submitted review was edited; the prior version is superseded, not overwritten (INV-05-3).",
+      // INV-05-3
+      reason: "A submitted review was edited; the prior version is superseded, not overwritten.",
     });
   }
   return id;
@@ -1868,7 +1871,7 @@ export async function previewPublish(
  */
 function publishBlockedReason(decision: Row, proposal: Row, now: string): string | null {
   const status = str(decision.status) as DecisionStatus;
-  if (status === "published") return "Already published — publishing again sends nothing (INV-05-10).";
+  if (status === "published") return "Already published — publishing again sends nothing."; // INV-05-10
   if (status === "superseded") return "Superseded by a later decision.";
 
   const proposalStatus = str(proposal.status);

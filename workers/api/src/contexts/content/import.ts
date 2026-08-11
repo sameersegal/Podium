@@ -284,7 +284,7 @@ export interface RunResult {
 export async function runImport(app: AppContext, id: string): Promise<RunResult> {
   const importRow = await getImport(app, id);
   if (str(importRow.status) !== "previewing") {
-    throw new DomainError({ code: "not_previewed", message: "Preview the import before running it (INV-11-13).", status: 422, invariant: "INV-11-13" });
+    throw new DomainError({ code: "not_previewed", message: "Preview the import before running it.", status: 422, invariant: "INV-11-13" });
   }
   const subject = str(importRow.subject) as ImportSubject;
   if (!RUNNABLE_SUBJECTS.includes(subject)) {

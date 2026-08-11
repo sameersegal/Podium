@@ -338,7 +338,7 @@ export async function installIntegration(app: AppContext, input: IntegrationInpu
   if (plugin.requires_secret && !input.secret_ref) {
     throw new DomainError({
       code: "secret_required",
-      message: `${plugin.display_name} needs a secret. Point secret_ref at a Workers Secret holding it (INV-09-3).`,
+      message: `${plugin.display_name} needs a secret. Point secret_ref at a Workers Secret holding it.`,
       status: 422,
       invariant: "INV-09-3",
     });

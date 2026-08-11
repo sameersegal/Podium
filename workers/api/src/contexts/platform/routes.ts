@@ -136,7 +136,7 @@ function registerSettingsRoutes(router: Router<RequestContext>): void {
                 label: "Allow password sign-in",
                 type: "checkbox",
                 value: auth.password_login_enabled === true,
-                help: "R23: off by default in production; on automatically wherever no email provider is configured, so a deployment can never lock itself out.",
+                help: "Off by default in production; on automatically wherever no email provider is configured, so a deployment can never lock itself out.",
               })}
               <h3>Review</h3>
               ${field({
@@ -144,7 +144,7 @@ function registerSettingsRoutes(router: Router<RequestContext>): void {
                 label: "AI first-pass review",
                 type: "checkbox",
                 value: review.ai_evaluation_enabled === true,
-                help: "R24: off by default. Never counts toward quorum; always labelled and overridable.",
+                help: "Off by default. Never counts toward quorum; always labelled and overridable.",
               })}
               <h3>Privacy</h3>
               ${field({
@@ -215,7 +215,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
         { title: "API keys", active: "api-keys", width: "wide" },
         html`${pageHead(
             "API keys",
-            "Scoped credentials for the management API (09, ApiKey). The secret is shown once, here, and never again (INV-09-1).",
+            "Scoped credentials for the management API. The secret is shown once, here, and never again.",
             canWrite ? html`<a class="button" href="/admin/api-keys/new">New API key</a>` : raw(""),
           )}
           ${ctx.flash?.kind === "ok" && ctx.flash.message.startsWith("secret:")
@@ -236,7 +236,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
           ${card(html`<form method="post" action="/admin/api-keys/new" class="stack">
             ${field({ name: "name", label: "Name", required: true, placeholder: "Marketing site" })}
             ${field({ name: "scopes", label: "Scopes", type: "multi_select", options: API_SCOPES.map((s) => ({ value: s, label: s })), help: "pii:read is additive — without it, personal data is redacted everywhere, including inside proposals:read." })}
-            ${field({ name: "event_ids", label: "Restrict to event ids (comma-separated)", help: "Leave blank for every event (INV-09-9)." })}
+            ${field({ name: "event_ids", label: "Restrict to event ids (comma-separated)", help: "Leave blank for every event." })}
             <button type="submit">Create key</button>
           </form>`)}`,
       ),
@@ -280,7 +280,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
 function webhookForm(w: Row | null, events: Row[]): SafeHtml {
   return html`
     ${field({ name: "name", label: "Name", required: true, value: w ? str(w.name) : "" })}
-    ${field({ name: "url", label: "URL", type: "url", required: true, value: w ? str(w.url) : "", help: "Absolute https only (INV-09-2)." })}
+    ${field({ name: "url", label: "URL", type: "url", required: true, value: w ? str(w.url) : "", help: "Absolute https only." })}
     ${field({
       name: "event_types",
       label: "Event types",
@@ -320,7 +320,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
         { title: "Webhooks", active: "webhooks", width: "wide" },
         html`${pageHead(
             "Webhooks",
-            "Push domain events to another system, signed with HMAC-SHA256 (INV-09-8).",
+            "Push domain events to another system, signed with HMAC-SHA256.",
             canWrite ? html`<a class="button" href="/admin/webhooks/new">New webhook</a>` : raw(""),
           )}
           ${table(["Webhook", "Event types", "Status", "Consecutive failures", ""], rows, "No webhooks yet.")}`,
@@ -481,7 +481,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: `${str(webhook.name)} — deliveries`, active: "webhooks", width: "wide" },
-        html`${pageHead(`Deliveries for ${str(webhook.name)}`, "At-least-once, ordered per subject (INV-09-8).")}
+        html`${pageHead(`Deliveries for ${str(webhook.name)}`, "At-least-once, ordered per subject.")}
           ${table(["Delivery", "Attempt", "Status", "HTTP", "Scheduled", "Delivered", ""], rows, "No deliveries yet.")}
           ${page.next_cursor ? html`<p><a href="/admin/webhooks/${params.id}/deliveries?cursor=${page.next_cursor}">Older →</a></p>` : raw("")}`,
       ),
@@ -529,8 +529,8 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Integrations", active: "integrations", width: "wide" },
-        html`${pageHead("Integrations", "Capability contracts — the core never imports a vendor SDK (09).")}
-          ${table(["Integration", "Capability", "Status", "Default", ""], rows, "Nothing installed. Without an active email integration, mail is recorded in the outbox and never sent (INV-09-12).")}
+        html`${pageHead("Integrations", "Capability contracts — the core never imports a vendor SDK.")}
+          ${table(["Integration", "Capability", "Status", "Default", ""], rows, "Nothing installed. Without an active email integration, mail is recorded in the outbox and never sent.")}
           ${canWrite
             ? card(
                 html`<form method="post" action="/admin/integrations/new" class="stack">
@@ -542,7 +542,7 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
                     options: plugins.map((p) => ({ value: String(p.key), label: `${String(p.display_name)} (${String(p.capability)})` })),
                   })}
                   ${field({ name: "display_name", label: "Display name" })}
-                  ${field({ name: "secret_ref", label: "Secret ref", help: "The name of a Workers Secret holding the credential (INV-09-3) — never the secret itself." })}
+                  ${field({ name: "secret_ref", label: "Secret ref", help: "The name of a Workers Secret holding the credential — never the secret itself." })}
                   ${field({ name: "is_default_for_capability", label: "Make this the default for its capability", type: "checkbox", value: true })}
                   <button type="submit">Install</button>
                 </form>`,
@@ -610,7 +610,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
         { title: "Message templates", active: "templates", width: "wide" },
         html`${pageHead(
             "Message templates",
-            "System-triggered messages. Unknown variables are rejected at save time (INV-09-13).",
+            "System-triggered messages. Unknown variables are rejected at save time.",
             canWrite ? html`<a class="button" href="/admin/templates/new">New template</a>` : raw(""),
           )}
           ${table(["Key", "Channel", "Locale", "Version", "Status"], rows, "No org-level overrides yet — defaults from the catalogue are used.")}
@@ -746,7 +746,7 @@ function registerCampaignRoutes(router: Router<RequestContext>): void {
         { title: "Campaigns", event: ref, active: "campaigns", width: "wide" },
         html`${pageHead(
             "Campaigns",
-            "Organizer-composed bulk messaging — every recipient gets an ordinary NotificationDelivery (09).",
+            "Organizer-composed bulk messaging — every recipient gets an ordinary notification delivery, tracked in the outbox like any other.",
             canWrite ? html`<a class="button" href="/admin/events/${params.eventId}/campaigns/new">Compose</a>` : raw(""),
           )}
           ${table(["Name", "Channel", "Status", "Sent / scheduled"], rows, "No campaigns yet.")}`,
@@ -829,7 +829,7 @@ function registerCampaignRoutes(router: Router<RequestContext>): void {
         { title: str(campaign.name), event: event ? toEventRef(event) : null, active: "campaigns", width: "narrow" },
         html`${pageHead(str(campaign.name), `${badge(str(campaign.status))}`)}
           ${card(
-            html`<p><strong>${preview.total}</strong> recipient(s) resolved right now — the actual send re-resolves the criteria (09, "criteria resolved at send time").</p>
+            html`<p><strong>${preview.total}</strong> recipient(s) resolved right now — the actual send re-resolves the criteria, so this is a preview, not the final list.</p>
               <ul>${preview.sample.map((m) => html`<li>${m.name} — ${m.email}</li>`)}</ul>`,
             "Audience",
           )}
@@ -912,7 +912,7 @@ function registerOutboxRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Outbox", active: "outbox", width: "wide" },
-        html`${pageHead("Outbox", "Every message the platform has sent or tried to — the answer to 'did we tell her?' (09, \"The outbox\").")}
+        html`${pageHead("Outbox", "Every message the platform has sent or tried to — the answer to 'did we tell them?'.")}
           ${table(["When", "Template / source", "To", "Status", "Reason"], rows, "Nothing sent yet.")}
           ${page.next_cursor ? html`<p><a href="/admin/outbox?cursor=${page.next_cursor}">Older →</a></p>` : raw("")}`,
       ),
@@ -952,7 +952,7 @@ function registerAuditRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "Audit log", active: "audit", width: "wide" },
-        html`${pageHead("Audit log", "Append-only, never deleted — even erasure retains the actor id and redacts the payload (11).")}
+        html`${pageHead("Audit log", "Append-only, never deleted — even erasure retains the actor id and redacts the payload.")}
           ${table(["When", "Action", "Entity", "Actor", "Reason"], rowsHtml, "Nothing recorded yet.")}
           ${rows.length > limit ? html`<p><a href="/admin/audit?cursor=${str(items[items.length - 1]?.id)}">Older →</a></p>` : raw("")}`,
       ),
@@ -982,7 +982,7 @@ function registerUnsubscribeRoutes(router: Router<RequestContext>): void {
         { title: "Unsubscribe", width: "narrow" },
         html`<div class="card">
           <p>Stop marketing messages to <strong>${email}</strong>?</p>
-          <p class="muted small">This never affects a message about your own proposal, session or task (INV-09-10) — those keep coming regardless.</p>
+          <p class="muted small">This never affects a message about your own proposal, session or task — those keep coming regardless.</p>
           <form method="post" action="/unsubscribe">
             <input type="hidden" name="email" value="${email}"><input type="hidden" name="category" value="${category}"><input type="hidden" name="sig" value="${sig}">
             <button type="submit">Unsubscribe</button>

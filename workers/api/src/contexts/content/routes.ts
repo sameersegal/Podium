@@ -353,7 +353,7 @@ function registerCustomFieldRoutes(router: Router<RequestContext>): void {
         { title: "Custom fields", active: "custom-fields", width: "wide" },
         html`${pageHead(
             "Custom fields",
-            "Adding a field means deciding its PII class — pii and audience are required at creation and never defaulted (INV-11-11).",
+            "Adding a field means deciding its PII class — whether it holds personal data, and who is allowed to see it, are both answered when you create it and never guessed for you.",
             canWrite ? html`<a class="button" href="/admin/custom-fields/new">New field</a>` : raw(""),
           )}
           ${warnings.length ? html`<p class="notice warn">${warnings.join("; ")} — proliferation is surfaced, not capped (R27).</p>` : raw("")}
@@ -376,7 +376,7 @@ function registerCustomFieldRoutes(router: Router<RequestContext>): void {
             ${field({ name: "type", label: "Type", type: "select", required: true, options: CUSTOM_FIELD_TYPES.map((t) => ({ value: t, label: humanise(t) })) })}
             ${field({ name: "options", label: "Options (for select types)", type: "textarea", rows: 3, help: "One per line: value|Label" })}
             ${field({ name: "is_required", label: "Required", type: "checkbox" })}
-            ${field({ name: "pii", label: "Holds personal data", type: "select", required: true, options: [{ value: "true", label: "Yes — treat as PII" }, { value: "false", label: "No" }], help: "There is no default (INV-11-11)." })}
+            ${field({ name: "pii", label: "Holds personal data", type: "select", required: true, options: [{ value: "true", label: "Yes — treat as PII" }, { value: "false", label: "No" }], help: "No default — say so either way. A field marked as personal data is redacted from exports and public pages unless the reader may see contact details." })}
             ${field({ name: "audience", label: "Audience", type: "select", required: true, options: CUSTOM_FIELD_AUDIENCES.map((a) => ({ value: a, label: humanise(a) })), help: "public may reach a publication snapshot." })}
             <button type="submit">Create field</button>
           </form>`)}`,
@@ -452,7 +452,7 @@ function registerImportRoutes(router: Router<RequestContext>): void {
         { title: "Imports", active: "imports", width: "wide" },
         html`${pageHead(
             "Imports",
-            "Map, validate, preview, then run — nothing is written until the preview is confirmed (INV-11-13).",
+            "Map, validate, preview, then run — nothing is written until the preview is confirmed.",
             html`<a class="button" href="/admin/imports/new">New import</a>`,
           )}
           ${table(["Subject", "Status", "Started"], rows, "No imports yet.")}`,
@@ -601,7 +601,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
         { title: "Exports", active: "exports", width: "wide" },
         html`${pageHead(
             "Exports",
-            "Generated exactly under your own permissions — never a side door around the authorization matrix (INV-11-12). Expire after 7 days.",
+            "Generated exactly under your own permissions — never a side door around what you may already see. Expire after 7 days.",
             html`<a class="button" href="/admin/exports/new">New export</a>`,
           )}
           ${table(["Subject", "Format", "Status", "Requested", ""], rows, "No exports yet.")}`,

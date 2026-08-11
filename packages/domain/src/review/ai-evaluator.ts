@@ -197,7 +197,8 @@ export function localHeuristicEvaluator(
       return {
         evaluator_key: key,
         model,
-        rationale: `Keyword triage by ${model}, not a judgement. ${evidence.join(" ")} This is a first pass over the abstract only; it never counts toward quorum (INV-05-17).`,
+        // INV-05-17 — the rationale is read by reviewers, so it states the rule's effect, not its name.
+        rationale: `Keyword triage by ${model}, not a judgement. ${evidence.join(" ")} This is a first pass over the abstract only; it never counts toward quorum.`,
         scores,
         recommendation,
         // A heuristic is never more than low confidence, and saying so is the

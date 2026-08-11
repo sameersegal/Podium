@@ -310,8 +310,9 @@ logs alone, without reproducing it.
 - **Never log PII.** [`11-cross-cutting.md`](../../docs/domain/11-cross-cutting.md) is explicit:
   *application logs carry ids, not values*. `person_id`, never the email. Secrets never appear
   in logs or errors (INV-09-3) — a helpful error dump is how that rule usually breaks.
-- **Typed errors carry their `INV-xx-n`** into both the log line and the response, and the
-  response carries the request id so a user can quote it.
+- **Typed errors carry their `INV-xx-n`** into the log line and the JSON error body, and the
+  response carries the request id so a user can quote it. It does **not** go into the rendered
+  message a person reads — see (I).
 - **Consumers log event id, attempt and outcome**, including the already-handled no-op —
   silent idempotency is indistinguishable from a lost event. Log DLQ arrivals loudly.
 - **Log level is configurable**, quiet by default in production; debug logging is a setting,
@@ -319,6 +320,47 @@ logs alone, without reproducing it.
 - **Counts and timings go to metrics** (Analytics Engine or equivalent), not log lines parsed
   later. Watch cardinality — never a dimension per person.
 - **Integration tests assert the PII rule** on at least one endpoint handling personal data.
+
+## I) The UI speaks the user's language, not the model's
+
+The model is how *we* reason about the product. It is not how a speaker, reviewer, sponsor or
+organizer reasons about it, and none of them has read `docs/domain/`. **No identifier from the
+model may appear in anything a person reads.** Not `INV-05-9`, not a decision record (`R23`), not
+a context number (`(09)`), not a capability key, not a raw entity or column name.
+
+That is not a licence to say less. A citation deleted and nothing put in its place makes the
+product *worse* than the leak did — the reader loses the explanation and gains nothing. **Say
+what the rule does, in the reader's terms, at the point it bites them.** The invariant is the
+reason the sentence exists; it is never the sentence.
+
+| Instead of | Write |
+|---|---|
+| `Rule: INV-05-9` under an error | The message alone, saying what to do next |
+| "Required to accept below quorum (INV-05-11)." | "Required to accept below quorum." |
+| "It is the display authority for every time we show (INV-02-1)." | "Every time on its schedule and deadlines is shown in it." |
+| "R23: off by default in production…" | "Off by default in production…" |
+| "…a side door around the authorization matrix (INV-11-12)." | "…a side door around what you may already see." |
+| "You do not have permission to org configure." | "You do not have permission to change organization settings." |
+| "Content differs from the decision snapshot." | "The session has been edited since it was accepted." |
+
+Where this applies: every rendered string — page and section descriptions, field labels and
+help, flash messages, confirm dialogs, empty-state text, badge tooltips, validation and
+`DomainError` messages, and anything stored in a `reason` that an organizer later reads in the
+audit log. Also emails and any AI-authored rationale shown to a human.
+
+Where it does **not**: code comments, test titles, `DomainError.invariant` and the JSON error
+body, log lines and metrics, and messages on internal guards that are logged rather than
+displayed (`errorResponse` replaces a non-`DomainError` with a generic message, so those may
+name the rule freely). Traceability lives there, and the repo rules still require it — when you
+take a citation out of a string, put it in the comment beside it if that line is the only place
+the invariant is named.
+
+Two checks before you call a UI change done:
+
+1. `grep -nE 'INV-[0-9]{2}-[0-9]+|\bR[0-9]{1,2}\b' <changed view files>` — every remaining hit
+   should be inside a comment.
+2. Read each new string as somebody who has never seen the model. If it does not survive that,
+   it is not finished, whether or not it contains a citation.
 
 ---
 
@@ -351,6 +393,7 @@ Short and factual:
 - **Measured** numbers against the G budgets and how you profiled — never assert something is
   fast without a measurement. Note any budget missed.
 - What you instrumented; which viewports you verified.
+- Any user-facing copy you added or changed, and confirmation it names no model identifier (I).
 - Test results — actual output, including failures.
 - Breaking API changes.
 - Anything deliberately left out, and why.

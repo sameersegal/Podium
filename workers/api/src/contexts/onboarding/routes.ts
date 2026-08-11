@@ -160,17 +160,17 @@ function definitionFields(def: Row | null, tracks: Row[], formats: Row[]): SafeH
     ${field({ name: "subject_type", label: "Subject type", type: "select", required: true, value: def ? str(def.subject_type) : "session", options: opts(TASK_SUBJECT_TYPE) })}
     ${field({ name: "assignee_rule", label: "Assignee rule", type: "select", required: true, value: def ? str(def.assignee_rule) : "each_speaker", options: opts(ASSIGNEE_RULE) })}
     ${field({ name: "assignee_person_id", label: "Named organizer (for named_organizer)", value: def ? str(def.assignee_person_id) : "" })}
-    ${field({ name: "assignee_person_ids", label: "Named people (for named_people)", type: "textarea", rows: 2, value: def ? parseJson<string[]>(def.assignee_person_ids, []).join(", ") : "", help: "Person ids, comma or newline separated (INV-07-12)." })}
+    ${field({ name: "assignee_person_ids", label: "Named people (for named_people)", type: "textarea", rows: 2, value: def ? parseJson<string[]>(def.assignee_person_ids, []).join(", ") : "", help: "Person ids, comma or newline separated. A named-people task needs at least one." })}
     ${field({ name: "applies_to", label: "Applies to (JSON filter)", type: "textarea", rows: 2, value: JSON.stringify(applies), help: `{origins, format_ids, track_ids, attendance_modes, speaker_roles} — empty = everything. Origins: ${ORIGIN.join(", ")}. Attendance: ${ATTENDANCE_MODE.join(", ")}. Roles: ${SPEAKER_ROLE.join(", ")}. Tracks/formats on this event: ${[...tracks.map((t) => str(t.id) + "=" + str(t.name)), ...formats.map((f) => str(f.id) + "=" + str(f.name))].join(", ") || "none yet"}.` })}
     ${field({ name: "trigger", label: "Trigger", type: "select", required: true, value: def ? str(def.trigger) : "on_session_confirmed", options: opts(TASK_TRIGGER) })}
     ${field({ name: "trigger_task_key", label: "Trigger task key (for on_task_completed)", value: def ? str(def.trigger_task_key) : "" })}
     ${field({ name: "due_rule", label: "Due rule", type: "select", required: true, value: def ? str(def.due_rule) : "none", options: opts(DUE_RULE) })}
     ${field({ name: "due_value", label: "Due value (JSON)", value: def ? JSON.stringify(parseJson(def.due_value, {})) : "{}", help: `{"date": "2027-05-01"} or {"offset_days": -14, "at_time": "17:00"} — negative is before.` })}
-    ${field({ name: "is_blocking", label: "Blocking (INV-06-5: incomplete blocks publication)", type: "checkbox", value: def ? bool(def.is_blocking) : false })}
+    ${field({ name: "is_blocking", label: "Blocking — while this is incomplete, the session cannot be published", type: "checkbox", value: def ? bool(def.is_blocking) : false })}
     ${field({ name: "is_required", label: "Required (unchecked = a nudge, not an obligation)", type: "checkbox", value: def ? bool(def.is_required) : true })}
     ${field({ name: "requires_review", label: "Requires organizer review", type: "checkbox", value: def ? bool(def.requires_review) : false })}
     ${field({ name: "auto_complete_on_event", label: "Auto-completes on domain event", value: def ? str(def.auto_complete_on_event) : "" })}
-    ${field({ name: "depends_on_task_keys", label: "Depends on task keys", type: "textarea", rows: 2, value: def ? parseJson<string[]>(def.depends_on_task_keys, []).join(", ") : "", help: "Comma or newline separated definition keys (INV-07-4)." })}
+    ${field({ name: "depends_on_task_keys", label: "Depends on task keys", type: "textarea", rows: 2, value: def ? parseJson<string[]>(def.depends_on_task_keys, []).join(", ") : "", help: "Comma or newline separated definition keys. This task stays blocked until they are done, so the dependencies cannot form a loop." })}
     ${field({ name: "sort_order", label: "Sort order", type: "number", value: def ? num(def.sort_order) : 0 })}
   `;
 }
@@ -200,7 +200,7 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
           ${canWrite
             ? html`${str(d.status) !== "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/activate`, "Activate") : raw("")}
                 ${str(d.status) === "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/retire`, "Retire", { confirm: "Retire this task? Existing instances are unaffected." }) : raw("")}
-                ${str(d.status) === "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/rematerialise`, "Re-materialise", { confirm: "Apply this definition to every eligible existing session, speaker and sponsor now? Instances already materialised are left as-is (INV-07-1)." }) : raw("")}`
+                ${str(d.status) === "active" ? actionForm(`/admin/events/${ref.id}/tasks/${str(d.id)}/rematerialise`, "Re-materialise", { confirm: "Apply this definition to every eligible existing session, speaker and sponsor now? Instances already materialised are left as-is." }) : raw("")}`
             : raw("")}
         </td>
       </tr>`,
@@ -212,7 +212,7 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
         { title: "Onboarding tasks", event: ref, active: "onboarding", width: "wide" },
         html`${pageHead(
             "Task definitions",
-            "Definitions are templates; instances are the obligations they create. Editing one never rewrites what people already did (INV-07-1).",
+            "Definitions are templates; instances are the obligations they create. Editing one never rewrites what people already did.",
             canWrite && defs.length === 0 ? actionForm(`/admin/events/${ref.id}/tasks/seed-defaults`, "Seed the default checklist") : raw(""),
           )}
           ${table(["Task", "Category", "Type", "Assignee", "Trigger", "Weight", "Status", ""], rows, "No task definitions yet.")}
@@ -339,7 +339,7 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
     const app = ctx.app(params.eventId);
     await updateTaskDefinition(app, params.defId, readDefinitionInput(input));
     await app.flush();
-    return redirect(`/admin/events/${params.eventId}/tasks/${params.defId}`, 303, OK("Saved. Existing instances are unaffected (INV-07-1)."));
+    return redirect(`/admin/events/${params.eventId}/tasks/${params.defId}`, 303, OK("Saved. Existing instances are unaffected."));
   });
 
   router.post("/admin/events/:eventId/tasks/:defId/activate", async (_req, ctx, params) => {

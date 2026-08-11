@@ -145,7 +145,8 @@ export interface CreateEventInput {
 
 export async function createEvent(app: AppContext, input: CreateEventInput): Promise<Row> {
   if (!input.name.trim()) fail("invalid_event", "An event needs a name.");
-  if (!input.timezone.trim()) fail("invalid_event", "An event needs a timezone — it is the display authority for every time we show (INV-02-1).");
+  // INV-02-1
+  if (!input.timezone.trim()) fail("invalid_event", "An event needs a timezone — every time on its schedule and deadlines is shown in it.");
   if (!input.starts_on || !input.ends_on) fail("invalid_event", "An event needs a start and an end date.");
   if (input.ends_on < input.starts_on) fail("invalid_event", "The event cannot end before it starts.");
 

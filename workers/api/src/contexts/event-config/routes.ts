@@ -490,7 +490,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
             ${field({ name: "slug", label: "URL slug", help: "Appears in public links. Leave blank to derive it from the name." })}
             ${field({ name: "edition", label: "Edition", help: "For grouping recurring events — \"2026\", \"Summit '27\"." })}
             ${field({ name: "tagline", label: "Tagline" })}
-            ${field({ name: "timezone", label: "Timezone", required: true, value: "America/Los_Angeles", help: "IANA name. This is the timezone every schedule time is displayed in (INV-02-1)." })}
+            ${field({ name: "timezone", label: "Timezone", required: true, value: "America/Los_Angeles", help: "IANA name. This is the timezone every schedule time is displayed in." })}
             ${field({ name: "starts_on", label: "First day", type: "date", required: true })}
             ${field({ name: "ends_on", label: "Last day", type: "date", required: true })}
             ${field({ name: "mode", label: "Mode", type: "select", required: true, value: "in_person", options: opts(EVENT_MODE) })}
@@ -561,7 +561,6 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
                       ${canWrite ? actionForm(`/admin/events/${ref.id}/activate`, "Activate event", { className: "" }) : raw("")}`
                   : html`<p class="notice warn">
                         Before this event can go active it needs ${check.blockers.join(", ")}.
-                        <span class="mono small">INV-02-11</span>
                       </p>
                       <p><a class="button secondary" href="/admin/events/${ref.id}/setup">Go to setup</a></p>`,
                 "Readiness",
@@ -573,7 +572,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
               ${field({ name: "edition", label: "Edition", value: str(row.edition) })}
               ${field({ name: "tagline", label: "Tagline", value: str(row.tagline) })}
               ${field({ name: "description", label: "Description", type: "textarea", rows: 5, value: str(row.description), help: "Markdown." })}
-              ${field({ name: "timezone", label: "Timezone", required: true, value: str(row.timezone), help: "Every time shown for this event is rendered here (INV-02-1)." })}
+              ${field({ name: "timezone", label: "Timezone", required: true, value: str(row.timezone), help: "Every time shown for this event is rendered here." })}
               ${field({ name: "starts_on", label: "First day", type: "date", required: true, value: str(row.starts_on) })}
               ${field({ name: "ends_on", label: "Last day", type: "date", required: true, value: str(row.ends_on) })}
               ${field({ name: "mode", label: "Mode", type: "select", required: true, value: str(row.mode), options: opts(EVENT_MODE) })}
@@ -585,7 +584,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
                 required: true,
                 value: str(row.visibility),
                 options: opts(EVENT_VISIBILITY),
-                help: "A public call for proposals needs an active, public event (INV-02-12).",
+                help: "A public call for proposals needs an active, public event.",
               })}
               ${field({ name: "venue_id", label: "Venue", type: "select", value: str(row.venue_id), options: venue ? [{ value: str(venue.id), label: str(venue.name) }] : [] })}
               ${canWrite ? html`<button type="submit">Save settings</button>` : html`<p class="muted small">You have read-only access to this event's configuration.</p>`}
@@ -666,7 +665,7 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
         html`${pageHead("Setup", "Days, tracks, session formats, the venue and its rooms. Everything a call for proposals and the schedule need.")}
           ${check.ready
             ? raw("")
-            : html`<p class="notice warn">Still missing before this event can go active: ${check.blockers.join(", ")}. <span class="mono small">INV-02-11</span></p>`}
+            : html`<p class="notice warn">Still missing before this event can go active: ${check.blockers.join(", ")}.</p>`}
           ${daysSection(ref, row, days, canWrite)}
           ${tracksSection(ref, tracks, canWrite)}
           ${formatsSection(ref, formats, canWrite)}
@@ -908,7 +907,7 @@ function tracksSection(ev: EventRef, tracks: Row[], canWrite: boolean): SafeHtml
     </tr>`,
   );
   return card(
-    html`<p class="muted">Tracks are more than labels: reviewer pools, track leads, quotas and schedule columns are all per-track. Archiving keeps them on anything already using them (INV-02-10).</p>
+    html`<p class="muted">Tracks are more than labels: reviewer pools, track leads, quotas and schedule columns are all per-track. Archiving keeps them on anything already using them.</p>
       ${table(["Track", "Description", "Target", "Visibility", ""], rows, "No tracks yet.")}
       ${canWrite
         ? html`<form method="post" action="/admin/events/${ev.id}/tracks" class="inline-grid">
@@ -939,7 +938,7 @@ function formatsSection(ev: EventRef, formats: Row[], canWrite: boolean): SafeHt
       type: "multi_select",
       options: opts(ORIGIN),
       value: f ? parseJson<string[]>(f.eligible_origins, ["cfp"]) : ["cfp"],
-      help: "A proposal's origin must be one of these (INV-02-2).",
+      help: "A proposal's origin must be one of these.",
     })}
     ${field({ name: "requires_review", label: "Requires review", type: "checkbox", value: f ? bool(f.requires_review) : true })}
     ${field({ name: "requires_recording_consent", label: "Requires recording consent", type: "checkbox", value: f ? bool(f.requires_recording_consent) : false })}
@@ -1045,7 +1044,7 @@ function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], tracks: Row
           : empty("No venue yet.")}
       <h3>Rooms</h3>
       ${venue
-        ? html`${table(["Room", "Capacity", "Floor", "AV", "Visibility", ""], roomRows, "No rooms yet. An in-person or hybrid event needs at least one to go active (INV-02-11).")}
+        ? html`${table(["Room", "Capacity", "Floor", "AV", "Visibility", ""], roomRows, "No rooms yet. An in-person or hybrid event needs at least one to go active.")}
             ${canWrite
               ? html`<form method="post" action="/admin/events/${ev.id}/rooms" class="inline-grid">
                   <input type="hidden" name="venue_id" value="${str(venue.id)}">
@@ -1102,7 +1101,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
             canWrite ? html`<a class="button" href="/admin/events/${ref.id}/cfps/new">New call</a>` : raw(""),
           )}
           ${str(row.status) !== "active" || str(row.visibility) !== "public"
-            ? html`<p class="notice warn">Public call pages need an <strong>active</strong>, <strong>public</strong> event (INV-02-12). This event is ${str(row.status)} and ${str(row.visibility)}.</p>`
+            ? html`<p class="notice warn">Public call pages need an <strong>active</strong>, <strong>public</strong> event. This event is ${str(row.status)} and ${str(row.visibility)}.</p>`
             : raw("")}
           ${table(["Call", "Status", "Window", "Proposals", "Form", "Public link", ""], rows, "No calls for proposals yet.")}`,
       ),
@@ -1120,9 +1119,9 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
           ${card(html`<form method="post" action="/admin/events/${ref.id}/cfps/new" class="stack">
             ${field({ name: "name", label: "Name", required: true, placeholder: "Main CFP 2026" })}
             ${field({ name: "slug", label: "URL slug", help: "The public URL segment. Derived from the name if blank." })}
-            ${field({ name: "audience", label: "Audience", type: "select", required: true, value: "public", options: opts(CFP_AUDIENCE), help: "Sponsors-only and invite-only calls are never public (INV-02-3)." })}
+            ${field({ name: "audience", label: "Audience", type: "select", required: true, value: "public", options: opts(CFP_AUDIENCE), help: "Sponsors-only and invite-only calls are never public." })}
             ${field({ name: "opens_at", label: `Opens (${ref.timezone})`, type: "datetime-local", required: true })}
-            ${field({ name: "closes_at", label: `Closes (${ref.timezone})`, type: "datetime-local", required: true, help: "Must be after it opens (INV-02-4)." })}
+            ${field({ name: "closes_at", label: `Closes (${ref.timezone})`, type: "datetime-local", required: true, help: "Must be after it opens." })}
             ${field({ name: "intro_markdown", label: "Introduction", type: "textarea", rows: 5, help: "Markdown, shown on the call's public page." })}
             <button type="submit">Create call</button>
           </form>`)}
@@ -1172,12 +1171,12 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
               ${canWrite && !cfp.published_at ? actionForm(`/admin/cfps/${params.cfpId}/publish`, "Publish call", { className: "" }) : raw("")}
               ${canWrite && status === "open" ? actionForm(`/admin/cfps/${params.cfpId}/close`, "Close now", { confirm: "Close this call now?" }) : raw("")}`,
           )}
-          ${card(html`<p class="small muted">Public page — works for anyone, with no account, in every status including closed (INV-02-12).</p>
+          ${card(html`<p class="small muted">Public page — works for anyone, with no account, in every status including closed.</p>
             ${copyableUrl(publicUrl, params.cfpId)}
             <p class="small"><a href="${publicUrl}">Open the public page</a> · <a href="/v1/public/events/${str(event.slug)}/cfps/${str(cfp.slug)}">JSON</a></p>`, "Public link")}
           ${status === "closed" && canWrite
             ? card(
-                html`<p class="muted">Reopening a closed call is an override, so it is logged with a reason (INV-11-5). If the closing time has passed, give a new one.</p>
+                html`<p class="muted">Reopening a closed call is an override, so it is logged with a reason. If the closing time has passed, give a new one.</p>
                   <form method="post" action="/admin/cfps/${params.cfpId}/reopen" class="inline-grid">
                     ${field({ name: "reason", label: "Why", required: true, placeholder: "Committee agreed a 48-hour extension." })}
                     ${field({ name: "closes_at", label: `New closing time (${ref.timezone})`, type: "datetime-local" })}
@@ -1205,7 +1204,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
             "Settings",
           )}
           ${card(
-            html`<p class="muted">Which formats and tracks this call accepts, and any deadline that comes earlier than the call's own (INV-02-4).</p>
+            html`<p class="muted">Which formats and tracks this call accepts, and any deadline that comes earlier than the call's own.</p>
               <form method="post" action="/admin/cfps/${params.cfpId}/options">
                 ${optionTable("Formats", formats.map((f) => ({ id: f.id, name: f.name, is_available: f.is_available, closes_at_override: f.closes_at_override, max: f.max_proposals_per_person })), "format", ref.timezone)}
                 ${optionTable("Tracks", tracks.map((t) => ({ id: t.id, name: t.name, is_available: t.is_available, closes_at_override: t.closes_at_override, max: t.max_proposals_per_person })), "track", ref.timezone)}
@@ -1217,7 +1216,7 @@ function registerAdminCfpRoutes(router: Router<RequestContext>): void {
             published
               ? html`<p>Published form <strong>version ${published.version}</strong> with ${published.steps.length} steps and ${published.steps.reduce((n, s) => n + s.fields.length, 0)} fields.</p>
                   <p><a class="button secondary" href="/admin/cfps/${params.cfpId}/form">Open the form builder</a></p>`
-              : html`<p class="notice warn">No published form yet. A call cannot open without one (INV-02-5).</p>
+              : html`<p class="notice warn">No published form yet. A call cannot open without one.</p>
                   <p><a class="button" href="/admin/cfps/${params.cfpId}/form">Open the form builder</a></p>`,
             "Submission form",
           )}`,
@@ -1359,7 +1358,7 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
         { title: "Form builder", event: ref, active: "cfp", width: "wide" },
         html`${pageHead(
             `${str(cfp.name)} — submission form`,
-            "Steps, fields, conditional visibility and what each answer becomes on the proposal. A published form is versioned, not edited in place (INV-02-9).",
+            "Steps, fields, conditional visibility and what each answer becomes on the proposal. A published form is versioned, not edited in place.",
             html`${badge(spec.status)} <span class="badge">version ${spec.version}</span>
               <a class="button secondary" href="/admin/cfps/${params.cfpId}/form/preview">Preview the public form</a>
               ${canWrite && spec.status === "draft"
@@ -1370,7 +1369,7 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
                 : raw("")}`,
           )}
           ${spec.status === "published"
-            ? html`<p class="notice">This version is live. Cosmetic edits — label, help text, order — apply in place; anything else creates a new draft version automatically (INV-02-9).</p>`
+            ? html`<p class="notice">This version is live. Cosmetic edits — label, help text, order — apply in place; anything else creates a new draft version automatically.</p>`
             : raw("")}
           ${versionList(versions, spec.id)}
           ${joinHtml(spec.steps.map((step, i) => stepCard(params.cfpId, spec, step, i, tracks, formats, canWrite)))}
@@ -1410,7 +1409,7 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
         { title: "Public form preview", event: ref, active: "cfp", width: "default" },
         html`${pageHead(
             `${str(cfp.name)} — what the public sees`,
-            "Committee-only, organizer-only and PII fields are absent from this projection (INV-02-12). Conditional fields appear and disappear as you change the answers.",
+            "This is the form as an applicant sees it: committee-only, organizer-only and personal-data fields are absent. Conditional fields appear and disappear as you change the answers.",
             html`<a class="button secondary" href="/admin/cfps/${params.cfpId}/form">Back to the builder</a>`,
           )}
           ${view?.cfp.intro_markdown ? card(markdown(view.cfp.intro_markdown), "Introduction") : raw("")}
@@ -1603,7 +1602,7 @@ function stepCard(
                         confirm: `Delete "${f.label}"?`,
                         hidden: { action: "delete" },
                       })
-                    : html`<p class="small muted">Deleting a question on a published form would strand answers. Create a new draft version first (INV-02-9).</p>`}`,
+                    : html`<p class="small muted">Deleting a question on a published form would strand answers. Create a new draft version first.</p>`}`,
               )}`
           : raw("")}
       </td>
@@ -1668,7 +1667,7 @@ function fieldFormControls(
 
   return html`
     ${field({ name: "label", label: "Label", required: true, value: existing?.label ?? "", placeholder: "Key takeaway", id: `lbl_${uid}` })}
-    ${existing ? raw("") : field({ name: "key", label: "Key", help: "Stable identifier, unique in this form (INV-02-6). Derived from the label if blank.", id: `key_${uid}` })}
+    ${existing ? raw("") : field({ name: "key", label: "Key", help: "Stable identifier, unique in this form. Derived from the label if blank.", id: `key_${uid}` })}
     ${field({ name: "type", label: "Type", type: "select", required: true, value: existing?.type ?? "short_text", options: FIELD_TYPE.map((t) => ({ value: t, label: humanise(t) })), id: `typ_${uid}` })}
     ${field({ name: "is_required", label: "Required", type: "checkbox", value: existing?.is_required ?? false, id: `req_${uid}` })}
     ${field({ name: "help_text", label: "Help text", value: existing?.help_text ?? "", id: `hlp_${uid}` })}
@@ -1690,7 +1689,7 @@ function fieldFormControls(
       required: true,
       value: existing?.maps_to ?? "none",
       options: MAPS_TO.map((m) => ({ value: m, label: m === "none" ? "just an answer" : humanise(m) })),
-      help: "Promotes the answer into a first-class proposal column. At most one field per form per value (INV-02-7).",
+      help: "Promotes the answer into a first-class proposal column. At most one field per form per value.",
       id: `map_${uid}`,
     })}
     ${field({
@@ -1700,13 +1699,13 @@ function fieldFormControls(
       required: true,
       value: existing?.audience ?? "public",
       options: FIELD_AUDIENCE.map((a) => ({ value: a, label: humanise(a) })),
-      help: "Only public answers may reach the published schedule or the public call page (INV-02-12).",
+      help: "Only public answers may reach the published schedule or the public call page.",
       id: `aud_${uid}`,
     })}
     ${field({ name: "pii", label: "The answer is personal data", type: "checkbox", value: existing?.pii ?? false, help: "Redacted from public responses, snapshots and logs.", id: `pii_${uid}` })}
     <fieldset class="field conditional">
       <legend>Conditional visibility</legend>
-      <span class="help">Show this field only when an earlier answer says so. A rule may only reference fields that come before this one (INV-02-8).</span>
+      <span class="help">Show this field only when an earlier answer says so. A rule may only reference fields that come before this one.</span>
       ${candidates.length === 0
         ? html`<p class="muted small">No earlier field to depend on yet.</p>`
         : html`<div class="cond-row">
