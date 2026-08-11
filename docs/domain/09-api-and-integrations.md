@@ -1,6 +1,6 @@
 # 09 — API & Integrations
 
-**Aggregate roots:** `ApiKey`, `Webhook`, `Integration`, `NotificationTemplate`.
+**Aggregate roots:** `ApiKey`, `Webhook`, `Integration`, `NotificationTemplate`, `SyncMapping`.
 
 Covers J11 (pull program data into other systems and react to changes). This context also
 defines the **plugin contracts** — the seams where email providers, calendars, CRMs and chat
@@ -17,7 +17,7 @@ how public schedule traffic ends up authenticated and slow.
 | **Portal** `/v1/me/...` | session cookie | the caller's own proposals, sessions, tasks, profile | Relationship-derived scope, never role-derived |
 | **Management** `/v1/...` | API key or session | everything permitted by scope/role | The integration surface |
 | **Webhooks** (outbound) | HMAC signature | push | The reactive half of J11 |
-| **Provider callbacks** (inbound) `/integrations/:id/inbound` | signed URL (INV-09-15) | write | Where a provider posts back — bounces and complaints |
+| **Provider callbacks** (inbound) `/integrations/:id/inbound` | signed URL (INV-09-15) | write | Where a provider posts back — bounces and complaints, and a `sync` provider's change ping. Dispatched on the installed integration's capability, not on the payload |
 
 Design rules the model must support:
 
@@ -122,8 +122,8 @@ one or more capability contracts; the core calls the contract.
 | `id` | `ulid` | Y | prefix `itg_` |
 | `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | |
-| `plugin_key` | `string` | Y | `email.resend`, `email.sendgrid`, `chat.slack`, `crm.hubspot`, `calendar.google`, `analytics.ai_evaluator` |
-| `capability` | `enum(email, sms, chat, calendar, crm, storage, video, analytics, identity, ticketing)` | Y | |
+| `plugin_key` | `string` | Y | `email.resend`, `email.sendgrid`, `chat.slack`, `crm.hubspot`, `calendar.google`, `analytics.ai_evaluator`, `sync.airtable` |
+| `capability` | `enum(email, sms, chat, calendar, crm, storage, video, analytics, identity, ticketing, sync)` | Y | |
 | `display_name` | `string` | Y | |
 | `config` | `json` | Y | non-secret settings (sender name, channel id, list id) |
 | `secret_ref` | `string` | Y | pointer into the secret store; **never the secret itself** (INV-09-3) |
@@ -187,6 +187,174 @@ back is whether a workshop is full — on the schedule, in real time. The count 
 into the publication snapshot so the public page does not call the provider per render.
 **Attendees are not modelled.** Importing an entire bounded context to compute one integer
 is how a conference tool becomes a ticketing system nobody asked it to be.
+
+**`sync`** — a table-shaped, two-way mirror of programme data in a spreadsheet tool
+(Airtable, and anything else that can satisfy the same six methods). It gets its own section
+below, because two-way is a different kind of problem from every other contract here: the
+others are fire-and-forget, and this one has to decide what happens when both sides changed.
+
+## Two-way sync
+
+Organizers keep a spreadsheet regardless. They keep it for the columns this model will never
+have — *hotel booked?*, *who introduced us*, *swag size*, *legal cleared the recording* — and
+for the people who will never have a login here: sponsorship sales, the AV contractor, the
+volunteer coordinator. Today that spreadsheet is a stale copy somebody pasted in March. The
+point of this contract is to make it a live view that they can also write to, in the few
+places where writing to it is safe.
+
+### Podium is the system of record
+
+Not a slogan — a rule with a mechanism behind it, because "two-way sync" without one is a
+data-loss feature with a friendly name.
+
+- **Every synced field is pushed.** Some are *also* accepted back. `SyncFieldMap.direction`
+  is therefore `push` or `both`, and there is deliberately no `pull` — a field the external
+  tool owns outright would be a field this model cannot state the value of.
+- **An inbound change is applied only against the version Podium last pushed.** The link
+  remembers the subject's `row_version` at push time. If the local row has moved since, the
+  inbound edit was written against a value that is no longer true, and it loses (INV-09-18).
+  It is not discarded: the refused values are kept on the link, the state becomes `conflict`,
+  Podium's current value is re-pushed so the spreadsheet converges, and a human is shown both.
+- **Losing is visible.** A conflict is a queue an organizer works through, not a log line.
+  The failure this prevents is the one every sync product has shipped at least once: an edit
+  vanishes, nobody can say when, and trust in the whole integration goes with it.
+
+### What may be written back, and what may never be
+
+Two-way is not a property of the integration; it is a property of each field. Each subject
+declares three sets — what may be pushed, what may be accepted back, and which of those are
+PII — and a mapping that names anything outside them is refused at save time (INV-09-17),
+while the field is still on the organizer's screen.
+
+Four subjects are **push-only, permanently** (INV-09-23), and the reasons are worth stating
+because each one is a real incident somewhere:
+
+| Push-only | Why it can never be writable |
+|---|---|
+| `Decision` | Publishing a decision emails every speaker (INV-05-10). A dropdown in a spreadsheet must not be able to send four hundred rejections at 2am. |
+| `Review` | Review data is *absent*, not redacted, for anyone credited on the proposal (INV-11-7). A grid cannot hold a value it must not display. |
+| `Entitlement` | `consumed_count` and `remaining` are derived from the proposals pointing at the entitlement ([`03`](03-sponsorship.md)). There is nothing to write. |
+| `Placement` | Placement writes serialise through one writer per event ([`08`](08-scheduling-and-publication.md)) precisely because concurrent edits produce conflicts no retry untangles. A spreadsheet row is the opposite of that discipline. |
+
+The general form of the rule is simpler than the list: **sync what a human types, never what
+the system computes or what fires.** Derived fields are unwritable everywhere (INV-11-6), and
+this is the surface most likely to forget it, because in a grid a derived column looks exactly
+like any other.
+
+One consequence is easy to miss and expensive to learn: editing approved session content
+revokes the approval and writes a `SessionRevision`, in the same write (INV-06-12). That is
+correct, and it means a mapping that accepts `Session.title` back will un-approve a session
+the first time somebody fixes a typo in the spreadsheet. The install surface says so where
+the field is chosen, rather than leaving it to be discovered.
+
+### Why the loop terminates
+
+A push changes the external record; the external tool reports a change; the pull writes it
+back; the write raises a domain event; the event schedules a push. Every naive two-way sync
+contains this loop, and the fix has to be in the model rather than in a timer.
+
+The link stores a hash of the field values **in Podium's value space** — computed after
+mapping, so provider formatting differences cannot make an unchanged record look changed —
+for the last push and the last accepted pull. An inbound record hashing to either one is this
+system hearing its own echo, and is dropped without a write, an event, or a run counter
+(INV-09-19). This is the single load-bearing mechanism in the whole design.
+
+<!-- entity: SyncMapping -->
+| Field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `smp_` |
+| `org_id` | `ref(Organization)` | Y | |
+| `integration_id` | `ref(Integration)` | Y | must hold the `sync` capability |
+| `event_id` | `ref(Event)` | N | required for an event-scoped subject, null for an org-scoped one |
+| `subject` | `enum(proposal, session, person, event_participant, sponsor, sponsorship, entitlement, placement, prospect_card)` | Y | what this table mirrors |
+| `external_table_id` | `string` | Y | opaque to the core; an Airtable table id |
+| `external_table_name` | `string` | Y | for display, refreshed on health check |
+| `field_map` | `json` | Y | `[{field, external_field, direction}]`, validated against the subject's declared sets (INV-09-17) |
+| `include_pii` | `bool` | Y | same redaction rule as `pii:read` (INV-09-21) |
+| `filter` | `json` | N | which records to mirror, as criteria — `{status[], track_ids[]}` |
+| `is_active` | `bool` | Y | inactive mappings neither push nor pull |
+| `last_cursor` | `string` | N | opaque provider cursor for the change feed |
+| `last_push_at` / `last_pull_at` | `timestamptz` | N | |
+| `created_by_person_id` | `ref(Person)` | Y | |
+
+<!-- entity: SyncFieldMap -->
+| SyncFieldMap field | Type | Req | Notes |
+|---|---|---|---|
+| `field` | `string` | Y | a Podium field the subject declares pushable |
+| `external_field` | `string` | Y | column name in the external table |
+| `direction` | `enum(push, both)` | Y | `both` only where the subject declares the field writable (INV-09-17) |
+
+<!-- entity: ExternalRecordLink -->
+| ExternalRecordLink field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `xrl_` |
+| `org_id` | `ref(Organization)` | Y | |
+| `mapping_id` | `ref(SyncMapping)` | Y | |
+| `subject_type` / `subject_id` | | Y | the Podium record |
+| `external_id` | `string` | N | null until the first push succeeds |
+| `last_pushed_hash` | `string` | N | of the projected values, in Podium's value space (INV-09-19) |
+| `last_pulled_hash` | `string` | N | of the last inbound change actually applied |
+| `last_pushed_version` | `int` | N | the subject's `row_version` when it was last pushed — what an inbound change is compared against (INV-09-18) |
+| `last_pushed_at` / `last_pulled_at` | `timestamptz` | N | |
+| `status` | `enum(pending_push, in_sync, conflict, error, unlinked)` | Y | |
+| `conflict_payload` | `json` | N | the inbound values that lost, kept so the organizer can see what was refused |
+| `last_error` | `text` | N | |
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending_push: subject matched an active mapping
+  pending_push --> in_sync: pushed
+  pending_push --> error: provider refused the write
+  in_sync --> pending_push: subject changed in Podium
+  in_sync --> conflict: inbound change lost to a newer local edit
+  in_sync --> unlinked: external record deleted, or subject erased
+  conflict --> pending_push: resolved — Podium's value re-pushed
+  error --> pending_push: retried
+  error --> unlinked: mapping deactivated, or the record is gone
+  unlinked --> [*]
+```
+
+<!-- entity: SyncRun -->
+| SyncRun field | Type | Req | Notes |
+|---|---|---|---|
+| `id` | `ulid` | Y | prefix `syr_` |
+| `org_id` | `ref(Organization)` | Y | |
+| `mapping_id` | `ref(SyncMapping)` | Y | |
+| `direction` | `enum(push, pull)` | Y | |
+| `trigger` | `enum(event, cron, inbound, manual)` | Y | what started it, so a runaway loop is legible |
+| `status` | `enum(running, completed, completed_with_errors, failed)` | Y | |
+| `counts` | `json` | D | `{pushed, pulled, echoed, conflicted, skipped, failed}` from the links it touched |
+| `cursor_before` / `cursor_after` | `string` | N | |
+| `started_at` / `finished_at` | `timestamptz` | Y/N | |
+| `error` | `text` | N | |
+
+### The `sync` capability contract
+
+Six methods, and none of them know what a proposal is. A provider that can list tables,
+describe their columns, upsert by id and enumerate changes can satisfy this; the core supplies
+every rule that matters.
+
+```
+list_tables() -> [{external_table_id, name, fields}]
+describe_table(external_table_id) -> {fields: [{external_field, label, type, read_only}]}
+upsert_records(external_table_id, [{external_id?, fields}]) -> [{external_id, error?}]
+list_changes(external_table_id, cursor) -> {changes: [{external_id, fields, deleted}], next_cursor, has_more}
+delete_records(external_table_id, [external_id])                  // erasure, INV-09-22
+handle_inbound_webhook(payload) -> {external_table_ids | null}    // a ping, not a payload
+```
+
+Two shapes here are deliberate. `list_changes` takes a cursor because a provider with a real
+change feed should use it — but a provider without one may return every record and let the
+core work out what moved, since the core hash-compares regardless for echo suppression. And
+`handle_inbound_webhook` returns *which tables to go and read*, not the changed data:
+spreadsheet tools send a ping, and a payload that arrived out of order would be worse than a
+prompt to re-read. A cron sweep backstops the ping, because an integration that only works
+when a webhook lands is an integration that silently stops.
+
+`batch_limit` on the plugin caps records per upsert call (Airtable: 10). Rate limits are a
+core concern like quiet hours: a published decision over four hundred proposals must coalesce
+into batches rather than four hundred calls, so pushes are debounced per `(mapping, table)`
+and drained on a schedule, never fired one-per-event.
 
 ## Notifications
 
@@ -392,10 +560,41 @@ model depends on these choices.
 - **INV-09-16** An inbound provider callback only moves a `NotificationDelivery` forward:
   provider webhooks are at-least-once and unordered, so re-applying an event already
   recorded changes nothing and emits nothing.
+- **INV-09-17** A `SyncFieldMap` may only name a field its subject declares pushable, and may
+  only set `direction = both` where the subject declares that field writable. A mapping
+  naming anything else is rejected at save time, not at sync time. Derived fields
+  (INV-11-6) are in neither set, for any subject.
+- **INV-09-18** Podium is the system of record. An inbound change is applied only if the
+  subject's `row_version` still equals `ExternalRecordLink.last_pushed_version`. Otherwise
+  the link becomes `conflict`, the refused values are retained in `conflict_payload`, and
+  Podium's current value is re-pushed. No inbound change ever overwrites a local edit made
+  since the last push.
+- **INV-09-19** An inbound record whose projected hash equals the link's `last_pushed_hash`
+  or `last_pulled_hash` is an echo of a change Podium itself made. It is discarded without a
+  write, an event, or a run counter. This is what stops push and pull from driving each
+  other forever.
+- **INV-09-20** Every inbound change is applied through the same service path as the
+  equivalent API write — same invariants, same domain events, same audit row — with
+  `actor.type = integration` and the `Integration.id` as the actor. A sync never writes to a
+  table directly, and never bypasses a rule an organizer would have hit by hand.
+- **INV-09-21** A `SyncMapping` without `include_pii` never pushes a field classified as PII
+  in [`11-cross-cutting.md`](11-cross-cutting.md), and never accepts one back.
+- **INV-09-22** Deactivating or erasing a `Person` deletes every external record linked to it
+  on every mapping, active or not, before its links are dropped. A sync target is not a place
+  personal data outlives its erasure.
+- **INV-09-23** `Decision`, `Review`, `Entitlement` and `Placement` are push-only: their
+  writable field set is empty and no mapping can configure otherwise. Each either notifies
+  people, is absent rather than redacted for some readers, is derived, or serialises through
+  a single writer — and a spreadsheet row satisfies none of those.
 
 ## Emitted events
 
 `api_key.created`, `api_key.revoked`, `webhook.created`, `webhook.delivery_failed`,
 `webhook.disabled`, `integration.installed`, `integration.health_changed`,
 `notification.sent`, `notification.bounced`, `campaign.created`, `campaign.sent`,
-`campaign.recipient_failed`.
+`campaign.recipient_failed`, `sync_mapping.created`, `sync_mapping.activated`,
+`sync_mapping.deactivated`, `sync_link.created`, `sync_link.conflicted`,
+`sync_link.resolved`, `sync_link.unlinked`, `sync_run.completed`, `sync_run.failed`.
+
+`sync_link.conflicted` is the one an organizer actually subscribes to: it is the only signal
+that somebody's edit did not take, and INV-09-18 guarantees it fires every time that happens.

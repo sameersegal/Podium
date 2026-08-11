@@ -237,6 +237,25 @@ every drag in the planning UI. Speakers should hear about a change when it is re
 | `campaign.sent` | campaign | `campaign_id, recipient_count, sent, suppressed, failed` |
 | `campaign.recipient_failed` | campaign | `campaign_id, person_id, reason` |
 
+### Two-way sync
+
+| Type | Subject | `data` | PII |
+|---|---|---|---|
+| `sync_mapping.created` | sync_mapping | `mapping_id, integration_id, subject, external_table_id, field_count, include_pii` | |
+| `sync_mapping.activated` | sync_mapping | `mapping_id, subject, external_table_id` | |
+| `sync_mapping.deactivated` | sync_mapping | `mapping_id, subject, reason` | |
+| `sync_link.created` | sync_link | `link_id, mapping_id, subject_type, subject_id, external_id` | |
+| `sync_link.conflicted` | sync_link | `link_id, mapping_id, subject_type, subject_id, fields[], expected_version, current_version` | |
+| `sync_link.resolved` | sync_link | `link_id, mapping_id, subject_type, subject_id, resolution` | |
+| `sync_link.unlinked` | sync_link | `link_id, mapping_id, subject_type, subject_id, reason` | |
+| `sync_run.completed` | sync_run | `run_id, mapping_id, direction, trigger, pushed, pulled, echoed, conflicted, skipped, failed` | |
+| `sync_run.failed` | sync_run | `run_id, mapping_id, direction, trigger, error` | |
+
+No sync event carries a field *value*, only the field names that moved. A `sync_link.*`
+payload naming what changed is useful; one quoting the new value would put the very PII that
+`include_pii` governs into the webhook fan-out, where a different consumer's redaction rules
+apply (INV-11-4). `fields[]` is names only.
+
 ### Content and bulk operations
 
 | Type | Subject | `data` | PII |
@@ -303,6 +322,8 @@ Every row here is a real subscriber in a `contexts/<context>/reactions.ts`, regi
 | `schedule.changed` | Notify the speakers whose time or room actually moved | Notifications |
 | `asset.uploaded` | Scan the asset; complete the file-request task once scanned clean | Cross-cutting, Onboarding |
 | `entitlement.expiring_soon` | Nudge the sponsor contact | Notifications |
+| `proposal.*`, `session.*`, `person.*`, `speaker_profile.*`, `event_participant.*`, `sponsor*.*`, `entitlement.*`, `placement.*`, `prospect.*` | Mark the linked external record dirty, for the next debounced push | Platform |
+| `person.deactivated` | Delete the person's external records on every mapping (INV-09-22) | Platform |
 | `*` | Fan out to every matching webhook | Platform |
 
 ### Consequences that are deliberately synchronous
