@@ -229,6 +229,51 @@ export async function tierTemplates(app: AppContext, tierId: string): Promise<Ro
   return app.db.select<Row>("tier_entitlement_template", { tier_id: tierId });
 }
 
+/**
+ * Copy an event's rate card onto another event (02, "Cloning an edition").
+ *
+ * The tiers and their entitlement templates, never a `Sponsorship` or an
+ * `Entitlement` (INV-02-14): the package is configuration, the deal is a fact
+ * about a company that has not signed anything for the new event yet.
+ *
+ * `allowed_format_ids` is remapped through `formatIds` — a template pointing at
+ * last year's `SessionFormat` would silently allow nothing (INV-02-17 is the
+ * same rule for CFP options). A format with no counterpart is dropped from the
+ * list rather than carried across the event boundary.
+ */
+export async function copyTiersToEvent(
+  app: AppContext,
+  fromEventId: string,
+  toEventId: string,
+  formatIds: Map<string, string>,
+): Promise<Row[]> {
+  const source = await app.db.select<Row>("sponsorship_tier", { event_id: fromEventId }, { orderBy: "sort_order, level DESC" });
+  const created: Row[] = [];
+  for (const [i, t] of source.entries()) {
+    const tier = await createTier(app, toEventId, {
+      name: str(t.name),
+      slug: str(t.slug),
+      level: num(t.level),
+      description: strOrNull(t.description),
+      is_public: bool(t.is_public),
+      sort_order: num(t.sort_order, i),
+    });
+    for (const tpl of await tierTemplates(app, str(t.id))) {
+      await addTierTemplate(app, str(tier.id), {
+        entitlement_type: str(tpl.entitlement_type) as EntitlementType,
+        quantity: num(tpl.quantity),
+        allowed_format_ids: parseJson<string[]>(tpl.allowed_format_ids, [])
+          .map((id) => formatIds.get(id))
+          .filter((id): id is string => Boolean(id)),
+        constraints: parseJson<Record<string, unknown> | null>(tpl.constraints, null),
+        notes: strOrNull(tpl.notes),
+      });
+    }
+    created.push(tier);
+  }
+  return created;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Sponsorship                                                                 */
 /* -------------------------------------------------------------------------- */

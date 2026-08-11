@@ -346,6 +346,14 @@ export const CONFIGURED_OPTION_TYPES: readonly FieldType[] = ["track_picker", "f
 /* The default form                                                            */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A form as data, before it is a form.
+ *
+ * `DEFAULT_FORM_TEMPLATE` below is one; a clone's source form, read back
+ * through `formSpecAsTemplate`, is another — which is why `validation` and
+ * `visible_when` are here even though the shipped default uses neither. A
+ * template that could not carry a conditional field would silently flatten one.
+ */
 export interface FormTemplateField {
   key: string;
   label: string;
@@ -354,6 +362,8 @@ export interface FormTemplateField {
   type: FieldType;
   options?: SelectOption[] | null;
   is_required: boolean;
+  validation?: Record<string, unknown> | null;
+  visible_when?: ConditionRule | null;
   maps_to: MapsTo;
   audience: FieldAudience;
   pii: boolean;
@@ -364,7 +374,37 @@ export interface FormTemplateStep {
   title: string;
   description?: string | null;
   is_optional: boolean;
+  visible_when?: ConditionRule | null;
   fields: FormTemplateField[];
+}
+
+/** A published form, read back as the template that would recreate it. */
+export function formSpecAsTemplate(spec: FormSpec): FormTemplateStep[] {
+  return [...spec.steps]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((step) => ({
+      key: step.key,
+      title: step.title,
+      description: step.description ?? null,
+      is_optional: step.is_optional,
+      visible_when: step.visible_when ?? null,
+      fields: [...step.fields]
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((f) => ({
+          key: f.key,
+          label: f.label,
+          help_text: f.help_text ?? null,
+          placeholder: f.placeholder ?? null,
+          type: f.type,
+          options: f.options ?? null,
+          is_required: f.is_required,
+          validation: f.validation ?? null,
+          visible_when: f.visible_when ?? null,
+          maps_to: f.maps_to,
+          audience: f.audience,
+          pii: f.pii,
+        })),
+    }));
 }
 
 /**

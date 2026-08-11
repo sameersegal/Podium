@@ -32,6 +32,7 @@ import {
   LATE_SUBMISSION_POLICY,
   MAPS_TO,
   ORIGIN,
+  PROVISIONING_SOURCE,
   WITHDRAW_ALLOWED_UNTIL,
   type CapacityPolicy,
   type CfpAudience,
@@ -44,6 +45,7 @@ import {
   type LateSubmissionPolicy,
   type MapsTo,
   type Origin,
+  type ProvisioningSource,
   type WithdrawAllowedUntil,
 } from "@podiumconf/domain/event-config/types.js";
 import { notFound } from "@podiumconf/domain/shared/errors.js";
@@ -66,7 +68,6 @@ import {
   archiveEvent,
   createCfp,
   createDraftVersion,
-  createEvent,
   createEventDay,
   createRoom,
   createSessionFormat,
@@ -96,6 +97,13 @@ import {
   upsertVenue,
 } from "./service.js";
 import {
+  applyStarterBlueprint,
+  cloneCandidates,
+  provisionEvent,
+  requireCloneSource,
+  summaryLine,
+} from "./provisioning.js";
+import {
   builderForm,
   cfpFormatOptions,
   cfpRow,
@@ -121,6 +129,54 @@ const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
 
 function opts(values: readonly string[]): SelectOption[] {
   return values.map((v) => ({ value: v, label: humanise(v) }));
+}
+
+function provisioningSource(value: string | null): ProvisioningSource {
+  return (PROVISIONING_SOURCE as readonly string[]).includes(value ?? "") ? (value as ProvisioningSource) : "starter";
+}
+
+/** "DevFlow Conf 2027" → "DevFlow Conf 2028". Anything else gets a suffix. */
+function nextEditionName(name: string): string {
+  const match = name.match(/(19|20)\d{2}(?!.*\d)/);
+  if (!match) return `${name} (copy)`;
+  return `${name.slice(0, match.index)}${Number(match[0]) + 1}${name.slice((match.index ?? 0) + 4)}`;
+}
+
+/**
+ * 02, "Starting an event" — where the new event's configuration comes from.
+ * Server-rendered and script-free, so the clone picker is always visible rather
+ * than revealed: it is ignored unless "copy an existing event" is chosen.
+ */
+function sourceChooser(selected: ProvisioningSource, cloneFrom: string, candidates: Row[]): SafeHtml {
+  const canClone = candidates.length > 0;
+  const choices = [
+    {
+      value: "starter",
+      label: "Standard setup",
+      description: "days, a track to rename, the usual formats, rooms, a call with its form, review rubrics and the speaker checklist",
+    },
+    ...(canClone
+      ? [{ value: "clone", label: "Copy an existing event", description: "its configuration, with every deadline moved to match the new dates" }]
+      : []),
+    { value: "empty", label: "Empty", description: "nothing but the event itself" },
+  ];
+  return html`${field({
+      name: "source",
+      label: "Start from",
+      type: "radio",
+      value: canClone ? selected : selected === "clone" ? "starter" : selected,
+      options: choices,
+    })}
+    ${canClone
+      ? field({
+          name: "clone_from_event_id",
+          label: "Event to copy",
+          type: "select",
+          value: cloneFrom,
+          options: candidates.map((e) => ({ value: str(e.id), label: `${str(e.name)} (${str(e.starts_on)})` })),
+          help: "Used only when you copy an existing event. Proposals, sessions, reviews and people are never copied.",
+        })
+      : raw("")}`;
 }
 
 /** INV-02-1: an instant a human reads for an event is shown in `Event.timezone`. */
@@ -184,6 +240,7 @@ function eventJson(row: Row): Record<string, unknown> {
     status: str(row.status),
     visibility: str(row.visibility),
     settings: parseJson<Record<string, unknown>>(row.settings, {}),
+    cloned_from_event_id: strOrNull(row.cloned_from_event_id),
     created_at: str(row.created_at),
     updated_at: str(row.updated_at),
     archived_at: strOrNull(row.archived_at),
@@ -462,7 +519,10 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
         <td>${humanise(str(e.mode))}</td>
         <td>${badge(str(e.visibility), str(e.visibility) === "public" ? "ok" : "")}</td>
         <td>${cfps}</td>
-        <td class="right"><a class="button secondary small" href="/admin/events/${str(e.id)}/setup">Setup</a></td>
+        <td class="right"><a class="button secondary small" href="/admin/events/${str(e.id)}/setup">Setup</a>
+          ${ctx.canWrite("event.configure")
+            ? html` <a class="button secondary small" href="/admin/events/new?from=${str(e.id)}">Duplicate</a>`
+            : raw("")}</td>
       </tr>`);
     }
     return htmlResponse(
@@ -479,25 +539,59 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
     );
   });
 
-  router.get("/admin/events/new", async (_req, ctx) => {
+  router.get("/admin/events/new", async (req, ctx) => {
     ctx.requireWrite("event.configure");
+    const app = ctx.app();
+    const from = new URL(req.url).searchParams.get("from");
+    if (from) ctx.requireRead("config.manage", { event_id: from });
+    const source = from ? await requireCloneSource(app, from) : null;
+    // Only events this organizer may actually read: the picker is not a list
+    // of every event in the org for someone scoped to one of them.
+    const candidates = (await cloneCandidates(app)).filter((e) => ctx.canRead("config.manage", { event_id: str(e.id) }));
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New event", active: "events", width: "narrow" },
-        html`${pageHead("New event", "Name it, say when and where. Everything else is configured afterwards.")}
+        { title: source ? "Duplicate event" : "New event", active: "events", width: "narrow" },
+        html`${pageHead(
+            source ? `Duplicate ${str(source.name)}` : "New event",
+            source
+              ? "A copy of this event's configuration — tracks, formats, rooms, calls, rubrics, the checklist and the rate card — with every deadline moved to match the new dates. No proposals, sessions or people come across."
+              : "Name it, say when and where. Everything else starts from a working default you can change.",
+          )}
           ${card(html`<form method="post" action="/admin/events/new" class="stack">
-            ${field({ name: "name", label: "Name", required: true, placeholder: "AI Engineer World's Fair 2026" })}
+            ${field({
+              name: "name",
+              label: "Name",
+              required: true,
+              value: source ? nextEditionName(str(source.name)) : "",
+              placeholder: "AI Engineer World's Fair 2026",
+            })}
             ${field({ name: "slug", label: "URL slug", help: "Appears in public links. Leave blank to derive it from the name." })}
             ${field({ name: "edition", label: "Edition", help: "For grouping recurring events — \"2026\", \"Summit '27\"." })}
-            ${field({ name: "tagline", label: "Tagline" })}
-            ${field({ name: "timezone", label: "Timezone", required: true, value: "America/Los_Angeles", help: "IANA name. This is the timezone every schedule time is displayed in." })}
+            ${field({ name: "tagline", label: "Tagline", value: source ? str(source.tagline) : "" })}
+            ${field({
+              name: "timezone",
+              label: "Timezone",
+              required: true,
+              value: source ? str(source.timezone) : "America/Los_Angeles",
+              help: "IANA name. This is the timezone every schedule time is displayed in.",
+            })}
             ${field({ name: "starts_on", label: "First day", type: "date", required: true })}
             ${field({ name: "ends_on", label: "Last day", type: "date", required: true })}
-            ${field({ name: "mode", label: "Mode", type: "select", required: true, value: "in_person", options: opts(EVENT_MODE) })}
-            ${field({ name: "website_url", label: "Website", type: "url", help: "The marketing site the schedule embeds into." })}
-            ${field({ name: "visibility", label: "Visibility", type: "select", required: true, value: "private", options: opts(EVENT_VISIBILITY) })}
-            <button type="submit">Create event</button>
+            ${field({
+              name: "mode",
+              label: "Mode",
+              type: "select",
+              required: true,
+              value: source ? str(source.mode) : "in_person",
+              options: opts(EVENT_MODE),
+            })}
+            ${field({ name: "website_url", label: "Website", type: "url", value: source ? str(source.website_url) : "", help: "The marketing site the schedule embeds into." })}
+            ${source
+              ? html`<p class="help">A duplicate is always created private and in draft, whatever the event it came from was.</p>`
+              : field({ name: "visibility", label: "Visibility", type: "select", required: true, value: "private", options: opts(EVENT_VISIBILITY) })}
+            ${sourceChooser(source ? "clone" : "starter", str(source?.id ?? ""), candidates)}
+            <button type="submit">${source ? "Duplicate event" : "Create event"}</button>
           </form>`)}`,
       ),
     );
@@ -506,8 +600,14 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
   router.post("/admin/events/new", async (req, ctx) => {
     ctx.requireWrite("event.configure");
     const input = await readInput(req);
+    const cloneFrom = input.optional("clone_from_event_id");
+    // Copying an event's configuration is reading it: an organizer scoped to
+    // one event may not lift another's rate card out through a clone.
+    if (provisioningSource(input.optional("source")) === "clone" && cloneFrom) {
+      ctx.requireRead("config.manage", { event_id: cloneFrom });
+    }
     const app = ctx.app();
-    const event = await createEvent(app, {
+    const { event, summary } = await provisionEvent(app, {
       name: input.str("name"),
       slug: input.optional("slug"),
       edition: input.optional("edition"),
@@ -519,9 +619,13 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
       mode: (input.optional("mode") as EventMode) ?? "in_person",
       website_url: input.optional("website_url"),
       visibility: (input.optional("visibility") as EventVisibility) ?? "private",
+      source: provisioningSource(input.optional("source")),
+      clone_from_event_id: input.optional("clone_from_event_id"),
     });
     await app.flush();
-    return redirect(`/admin/events/${str(event.id)}/setup`, 303, OK("Event created. Add days, tracks, formats and rooms next."));
+    const created = summary.source === "empty" ? "Event created, empty." : `Event created with ${summaryLine(summary)}.`;
+    const next = summary.source === "empty" ? " Add days, tracks, formats and rooms next." : " Change anything that is not right.";
+    return redirect(`/admin/events/${str(event.id)}/setup`, 303, OK(created + next));
   });
 
   router.get("/admin/events/:eventId", async (_req, ctx, params) => {
@@ -534,6 +638,9 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
       app.db.count("track", { event_id: ref.id }),
       app.db.first<Row>("venue", { event_id: ref.id }),
     ]);
+    // Provenance only (INV-02-15): a source that has since been removed leaves
+    // a dangling id, which is why this is a lookup and not a join.
+    const clonedFrom = row.cloned_from_event_id ? await app.db.byId<Row>("event", str(row.cloned_from_event_id)) : null;
     const canWrite = ctx.canWrite("event.configure", { event_id: ref.id });
 
     return htmlResponse(
@@ -544,10 +651,16 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
             ref.name,
             str(row.tagline) || "Overview and settings.",
             html`${badge(ref.status)}
+              ${canWrite ? html`<a class="button secondary" href="/admin/events/new?from=${ref.id}">Duplicate</a>` : raw("")}
               ${canWrite && ref.status === "draft" ? actionForm(`/admin/events/${ref.id}/activate`, "Activate event", { className: "" }) : raw("")}
               ${canWrite && ref.status === "active" ? actionForm(`/admin/events/${ref.id}/archive`, "Archive event", { confirm: "Archive this event? Its calls for proposals close." }) : raw("")}
               ${canWrite && ref.status === "archived" ? actionForm(`/admin/events/${ref.id}/activate`, "Unarchive", { hidden: { reason: "Unarchived from the event overview." } }) : raw("")}`,
           )}
+          ${clonedFrom
+            ? html`<p class="muted small">
+                Configuration copied from <a href="/admin/events/${str(clonedFrom.id)}">${str(clonedFrom.name)}</a>.
+              </p>`
+            : raw("")}
           <div class="stats">
             ${stat("days", check.day_count, `/admin/events/${ref.id}/setup`)}
             ${stat("tracks", tracks, `/admin/events/${ref.id}/setup`)}
@@ -682,12 +795,40 @@ function registerAdminSetupRoutes(router: Router<RequestContext>): void {
           ${check.ready
             ? raw("")
             : html`<p class="notice warn">Still missing before this event can go active: ${check.blockers.join(", ")}.</p>`}
+          ${canWrite && !check.ready
+            ? card(
+                html`<p>
+                    Rather than filling these in one at a time, start from the standard setup: days across the event's
+                    dates, a track to rename, the usual session formats, a venue with three rooms, a call for proposals
+                    with its form already published, review rubrics and the speaker checklist. Anything already here is
+                    left alone, and everything it writes is an ordinary row you can change or delete.
+                  </p>
+                  ${actionForm(`/admin/events/${ref.id}/blueprint`, "Apply the standard setup", { className: "" })}`,
+                "Start from the standard setup",
+              )
+            : raw("")}
           ${daysSection(ref, row, days, canWrite)}
           ${tracksSection(ref, tracks, canWrite)}
           ${formatsSection(ref, formats, canWrite)}
           ${venueSection(ref, venue, rooms, tracks, canWrite)}`,
       ),
     );
+  });
+
+  /**
+   * The same blueprint the create form applies, for an event that was created
+   * empty — or created before this existed. Idempotent by design: it fills the
+   * parts that are missing and leaves the rest alone.
+   */
+  router.post("/admin/events/:eventId/blueprint", async (_req, ctx, params) => {
+    ctx.requireWrite("config.manage", { event_id: params.eventId });
+    const app = ctx.app(params.eventId);
+    const summary = await applyStarterBlueprint(app, params.eventId);
+    await app.flush();
+    const message = Object.keys(summary.counts).length
+      ? `Added ${summaryLine(summary)}.`
+      : "Nothing to add — this event already has everything the standard setup would create.";
+    return redirect(`/admin/events/${params.eventId}/setup`, 303, OK(message));
   });
 
   /* days ------------------------------------------------------------------ */
@@ -1801,7 +1942,10 @@ function registerManagementApi(router: Router<RequestContext>): void {
     ctx.requireWrite("event.configure");
     const input = await readInput(req);
     const app = ctx.app();
-    const row = await createEvent(app, {
+    // 02, "Starting an event": `source` defaults to `starter`, because an event
+    // created empty is a dozen forms before anything works. `empty` is how a
+    // caller importing configuration another way opts out.
+    const { event, summary } = await provisionEvent(app, {
       name: input.str("name"),
       slug: input.optional("slug"),
       edition: input.optional("edition"),
@@ -1814,9 +1958,38 @@ function registerManagementApi(router: Router<RequestContext>): void {
       website_url: input.optional("website_url"),
       visibility: (input.optional("visibility") as EventVisibility) ?? "private",
       settings: input.json<Record<string, unknown>>("settings", {}),
+      source: provisioningSource(input.optional("source")),
+      clone_from_event_id: input.optional("clone_from_event_id"),
     });
     await app.flush();
-    return json(eventJson(row), { status: 201 });
+    return json({ ...eventJson(event), provisioning: summary }, { status: 201 });
+  });
+
+  router.post("/v1/events/:eventId/clone", async (req, ctx, params) => {
+    ctx.requireWrite("event.configure");
+    ctx.requireRead("config.manage", { event_id: params.eventId });
+    const input = await readInput(req);
+    const source = await requireCloneSource(ctx.app(), params.eventId);
+    const app = ctx.app();
+    const { event, summary } = await provisionEvent(app, {
+      name: input.str("name"),
+      slug: input.optional("slug"),
+      edition: input.optional("edition"),
+      tagline: input.optional("tagline") ?? strOrNull(source.tagline),
+      description: input.optional("description") ?? strOrNull(source.description),
+      timezone: input.str("timezone", str(source.timezone, "UTC")),
+      starts_on: input.str("starts_on"),
+      ends_on: input.str("ends_on"),
+      mode: (input.optional("mode") as EventMode) ?? (str(source.mode, "in_person") as EventMode),
+      website_url: input.optional("website_url") ?? strOrNull(source.website_url),
+      // INV-02-15 — a clone lands private whatever the source was.
+      visibility: "private",
+      settings: parseJson<Record<string, unknown>>(source.settings, {}),
+      source: "clone",
+      clone_from_event_id: params.eventId,
+    });
+    await app.flush();
+    return json({ ...eventJson(event), provisioning: summary }, { status: 201 });
   });
 
   router.get("/v1/events/:eventId", async (_req, ctx, params) => {

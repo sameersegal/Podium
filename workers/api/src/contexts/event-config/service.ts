@@ -24,6 +24,7 @@ import {
   publishBlockers,
   COSMETIC_FIELD_ATTRS,
   COSMETIC_STEP_ATTRS,
+  type FormTemplateStep,
   type SelectOption,
 } from "@podiumconf/domain/event-config/rules.js";
 import {
@@ -718,7 +719,12 @@ export interface CfpInput {
  * work, because `active_form_id` is required (02) and a call with nowhere to
  * put an answer is not a call.
  */
-export async function createCfp(app: AppContext, eventId: string, input: CfpInput): Promise<Row> {
+export async function createCfp(
+  app: AppContext,
+  eventId: string,
+  input: CfpInput,
+  formTemplate: FormTemplateStep[] = DEFAULT_FORM_TEMPLATE,
+): Promise<Row> {
   await eventRow(app, eventId);
   if (!input.name.trim()) fail("invalid_cfp", "A call for proposals needs a name.");
   // INV-02-4: closes_at > opens_at.
@@ -752,7 +758,7 @@ export async function createCfp(app: AppContext, eventId: string, input: CfpInpu
   };
   await app.db.insert("call_for_proposals", row);
 
-  const form = await seedDefaultForm(app, id);
+  const form = await seedDefaultForm(app, id, formTemplate);
   await app.db.update("call_for_proposals", id, { active_form_id: form.id, updated_at: now });
   row.active_form_id = form.id;
 
@@ -1050,11 +1056,15 @@ async function insertForm(app: AppContext, cfpId: string, notes: string | null):
   return row;
 }
 
-/** The conventional four-step shape (02) — every new CFP starts from it. */
-export async function seedDefaultForm(app: AppContext, cfpId: string): Promise<Row> {
+/**
+ * The conventional four-step shape (02) — every new CFP starts from it, unless
+ * it is a clone, which starts from the form it was cloned from
+ * (`formSpecAsTemplate`).
+ */
+export async function seedDefaultForm(app: AppContext, cfpId: string, template: FormTemplateStep[] = DEFAULT_FORM_TEMPLATE): Promise<Row> {
   const form = await insertForm(app, cfpId, "Created with the call.");
   const formId = str(form.id);
-  for (const [si, step] of DEFAULT_FORM_TEMPLATE.entries()) {
+  for (const [si, step] of template.entries()) {
     const stepId = newId("FormStep");
     await app.db.insert("form_step", {
       id: stepId,
@@ -1063,7 +1073,7 @@ export async function seedDefaultForm(app: AppContext, cfpId: string): Promise<R
       title: step.title,
       description: step.description ?? null,
       sort_order: si,
-      visible_when: null,
+      visible_when: step.visible_when ? JSON.stringify(step.visible_when) : null,
       is_optional: step.is_optional ? 1 : 0,
     });
     for (const [fi, field] of step.fields.entries()) {
@@ -1078,8 +1088,8 @@ export async function seedDefaultForm(app: AppContext, cfpId: string): Promise<R
         type: field.type,
         options: field.options ? JSON.stringify(field.options) : null,
         is_required: field.is_required ? 1 : 0,
-        validation: null,
-        visible_when: null,
+        validation: field.validation ? JSON.stringify(field.validation) : null,
+        visible_when: field.visible_when ? JSON.stringify(field.visible_when) : null,
         maps_to: field.maps_to,
         audience: field.audience,
         pii: field.pii ? 1 : 0,
