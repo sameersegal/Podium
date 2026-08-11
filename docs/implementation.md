@@ -140,6 +140,7 @@ exceptions are the publication snapshot (immutable once live) and `schedule_conf
 | Live | `/live/subscribe` (WebSocket upgrade), `/live.js` (static asset) |
 | Public API | `/v1/public/…` |
 | Management API | `/v1/…` |
+| Provider callbacks | `/integrations/:id/inbound` (signed URL, no session — 09) |
 
 ## Conventions
 

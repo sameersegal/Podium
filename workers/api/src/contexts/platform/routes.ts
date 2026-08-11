@@ -13,9 +13,15 @@ import { API_SCOPES, type ApiScope } from "@podiumconf/domain/shared/authorizati
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumconf/domain/platform/types.js";
 import type { AudienceCriteria } from "@podiumconf/domain/platform/types.js";
-import { verifyUnsubscribeSignature, recordSuppression } from "./notifications.js";
+import {
+  applyDeliveryStatusUpdates,
+  inboundWebhookUrl,
+  recordSuppression,
+  verifyInboundWebhookSignature,
+  verifyUnsubscribeSignature,
+} from "./notifications.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
-import { readInput, type Input } from "../../http/input.js";
+import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
@@ -37,6 +43,7 @@ import {
   availablePlugins,
   redeliverWebhookDelivery,
   replayEventType,
+  resolvePluginForIntegration,
   revokeApiKey,
   rotateApiKey,
   rotateWebhookSecret,
@@ -103,6 +110,7 @@ export function registerPlatformRoutes(router: Router<RequestContext>): void {
   registerAuditRoutes(router);
   registerEventLogRoutes(router);
   registerUnsubscribeRoutes(router);
+  registerInboundWebhookRoutes(router);
   registerManagementApi(router);
 }
 
@@ -508,6 +516,38 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
 /* Integration                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * INV-09-3: the secret itself is never asked for here, only the *name* of the
+ * Workers Secret holding it. `requires_secret` plugins mark it required, which
+ * is the difference between a failed install and an integration that looks
+ * installed and fails on first send.
+ */
+function integrationSecretField(plugin: { requires_secret?: boolean }, value: string): SafeHtml {
+  if (!plugin.requires_secret) return raw("");
+  return field({
+    name: "secret_ref",
+    label: "Secret ref",
+    required: true,
+    value,
+    help: "The name of a Workers Secret holding the credential — never the secret itself. Set it with `wrangler secret put <NAME>`.",
+  });
+}
+
+/** A plugin's declared `config_fields`, namespaced so `collectPrefixed` can lift them back out. */
+function integrationConfigFields(plugin: { config_fields?: { key: string; label: string; required?: boolean; help?: string }[] }, config: Record<string, unknown>): SafeHtml {
+  const fields = plugin.config_fields ?? [];
+  if (fields.length === 0) return raw("");
+  return html`${fields.map((f) =>
+    field({
+      name: `config.${f.key}`,
+      label: f.label,
+      required: f.required,
+      help: f.help,
+      value: config[f.key] === undefined || config[f.key] === null ? "" : String(config[f.key]),
+    }),
+  )}`;
+}
+
 function registerIntegrationRoutes(router: Router<RequestContext>): void {
   router.get("/admin/integrations", async (_req, ctx) => {
     ctx.requireRead("org.configure");
@@ -516,13 +556,17 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
     const canWrite = ctx.canWrite("org.configure");
     const rows = installed.map(
       (i) => html`<tr>
-        <td><strong>${str(i.display_name)}</strong><br><span class="mono small muted">${str(i.plugin_key)}</span></td>
+        <td><a href="/admin/integrations/${str(i.id)}"><strong>${str(i.display_name)}</strong></a><br><span class="mono small muted">${str(i.plugin_key)}</span></td>
         <td>${badge(str(i.capability))}</td>
-        <td>${badge(str(i.status), str(i.status) === "active" ? "ok" : "err")}</td>
+        <td>
+          ${badge(str(i.status), str(i.status) === "active" ? "ok" : "err")}
+          ${i.last_error ? html`<br><span class="small muted">${str(i.last_error)}</span>` : raw("")}
+        </td>
         <td>${bool(i.is_default_for_capability) ? badge("default", "ok") : raw("")}</td>
         <td class="right">
           ${canWrite
-            ? html`${actionForm(`/admin/integrations/${str(i.id)}/health-check`, "Check health")}
+            ? html`<a class="button" href="/admin/integrations/${str(i.id)}">Configure</a>
+                ${actionForm(`/admin/integrations/${str(i.id)}/health-check`, "Check health")}
                 ${actionForm(`/admin/integrations/${str(i.id)}/disable`, str(i.status) === "disabled" ? "Enable" : "Disable", {
                   className: str(i.status) === "disabled" ? "" : "danger",
                   hidden: { status: str(i.status) === "disabled" ? "active" : "disabled" },
@@ -540,7 +584,10 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
           ${table(["Integration", "Capability", "Status", "Default", ""], rows, "Nothing installed. Without an active email integration, mail is recorded in the outbox and never sent.")}
           ${canWrite
             ? card(
-                html`<form method="post" action="/admin/integrations/new" class="stack">
+                // Choosing the plugin is its own step because each one asks for
+                // different `config_fields`, and this surface is server-rendered
+                // with no client framework to swap the form in place.
+                html`<form method="get" action="/admin/integrations/new" class="stack">
                   ${field({
                     name: "plugin_key",
                     label: "Plugin",
@@ -548,10 +595,7 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
                     required: true,
                     options: plugins.map((p) => ({ value: String(p.key), label: `${String(p.display_name)} (${String(p.capability)})` })),
                   })}
-                  ${field({ name: "display_name", label: "Display name" })}
-                  ${field({ name: "secret_ref", label: "Secret ref", help: "The name of a Workers Secret holding the credential — never the secret itself." })}
-                  ${field({ name: "is_default_for_capability", label: "Make this the default for its capability", type: "checkbox", value: true })}
-                  <button type="submit">Install</button>
+                  <button type="submit">Continue</button>
                 </form>`,
                 "Install a plugin",
               )
@@ -560,18 +604,116 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
     );
   });
 
+  // Registered before `/admin/integrations/:id` — the router takes the first
+  // pattern that matches, and `new` is not an integration id.
+  router.get("/admin/integrations/new", async (_req, ctx) => {
+    ctx.requireWrite("org.configure");
+    const pluginKey = ctx.url.searchParams.get("plugin_key") ?? "";
+    const plugin = availablePlugins().find((p) => p.key === pluginKey);
+    if (!plugin) throw notFound("Plugin", pluginKey);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: `Install ${plugin.display_name}`, active: "integrations", width: "narrow" },
+        html`${pageHead(`Install ${plugin.display_name}`, `${humanise(plugin.capability)} — configure it before it goes live.`)}
+          ${card(
+            html`<form method="post" action="/admin/integrations/new" class="stack">
+              <input type="hidden" name="plugin_key" value="${plugin.key}">
+              ${field({ name: "display_name", label: "Display name", value: plugin.display_name })}
+              ${integrationSecretField(plugin, "")} ${integrationConfigFields(plugin, {})}
+              ${field({ name: "is_default_for_capability", label: `Make this the default for ${plugin.capability}`, type: "checkbox", value: true })}
+              <button type="submit">Install</button>
+            </form>`,
+            "Settings",
+          )}`,
+      ),
+    );
+  });
+
   router.post("/admin/integrations/new", async (req, ctx) => {
     ctx.requireWrite("org.configure");
     const input = await readInput(req);
     const app = ctx.app();
-    await installIntegration(app, {
+    const created = await installIntegration(app, {
       plugin_key: input.str("plugin_key"),
       display_name: input.optional("display_name"),
       secret_ref: input.optional("secret_ref"),
+      // Without this the install form could never satisfy a plugin's required
+      // `config_fields` — `email.sendgrid` has no `from_email` and fails every
+      // send with "No from address is configured."
+      config: collectPrefixed(input, "config."),
       is_default_for_capability: input.bool("is_default_for_capability"),
     });
     await app.flush();
-    return redirect("/admin/integrations", 303, OK("Integration installed."));
+    return redirect(`/admin/integrations/${str(created.id)}`, 303, OK("Integration installed."));
+  });
+
+  router.get("/admin/integrations/:id", async (_req, ctx, params) => {
+    ctx.requireRead("org.configure");
+    const app = ctx.app();
+    const integration = await getIntegration(app, params.id);
+    const plugin = availablePlugins().find((p) => p.key === str(integration.plugin_key));
+    if (!plugin) throw notFound("Plugin", str(integration.plugin_key));
+    const config = parseJson<Record<string, unknown>>(integration.config, {});
+    const canWrite = ctx.canWrite("org.configure");
+    // Only email plugins receive provider callbacks today (09, `email`:
+    // `handle_inbound_webhook`); nothing else in the contract set has one.
+    const inbound = plugin.capability === "email" ? await inboundWebhookUrl(ctx.env, str(integration.id)) : null;
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: str(integration.display_name), active: "integrations", width: "narrow" },
+        html`${pageHead(str(integration.display_name), `${str(integration.plugin_key)} — ${humanise(str(integration.capability))}`)}
+          ${integration.last_error ? card(html`<p class="small">${str(integration.last_error)}</p>`, "Last error") : raw("")}
+          ${canWrite
+            ? card(
+                html`<form method="post" action="/admin/integrations/${str(integration.id)}" class="stack">
+                  ${field({ name: "display_name", label: "Display name", value: str(integration.display_name) })}
+                  ${integrationSecretField(plugin, str(integration.secret_ref))} ${integrationConfigFields(plugin, config)}
+                  ${field({
+                    name: "is_default_for_capability",
+                    label: `Make this the default for ${str(integration.capability)}`,
+                    type: "checkbox",
+                    value: bool(integration.is_default_for_capability),
+                  })}
+                  <button type="submit">Save</button>
+                </form>`,
+                "Settings",
+              )
+            : raw("")}
+          ${inbound
+            ? card(
+                html`<p class="small muted">
+                    Paste this into the provider's delivery-event webhook setting. Bounces and complaints arriving here move the outbox row past
+                    <code>sent</code> and put a hard bounce on the suppression list.
+                  </p>
+                  <p class="mono small">${inbound}</p>
+                  <p class="small muted">The signature in the URL is what authenticates the provider, so treat it as a credential.</p>`,
+                "Delivery events webhook",
+              )
+            : raw("")}`,
+      ),
+    );
+  });
+
+  router.post("/admin/integrations/:id", async (req, ctx, params) => {
+    ctx.requireWrite("org.configure");
+    const input = await readInput(req);
+    const app = ctx.app();
+    const integration = await getIntegration(app, params.id);
+    // The form only renders the plugin's declared `config_fields`, so it merges
+    // over the stored config rather than replacing it — a key set through
+    // `POST /v1/integrations` that this plugin does not declare survives a save
+    // here instead of being silently dropped.
+    const config = { ...parseJson<Record<string, unknown>>(integration.config, {}), ...collectPrefixed(input, "config.") };
+    await updateIntegration(app, params.id, {
+      display_name: input.str("display_name"),
+      secret_ref: input.optional("secret_ref"),
+      config,
+      is_default_for_capability: input.bool("is_default_for_capability"),
+    });
+    await app.flush();
+    return redirect(`/admin/integrations/${params.id}`, 303, OK("Saved."));
   });
 
   router.post("/admin/integrations/:id/health-check", async (_req, ctx, params) => {
@@ -1139,6 +1281,53 @@ function registerUnsubscribeRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(ctx, { title: "Unsubscribed", width: "narrow" }, html`<div class="card"><p>You will not receive marketing messages of this kind again.</p></div>`),
     );
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Inbound provider callbacks                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where an email provider posts delivery events — 09, `email`:
+ * `handle_inbound_webhook(payload) -> DeliveryStatusUpdate[]`. Without this
+ * route the method had no caller, so a `NotificationDelivery` never moved past
+ * `sent` and a hard bounce never reached the suppression list.
+ *
+ * Deliberately unauthenticated in the session/API-key sense — the caller is
+ * SendGrid, not a person. The signed URL is the credential (INV-09-15); see
+ * `inboundWebhookUrl`.
+ */
+function registerInboundWebhookRoutes(router: Router<RequestContext>): void {
+  router.post("/integrations/:id/inbound", async (req, ctx, params) => {
+    const sig = ctx.url.searchParams.get("sig") ?? "";
+    if (!(await verifyInboundWebhookSignature(ctx.env, params.id, sig))) {
+      // Same body whether the signature is wrong or the integration does not
+      // exist, so this cannot be used to enumerate installed integrations.
+      return json({ error: "invalid_signature" }, { status: 401 });
+    }
+    const app = ctx.app();
+    const integration = await app.db.byId<Row>("integration", params.id);
+    if (!integration) return json({ error: "invalid_signature" }, { status: 401 });
+
+    // INV-09-11: a disabled integration stops accepting callbacks immediately.
+    const resolved = await resolvePluginForIntegration(app, integration);
+    if (!resolved) return json({ error: "integration_unavailable" }, { status: 409 });
+    if (resolved.plugin.capability !== "email") return json({ error: "capability_has_no_inbound" }, { status: 400 });
+
+    let payload: unknown;
+    try {
+      payload = await req.json();
+    } catch {
+      return json({ error: "invalid_payload" }, { status: 400 });
+    }
+
+    const updates = await resolved.plugin.handle_inbound_webhook(payload, resolved.ctx);
+    await applyDeliveryStatusUpdates(app, updates);
+    await app.flush();
+    // `received`, not `applied`: INV-09-16 means a replay of an event already
+    // recorded changes nothing, and the provider only needs the 2xx anyway.
+    return json({ received: updates.length });
   });
 }
 

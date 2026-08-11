@@ -80,6 +80,25 @@ export const NOTIFICATION_STATUSES = [
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 
 /**
+ * How far along a delivery is, so an inbound provider callback can only ever
+ * move it forward. Provider webhooks are at-least-once and unordered, and
+ * without this a resent `delivered` would erase a `bounced` recorded after it.
+ *
+ * `complained` outranks `delivered` because that is the only order it can
+ * happen in — someone marks a message as spam after receiving it. `suppressed`
+ * is absent deliberately: a suppressed message was never handed to a provider,
+ * so no callback can carry its `provider_message_id`.
+ */
+export const DELIVERY_STATUS_RANK: Record<string, number> = {
+  queued: 1,
+  sent: 2,
+  delivered: 3,
+  failed: 4,
+  bounced: 5,
+  complained: 6,
+};
+
+/**
  * `no_provider` and `complained` were added by C6 in 13-open-questions.md: the
  * enum omitted values INV-09-12 and the suppression paragraph already require.
  */

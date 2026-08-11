@@ -22,7 +22,7 @@ import {
 } from "@podiumconf/domain/platform/suppression.js";
 import { assertTemplateBody, renderTemplate, toPlainText, flattenVariables } from "@podiumconf/domain/platform/rendering.js";
 import { DEFAULT_TEMPLATES, declaredVariables, isTransactionalTemplate, templateSpec } from "@podiumconf/domain/platform/templates.js";
-import { NOTIFICATION_CHANNELS, quietHoursDecision, type NotificationChannel } from "@podiumconf/domain/platform/types.js";
+import { DELIVERY_STATUS_RANK, NOTIFICATION_CHANNELS, quietHoursDecision, type NotificationChannel } from "@podiumconf/domain/platform/types.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { hasActiveEmailIntegration, resolvePlugin } from "./service.js";
 import { DomainError } from "@podiumconf/domain/shared/errors.js";
@@ -86,7 +86,17 @@ export async function baseVariables(app: AppContext, recipient: Row): Promise<Re
 }
 
 /**
- * The HMAC key for signed, no-login links (INV-09-15). Previously this was
+ * The HMAC key for every signed, no-login URL this platform mints (INV-09-15) —
+ * the unsubscribe link, and the inbound provider-callback URL below.
+ *
+ * The two sign different message shapes (`${email}.${category}` versus
+ * `inbound-webhook:${integration_id}`), which is what stops a signature minted
+ * for one being replayed against the other. The unsubscribe shape is
+ * deliberately left un-prefixed: every unsubscribe link already sitting in
+ * someone's inbox was signed with it, and prefixing it now would silently
+ * invalidate all of them.
+ *
+ * Previously this was
  * `env.ENVIRONMENT` itself — in production the literal, publicly-known string
  * "production" — which let anyone forge an unsubscribe link for any address in
  * any org. It is not routed through `resolveSecret`'s `Integration.secret_ref`
@@ -102,7 +112,7 @@ export async function baseVariables(app: AppContext, recipient: Row): Promise<Re
  * fixed, clearly-insecure default keeps `npm run dev` and the test suite
  * working with no setup, per the project's rule that local dev needs none.
  */
-function unsubscribeSigningKey(env: Env): string {
+function platformSigningKey(env: Env): string {
   if (env.UNSUBSCRIBE_SECRET) return env.UNSUBSCRIBE_SECRET;
   if (env.ENVIRONMENT === "production") {
     throw invariantError(
@@ -121,7 +131,7 @@ function unsubscribeSigningKey(env: Env): string {
 /** Signed, no-login link — 09: the exemption is for the message, not the click. */
 export async function unsubscribeUrl(env: Env, email: string, category: string): Promise<string> {
   const baseUrl = env.PUBLIC_BASE_URL || "http://localhost:8787";
-  const sig = await hmacSha256Hex(unsubscribeSigningKey(env), `${email}.${category}`);
+  const sig = await hmacSha256Hex(platformSigningKey(env), `${email}.${category}`);
   const url = new URL(`${baseUrl}/unsubscribe`);
   url.searchParams.set("email", email);
   url.searchParams.set("category", category);
@@ -130,7 +140,33 @@ export async function unsubscribeUrl(env: Env, email: string, category: string):
 }
 
 export async function verifyUnsubscribeSignature(env: Env, email: string, category: string, sig: string): Promise<boolean> {
-  const expected = await hmacSha256Hex(unsubscribeSigningKey(env), `${email}.${category}`);
+  const expected = await hmacSha256Hex(platformSigningKey(env), `${email}.${category}`);
+  return expected === sig;
+}
+
+/**
+ * The URL an email provider posts delivery events back to, for one installed
+ * `Integration` — 09, `email`: `handle_inbound_webhook(payload)`.
+ *
+ * A provider callback carries no session and no API key: the sender is
+ * SendGrid, not a person. So the URL *is* the credential, HMAC-signed exactly
+ * like the unsubscribe link (INV-09-15) and scoped to a single integration id.
+ * That is weaker than verifying a provider's own request signature, and
+ * deliberately so: every provider signs differently (SendGrid ECDSA over
+ * timestamp+body, Resend via Svix), while `handle_inbound_webhook(payload)`
+ * takes a parsed payload and no headers. One signed URL is a check the core
+ * can make for every provider without the contract growing a
+ * provider-shaped hole. An operator who leaks the URL should rotate it by
+ * reinstalling the integration, which mints a new id.
+ */
+export async function inboundWebhookUrl(env: Env, integrationId: string): Promise<string> {
+  const baseUrl = env.PUBLIC_BASE_URL || "http://localhost:8787";
+  const sig = await hmacSha256Hex(platformSigningKey(env), `inbound-webhook:${integrationId}`);
+  return `${baseUrl}/integrations/${integrationId}/inbound?sig=${sig}`;
+}
+
+export async function verifyInboundWebhookSignature(env: Env, integrationId: string, sig: string): Promise<boolean> {
+  const expected = await hmacSha256Hex(platformSigningKey(env), `inbound-webhook:${integrationId}`);
   return expected === sig;
 }
 
@@ -384,18 +420,29 @@ export async function applyDeliveryStatusUpdates(
       ? await app.db.first<Row>("notification_delivery", { provider_message_id: u.provider_message_id })
       : null;
     if (row) {
-      const patch: Row = { status: u.status };
-      if (u.status === "delivered") patch.delivered_at = app.now();
-      if (u.status === "bounced" || u.status === "failed") patch.error = u.error ?? null;
-      await app.db.update("notification_delivery", str(row.id), patch);
-      if (u.status === "bounced" || u.status === "complained") {
-        app.events.emit({
-          type: "notification.bounced",
-          subject: { type: "notification", id: str(row.id) },
-          data: { notification_id: str(row.id), recipient_email: u.recipient_email, bounce_type: u.bounce_type ?? null },
-        });
+      const current = str(row.status);
+      // INV-09-16: provider callbacks are at-least-once and unordered —
+      // SendGrid resends an event it did not get a 2xx for, and a `delivered`
+      // can arrive after a `bounce` on the same message. So the status only
+      // ever moves forward, and a repeat of an event already recorded is a
+      // no-op rather than a second `notification.bounced`.
+      const advances = (DELIVERY_STATUS_RANK[u.status] ?? 0) > (DELIVERY_STATUS_RANK[current] ?? 0);
+      if (advances) {
+        const patch: Row = { status: u.status };
+        if (u.status === "delivered") patch.delivered_at = app.now();
+        if (u.status === "bounced" || u.status === "failed") patch.error = u.error ?? null;
+        await app.db.update("notification_delivery", str(row.id), patch);
+        if (u.status === "bounced" || u.status === "complained") {
+          app.events.emit({
+            type: "notification.bounced",
+            subject: { type: "notification", id: str(row.id) },
+            data: { notification_id: str(row.id), recipient_email: u.recipient_email, bounce_type: u.bounce_type ?? null },
+          });
+        }
       }
     }
+    // Suppression stays unconditional: it is an upsert, and a repeat is the
+    // only chance to record one that was missed when the row already moved.
     // Only a hard bounce and a complaint reach the global list.
     if (u.status === "bounced" && u.bounce_type === "hard") {
       await recordSuppression(app, u.recipient_email, "all", "hard_bounce");

@@ -24,7 +24,7 @@
     // never answered by the asset router. `/live.js` is deliberately *not*
     // listed: the client script is a static asset and should be served from
     // the edge like `/app.css`.
-    "run_worker_first": ["/e/*", "/admin/*", "/portal/*", "/v1/*", "/embed/*", "/live/*"]
+    "run_worker_first": ["/e/*", "/admin/*", "/portal/*", "/v1/*", "/embed/*", "/live/*", "/integrations/*"]
   },
 
   "d1_databases": [
