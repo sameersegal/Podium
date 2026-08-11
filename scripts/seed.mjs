@@ -99,7 +99,21 @@ const dayAt = (dayIndex, hh, mm = 0) => {
 /* passwords                                                                   */
 /* -------------------------------------------------------------------------- */
 
-const ARGON = { t: 3, m: 12288, p: 1, dkLen: 32 };
+/**
+ * Must stay equal to `ARGON2_PARAMS` in
+ * `packages/domain/src/identity/credentials.ts`. It is duplicated rather than
+ * imported because this script is plain `.mjs` run by node and that module is
+ * TypeScript compiled for the Worker runtime — so the duplication is guarded
+ * by a test instead (`tests/unit/shared/seed-credentials.test.ts`).
+ *
+ * The guard exists because this drifted once and broke every local sign-in:
+ * the app dropped to `m=256` to fit the free plan's 10 ms CPU budget and
+ * started refusing any stored hash above `MAX_VERIFIABLE_M` (1024), while the
+ * seed kept writing `m=12288`. Every seeded persona's password became
+ * unverifiable, `npm run dev` could not publish the seeded schedule, and
+ * `scripts/smoke.mjs` could not sign in at all.
+ */
+const ARGON = { t: 1, m: 256, p: 1, dkLen: 32 };
 
 function b64(bytes) {
   return Buffer.from(bytes).toString("base64");
