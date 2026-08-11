@@ -1,8 +1,14 @@
 /**
- * Admin UI reference panels for intuitive template and webhook configuration.
+ * Reference panels for the admin console — 09, "Variables and preview".
  *
- * Renders inline reference information so users can see what data is available
- * without needing to read documentation.
+ * These sit beside the field they explain, because the organizer filling in
+ * `event_types` or a template body has not read `docs/domain/` and the form
+ * alone does not tell them what the system will accept.
+ *
+ * Event types and variable names render as `<code>`, never through `badge()`:
+ * `humanise()` would turn `task_instance.created` into "Task instance.created",
+ * and the whole point of this panel is a string the reader can copy verbatim
+ * into the field next to it.
  */
 
 import { html, raw, type SafeHtml } from "../../ui/html.js";
@@ -11,165 +17,177 @@ import {
   getAllEvents,
   getEventsByCategory,
   getEventsByPattern,
+  getTemplateSpecs,
   getTemplateVariableMetadata,
   getUniqueCategories,
-  getEventMetadata,
   getTemplateSpec,
 } from "./event-reference.js";
 
+/** `warn` reads as "handle with care", which is what personal data is. */
+const PII_BADGE = "warn";
+
+/**
+ * The `event_types` companion: every published event, grouped the way the
+ * catalogue groups them, plus the wildcard forms the field accepts.
+ */
 export function renderEventTypeReference(): SafeHtml {
-  const categories = getUniqueCategories();
+  const sections = getUniqueCategories().map((category) => {
+    const events = getEventsByCategory(category);
+    return html`
+      <div class="reference-section">
+        <h4>${category}</h4>
+        <ul class="event-badges">
+          ${events.map(
+            (e) => html`<li>
+              <code>${e.type}</code>${e.hasPii ? html` ${badge("PII", PII_BADGE)}` : raw("")}
+            </li>`,
+          )}
+        </ul>
+      </div>
+    `;
+  });
 
   return html`
     <div class="admin-reference webhook-reference">
       <div class="reference-header">
-        <h3>Available Events</h3>
-        <p class="small muted">Comma-separated or use wildcards like <code>proposal.*</code> for all proposal events</p>
-      </div>
-      ${categories.map((cat) => {
-        const events = getEventsByCategory(cat);
-        const badges = events.map((e) => badge(e.type, e.hasPii ? "pii" : "ok"));
-        return html`
-          <div class="reference-section">
-            <h4>${cat}</h4>
-            <div class="event-badges">${badges}</div>
-          </div>
-        `;
-      })}
-      <div class="reference-examples">
-        <h4>Quick filters</h4>
-        <p>
-          <code>*</code> — all events<br>
-          <code>proposal.*</code> — all proposal events<br>
-          <code>session.*</code> — all session events<br>
-          <code>review.*</code> — all review events<br>
-          <code>notification.*</code> — notifications sent
+        <h3>Events you can subscribe to</h3>
+        <p class="small muted">
+          Copy a type into the field, or use a wildcard. Types marked ${badge("PII", PII_BADGE)} carry personal data and
+          are redacted unless "include personal data" is on.
         </p>
       </div>
+      <div class="reference-examples">
+        <h4>Wildcards</h4>
+        <p>
+          <code>*</code> — everything<br />
+          <code>proposal.*</code> — every proposal event<br />
+          <code>session.*</code> — every session event<br />
+          <code>proposal.accepted, session.created</code> — a comma-separated list
+        </p>
+      </div>
+      ${sections}
     </div>
   `;
 }
 
+/**
+ * The payload companion: what actually arrives in `data`, optionally narrowed
+ * to the patterns the webhook is subscribed to.
+ */
 export function renderEventPayloadReference(eventPattern?: string): SafeHtml {
-  let events = getAllEvents();
-  if (eventPattern && eventPattern.trim()) {
-    events = getEventsByPattern(eventPattern);
-  }
+  const events = eventPattern?.trim() ? getEventsByPattern(eventPattern) : [...getAllEvents()];
 
   if (events.length === 0) {
-    return html`<p class="notice warn">No matching events found</p>`;
+    return html`<div class="admin-reference">
+      <p class="notice warn">Nothing matches that filter, so this webhook would never fire.</p>
+    </div>`;
   }
-
-  const eventDetails = events.sort((a, b) => a.type.localeCompare(b.type)).map((e) => {
-    const piiLabel = e.hasPii ? html` ${badge("contains PII", "pii")}` : raw("");
-    return html`
-      <div class="event-detail">
-        <h4>${e.type}${piiLabel}</h4>
-        <p class="small muted">${e.description}</p>
-        <p class="small"><strong>Subject:</strong> <code>${e.subject}</code></p>
-        <p class="small"><strong>Payload fields:</strong></p>
-        <code class="field-list">${e.dataFields.join(", ")}</code>
-      </div>
-    `;
-  });
 
   return html`
     <div class="admin-reference event-payload-reference">
       <div class="reference-header">
-        <h3>Event Payload Structure</h3>
+        <h3>What a delivery looks like</h3>
         <p class="small muted">
-          Each event includes <code>id</code>, <code>type</code>, <code>version</code>, <code>occurred_at</code>,
-          <code>actor</code> (who caused it), <code>subject</code> (the primary entity), and <code>data</code> (type-specific
-          payload below).
+          Every delivery carries the same envelope — <code>id</code> (use it to de-duplicate; delivery is at-least-once),
+          <code>type</code>, <code>version</code>, <code>occurred_at</code>, <code>actor</code>, <code>subject</code> and
+          <code>data</code>. Only <code>data</code> differs per type:
         </p>
       </div>
-      ${eventDetails}
+      ${events.map(
+        (e) => html`
+          <div class="event-detail">
+            <h4><code>${e.type}</code>${e.hasPii ? html` ${badge("PII", PII_BADGE)}` : raw("")}</h4>
+            ${e.description ? html`<p class="small muted">${e.description}</p>` : raw("")}
+            <p class="small"><strong>Subject:</strong> <code>${e.subject}</code> — ordering is guaranteed per subject only.</p>
+            ${e.dataFields.length
+              ? html`<p class="small"><strong><code>data</code> keys:</strong></p>
+                  <code class="field-list">${e.dataFields.join(", ")}</code>`
+              : raw("")}
+          </div>
+        `,
+      )}
     </div>
   `;
 }
 
-export function renderTemplateVariableReference(templateKey?: string): SafeHtml {
+/**
+ * The template-body companion. Shows exactly the set INV-09-13 validates a save
+ * against — offering anything wider would promise a variable the save rejects.
+ */
+export function renderTemplateVariableReference(templateKey?: string | null): SafeHtml {
   const variables = getTemplateVariableMetadata(templateKey);
-
-  if (variables.length === 0) {
-    return html`<p class="notice warn">No variables available</p>`;
-  }
-
-  // Group by category
-  const byGroup = new Map<string, typeof variables>();
-  for (const v of variables) {
-    if (!byGroup.has(v.group)) byGroup.set(v.group, []);
-    byGroup.get(v.group)!.push(v);
-  }
-
   const spec = templateKey ? getTemplateSpec(templateKey) : null;
 
-  const groupSections = Array.from(byGroup.entries()).map(([group, vars]) => {
-    const groupLabel = group === "common" ? "Available in all templates" : group === "template-specific" ? "Specific to this template" : "Available in campaigns";
-    const varItems = vars.sort((a, b) => a.name.localeCompare(b.name)).map((v) => {
-      const description = v.description ? html` — ${v.description}` : raw("");
-      return html`<div class="var-item"><code>{{${v.name}}}</code>${description}</div>`;
-    });
+  const groups: { key: VariableGroup; label: string; blurb: string }[] = [
+    { key: "template-specific", label: "Specific to this message", blurb: "Only resolvable here." },
+    { key: "common", label: "Available in every message", blurb: "" },
+  ];
 
+  const sections = groups.map(({ key, label, blurb }) => {
+    const inGroup = variables.filter((v) => v.group === key);
+    if (inGroup.length === 0) return raw("");
     return html`
       <div class="reference-section">
-        <h4>${groupLabel}</h4>
-        <div class="var-list">${varItems}</div>
+        <h4>${label}</h4>
+        ${blurb ? html`<p class="small muted">${blurb}</p>` : raw("")}
+        <div class="var-list">
+          ${inGroup.map(
+            (v) => html`<div class="var-item">
+              <code>{{${v.name}}}</code>${v.description ? html`<span class="small muted">${v.description}</span>` : raw("")}
+            </div>`,
+          )}
+        </div>
       </div>
     `;
   });
 
-  const transactionalNote = spec && spec.transactional ? html`<p class="notice">This is a <strong>transactional</strong> template — never suppressed by unsubscribe preferences.</p>` : raw("");
-
   return html`
     <div class="admin-reference template-reference">
       <div class="reference-header">
-        <h3>Available Variables</h3>
-        <p class="small muted">Use <code>{{variable_name}}</code> syntax in the template body. Unknown variables are rejected at save time.</p>
+        <h3>Variables you can use</h3>
+        <p class="small muted">
+          Write them as <code>{{name}}</code>. A variable that is not on this list is rejected when you save, rather than
+          being sent to everyone as an empty string.
+        </p>
       </div>
-      ${transactionalNote}
-      ${groupSections}
+      ${spec?.transactional
+        ? html`<p class="notice">
+            This message is <strong>transactional</strong> — it reaches the recipient even if they have unsubscribed from
+            marketing, because it is about their own proposal, session or task.
+          </p>`
+        : raw("")}
+      ${sections}
     </div>
   `;
 }
 
+type VariableGroup = "common" | "template-specific";
+
+/**
+ * The key-field companion on the new-template form: the shipped keys and what
+ * each one is sent for. Derived from `DEFAULT_TEMPLATES` so a template added to
+ * the domain appears here without a second edit.
+ */
 export function renderTemplateListReference(): SafeHtml {
-  const templateKeys = [
-    "proposal.submitted",
-    "proposal.accepted",
-    "proposal.rejected",
-    "proposal.waitlisted",
-    "proposal.changes_requested",
-    "task.assigned",
-    "task.reminder",
-    "schedule.changed",
-    "invitation.sent",
-    "speaker.confirmation_request",
-    "review.assignment",
-    "review.reminder",
-    "entitlement.expiring_soon",
-  ];
-
-  const templateItems = templateKeys.map((key) => {
-    const spec = getTemplateSpec(key);
-    if (!spec) return null;
-    return html`
-      <div class="template-item">
-        <strong>${key}</strong>
-        <p class="small muted">${spec.description}</p>
-        <p class="small">Channel: ${badge(spec.channel)}</p>
-      </div>
-    `;
-  }).filter((item) => item !== null);
-
   return html`
     <div class="admin-reference template-list-reference">
       <div class="reference-header">
-        <h3>Known Templates</h3>
-        <p class="small muted">Built-in templates tied to system events. Custom templates use a one-off variable set.</p>
+        <h3>Messages the system sends</h3>
+        <p class="small muted">
+          Use one of these keys to override what Podium already sends. Any other key creates a custom message you send
+          yourself, with the common variables only.
+        </p>
       </div>
       <div class="template-list">
-        ${templateItems}
+        ${getTemplateSpecs().map(
+          (spec) => html`
+            <div class="template-item">
+              <strong><code>${spec.key}</code></strong>
+              <p class="small muted">${spec.description}</p>
+              <p class="small">${badge(spec.channel)}${spec.transactional ? html` ${badge("transactional", "info")}` : raw("")}</p>
+            </div>
+          `,
+        )}
       </div>
     </div>
   `;

@@ -292,7 +292,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
 
 function webhookForm(w: Row | null, events: Row[]): SafeHtml {
   return html`
-    <div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem; align-items: start;">
+    <div class="config-with-reference">
       <div class="form-section">
         ${field({ name: "name", label: "Name", required: true, value: w ? str(w.name) : "" })}
         ${field({ name: "url", label: "URL", type: "url", required: true, value: w ? str(w.url) : "", help: "Absolute https only." })}
@@ -355,7 +355,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: "New webhook", active: "webhooks", width: "narrow" },
+        { title: "New webhook", active: "webhooks", width: "wide" },
         html`${pageHead("New webhook")}
           ${card(html`<form method="post" action="/admin/webhooks/new" class="stack">${webhookForm(null, events)}<button type="submit">Create webhook</button></form>`)}`,
       ),
@@ -387,7 +387,7 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
     return htmlResponse(
       adminPage(
         ctx,
-        { title: str(webhook.name), active: "webhooks", width: "narrow" },
+        { title: str(webhook.name), active: "webhooks", width: "wide" },
         html`${pageHead(str(webhook.name), str(webhook.url))}
           ${canWrite
             ? card(html`<form method="post" action="/admin/webhooks/${params.id}" class="stack">${webhookForm(webhook, events)}<button type="submit">Save</button></form>`)
@@ -421,7 +421,11 @@ function registerWebhookRoutes(router: Router<RequestContext>): void {
                 </form>`,
                 "Replay a time range",
               )
-            : raw("")}`,
+            : raw("")}
+          ${card(
+              renderEventPayloadReference(parseJson<string[]>(webhook.event_types, []).join(",")),
+              "What this endpoint will receive",
+            )}`,
       ),
     );
   });
@@ -646,7 +650,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
         ctx,
         { title: "New template", active: "templates", width: "wide" },
         html`${pageHead("New template")}
-          <div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem;">
+          <div class="config-with-reference">
             ${card(html`<form method="post" action="/admin/templates/new" class="stack">
               ${field({ name: "key", label: "Key", required: true, help: "One of the known template keys, or a custom key for a one-off variable set." })}
               ${field({ name: "subject", label: "Subject" })}
@@ -698,7 +702,7 @@ function registerTemplateRoutes(router: Router<RequestContext>): void {
         ctx,
         { title: str(t.key), active: "templates", width: "wide" },
         html`${pageHead(str(t.key))}
-          <div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem; align-items: start;">
+          <div class="config-with-reference">
             <div>
               ${canWrite
                 ? card(html`<form method="post" action="/admin/templates/${params.id}" class="stack">
