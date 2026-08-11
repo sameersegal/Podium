@@ -80,7 +80,12 @@ export function roundsOverviewView(d: { event: EventRef; rounds: RoundSummary[];
     ${pageHead(
       "Review",
       "Rounds are plural on purpose — a light screening pass, then a deep round on the survivors, then a shortlist meeting.",
-      d.canWrite ? html`<a class="btn" href="/admin/events/${d.event.id}/review/rounds/new">New round</a>` : raw(""),
+      d.canWrite
+        ? html`<p class="actions">
+            <a class="btn" href="/admin/events/${d.event.id}/review/rounds/new">New round</a>
+            <a class="btn secondary" href="/admin/rubrics?event_id=${d.event.id}">Rubrics</a>
+          </p>`
+        : raw(""),
     )}
     ${table(["Round", "Status", "Window", "Rubric", "Proposals", "Pool", "Submitted / assigned", ""], rows, "No review rounds yet.")}
   `;
