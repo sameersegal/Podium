@@ -102,6 +102,44 @@ describe("INV-09-25: a key reaches exactly what its scopes name", () => {
   });
 });
 
+describe("INV-09-27: a first-person statement is authored by its person", () => {
+  let full = "";
+
+  beforeAll(async () => {
+    await seed();
+    const app = new AppContext({ env, orgId: ORG, eventId: EVENT, actor: SYSTEM_ACTOR });
+    // Every scope these two routes could possibly want, so a refusal is the
+    // rule and not a missing permission.
+    full = (await createApiKey(app, { name: "everything", scopes: ["proposals:read", "proposals:write", "reviews:read", "reviews:write", "pii:read"] })).secret;
+    await app.flush();
+  });
+
+  it("refuses a key submitting a proposal, whatever its scopes", async () => {
+    const res = await post("/v1/proposals/prp_does_not_exist/submit", full, {});
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string; invariant?: string };
+    expect(body.error).toBe("authorship_requires_person");
+    expect(body.invariant).toBe("INV-09-27");
+  });
+
+  it("refuses a key writing a review, whatever its scopes", async () => {
+    const res = await post("/v1/reviews", full, { assignment_id: "asg_does_not_exist", recommendation: "accept" });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string; invariant?: string };
+    expect(body.error).toBe("authorship_requires_person");
+    expect(body.invariant).toBe("INV-09-27");
+  });
+
+  // The ids above are deliberately bogus: the rule is checked before the
+  // record is loaded, so the caller is told which rule stopped them rather
+  // than whether the id exists. A 404 here would be both a worse answer and a
+  // small disclosure.
+  it("names the rule before it looks the record up", async () => {
+    const res = await post("/v1/proposals/prp_does_not_exist/submit", full, {});
+    expect(res.status).not.toBe(404);
+  });
+});
+
 describe("INV-09-26: no key may administer keys", () => {
   let platform = "";
 

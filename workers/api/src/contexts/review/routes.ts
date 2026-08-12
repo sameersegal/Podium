@@ -34,7 +34,7 @@ import { reviewerIdentityVisible } from "@podiumstack/domain/review/anonymity.js
 import { notFound, validationError } from "@podiumstack/domain/shared/errors.js";
 import { zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
 import { expectedVersion, staleWriteRedirect } from "../../http/concurrency.js";
-import { flashCookie, type RequestContext } from "../../http/context.js";
+import { flashCookie, requirePersonalAuthorship, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect, text } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
@@ -1505,6 +1505,11 @@ function registerManagementApi(router: Router<RequestContext>): void {
   });
 
   router.post("/v1/reviews", async (req, ctx) => {
+    // INV-09-27. `requirePerson()` below already refuses a key, but with "Sign
+    // in to continue" — which reads like a broken token to a caller holding a
+    // perfectly good one, and sends them to check their credentials instead of
+    // the rule.
+    requirePersonalAuthorship(ctx, "Writing a review");
     const person = ctx.requirePerson();
     const input = await readInput(req);
     const assignmentId = input.str("assignment_id");

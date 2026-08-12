@@ -17,7 +17,7 @@ import { newId } from "@podiumstack/domain/shared/ids.js";
 import { fieldByKey, mappedKeys } from "@podiumstack/domain/submissions/answers.js";
 import { validateStep } from "@podiumstack/domain/submissions/validation.js";
 import type { Origin } from "@podiumstack/domain/event-config/types.js";
-import { flashCookie, type PersonView, type RequestContext } from "../../http/context.js";
+import { flashCookie, requirePersonalAuthorship, type PersonView, type RequestContext } from "../../http/context.js";
 import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Handler, Router } from "../../http/router.js";
@@ -892,6 +892,12 @@ function registerManagementApi(router: Router<RequestContext>): void {
   });
 
   router.post("/v1/proposals/:id/submit", async (_req, ctx, params) => {
+    // INV-09-27, before the capability check so the answer names the rule
+    // rather than listing every form field the key could never have filled in.
+    // `POST /v1/proposals` may still start a draft: it names the submitter and
+    // the draft appears in their portal, which is an invitation rather than a
+    // statement made on their behalf.
+    requirePersonalAuthorship(ctx, "Submitting a proposal");
     const app = ctx.app();
     const proposal = await getProposal(app, params.id);
     ctx.eventId = str(proposal.event_id);

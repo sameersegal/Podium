@@ -689,6 +689,33 @@ model depends on these choices.
   can take another key's secret; neither escalation is expressible in the scope table, because
   the thing being administered *is* the scope table. Listing keys stays available — the list
   carries prefixes and scopes, never a secret.
+- **INV-09-27** **A first-person statement is authored by its person, never by an API key.**
+  Submitting a `Proposal` ([`04`](04-submissions.md)) and writing a `Review`
+  ([`05`](05-review.md)) are refused to every key, whatever its scopes, with a typed error
+  naming this rule rather than a generic authentication failure. Both records are somebody's
+  own assertion — *this is my talk*, *this is my assessment* — and the record carries their
+  name for as long as it exists: a submission is what an acceptance is granted against, and a
+  review is what a decision is justified by, under an anonymity setting that only makes sense
+  if the author is who the assignment says. A credential held by a piece of software is nobody,
+  and an integration that could sign a person's name to either is a provenance hole no scope
+  can close.
+
+  The boundary is around **authorship**, not around the record:
+
+  - `POST /v1/proposals` may **start** a draft — it names the submitter, and the draft appears
+    in that person's portal for them to complete and submit themselves. Beginning a submission
+    on somebody's behalf is an invitation; finishing it is not.
+  - Organizer edits (`PATCH /v1/proposals/:id`) stay open, because they are attributed to the
+    organizer, recorded as a `ProposalRevision` with a reason, and visible as somebody else's
+    change rather than as the submitter's words.
+  - Everything downstream of authorship — triage, assignment, scoring, decisions, scheduling,
+    onboarding — is fully reachable by a key. The refusal is two calls wide, not a missing
+    surface.
+  - A chair overriding an AI first-pass review (`POST /v1/reviews/:reviewId/override`) is a
+    chair's own act on someone else's record, not authorship of a review, and is unaffected.
+
+  Uploading a file is refused to keys for a related but distinct reason — an `Asset` records
+  who uploaded it, and the scan pipeline is built around that — and is not governed here.
 
 ### What each scope reaches
 

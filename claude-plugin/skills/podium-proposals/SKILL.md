@@ -56,10 +56,18 @@ the proposal's history. `reason` is recorded — write a real one. Editable fiel
 
 `POST /v1/proposals/:id/withdraw` takes a `reason`.
 
-**You cannot author a submission through the API.** `POST /v1/proposals` creates a draft but
-the answers a submission is validated against are written only by the speaker's own wizard, so
-`POST /v1/proposals/:id/submit` on an API-created draft answers `422` listing every required
-field. Say so rather than trying to work around it.
+**Submitting is the submitter's own act (INV-09-27).** `POST /v1/proposals/:id/submit` answers
+`403 authorship_requires_person` to every key, whatever its scopes. What you *can* do is start
+the draft for them:
+
+```bash
+podium post /v1/proposals cfp_id=cfp_… submitter_person_id=per_…
+```
+
+It appears in that person's portal at `/portal/proposals/:id`, where they fill in the answers
+and submit. That is the whole supported shape of "create a proposal for somebody" — an
+invitation, not a statement made in their name. Report it that way rather than hunting for
+another route.
 
 ## Review rounds
 
@@ -88,10 +96,13 @@ podium get  /v1/reviews round_id=rnd_…        # round_id or proposal_id is req
 podium post /v1/reviews/rvw_…/override reason="…"
 ```
 
-**An API key cannot post a review.** `POST /v1/reviews` demands a signed-in person and answers
-`401 unauthorized` to any key, whatever its scopes — a review is attributed to the reviewer
-whose assignment it answers, and a key is nobody. Reviews are written by reviewers at
-`/review`. An agent reads them, scores them and decides on them; it does not author them.
+**Writing a review is the reviewer's own act (INV-09-27).** `POST /v1/reviews` answers
+`403 authorship_requires_person` to every key, whatever its scopes — a review is attributed to
+the reviewer whose assignment it answers, under an anonymity setting that only means something
+if that attribution is true. Reviewers write them signed in at `/review`. An agent reads
+reviews, aggregates them, chases the missing ones and decides on the result; it does not author
+them. `POST /v1/reviews/:reviewId/override` is different and is available: that is a chair's
+own act on an AI first-pass review.
 
 Finding what still needs reviewers: list proposals with `--fields id,title,review_count,target_reviews`
 and filter locally for `review_count < target_reviews`. There is no server-side "unreviewed"

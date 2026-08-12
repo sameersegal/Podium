@@ -223,6 +223,14 @@ Notes on the edges that matter:
   after the CFP has closed.
 - **`withdrawn` releases the entitlement hold** for sponsor proposals, and frees a
   `max_proposals_per_person` slot for CFP ones.
+- **`draft --> submitted` is the submitter's move, and only theirs.** An API key may start a
+  draft — it names the submitter, and the draft appears in that person's portal — but the
+  submit itself is refused to every key, whatever its scopes
+  ([INV-09-27](09-api-and-integrations.md#invariants)). A submission is the assertion an
+  acceptance is later granted against, and an integration cannot make it on somebody's behalf.
+  Organizer edits are unaffected: they are attributed to the organizer and recorded as a
+  `ProposalRevision`, which is the difference between changing someone's words and writing
+  them.
 - **`submitted --> draft --> submitted` is one move, not two.** Content is immutable in
   `submitted` ([INV-04-7](#invariants)), so an edit has to route through `draft` — but
   `allow_edit_after_submit` promises the submitter that they "may edit until `closes_at`"

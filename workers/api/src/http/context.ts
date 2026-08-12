@@ -24,7 +24,7 @@ import {
   type RoleGrantView,
   type Target,
 } from "@podiumstack/domain/shared/authorization.js";
-import { forbidden, unauthorized } from "@podiumstack/domain/shared/errors.js";
+import { DomainError, forbidden, unauthorized } from "@podiumstack/domain/shared/errors.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
 import { nowIso } from "@podiumstack/domain/shared/time.js";
 
@@ -379,6 +379,32 @@ const CAPABILITY_PHRASE: Record<Capability, string> = {
 function denial(ctx: RequestContext, capability: Capability) {
   if (!ctx.person && !ctx.apiKeyId) return unauthorized("Sign in to continue.");
   return forbidden(`You do not have permission to ${CAPABILITY_PHRASE[capability]}.`);
+}
+
+/**
+ * INV-09-27 — a first-person statement is authored by its person, never by an
+ * API key.
+ *
+ * Submitting a proposal and writing a review are the two of these. Both are
+ * somebody's own assertion, and both keep that person's name for as long as
+ * the record exists: a submission is what an acceptance is granted against, a
+ * review is what a decision is justified by under an anonymity setting that
+ * only means anything if the author is who the assignment says. A credential
+ * held by software is nobody.
+ *
+ * The refusal is separate from the capability check and runs before it, so the
+ * answer names the rule. Left to the guards, a key submitting a proposal got a
+ * 422 listing every unanswered form field, and a key posting a review got
+ * "Sign in to continue" — both true, neither the reason.
+ */
+export function requirePersonalAuthorship(ctx: RequestContext, act: string): void {
+  if (!ctx.apiKeyId) return;
+  throw new DomainError({
+    code: "authorship_requires_person",
+    message: `${act} is that person's own statement and cannot be done with an API key; they do it signed in as themselves.`,
+    invariant: "INV-09-27",
+    status: 403,
+  });
 }
 
 /**

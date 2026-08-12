@@ -170,22 +170,43 @@ They answer **303 with an HTML body, not JSON**. `podium` prints `null` and repo
 
 ## What the API cannot do
 
-Say so rather than working around it:
+Say so rather than working around it.
 
-- **Fill in a proposal's answers.** `POST /v1/proposals` creates a draft and
-  `PATCH /v1/proposals/:id` performs an *organizer edit* of the proposal's own columns, but the
-  answers a submission is validated against are written only by the speaker-facing wizard at
-  `POST /portal/proposals/:id/step/:stepKey`, which needs that speaker's session. So
-  `POST /v1/proposals/:id/submit` on an API-created draft answers `422 validation_failed`
-  listing every required field. An agent can triage, edit, review, decide and schedule
-  proposals; it cannot author one end to end.
-- **Post a review.** `POST /v1/reviews` demands a signed-in person and answers
-  `401 unauthorized` to any key, whatever its scopes: a review is attributed to the reviewer
-  whose assignment it answers, and a key is nobody. The same is true of uploading a file
-  (`POST /v1/assets`, `/v1/assets/presign`) and of commenting on one. The catalogue marks
-  these `session`.
-- **Read reviewer identity** unless the round's anonymity is `open`. `reviewer_person_id`
-  comes back `null` and that is the rule working, not a redaction you can unlock.
+### A first-person statement is authored by its person (INV-09-27)
+
+**Submitting a proposal and writing a review are refused to every API key**, whatever its
+scopes, with `403 authorship_requires_person` naming the rule:
+
+```
+POST /v1/proposals/:id/submit   → 403 authorship_requires_person (INV-09-27)
+POST /v1/reviews                → 403 authorship_requires_person (INV-09-27)
+```
+
+Both records are somebody's own assertion — *this is my talk*, *this is my assessment* — and
+carry that person's name for as long as they exist. A key is nobody. This is a rule, not a
+gap: do not look for another route, and do not tell the operator it is a limitation to work
+around. Tell them who needs to do it.
+
+The boundary is around **authorship**, not around the record. Still fully available:
+
+- **Starting a draft.** `POST /v1/proposals cfp_id=… submitter_person_id=…` creates one, it
+  appears in that person's portal at `/portal/proposals/:id`, and they complete and submit it
+  themselves. Beginning a submission for somebody is an invitation; finishing it is not.
+- **Organizer edits.** `PATCH /v1/proposals/:id` — attributed to the organizer, recorded as a
+  revision with a reason, visible as somebody else's change rather than as the submitter's
+  words. Withdrawing works too.
+- **Everything downstream**: triage, rounds, assignments, scores, decisions, scheduling,
+  onboarding. And `POST /v1/reviews/:reviewId/override`, which is a chair's own act on an AI
+  review rather than authorship of one.
+
+### Other absences
+
+- **Uploading a file** — `POST /v1/assets`, `/v1/assets/presign`, and commenting on one —
+  needs a signed-in person for a related but different reason: an asset records who uploaded
+  it and the scan pipeline is built around that. The catalogue marks these `session`.
+- **Reviewer identity** is unavailable unless the round's anonymity is `open`.
+  `reviewer_person_id` comes back `null`, and that is the rule working, not a redaction
+  `pii:read` unlocks.
 
 ## The other skills
 

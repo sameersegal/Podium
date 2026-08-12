@@ -6,8 +6,9 @@ Every endpoint on the management surface, generated from the routes themselves b
 190 endpoints. Columns:
 
 - **Scope** — the API-key scope that reaches it. A key reaches exactly what its scopes name
-  and nothing else (INV-09-25). **`session`** means the handler demands a signed-in person,
-  so no API key of any scope reaches it — posting a review is the one that surprises people.
+  and nothing else (INV-09-25). **`session`** means no API key of any scope reaches it: the
+  handler either needs a person's id, or refuses a key outright because the record is that
+  person's own statement — submitting a proposal and writing a review, INV-09-27.
   Blank means the guard is neither a capability nor a person: a public route, one scoped by a
   relationship the caller has, or one gated on being staff at all — the CRM routes
   (`/v1/segments`, `/v1/pipelines`, `/v1/prospects`) check that and nothing finer, so any
@@ -202,9 +203,9 @@ Paths shown with `:name` take an id in that position.
 | `POST /v1/proposals` | `proposals:read` | — | `cfp_id` `submitter_person_id` `entitlement_id` `sponsor_id` `origin` | · | workers/api/src/contexts/submissions/routes.ts:853 |
 | `GET /v1/proposals/:id` | `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:809 |
 | `PATCH /v1/proposals/:id` | `proposals:write` | — | `reason` `keywords` `title` `abstract` `description` `session_format_id` `requested_duration_minutes` `track_id` `assigned_track_id` `audience_level` `language` `recording_consent` `recording_conditions` `coi_disclosure` | · | workers/api/src/contexts/submissions/routes.ts:881 |
-| `POST /v1/proposals/:id/submit` | `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:894 |
-| `POST /v1/proposals/:id/withdraw` | `proposals:read` | — | `reason` | · | workers/api/src/contexts/submissions/routes.ts:904 |
-| `GET /v1/proposals/:proposalId/score` | `reviews:read` | `round_id` | — |  | workers/api/src/contexts/review/routes.ts:1572 |
+| `POST /v1/proposals/:id/submit` | `session` `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:894 |
+| `POST /v1/proposals/:id/withdraw` | `proposals:read` | — | `reason` | · | workers/api/src/contexts/submissions/routes.ts:910 |
+| `GET /v1/proposals/:proposalId/score` | `reviews:read` | `round_id` | — |  | workers/api/src/contexts/review/routes.ts:1577 |
 
 ## public
 
@@ -221,11 +222,11 @@ Paths shown with `:name` take an id in that position.
 |---|---|---|---|---|---|
 | `GET /v1/assignments` | `reviews:read` | `round_id` | — |  | workers/api/src/contexts/review/routes.ts:1449 |
 | `POST /v1/assignments` | `decisions:write` | — | `round_id` `proposal_id` `reviewer_person_id` `assigned_by` `due_at` |  | workers/api/src/contexts/review/routes.ts:1460 |
-| `GET /v1/decisions` | `decisions:read` | `event_id` | — |  | workers/api/src/contexts/review/routes.ts:1548 |
-| `POST /v1/decisions` | `decisions:write` | — | `proposal_id` `outcome` `assigned_track_id` `assigned_format_id` `assigned_duration_minutes` `conditions` `feedback_for_speaker` `rationale` `confirmation_deadline` `quorum_waived_reason` |  | workers/api/src/contexts/review/routes.ts:1558 |
+| `GET /v1/decisions` | `decisions:read` | `event_id` | — |  | workers/api/src/contexts/review/routes.ts:1553 |
+| `POST /v1/decisions` | `decisions:write` | — | `proposal_id` `outcome` `assigned_track_id` `assigned_format_id` `assigned_duration_minutes` `conditions` `feedback_for_speaker` `rationale` `confirmation_deadline` `quorum_waived_reason` |  | workers/api/src/contexts/review/routes.ts:1563 |
 | `GET /v1/reviews` | `reviews:read` | `round_id` `proposal_id` | — |  | workers/api/src/contexts/review/routes.ts:1477 |
 | `POST /v1/reviews` | `session` | — | `assignment_id` `intent` `recommendation` `confidence` `comments_for_committee` `comments_for_speaker` `flags` |  | workers/api/src/contexts/review/routes.ts:1507 |
-| `POST /v1/reviews/:reviewId/override` | `decisions:write` | — | `assignment_id` `reason` `recommendation` `confidence` `comments_for_committee` `comments_for_speaker` `flags` |  | workers/api/src/contexts/review/routes.ts:1528 |
+| `POST /v1/reviews/:reviewId/override` | `decisions:write` | — | `assignment_id` `reason` `recommendation` `confidence` `comments_for_committee` `comments_for_speaker` `flags` |  | workers/api/src/contexts/review/routes.ts:1533 |
 | `GET /v1/rounds` | `reviews:read` | `event_id` | — |  | workers/api/src/contexts/review/routes.ts:1420 |
 | `POST /v1/rounds` | `decisions:write` | — | `event_id` `name` `sequence` `rubric_id` `anonymity` `opens_at` `closes_at` `target_reviews_per_proposal` `max_assignments_per_reviewer` `allow_self_assignment` `show_other_reviews_before_submit` `discussion_enabled` |  | workers/api/src/contexts/review/routes.ts:1430 |
 | `GET /v1/rounds/:roundId` | `reviews:read` | — | — |  | workers/api/src/contexts/review/routes.ts:1442 |

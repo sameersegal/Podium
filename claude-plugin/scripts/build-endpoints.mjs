@@ -139,10 +139,12 @@ function extract(rawBody, source, corpus) {
     body: uniq([...grab(/input\.(?:str|optional|int|bool|list|json|get|has)(?:<[^>]*>)?\(\s*"([\w.-]+)"/g), ...looped]),
     pii: /includePii|redact/.test(body),
     idempotent: /replayIfSeen|remember/.test(body),
-    // `requirePerson()` means a signed-in human, so no API key of any scope
-    // reaches this route. That is the single most useful thing the catalogue
-    // can say about it, and it is invisible from the path.
-    sessionOnly: /ctx\.requirePerson\(\)/.test(rawBody),
+    // Two different guards mean the same thing to a key holder: no scope
+    // reaches this route. `requirePerson()` is the incidental version — the
+    // handler needs somebody's id — and `requirePersonalAuthorship()` is the
+    // deliberate one, INV-09-27. Both are the single most useful thing the
+    // catalogue can say about a route, and neither is visible from the path.
+    sessionOnly: /ctx\.requirePerson\(\)|requirePersonalAuthorship\(/.test(rawBody),
   };
 }
 
@@ -233,8 +235,9 @@ Every endpoint on the management surface, generated from the routes themselves b
 ${routes.length} endpoints. Columns:
 
 - **Scope** — the API-key scope that reaches it. A key reaches exactly what its scopes name
-  and nothing else (INV-09-25). **\`session\`** means the handler demands a signed-in person,
-  so no API key of any scope reaches it — posting a review is the one that surprises people.
+  and nothing else (INV-09-25). **\`session\`** means no API key of any scope reaches it: the
+  handler either needs a person's id, or refuses a key outright because the record is that
+  person's own statement — submitting a proposal and writing a review, INV-09-27.
   Blank means the guard is neither a capability nor a person: a public route, one scoped by a
   relationship the caller has, or one gated on being staff at all — the CRM routes
   (\`/v1/segments\`, \`/v1/pipelines\`, \`/v1/prospects\`) check that and nothing finer, so any

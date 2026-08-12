@@ -117,10 +117,13 @@ applied to what we tell agents about the product. The prose in each `SKILL.md` i
 instance first.
 
 Driving the API from outside found three defects reading it had not, recorded as **D1–D3** in
-[`13-open-questions.md`](docs/domain/13-open-questions.md). Two were the same three lines of
-scope-to-role grading and are fixed (INV-09-25, INV-09-26); D2 — that neither a submission nor
-a review can be authored over the API — is open on purpose. The skills document the surface as
-it actually behaves, which is the point of building them against a running instance.
+[`13-open-questions.md`](docs/domain/13-open-questions.md) and all now closed. Two were the
+same three lines of scope-to-role grading (INV-09-25, INV-09-26). The third was a boundary
+nobody had decided: neither a submission nor a review can be authored over the API, which is
+right — both are a particular person's own statement — but it was an accident of which routes
+exist rather than a rule, so the fix was to state it (INV-09-27) and refuse with an error that
+names it. The skills document the surface as it actually behaves, which is the point of
+building them against a running instance.
 
 ## Current state
 
