@@ -8,6 +8,14 @@
  * height is 1.5× the crop height chosen in that script — pass the same number
  * here so the browser reserves the right box and the page does not jump as the
  * images load.
+ *
+ * `phone` is the exception: those are captured at 390 CSS px, the width the
+ * portal is actually read at, so the intrinsic width is 585 and they are framed
+ * without the desktop chrome.
+ *
+ * The frame is a `<div>` inside the `<figure>` rather than being the figure
+ * itself, because the frame clips to its own rounded corners and a caption has
+ * to sit outside that box.
  */
 interface Props {
   /** File name in `public/screens/`, without the extension. */
@@ -19,25 +27,39 @@ interface Props {
   url?: string;
   /** Tighter chrome, for the inset in the hero. */
   small?: boolean;
+  /** A phone-width capture: 585 intrinsic px wide, no title bar. */
+  phone?: boolean;
   /** The hero shot is above the fold and must not be lazy-loaded. */
   eager?: boolean;
+  /** A line under the frame, for what the screenshot cannot say itself. */
+  caption?: string;
 }
 
-const { name, height, alt, url, small = false, eager = false } = Astro.props;
-const WIDTH = 1920;
+const { name, height, alt, url, small = false, phone = false, eager = false, caption } = Astro.props;
+const width = phone ? 585 : 1920;
+const cls = ["shot", small && "sm", phone && "phone"].filter(Boolean).join(" ");
 ---
 
-<figure class={small ? "shot sm" : "shot"}>
-  <div class="shot-bar" aria-hidden="true">
-    <i></i><i></i><i></i>
-    {url && <span>{url}</span>}
+<figure class="shot-fig">
+  <div class={cls}>
+    {
+      !phone && (
+        <div class="shot-bar" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          {url && <span>{url}</span>}
+        </div>
+      )
+    }
+    <img
+      src={`/screens/${name}.png`}
+      width={width}
+      height={height}
+      alt={alt}
+      loading={eager ? "eager" : "lazy"}
+      decoding={eager ? "sync" : "async"}
+    />
   </div>
-  <img
-    src={`/screens/${name}.png`}
-    width={WIDTH}
-    height={height}
-    alt={alt}
-    loading={eager ? "eager" : "lazy"}
-    decoding={eager ? "sync" : "async"}
-  />
+  {caption && <figcaption>{caption}</figcaption>}
 </figure>

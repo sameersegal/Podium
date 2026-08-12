@@ -1,6 +1,17 @@
 ---
 import "../styles/global.css";
-import { APP_URL, GITHUB_URL, SIGN_IN_URL, SITE_DESCRIPTION, SITE_TITLE } from "../consts";
+import {
+  APP_URL,
+  DOMAIN_MODEL_URL,
+  GITHUB_URL,
+  IMPLEMENTATION_URL,
+  ISSUES_URL,
+  LICENSE_URL,
+  NAV,
+  SIGN_IN_URL,
+  SITE_DESCRIPTION,
+  SITE_TITLE,
+} from "../consts";
 
 interface Props {
   title?: string;
@@ -22,6 +33,9 @@ const path = Astro.url.pathname.replace(/index\.html$/, "").replace(/\.html$/, "
 // is set in astro.config.mjs, so Astro.site is podiumstack.com at build time.
 const canonical = new URL(path, Astro.site).href;
 const ogImage = new URL("/og-image.png", Astro.site).href;
+
+/** `/features` is current on `/features`; `/` is current on nothing else. */
+const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`);
 ---
 
 <!doctype html>
@@ -71,17 +85,42 @@ const ogImage = new URL("/og-image.png", Astro.site).href;
   </head>
 
   <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    {/* No hamburger, and no script behind the nav. Five short labels wrap onto
+        a second line on a phone, which costs a few pixels above the fold and
+        buys a nav that cannot fail: nothing to toggle, nothing to trap focus
+        in, and it is all still there with scripts blocked. */}
     <header class="topbar">
       <div class="wrap">
+        {/* Deliberately not the copy in the repository root `brand/`, which is
+            650×192 and 183 KB. This is the same artwork at the size the markup
+            actually renders — every byte of the difference was being paid on
+            every page load of every page. If the logo is redrawn, both move. */}
         <a class="brand" href="/">
           <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" />
         </a>
-        <a href={GITHUB_URL}>GitHub</a>
-        <a class="btn secondary" href={SIGN_IN_URL}>Sign in</a>
+        <a class="btn secondary top-cta" href="/demo">Try the demo</a>
+        <nav class="topnav" aria-label="Primary">
+          {
+            NAV.map((item) => (
+              <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
+                {item.label}
+              </a>
+            ))
+          }
+          <a href={GITHUB_URL}>GitHub</a>
+        </nav>
       </div>
     </header>
 
-    <slot />
+    {/* `tabindex="-1"` is what makes the skip link finish its job. Without it the
+        jump scrolls the page but leaves focus on <body>, so the next Tab starts
+        again from the top of the header — the reader skips the nav and lands
+        right back in it. */}
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
 
     {/* The second half of the reveal: the observer that puts each section back.
         The class that hides them was set in <head> (see the note there), so if
@@ -105,13 +144,39 @@ const ogImage = new URL("/og-image.png", Astro.site).href;
 
     <footer>
       <div class="wrap">
-        <span>© 2026 Podium · Apache-2.0</span>
-        <span class="spacer"></span>
-        <nav>
-          <a href={GITHUB_URL}>Source</a>
-          <a href={`${GITHUB_URL}/blob/main/docs/domain/README.md`}>Domain model</a>
-          <a href={APP_URL}>app.podiumstack.com</a>
-        </nav>
+        <div class="cols">
+          <div>
+            <h2>Product</h2>
+            <a href="/features">Features</a>
+            <a href="/integrations">Integrations</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/security">Security &amp; data</a>
+          </div>
+          <div>
+            <h2>Deciding</h2>
+            <a href="/compare">Compare</a>
+            <a href="/demo">Try the demo</a>
+            <a href={SIGN_IN_URL}>Sign in</a>
+          </div>
+          <div>
+            <h2>Source</h2>
+            <a href={GITHUB_URL}>GitHub</a>
+            <a href={DOMAIN_MODEL_URL}>Domain model</a>
+            <a href={IMPLEMENTATION_URL}>Implementation notes</a>
+            <a href={LICENSE_URL}>Apache-2.0 licence</a>
+          </div>
+          <div>
+            <h2>Help</h2>
+            <a href={ISSUES_URL}>Issue tracker</a>
+            <a href={`${GITHUB_URL}/issues/new`}>Report a problem</a>
+            <a href={APP_URL}>app.podiumstack.com</a>
+          </div>
+        </div>
+        <p class="legal">
+          © 2026 Podium · Apache-2.0 · Unrelated to podium.com (lead management) and to{" "}
+          <a href="https://podium-lib.io">podium-lib</a> (micro-frontends), both of which hold the
+          obvious namespaces.
+        </p>
       </div>
     </footer>
   </body>

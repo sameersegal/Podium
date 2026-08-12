@@ -1,0 +1,212 @@
+---
+import Base from "../layouts/Base.astro";
+import Cta from "../components/Cta.astro";
+import PageHead from "../components/PageHead.astro";
+import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL } from "../consts";
+
+/*
+ * For the person who has to answer "where does our speakers' personal data go"
+ * before anyone signs anything, and for the engineer who will be running it.
+ *
+ * The last section is the one that matters. Every security page on the internet
+ * lists what a product does well; the disclosure below is checkable in the
+ * repository, which is the only reason to believe the rest of the page.
+ */
+
+const HANDLING = [
+  {
+    title: "Redacted unless asked for, everywhere",
+    body: "Email addresses, phone numbers, dietary and accessibility notes, travel and visa details, and any answer a form marks personal are removed from every response that has not been granted the separate permission to see them — including inside a scope that can already read the proposal. It is a default, not a setting somebody has to remember.",
+  },
+  {
+    title: "Never in a log line",
+    body: "Application logs carry identifiers, not values. A person is an id in the log; the email address is not there to leak from a log aggregator, a crash report or a support screenshot.",
+  },
+  {
+    title: "Never in the published schedule",
+    body: "The public snapshot is built from what the programme means to show — titles, times, rooms, speaker names and bios. Personal fields are not redacted from it at render time; they never enter it.",
+  },
+  {
+    title: "Two things nobody can unlock",
+    body: "Private notes about a person are never visible to that person, and neither is the review data for a proposal they submitted or are credited on. These are not redactions a permission can lift — the data is absent from the surface entirely.",
+  },
+];
+
+const RIGHTS = [
+  {
+    title: "Export",
+    body: "Any person can pull everything held about them as JSON, plus the files they uploaded, from their own portal. Nobody has to ask you for it, and you do not have to build it.",
+  },
+  {
+    title: "Erasure that reaches the copies",
+    body: "Erasing a person anonymises the record, clears the profile and deletes their files, while keeping the proposal and session content they authored where you have a record-keeping interest in it. Crucially it also deletes their rows from every linked external table — including paused ones — before the links are dropped. An erasure that stops at your database is not an erasure when half the programme is mirrored into a spreadsheet.",
+  },
+  {
+    title: "Anything that cannot be honoured is said out loud",
+    body: "If a provider refuses a delete, the link is left in an error state and surfaced, rather than reporting an erasure that did not fully happen.",
+  },
+  {
+    title: "Retention with a number on it",
+    body: "Abandoned draft proposals are purged a configurable period after an event closes — two years by default. Audit and event logs are kept for seven years with the personal data redacted after two.",
+  },
+];
+
+const ACCESS = [
+  {
+    title: "Permissions are recomputed on every request",
+    body: "Nothing caches authority. What a control is allowed to do is decided again by the server when it is used, so a revoked role takes effect on the next request rather than the next sign-in.",
+  },
+  {
+    title: "Blind review is enforced by refusal",
+    body: "In a single- or double-blind round, identity is withheld rather than hidden with CSS. A reviewer with a declared conflict does not get a warning; the score is refused.",
+  },
+  {
+    title: "API keys are narrow and mortal",
+    body: "Scoped to named events, read separated from write, personal data its own additive scope, an expiry date, a rate limit, and a secret shown once and never stored. A key for your marketing site cannot read a review.",
+  },
+  {
+    title: "Credentials are references, not values",
+    body: "An integration stores the name of a secret, never the secret. The core resolves it at call time, which is what keeps a provider token out of the settings screen, the audit log and any export of either.",
+  },
+  {
+    title: "Everything that matters is audited",
+    body: "Who did what, when, from where — append-only, and surviving an erasure with the identifier alone. Overrides and waivers carry a written reason, so an accepted proposal below quorum has a name and a sentence beside it a year later.",
+  },
+  {
+    title: "One writer for the schedule",
+    body: "Two organizers dragging the same slot queue behind one another rather than interleaving. A stale edit anywhere else is refused with the current state rather than overwriting the other person's work.",
+  },
+];
+---
+
+<Base
+  title="Security & data"
+  description="Where your speakers' personal data lives, what is redacted by default, how export and erasure work, and one disclosed weakness in the current deployment — with the fix."
+>
+  <PageHead
+    eyebrow="Security & data"
+    title="It is your database, in your account, under your policy."
+    lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. What follows is what the software does with it on your behalf — and, at the bottom, what is currently wrong with it."
+  />
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Personal data</span>
+      <h2>Redaction is the default, not a feature.</h2>
+      <p class="sub">
+        Adding a field to this product means deciding whether it is personal data before it can
+        ship. That is a rule with a check behind it, which is why the list below is short enough to
+        read.
+      </p>
+      <div class="cards">
+        {
+          HANDLING.map((h) => (
+            <div class="card reveal">
+              <h3>{h.title}</h3>
+              <p>{h.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">Subject rights</span>
+      <h2>Export and erasure are features, not a support process.</h2>
+      <p class="sub">
+        A speaker asking to be removed should not become an afternoon of your time and a query you
+        write by hand.
+      </p>
+      <div class="cards">
+        {
+          RIGHTS.map((r) => (
+            <div class="card reveal">
+              <h3>{r.title}</h3>
+              <p>{r.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Access control</span>
+      <h2>Six properties the rest of it rests on.</h2>
+      <div class="cards">
+        {
+          ACCESS.map((a) => (
+            <div class="card reveal">
+              <h3>{a.title}</h3>
+              <p>{a.body}</p>
+            </div>
+          ))
+        }
+      </div>
+      <p class="nextstep"><a href={DOMAIN_MODEL_URL}>The authorization matrix, written out in full →</a></p>
+    </div>
+  </section>
+
+  <section class="band-dark">
+    <div class="wrap">
+      <span class="eyebrow">Disclosed</span>
+      <h2>One thing that is currently wrong, and the fix.</h2>
+      <p class="sub">
+        This is in the repository's implementation notes, in more detail than here. It is on this
+        page because a security page that lists only strengths is a security page nobody should
+        believe.
+      </p>
+      <div class="notice">
+        <p>
+          <strong>Password hashing is deliberately below the recommended work factor</strong> on a
+          deployment running Cloudflare's free plan, which allows ten milliseconds of processing per
+          request. The correctly-sized hash costs about 345 ms and made signing in fail outright, so
+          the shipped parameters are roughly two orders of magnitude cheaper to attack offline than
+          the current recommendation.
+        </p>
+        <p>
+          The fix is one line and a plan change: move to the paid Workers plan and put the
+          parameters back. Stored hashes are carried up to the new setting the next time each person
+          signs in, so there is no migration and no reset.
+        </p>
+        <p>
+          Two things reduce what it is worth to an attacker — passwords are optional and off by
+          default in production configuration, with invitations the intended route in, and the
+          shipped configuration has no password reset form to farm. It is still a real weakness, and
+          it is the first thing to fix on any deployment holding real speakers.
+        </p>
+      </div>
+      <div class="two-col" style="margin-top: 2.5rem">
+        <div>
+          <h3>What this project does not have</h3>
+          <ul class="crosses">
+            <li>No SOC 2, ISO 27001 or any audited compliance programme</li>
+            <li>No third-party penetration test</li>
+            <li>No security team, and no disclosure SLA — report it in the issue tracker</li>
+            <li>No hosted service, so no vendor to answer your questionnaire</li>
+          </ul>
+        </div>
+        <div>
+          <h3>What you have instead</h3>
+          <ul class="ticks">
+            <li>The whole source, and the specification it was built against</li>
+            <li>Every rule written down before the code, and checked against it in CI</li>
+            <li>Your own account, your own region choices, your own backups</li>
+            <li>The ability to have your own people review it before you deploy it</li>
+          </ul>
+        </div>
+      </div>
+      <p class="nextstep"><a href={IMPLEMENTATION_URL}>The implementation notes, including that disclosure in full →</a></p>
+    </div>
+  </section>
+
+  <Cta
+    heading="Read it before you run it."
+    sub="Every rule on this page is in the model, and every enforcement of it is in the code, in the same repository, under one licence."
+    secondaryHref={GITHUB_URL}
+    secondaryLabel="Get the source"
+  />
+</Base>

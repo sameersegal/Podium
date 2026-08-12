@@ -1,0 +1,31 @@
+---
+import { GITHUB_URL } from "../consts";
+
+/**
+ * The closing band. One per page, always the last section, always asking for
+ * the same thing first: go and look at it running. The secondary action is
+ * whatever the page's reader is most likely to want next — the source for an
+ * engineer, the cost for a budget holder — and the primary never changes,
+ * because two primary actions is none.
+ */
+interface Props {
+  heading: string;
+  sub: string;
+  /** Overrides the "Get the source" secondary. */
+  secondaryHref?: string;
+  secondaryLabel?: string;
+}
+
+const { heading, sub, secondaryHref = GITHUB_URL, secondaryLabel = "Get the source" } = Astro.props;
+---
+
+<section class="band-dark cta">
+  <div class="wrap">
+    <h2>{heading}</h2>
+    <p class="sub">{sub}</p>
+    <div class="actions">
+      <a class="btn primary" href="/demo">Try the demo</a>
+      <a class="btn secondary" href={secondaryHref}>{secondaryLabel}</a>
+    </div>
+  </div>
+</section>

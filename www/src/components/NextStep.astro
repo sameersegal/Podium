@@ -1,0 +1,18 @@
+---
+/**
+ * The sentence at the foot of a page that answers the question the page just
+ * created. A reader who finishes the features page has a cost question; one who
+ * finishes the comparison page wants to try it. Making them go back up to the
+ * nav to find that is how a multi-page site loses the people a single page kept.
+ */
+interface Props {
+  href: string;
+  label: string;
+}
+
+const { href, label } = Astro.props;
+---
+
+<p class="nextstep">
+  <a href={href}>{label} →</a>
+</p>

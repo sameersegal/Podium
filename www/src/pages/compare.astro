@@ -1,0 +1,179 @@
+---
+import Base from "../layouts/Base.astro";
+import Cta from "../components/Cta.astro";
+import PageHead from "../components/PageHead.astro";
+import {
+  AUDIENCES,
+  CHECKED,
+  NOT_FOR_YOU,
+  SESSIONBOARD_URL,
+  SESSIONIZE_URL,
+  STRUCTURAL,
+  WHERE_THEY_WIN,
+} from "../data/comparison";
+
+/*
+ * For the buyer with three tabs open, and for the colleague who will ask "why
+ * not just use Sessionize?" in the next meeting.
+ *
+ * The rule this page is written under: nothing here characterises a competitor's
+ * product as bad, and every row they win is on the page. A comparison that a
+ * reader can catch being unfair costs more than the deal it was written to win.
+ * See `src/data/comparison.ts` for why there is no feature matrix.
+ */
+---
+
+<Base
+  title="Compare"
+  description="Podium against Sessionize and Sessionboard: what each is built for, where the incumbents are stronger, and when you should not pick Podium at all."
+>
+  <PageHead
+    eyebrow="Compare"
+    title="Three good answers to different questions."
+    lede={`Sessionize and Sessionboard are both reasonable buys, and for some conferences they are the right one. Here is the honest shape of the choice — including the parts where they win. Checked against their own pages in ${CHECKED}.`}
+  />
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Who each is for</span>
+      <h2>Start here, and you may not need the rest of the page.</h2>
+      <div class="cards">
+        {
+          AUDIENCES.map((a) => (
+            <div class="card reveal">
+              <h3>{a.name}</h3>
+              <p><strong>{a.built_for}</strong></p>
+              <p>{a.body}</p>
+              {a.href && (
+                <p>
+                  <a href={a.href} rel="nofollow noopener">Their pricing page →</a>
+                </p>
+              )}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">The structural difference</span>
+      <h2>Everything below is true regardless of what ships next.</h2>
+      <p class="sub">
+        There is no feature matrix on this page. Building one would mean asserting what two
+        proprietary products do from the outside, in a table that goes stale the day either of them
+        ships a release. These rows are licensing, hosting and packaging — they do not move.
+      </p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              <th scope="col" class="mine">Podium</th>
+              <th scope="col">Sessionize</th>
+              <th scope="col">Sessionboard</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              STRUCTURAL.map((r) => (
+                <tr>
+                  <th scope="row">{r.row}</th>
+                  <td class="mine">{r.podium}</td>
+                  <td>{r.sessionize}</td>
+                  <td>{r.sessionboard}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="aside">
+        Pricing and packaging change. Confirm both on their own pages before you decide —
+        <a href={SESSIONIZE_URL} rel="nofollow noopener">Sessionize</a> and
+        <a href={SESSIONBOARD_URL} rel="nofollow noopener">Sessionboard</a> — rather than taking a
+        competitor's word for it. Including ours.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Where they win</span>
+      <h2>Five things the incumbents do better, today.</h2>
+      <p class="sub">
+        None of these is fixable by writing a better sentence about it, so here they are as
+        sentences instead.
+      </p>
+      <div class="cards">
+        {
+          WHERE_THEY_WIN.map((w) => (
+            <div class="card reveal">
+              <h3>{w.title}</h3>
+              <p>{w.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="band-dark">
+    <div class="wrap">
+      <span class="eyebrow">Where Podium wins</span>
+      <h2>Four differences worth switching for.</h2>
+      <div class="two-col">
+        <div>
+          <h3>Sponsor sessions are modelled, not bolted on</h3>
+          <p>
+            A sponsorship package is a countable set of entitlements — two session slots, a logo
+            placement — and a sponsor session consumes one. Used against bought, on the same screen
+            as the deal, visible to the sponsor too. Most tools in this category model the call for
+            proposals and leave the paid half in email.
+          </p>
+          <h3>Review integrity is enforced, not requested</h3>
+          <p>
+            A reviewer who submitted, is credited on, or has declared a conflict with a proposal
+            cannot score it. The write is refused. There is no "please recuse yourself" convention
+            to rely on and no flag for someone to catch afterwards.
+          </p>
+        </div>
+        <div>
+          <h3>The rules are written down before the code</h3>
+          <p>
+            What happens to an unused sponsor slot, who may see a reviewer's score, what a deadline
+            does when it passes — specified in a normative model, with a check in CI that fails the
+            build when the code and the model disagree. You can read what the tool will do before
+            you find out.
+          </p>
+          <h3>No per-speaker pricing, ever</h3>
+          <p>
+            Nothing costs more because your CFP went well. You pay your own hosting bill, which for
+            a conference-sized event is small, and nobody can change the price between editions.
+          </p>
+        </div>
+      </div>
+      <p class="nextstep"><a href="/pricing">The actual bill, itemised →</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Be honest with yourself</span>
+      <h2>Do not pick Podium if any of these is true.</h2>
+      <p class="sub">
+        We would rather you found this out on this page than in February. If two or more of these
+        land, buy something hosted and enjoy your conference.
+      </p>
+      <ul class="crosses">{NOT_FOR_YOU.map((n) => <li>{n}</li>)}</ul>
+    </div>
+  </section>
+
+  <Cta
+    heading="Still here? Go and use it."
+    sub="Fifteen minutes in a conference already mid-flight will tell you more than the rest of this page did."
+    secondaryHref="/features"
+    secondaryLabel="See the screens first"
+  />
+</Base>
