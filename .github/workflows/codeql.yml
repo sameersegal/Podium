@@ -1,0 +1,80 @@
+name: CodeQL
+
+# GitHub's own static analysis, free on this repository because it is public.
+#
+# Read what it reports with the same scepticism the security-audit skill applies
+# to any stock ruleset: CodeQL's default JavaScript queries look for Express
+# routes, `child_process`, `mysql.query` and `dangerouslySetInnerHTML`, none of
+# which exist here. This app's dangerous operations are its own — `raw()` past
+# the HTML escaper, `db.raw()` past the org-scoping in `buildWhere`, `redirect()`,
+# `input.str()` — and a query that has not been told about those cannot find a
+# bug in them. Six stock Semgrep packs scored zero on this codebase for exactly
+# that reason.
+#
+# So CodeQL runs here to catch what it is genuinely good at and we are not:
+# cross-function taint through code nobody thought to look at, and any
+# ecosystem-shaped vulnerability that arrives with a future dependency. The
+# repo-specific half lives in `.claude/skills/security-audit/`, runs in ci.yml,
+# and is the one that has actually found things.
+#
+# `security-extended` over the default suite: the default is tuned for a low
+# false-positive rate on a PR gate, and this is a weekly sweep where a false
+# positive costs a minute and a miss costs a release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays 07:00 UTC. A weekly run matters more than the PR runs: most of
+    # what CodeQL will ever say about this repo depends on advisories published
+    # after the code was written, not on the diff.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      # Uploading results to the Security tab is the whole point.
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          # `www/` is a separate Astro deployable with its own lockfile and no
+          # access to D1; it is analysed by nothing here on purpose. If it ever
+          # grows server-side code, give it its own matrix entry rather than
+          # folding it into the app's results.
+          config: |
+            paths-ignore:
+              - node_modules
+              - www
+              - .wrangler
+              - tests/fixtures
+
+      # No build step: the Worker is ES modules served as-is and the console is
+      # plain ES modules with no bundler, so CodeQL's autobuild has nothing to
+      # do and `npm ci` would only add a minute.
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        with:
+          category: /language:javascript-typescript

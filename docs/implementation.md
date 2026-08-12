@@ -59,6 +59,10 @@ await app.flush();               // persists the event log + audit, then publish
 | Dead-letter recording (`podium-dlq`) | `consumers/dead-letter.ts` + `dead_letter` |
 | Cron cadence (elapsed time, not epoch modulus) | `consumers/cron.ts` + `cron_job_run` |
 | INV-01-12 password hashing (Argon2id) | `packages/domain/src/identity/credentials.ts` |
+| INV-01-17 sign-in throttling | `workers/api/src/http/throttle.ts`, called by both password-verifying routes in `contexts/identity/auth-routes.ts` |
+| INV-01-18 session transport, redirect targets | `setCookie` / `safeNext` in `workers/api/src/http/context.ts` |
+| INV-11-15 uploaded files are never served as documents | `resolveContentType` / `safeServeContentType` in `packages/domain/src/content/assets.ts` |
+| Response hardening (CSP, nosniff, framing, HSTS) | `workers/api/src/http/headers.ts`, applied to every response in `index.ts` |
 | INV-02-14…17 event provisioning (starter blueprint, clone) | `contexts/event-config/provisioning.ts` over `packages/domain/src/event-config/blueprint.ts` |
 | INV-09-17…19 sync field maps, authority and echo suppression | `packages/domain/src/platform/sync.ts` (pure); applied in `contexts/platform/sync.ts` |
 | INV-09-20 sync writes go through the owning context's service | `contexts/platform/sync-subjects.ts` — one adapter per subject, each calling that context's own `service.ts` |

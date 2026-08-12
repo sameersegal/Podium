@@ -137,7 +137,23 @@ evaluation harness, an end-to-end test suite, a self-hoster with no deliverable 
 support engineer reproducing a speaker's problem. Every one of those is a real user, and
 "log in as the reviewer" must not be gated on mail delivery. So the provider set includes
 password login, off by default per org (`settings.auth.password_login_enabled`), with the
-usual obligations: Argon2id, no storage of the plaintext, and rate limiting per identity.
+usual obligations: Argon2id, no storage of the plaintext, and rate limiting per identity
+(INV-01-12, INV-01-17).
+
+**Rate limiting is not optional here, and the reason is specific to this deployment.** The
+obligation above was stated from the beginning and went unimplemented until 2026-08-12: any
+number of guesses could be made against any account, at any speed. That matters more than it
+usually would, because the Argon2id parameters in use are deliberately far below the OWASP
+floor to fit the Cloudflare free plan's CPU ceiling — see
+[`docs/implementation.md`](../implementation.md), "Password hashing is currently below the
+OWASP floor, on purpose". A cheap hash raises the value of each online guess at the same
+moment the CPU ceiling makes each guess cheap to serve. Limiting the number of guesses is
+the only side of that triangle the model can fix without a hosting change.
+
+Every surface that verifies a password is subject to the limit, not merely the one called
+"sign in". Account creation that accepts an existing email and lets the right password
+through is a password-verification surface, and a limit one such surface does not share is
+not a limit.
 
 **What "off by default" means, precisely** (R23 in
 [`13-open-questions.md`](13-open-questions.md)). Off in production configuration; **on** in
@@ -418,6 +434,17 @@ stateDiagram-v2
   setup screen and by nothing else; that screen is refused, on every method and checked
   against the database rather than a cached or in-memory flag, once an `Organization` row
   exists.
+- **INV-01-17** Failed password verifications are counted per identity and per source
+  address across a rolling window, and every surface that verifies a password is refused
+  once either ceiling is reached — before the hash is computed, so that guessing cannot be
+  used to exhaust the request's CPU budget. The refusal is identical whether or not the
+  identity exists, so it is not an account-enumeration oracle, and it expires on its own so
+  it cannot be used to hold an account locked.
+- **INV-01-18** A session credential is transmitted only over a secure context and is
+  unreadable to scripts. A post-authentication redirect target supplied by the requester
+  must be a path within this deployment; anything else is replaced by the default
+  destination for that person. Sign-in is the request most worth stealing and the page most
+  worth impersonating, and both properties exist to stop exactly that.
 
 ## Emitted events
 

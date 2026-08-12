@@ -86,15 +86,55 @@ export function cookiesOf(req: Request): Record<string, string> {
   return out;
 }
 
+/**
+ * INV-01-18: a session credential travels only over a secure context and is
+ * unreadable to scripts.
+ *
+ * `Secure` is unconditional, and that is a deliberate choice about the dev
+ * server rather than an oversight about it: browsers treat `http://localhost`
+ * as a secure context, so a `Secure` cookie is set and sent there exactly as it
+ * is over https. The only thing this breaks is a plain-http origin that is not
+ * localhost — `npm run dev:lan`, reached by IP from a phone — and a session
+ * cookie that silently works over plain http on a shared network is the thing
+ * the flag exists to prevent. Test the LAN case over a tunnel, not by dropping
+ * the flag.
+ *
+ * `SameSite=Lax` is load-bearing here in a way it is not in most apps: there is
+ * no CSRF token anywhere. It is the only thing standing between a third-party
+ * page and a state-changing form post, which is why no route may perform a
+ * mutation on `GET` — see "The admin console" in docs/implementation.md.
+ */
 export function setCookie(name: string, value: string, opts: { maxAge?: number; httpOnly?: boolean; path?: string } = {}): string {
-  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${opts.path ?? "/"}`, "SameSite=Lax"];
+  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${opts.path ?? "/"}`, "SameSite=Lax", "Secure"];
   if (opts.httpOnly !== false) parts.push("HttpOnly");
   if (opts.maxAge !== undefined) parts.push(`Max-Age=${opts.maxAge}`);
   return parts.join("; ");
 }
 
 export function clearCookie(name: string): string {
-  return `${name}=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly`;
+  // The attributes must match the ones the cookie was set with or the browser
+  // treats this as a different cookie and the original survives the sign-out.
+  return `${name}=; Path=/; Max-Age=0; SameSite=Lax; Secure; HttpOnly`;
+}
+
+/**
+ * Where a post-sign-in `?next=` may point — INV-01-18.
+ *
+ * Only a same-origin path, and the check is on the string rather than on a
+ * parsed URL because the interesting inputs are the ones that parse to
+ * something other than they read as. `//evil.example` is a protocol-relative
+ * URL, not a path. `/\evil.example` is treated as `//` by some browsers.
+ * `https://evil.example` is obvious and is not the one that gets through.
+ *
+ * The failure this prevents: an attacker sends `/login?next=https://evil.example`,
+ * the person signs in on the real site with a real password, and lands on a
+ * copy of it — a phishing primitive on the one page most likely to be trusted.
+ */
+export function safeNext(next: string | null | undefined, fallback: string): string {
+  if (!next) return fallback;
+  if (!next.startsWith("/")) return fallback;
+  if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
+  return next;
 }
 
 export function flashCookie(kind: "ok" | "err" | "warn" | "info", message: string): string {

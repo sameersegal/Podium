@@ -19,7 +19,7 @@ import {
   EXPORT_SUBJECTS,
   IMPORT_SUBJECTS,
 } from "@podiumconf/domain/content/types.js";
-import { markLatest, slotKey as buildSlotKey } from "@podiumconf/domain/content/assets.js";
+import { markLatest, safeServeContentType, slotKey as buildSlotKey } from "@podiumconf/domain/content/assets.js";
 import { verifyStorageUrl } from "@podiumconf/plugins/storage/r2.js";
 import { formatInZone } from "@podiumconf/domain/shared/time.js";
 import { resolvePlugin } from "../platform/service.js";
@@ -243,7 +243,7 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
     if (!object) throw notFound("File");
     return new Response(object.body, {
       headers: {
-        "content-type": str(asset.content_type),
+        "content-type": safeServeContentType(str(asset.content_type)),
         "content-disposition": `attachment; filename="${str(asset.filename).replace(/"/g, "")}"`,
         "content-length": String(num(asset.size_bytes)),
       },
@@ -267,7 +267,7 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
     if (!object) throw notFound("File");
     return new Response(object.body, {
       headers: {
-        "content-type": str(asset.content_type),
+        "content-type": safeServeContentType(str(asset.content_type)),
         "content-length": String(num(asset.size_bytes)),
         "cache-control": "public, max-age=31536000, immutable",
       },
@@ -710,7 +710,7 @@ function registerExportRoutes(router: Router<RequestContext>): void {
     const object = await ctx.env.ASSETS_BUCKET.get(str(asset.storage_key));
     if (!object) throw notFound("Export file");
     return new Response(object.body, {
-      headers: { "content-type": str(asset.content_type), "content-disposition": `attachment; filename="${str(asset.filename)}"` },
+      headers: { "content-type": safeServeContentType(str(asset.content_type)), "content-disposition": `attachment; filename="${str(asset.filename)}"` },
     });
   });
 }
