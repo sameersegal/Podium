@@ -1,4 +1,4 @@
--- 0009 — two-way sync with an external table tool (09, "Two-way sync"; R31).
+-- 0010 — two-way sync with an external table tool (09, "Two-way sync"; R31).
 --
 -- Three tables. `sync_mapping` is what an organizer configures: one Podium
 -- subject mirrored into one external table, with a per-field direction.

@@ -223,6 +223,14 @@ Notes on the edges that matter:
   after the CFP has closed.
 - **`withdrawn` releases the entitlement hold** for sponsor proposals, and frees a
   `max_proposals_per_person` slot for CFP ones.
+- **`submitted --> draft --> submitted` is one move, not two.** Content is immutable in
+  `submitted` ([INV-04-7](#invariants)), so an edit has to route through `draft` — but
+  `allow_edit_after_submit` promises the submitter that they "may edit until `closes_at`"
+  ([02](02-event-configuration.md)), not that fixing a typo silently pulls their proposal
+  out of the committee's queue. Saving an edit therefore unsubmits, writes the revision,
+  and resubmits within the same request. If the edited proposal now fails a submission
+  rule it stays a `draft` and the submitter is told which rule; that is the only way this
+  round trip ends anywhere but `submitted`.
 
 ## Submission-time validation
 

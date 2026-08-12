@@ -124,6 +124,35 @@ describe("onboarding", () => {
     expect(dupes.length).toBe(0);
   });
 
+  /**
+   * A deliverable belongs to the session it is for, not to the task row that
+   * asked for it. Keying the asset by task id hid every speaker upload from
+   * the event files library (which scopes by `session:`/`person:` slots), and
+   * keying it by filename restarted versioning whenever the speaker renamed
+   * the file.
+   */
+  it("a task upload lands in the session's file slot and versions across renames", async () => {
+    const slidesTask = await getTaskFor(SESSION, SPEAKER1, "slides-upload");
+    const cookie = await cookieFor(SPEAKER1);
+
+    for (const filename of ["deck.pdf", "deck-final-v2.pdf"]) {
+      const body = new FormData();
+      body.set("file", new File([new Uint8Array([37, 80, 68, 70])], filename, { type: "application/pdf" }));
+      const res = await SELF.fetch(`http://localhost/portal/tasks/${slidesTask}`, { method: "POST", body, headers: { cookie }, redirect: "manual" });
+      expect([200, 303]).toContain(res.status);
+    }
+
+    const { results } = await env.DB.prepare("SELECT slot_key, version, filename FROM asset WHERE purpose = 'task_submission' ORDER BY version").all<{
+      slot_key: string;
+      version: number;
+      filename: string;
+    }>();
+    expect(results.map((r) => r.version)).toEqual([1, 2]);
+    // One slot, keyed to the session and the definition — so v2 supersedes v1
+    // even though the speaker renamed the file.
+    expect(new Set(results.map((r) => r.slot_key))).toEqual(new Set([`session:${SESSION}:slides-upload`]));
+  });
+
   it("PII: TaskSubmission.payload for a legal/travel task is redacted without pii:read, present with it", async () => {
     const speakerAgreement = await getTaskFor(SESSION, SPEAKER1, "speaker-agreement");
     const cookie = await cookieFor(SPEAKER1);

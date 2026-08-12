@@ -76,6 +76,26 @@ export interface SubmitValidation {
   failures: RuleFailure[];
 }
 
+/**
+ * Rule 2, scoped to a single step — what "Save and continue" checks before it
+ * lets the submitter move on. The full ruleset still runs at submit; this is
+ * the same required-answer rule applied early so a missing answer is named on
+ * the step that owns it rather than discovered three steps later. "Save draft"
+ * deliberately runs none of it: a draft may be as empty as a title.
+ */
+export function validateStep(form: FormSpec, answers: AnswerMap, stepKey: string): FieldError[] {
+  const step = visibleSteps(form, answers).find((s) => s.key === stepKey);
+  if (!step) return [];
+  const errors: FieldError[] = [];
+  for (const f of step.fields) {
+    if (!f.is_required) continue;
+    // The roster is managed by its own controls, not by an answer value.
+    if (f.type === "speaker_list") continue;
+    if (isBlank(answers[f.key])) errors.push({ field_key: f.key, message: `${f.label} is required.`, step_key: step.key });
+  }
+  return errors;
+}
+
 export function validateSubmission(input: SubmitValidationInput): SubmitValidation {
   const stepOf = stepKeyIndex(input.form);
   const fieldErrors: FieldError[] = [];
@@ -151,7 +171,9 @@ export function validateSubmission(input: SubmitValidationInput): SubmitValidati
     failures.push({
       invariant: "INV-02-13",
       code: "proposal_limit_reached",
-      message: `You have already submitted ${cap.current} proposal${cap.current === 1 ? "" : "s"} to this call, which allows ${cap.limit}.`,
+      // Drafts hold a slot too (INV-04-10), so "submitted" would be a lie to
+      // anyone who got here with two drafts and one submission.
+      message: `You already have ${cap.current} proposal${cap.current === 1 ? "" : "s"} in this call, counting drafts, and it allows ${cap.limit}. Withdraw one to free a slot.`,
       details: { limit: cap.limit, current: cap.current },
     });
   }

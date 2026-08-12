@@ -151,10 +151,13 @@ export async function decisionBaseline(app: AppContext, session: SessionRow): Pr
     abstract: str(proposal.abstract),
     description: strOrNull(proposal.description),
     session_format_id: str(decision?.assigned_format_id ?? proposal.session_format_id ?? ""),
-    duration_minutes: num(
-      decision?.assigned_duration_minutes ?? proposal.requested_duration_minutes,
-      num(session.duration_minutes),
-    ),
+    // See `baselineDuration` in views.ts: `num(null, fallback)` is 0, so a
+    // proposal with no requested duration must fall back explicitly.
+    duration_minutes:
+      (decision?.assigned_duration_minutes ?? proposal.requested_duration_minutes) === null ||
+      (decision?.assigned_duration_minutes ?? proposal.requested_duration_minutes) === undefined
+        ? num(session.duration_minutes)
+        : num(decision?.assigned_duration_minutes ?? proposal.requested_duration_minutes),
     track_id: strOrNull(decision?.assigned_track_id ?? proposal.assigned_track_id ?? proposal.track_id),
   };
 }

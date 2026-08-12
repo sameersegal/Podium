@@ -839,8 +839,17 @@ export async function updateCfp(app: AppContext, cfpId: string, patch: Record<st
 
   const opensAt = str(update.opens_at ?? cfp.opens_at);
   const closesAt = str(update.closes_at ?? cfp.closes_at);
+
+  // INV-02-4 says an override may only bring a deadline *forward*. Moving the
+  // call's own close date earlier can therefore strand overrides behind it —
+  // but a per-track deadline later than the call it belongs to has no meaning
+  // once the call is shut, so pulling the call in pulls them in with it rather
+  // than refusing the chair's edit over data they did not touch.
+  if (update.closes_at !== undefined && new Date(closesAt).getTime() < new Date(str(cfp.closes_at)).getTime()) {
+    await clampOverrideDeadlines(app, cfpId, closesAt);
+  }
+
   const overrides = await overrideDeadlines(app, cfpId);
-  // INV-02-4
   requireProblemsEmpty(cfpWindowProblems({ opens_at: opensAt, closes_at: closesAt, overrides }), "invalid_cfp_window", "INV-02-4");
 
   update.updated_at = app.now();
@@ -851,6 +860,18 @@ export async function updateCfp(app: AppContext, cfpId: string, patch: Record<st
   }
   app.audit.record({ action: "cfp.update", entity_type: "call_for_proposals", entity_id: cfpId, before, after: update });
   return { ...cfp, ...update };
+}
+
+/** Pull every format/track override back to `closesAt` if it now sits after it. */
+async function clampOverrideDeadlines(app: AppContext, cfpId: string, closesAt: string): Promise<void> {
+  const limit = new Date(closesAt).getTime();
+  for (const table of ["cfp_format_option", "cfp_track_option"] as const) {
+    for (const row of await app.db.select<Row>(table, { cfp_id: cfpId })) {
+      const override = strOrNull(row.closes_at_override);
+      if (!override || new Date(override).getTime() <= limit) continue;
+      await app.db.update(table, str(row.id), { closes_at_override: closesAt });
+    }
+  }
 }
 
 async function overrideDeadlines(app: AppContext, cfpId: string): Promise<(string | null)[]> {
@@ -1270,6 +1291,7 @@ export interface FieldInput {
   maps_to?: MapsTo;
   audience?: FieldAudience;
   pii?: boolean;
+  identifies_speaker?: boolean;
   sort_order?: number | null;
 }
 
@@ -1320,6 +1342,7 @@ export async function addField(app: AppContext, formId: string, input: FieldInpu
     maps_to: mapsTo,
     audience: input.audience ?? "public",
     pii: input.pii ? 1 : 0,
+    identifies_speaker: input.identifies_speaker ? 1 : 0,
     sort_order: input.sort_order ?? step.fields.length,
   };
   await app.db.insert("form_field", row);
@@ -1397,6 +1420,7 @@ export async function updateField(app: AppContext, fieldId: string, patch: Recor
   if (patch.maps_to !== undefined) update.maps_to = patch.maps_to;
   if (patch.audience !== undefined) update.audience = patch.audience;
   if (patch.pii !== undefined) update.pii = patch.pii ? 1 : 0;
+  if (patch.identifies_speaker !== undefined) update.identifies_speaker = patch.identifies_speaker ? 1 : 0;
   if (patch.key !== undefined && String(patch.key).trim()) update.key = slugify(String(patch.key));
   if (Object.keys(update).length === 0) return field;
 

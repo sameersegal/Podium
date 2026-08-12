@@ -93,6 +93,7 @@ function toFieldSpec(r: Row): FormFieldSpec {
     maps_to: str(r.maps_to, "none") as MapsTo,
     audience: str(r.audience, "public") as FieldAudience,
     pii: bool(r.pii),
+    identifies_speaker: bool(r.identifies_speaker),
     sort_order: num(r.sort_order),
   };
 }
@@ -247,6 +248,16 @@ export async function cfpTrackOptions(app: AppContext, cfpId: string, availableO
 }
 
 /**
+ * "Talk (30 min)", not "Talk (30 min) (30 min)". A `SessionFormat.name` is free
+ * text an organizer writes, and writing the duration into it is the obvious
+ * thing to do — the seeded event does it for all six formats — so the duration
+ * is appended only when the name has not already said it.
+ */
+export function withDuration(name: string, minutes: number): string {
+  return new RegExp(`\\b${minutes}\\s*(min|minute)`, "i").test(name) ? name : `${name} (${minutes} min)`;
+}
+
+/**
  * `track_picker` and `format_picker` take their options from the CFP's
  * configuration rather than from typed-in text, so a condition on "format"
  * compares ids that the submitted proposal will actually carry.
@@ -260,15 +271,24 @@ export function pickerOptions(
   if (type === "format_picker")
     return formats.map((f) => ({
       value: f.session_format_id,
-      label: `${f.name} (${f.default_duration_minutes} min)`,
+      label: withDuration(f.name, f.default_duration_minutes),
       description: f.description,
     }));
   return null;
 }
 
-/** The options a field actually offers, with pickers resolved. */
+/**
+ * The options a field actually offers, with pickers resolved. A picker whose
+ * call configures nothing falls back to whatever the spec already carries —
+ * `publicCfpView` resolves pickers once, against the real track and format
+ * ids, and hands the resolved spec on to renderers that no longer hold the
+ * configuration; without this fallback those renderers would show an empty
+ * dropdown and any condition keyed to a format id would never match.
+ */
 export function resolvedOptions(field: FormFieldSpec, tracks: CfpTrackView[], formats: CfpFormatView[]): SelectOption[] {
-  return pickerOptions(field.type, tracks, formats) ?? field.options ?? [];
+  const picked = pickerOptions(field.type, tracks, formats);
+  if (picked && picked.length > 0) return picked;
+  return field.options ?? [];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -432,7 +452,17 @@ export function renderPublicForm(
   const formats = opts.formats ?? [];
   const prefix = opts.namePrefix ?? "answer.";
   const labelOf = new Map<string, string>();
-  for (const s of spec.steps) for (const f of s.fields) labelOf.set(f.key, f.label);
+  // A condition names another field's *stored value* — for a picker that is an
+  // id. Resolving option labels across the whole form, not just within the
+  // field being described, is what turns "Shown only when Session format is
+  // fmt_01JQ…" into something a submitter can read.
+  const optionLabelOf = new Map<string, Map<string, string>>();
+  for (const s of spec.steps) {
+    for (const f of s.fields) {
+      labelOf.set(f.key, f.label);
+      optionLabelOf.set(f.key, new Map(resolvedOptions(f, tracks, formats).map((o) => [o.value, o.label])));
+    }
+  }
 
   const conditions: Record<string, ConditionRule> = {};
   for (const s of spec.steps) {
@@ -448,7 +478,7 @@ export function renderPublicForm(
           // "Review and submit" always does — reads as a step that failed to
           // load. One muted line says the same thing without the alarm.
           html`<p class="small muted">No questions on this step.</p>`
-        : joinHtml(step.fields.map((f) => renderPublicField(f, { tracks, formats, prefix, disabled: opts.disabled, labelOf })))}
+        : joinHtml(step.fields.map((f) => renderPublicField(f, { tracks, formats, prefix, disabled: opts.disabled, labelOf, optionLabelOf })))}
     </section>`,
   );
 
@@ -483,13 +513,18 @@ function describeCondition(rule: ConditionRule, labelOf: Map<string, string>, op
 
 function renderPublicField(
   f: FormFieldSpec,
-  ctx: { tracks: CfpTrackView[]; formats: CfpFormatView[]; prefix: string; disabled?: boolean; labelOf: Map<string, string> },
+  ctx: {
+    tracks: CfpTrackView[];
+    formats: CfpFormatView[];
+    prefix: string;
+    disabled?: boolean;
+    labelOf: Map<string, string>;
+    optionLabelOf: Map<string, Map<string, string>>;
+  },
 ): SafeHtml {
   const options = resolvedOptions(f, ctx.tracks, ctx.formats);
-  const optionLabel = (key: string, value: unknown) => {
-    if (key === f.key) return options.find((o) => o.value === String(value))?.label ?? String(value);
-    return String(value);
-  };
+  const optionLabel = (key: string, value: unknown) =>
+    ctx.optionLabelOf.get(key)?.get(String(value)) ?? String(value);
   const name = `${ctx.prefix}${f.key}`;
   const id = `pf_${f.key.replace(/[^\w]/g, "_")}`;
   const dis = ctx.disabled ? raw(" disabled") : raw("");

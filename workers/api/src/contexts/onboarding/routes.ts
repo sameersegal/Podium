@@ -28,7 +28,7 @@ import {
   type TaskViewer,
 } from "@podiumconf/domain/onboarding/types.js";
 import { ATTENDANCE_MODE, SPEAKER_ROLE } from "@podiumconf/domain/program/types.js";
-import { formatDateInZone } from "@podiumconf/domain/shared/time.js";
+import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
 import { ORIGIN } from "@podiumconf/domain/event-config/types.js";
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { eventRow } from "../event-config/views.js";
@@ -518,6 +518,7 @@ function registerAdminInstanceRoutes(router: Router<RequestContext>): void {
     const app = ctx.app(str(t.event_id));
     const ref = toEventRef(await eventRow(app, str(t.event_id)));
     const canApprove = ctx.canWrite("task.approve", { event_id: ref.id });
+    const timezone = ref.timezone;
     const submissions = await listSubmissions(app, params.taskId);
     const def = await getDefinition(app, str(t.definition_id));
 
@@ -560,7 +561,7 @@ function registerAdminInstanceRoutes(router: Router<RequestContext>): void {
                 ? html`${submissions.map((s) => {
                     const j = submissionJson(s, str(def.category), ctx.includePii());
                     return html`<div class="submission">
-                      <p><strong>Version ${num(s.version)}</strong> — ${str(s.submitted_at)} · ${badge(str(s.review_outcome) || "pending")}</p>
+                      <p><strong>Version ${num(s.version)}</strong> — ${formatInZone(str(s.submitted_at), timezone)} · ${badge(str(s.review_outcome) || "pending")}</p>
                       <pre class="mono small">${JSON.stringify(j.payload, null, 2)}</pre>
                       ${j.asset_ids && (j.asset_ids as string[]).length ? html`<p class="small muted">Assets: ${(j.asset_ids as string[]).join(", ")}</p>` : raw("")}
                       ${str(s.review_note) ? html`<p class="small">Review note: ${str(s.review_note)}</p>` : raw("")}
@@ -718,6 +719,7 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
     const isAssignee = str(t.assignee_person_id) === person.id;
     const isTerminal = t.status === "completed" || t.status === "waived" || t.status === "cancelled";
     const submissions = await listSubmissions(app, params.taskId);
+    const timezone = toEventRef(await eventRow(app, str(t.event_id))).timezone;
 
     return htmlResponse(
       portalPage(
@@ -739,7 +741,7 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
             ? card(
                 html`${submissions.map(
                   (s) =>
-                    html`<p class="small">Version ${num(s.version)} — ${str(s.submitted_at)} · ${badge(str(s.review_outcome) || "pending")}${str(s.review_note) ? html`<br>${str(s.review_note)}` : raw("")}</p>`,
+                    html`<p class="small">Version ${num(s.version)} — ${formatInZone(str(s.submitted_at), timezone)} · ${badge(str(s.review_outcome) || "pending")}${str(s.review_note) ? html`<br>${str(s.review_note)}` : raw("")}</p>`,
                 )}`,
                 "Your submissions",
               )
