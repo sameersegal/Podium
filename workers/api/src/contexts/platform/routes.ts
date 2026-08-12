@@ -1198,6 +1198,10 @@ function registerOutboxRoutes(router: Router<RequestContext>): void {
     if (!reason) return html`—`;
     if (reason === "no_provider") return html`No email provider configured — held, not dropped.`;
     if (reason === "quiet_hours") return html`Deferred by the recipient's quiet hours.`;
+    // INV-09-28. Said plainly, because on the demonstration site this is the
+    // reason on every row, and a reader is entitled to know the product would
+    // have sent it.
+    if (reason === "demo") return html`This is a demonstration site — the message was written but not sent.`;
     return html`${humanise(reason)}`;
   };
 

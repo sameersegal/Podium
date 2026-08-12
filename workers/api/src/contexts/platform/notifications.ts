@@ -9,7 +9,7 @@
  * reason and stays readable in the outbox.
  */
 
-import type { AppContext, Env } from "@podiumstack/data/context.js";
+import { isDemoDeployment, type AppContext, type Env } from "@podiumstack/data/context.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { hmacSha256Hex } from "@podiumstack/domain/identity/credentials.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
@@ -349,6 +349,18 @@ export async function attemptSend(app: AppContext, notificationId: string): Prom
         await app.db.update("notification_delivery", notificationId, { suppressed_reason: null });
       }
     }
+  }
+
+  // INV-09-28: a demonstration deployment sends nothing outward. Checked here
+  // rather than where the message is composed, so the delivery row, the
+  // rendered body and the audit trail are produced exactly as they are
+  // anywhere else — the outbox is where a visitor reads the acceptance letter
+  // they just caused, and holding it under INV-09-12 is what leaves it there.
+  // After suppression and quiet hours, because a message this deployment would
+  // not have sent anyway should still say why.
+  if (isDemoDeployment(app.env)) {
+    await app.db.update("notification_delivery", notificationId, { suppressed_reason: "demo" });
+    return { status: "queued", suppressed_reason: "demo" };
   }
 
   if (channel === "email") {

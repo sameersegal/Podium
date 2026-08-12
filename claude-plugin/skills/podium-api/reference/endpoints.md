@@ -150,15 +150,15 @@ Paths shown with `:name` take an id in that position.
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/api-keys` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1539 |
-| `POST /v1/api-keys` | `webhooks:manage` | — | `name` `scopes` `event_ids` `expires_at` |  | workers/api/src/contexts/platform/routes.ts:1543 |
-| `POST /v1/api-keys/:id/revoke` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1557 |
-| `POST /v1/api-keys/:id/rotate` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1565 |
-| `GET /v1/integrations` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1640 |
-| `POST /v1/integrations` | `webhooks:manage` | — | `plugin_key` `event_id` `display_name` `secret_ref` `is_default_for_capability` |  | workers/api/src/contexts/platform/routes.ts:1644 |
-| `POST /v1/integrations/:id` | `webhooks:manage` | — | `display_name` `config` `secret_ref` `is_default_for_capability` `status` |  | workers/api/src/contexts/platform/routes.ts:1659 |
-| `POST /v1/integrations/:id/health-check` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1673 |
-| `GET /v1/notifications` | `speakers:read` | `event_id` `person_id` `session_id` `campaign_id` `status` | — | · | workers/api/src/contexts/platform/routes.ts:1682 |
+| `GET /v1/api-keys` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1543 |
+| `POST /v1/api-keys` | `webhooks:manage` | — | `name` `scopes` `event_ids` `expires_at` |  | workers/api/src/contexts/platform/routes.ts:1547 |
+| `POST /v1/api-keys/:id/revoke` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1561 |
+| `POST /v1/api-keys/:id/rotate` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1569 |
+| `GET /v1/integrations` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1644 |
+| `POST /v1/integrations` | `webhooks:manage` | — | `plugin_key` `event_id` `display_name` `secret_ref` `is_default_for_capability` |  | workers/api/src/contexts/platform/routes.ts:1648 |
+| `POST /v1/integrations/:id` | `webhooks:manage` | — | `display_name` `config` `secret_ref` `is_default_for_capability` `status` |  | workers/api/src/contexts/platform/routes.ts:1663 |
+| `POST /v1/integrations/:id/health-check` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1677 |
+| `GET /v1/notifications` | `speakers:read` | `event_id` `person_id` `session_id` `campaign_id` `status` | — | · | workers/api/src/contexts/platform/routes.ts:1686 |
 | `GET /v1/sync/active` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/sync-routes.ts:663 |
 | `POST /v1/sync/links/:linkId/resolve` | `events:write` | — | — |  | workers/api/src/contexts/platform/sync-routes.ts:651 |
 | `GET /v1/sync/mappings` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/sync-routes.ts:553 |
@@ -171,14 +171,14 @@ Paths shown with `:name` take an id in that position.
 | `GET /v1/sync/mappings/:id/runs` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/sync-routes.ts:606 |
 | `POST /v1/sync/mappings/:id/scaffold` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/sync-routes.ts:627 |
 | `GET /v1/sync/subjects` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/sync-routes.ts:522 |
-| `GET /v1/webhooks` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1575 |
-| `POST /v1/webhooks` | `webhooks:manage` | — | `name` `url` `event_types` `event_id` `include_pii` |  | workers/api/src/contexts/platform/routes.ts:1579 |
-| `GET /v1/webhooks/:id` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1593 |
-| `POST /v1/webhooks/:id` | `webhooks:manage` | — | `name` `url` `event_types` `include_pii` |  | workers/api/src/contexts/platform/routes.ts:1597 |
-| `GET /v1/webhooks/:id/deliveries` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1617 |
-| `POST /v1/webhooks/:id/deliveries/:deliveryId/redeliver` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1623 |
-| `POST /v1/webhooks/:id/replay` | `webhooks:manage` | — | `event_type` `from` `to` |  | workers/api/src/contexts/platform/routes.ts:1630 |
-| `POST /v1/webhooks/:id/rotate-secret` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1610 |
+| `GET /v1/webhooks` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1579 |
+| `POST /v1/webhooks` | `webhooks:manage` | — | `name` `url` `event_types` `event_id` `include_pii` |  | workers/api/src/contexts/platform/routes.ts:1583 |
+| `GET /v1/webhooks/:id` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1597 |
+| `POST /v1/webhooks/:id` | `webhooks:manage` | — | `name` `url` `event_types` `include_pii` |  | workers/api/src/contexts/platform/routes.ts:1601 |
+| `GET /v1/webhooks/:id/deliveries` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1621 |
+| `POST /v1/webhooks/:id/deliveries/:deliveryId/redeliver` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1627 |
+| `POST /v1/webhooks/:id/replay` | `webhooks:manage` | — | `event_type` `from` `to` |  | workers/api/src/contexts/platform/routes.ts:1634 |
+| `POST /v1/webhooks/:id/rotate-secret` | `webhooks:manage` | — | — |  | workers/api/src/contexts/platform/routes.ts:1614 |
 
 ## portal
 
@@ -251,14 +251,14 @@ Paths shown with `:name` take an id in that position.
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/campaigns` | `speakers:read` | `event_id` | — |  | workers/api/src/contexts/platform/routes.ts:1698 |
-| `POST /v1/campaigns` | `speakers:write` | — | `event_id` `name` `channel` `template_id` `subject` `body_markdown` `audience` |  | workers/api/src/contexts/platform/routes.ts:1706 |
-| `GET /v1/campaigns/:id` | `speakers:read` | — | — |  | workers/api/src/contexts/platform/routes.ts:1723 |
-| `POST /v1/campaigns/:id` | `speakers:write` | — | `name` `subject` `body_markdown` `template_id` `audience` |  | workers/api/src/contexts/platform/routes.ts:1729 |
-| `POST /v1/campaigns/:id/cancel` | `speakers:write` | — | — |  | workers/api/src/contexts/platform/routes.ts:1768 |
-| `GET /v1/campaigns/:id/preview-audience` | `speakers:read` | — | — |  | workers/api/src/contexts/platform/routes.ts:1744 |
-| `POST /v1/campaigns/:id/schedule` | `speakers:write` | — | `scheduled_for` |  | workers/api/src/contexts/platform/routes.ts:1751 |
-| `POST /v1/campaigns/:id/send` | `speakers:write` | — | — |  | workers/api/src/contexts/platform/routes.ts:1760 |
+| `GET /v1/campaigns` | `speakers:read` | `event_id` | — |  | workers/api/src/contexts/platform/routes.ts:1702 |
+| `POST /v1/campaigns` | `speakers:write` | — | `event_id` `name` `channel` `template_id` `subject` `body_markdown` `audience` |  | workers/api/src/contexts/platform/routes.ts:1710 |
+| `GET /v1/campaigns/:id` | `speakers:read` | — | — |  | workers/api/src/contexts/platform/routes.ts:1727 |
+| `POST /v1/campaigns/:id` | `speakers:write` | — | `name` `subject` `body_markdown` `template_id` `audience` |  | workers/api/src/contexts/platform/routes.ts:1733 |
+| `POST /v1/campaigns/:id/cancel` | `speakers:write` | — | — |  | workers/api/src/contexts/platform/routes.ts:1772 |
+| `GET /v1/campaigns/:id/preview-audience` | `speakers:read` | — | — |  | workers/api/src/contexts/platform/routes.ts:1748 |
+| `POST /v1/campaigns/:id/schedule` | `speakers:write` | — | `scheduled_for` |  | workers/api/src/contexts/platform/routes.ts:1755 |
+| `POST /v1/campaigns/:id/send` | `speakers:write` | — | — |  | workers/api/src/contexts/platform/routes.ts:1764 |
 | `GET /v1/pipelines` | — | — | — |  | workers/api/src/contexts/crm/routes.ts:440 |
 | `POST /v1/pipelines` | — | — | `name` `event_id` |  | workers/api/src/contexts/crm/routes.ts:449 |
 | `GET /v1/pipelines/:pipelineId` | — | — | — |  | workers/api/src/contexts/crm/routes.ts:458 |

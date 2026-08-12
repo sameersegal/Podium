@@ -1,0 +1,78 @@
+name: Restore the demo
+
+# app.podiumstack.com is a demonstration deployment (R32 in
+# docs/domain/13-open-questions.md): anybody may sign in and change anything,
+# and this puts it back on the hour.
+#
+# Why it lives in CI rather than in a Cron Trigger inside the Worker: the seed
+# is ~615 statements and four Argon2id hashes, which does not fit the free
+# plan's 10ms CPU ceiling, and a "delete every row in every table" path shipped
+# inside an open-source application is one misconfiguration away from running
+# on somebody's real conference. scripts/demo-reset.mjs carries the long form of
+# both reasons.
+#
+# The job asks the deployment whether it is a demonstration before it deletes
+# anything, so a wrong secret here stops the run rather than wiping an instance
+# that matters.
+
+# DISARMED until app.podiumstack.com is actually a demonstration deployment.
+#
+# A `schedule:` trigger starts firing the moment it reaches the default branch,
+# whether or not anybody meant it to. Every run would refuse — the interlock
+# asks the deployment whether it is a demonstration and today it answers no —
+# but an hourly failing job is noise that teaches people to ignore the runs that
+# matter. Restore the block below when the flag goes on:
+#
+#   schedule:
+#     # Hourly, on the hour. Stated in the banner as "every hour", so a visitor
+#     # part-way through a demonstration knows how long they have — a random
+#     # cadence would make the reset look like a bug the first time it landed
+#     # mid-click. R32 considered a longer cadence against a judged evaluation
+#     # of the product, where an hourly restore lands mid-session.
+#     - cron: '0 * * * *'
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: demo-reset
+  # Not cancel-in-progress: a restore interrupted between the wipe and the seed
+  # leaves the demonstration empty, which is the one state worse than stale.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    name: Restore fixture data
+    # Forks inherit the schedule but none of the secrets, so without this every
+    # fork of this repository runs an hourly job that fails.
+    if: github.repository == 'sameersegal/Podium'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+      url: https://${{ vars.PODIUM_HOSTNAME }}
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PODIUM_HOSTNAME: ${{ vars.PODIUM_HOSTNAME }}
+      CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
+      CF_KV_CACHE_ID: ${{ secrets.CF_KV_CACHE_ID }}
+      PODIUM_DEMO: ${{ vars.PODIUM_DEMO }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # `demo:reset` regenerates wrangler.production.jsonc first, because the
+      # remote database is named there and nowhere else in the repository.
+      - name: Restore
+        run: npm run demo:reset

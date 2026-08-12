@@ -968,3 +968,64 @@ details.snippet[open] > summary { display: none; }
   .table-wrap { max-height: none; overflow: visible; }
   th { position: static; }
 }
+
+/*
+ * The demonstration bar and the persona buttons on the sign-in page — 09,
+ * "Demonstration deployments"; INV-01-19. Both render only on a deployment
+ * with DEMO_MODE set, and cost a non-demo deployment these bytes and nothing
+ * else.
+ */
+.demo-bar {
+  /* Inline flow rather than flex: as flex items the tag, the sentence and the
+     link each take a line of their own at 320px, which is five lines of
+     warning above the form it is warning about. */
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--warn-soft);
+  border-bottom: 1px solid var(--warn-line);
+  color: var(--warn);
+  font-size: var(--fs-md);
+  line-height: 1.4;
+}
+.demo-bar-tag {
+  display: inline-block;
+  margin-right: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--warn);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.demo-bar a { color: inherit; font-weight: 600; text-decoration: underline; margin-left: var(--sp-2); }
+/* Mobile-first: the sentence with a consequence attached is always there, the
+   explanation arrives when there is room for it. See ui/demo.ts. */
+.demo-bar-more { display: none; }
+@media (min-width: 48rem) {
+  .demo-bar-more { display: inline; }
+}
+
+.demo-personas { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.demo-personas .lede { margin-bottom: var(--sp-2); }
+/* One column on a phone, and the 44px touch target is the floor rather than
+   the padding that happens to fall out of the font size. */
+.demo-personas .persona {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.demo-personas .persona:hover { border-color: var(--indigo-line); background: var(--indigo-soft); }
+.demo-personas .persona-name { font-weight: 600; }
+.demo-personas .persona-label { color: var(--muted); font-size: var(--fs-md); }
+.or-divider { text-align: center; margin: var(--sp-4) 0; }

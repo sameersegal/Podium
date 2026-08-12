@@ -151,9 +151,9 @@ Keep these green. They are the contract, not a formality:
   `AppContext` and never flushes it — the silent failure it catches is a write that lands
   while every reaction that should have followed it never runs.
 
-**Nothing is open.** All thirty questions in
+**Nothing is open.** All thirty-two questions in
 [`13-open-questions.md`](docs/domain/13-open-questions.md) are decided and recorded as
-R1–R30; read the rationale there before reopening any of it.
+R1–R32; read the rationale there before reopening any of it.
 
 The decisions that most shape the code, and how each one landed:
 
@@ -169,6 +169,12 @@ The decisions that most shape the code, and how each one landed:
   specifies it completely, so shipping it early is scope, not drift. Recorded under the R28
   blockquote in [`14`](docs/domain/14-speaker-crm.md). If it should come back out, the
   directory and segments stay and only the board goes.
+- **R32 — `app.podiumstack.com` is a demonstration deployment.** Fixture data restored on
+  the hour by [`demo-reset.mjs`](scripts/demo-reset.mjs) in CI, never by a Cron Trigger; and
+  while it runs, nothing leaves it — no credential resolves, no webhook is delivered, no
+  message is sent (INV-09-28), and its fixture people are signed in as without a password
+  (INV-01-19). `DEMO_MODE` is the switch, and it is deliberately not `ENVIRONMENT`. See "The
+  demonstration deployment" in [`docs/implementation.md`](docs/implementation.md).
 - **R30 — server-rendered applicant side, client-rendered admin console.** Under way. The
   blocker is closed: `scheduling` now has a `/v1` surface, specified in
   [`09`](docs/domain/09-api-and-integrations.md) under "Scheduling on the management

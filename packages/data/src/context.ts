@@ -47,6 +47,32 @@ export interface Env {
    * documented dev default is used instead.
    */
   UNSUBSCRIBE_SECRET?: string;
+  /**
+   * Marks this deployment as a demonstration (09, "Demonstration deployments";
+   * INV-09-28). A `var`, not a setting on the `Organization`: a visitor holding
+   * the organizer's permissions must not be able to turn off the rule that
+   * exists because of what visitors can do.
+   *
+   * Deliberately *not* `ENVIRONMENT`. Three checks compare that field to the
+   * literal `"production"` and fail closed on it — the dev routes and
+   * `/dev/drain` refuse on it (`surfaces/dev.ts`), and INV-09-15 refuses to
+   * sign a link without `UNSUBSCRIBE_SECRET` on it — so a demonstration
+   * deployment naming itself anything else would quietly open the dev surface
+   * and lower the signing bar on the one deployment strangers can reach.
+   */
+  DEMO_MODE?: string;
+}
+
+/**
+ * INV-09-28 / INV-01-19: is this a demonstration deployment?
+ *
+ * Exact string match on `"true"`, so that a `var` left as `"false"`, `"0"` or
+ * `""` by a self-hoster copying `wrangler.jsonc` cannot read as truthy. It
+ * lives beside `Env` rather than in the domain layer because it is a fact
+ * about the deployment, not about the conference.
+ */
+export function isDemoDeployment(env: Pick<Env, "DEMO_MODE">): boolean {
+  return env.DEMO_MODE === "true";
 }
 
 export class CollectingEventSink implements EventSink {

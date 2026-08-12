@@ -18,7 +18,9 @@
  *                 negotiation above it is ever wrong again.
  */
 
+import { isDemoDeployment, type Env } from "@podiumstack/data/context.js";
 import { CSP_NONCE_MARKER } from "../ui/html.js";
+import { withDemoBanner } from "../ui/demo.js";
 
 /**
  * `script-src` carries no `'unsafe-inline'`. That is the directive the rest of
@@ -86,7 +88,7 @@ function newNonce(): string {
  * a handler set deliberately — `/assets/:id` picks its own `content-type`, and
  * a handler that has already reasoned about its CSP knows more than this does.
  */
-export async function withSecurityHeaders(req: Request, res: Response): Promise<Response> {
+export async function withSecurityHeaders(req: Request, res: Response, env?: Pick<Env, "DEMO_MODE">): Promise<Response> {
   // 101 responses carry a socket that `new Response(...)` drops on the floor.
   // `index.ts` returns those before reaching here; this is the second belt.
   if (res.status === 101) return res;
@@ -99,7 +101,12 @@ export async function withSecurityHeaders(req: Request, res: Response): Promise<
   // object, an export, a WebSocket — streams through untouched.
   let out: Response;
   if ((res.headers.get("content-type") ?? "").includes("text/html")) {
-    const body = (await res.text()).replaceAll(CSP_NONCE_MARKER, nonce);
+    let body = (await res.text()).replaceAll(CSP_NONCE_MARKER, nonce);
+    // The demonstration bar rides along in the pass that is already buffering
+    // the body — see `ui/demo.ts` for why it is not a `page()` option. Never on
+    // the embed: that HTML is rendered inside somebody else's page, and our
+    // notice about our deployment has no business in it.
+    if (env && isDemoDeployment(env) && !isEmbed(url.pathname)) body = withDemoBanner(body);
     out = new Response(body, res);
   } else {
     out = new Response(res.body, res);
@@ -109,6 +116,15 @@ export async function withSecurityHeaders(req: Request, res: Response): Promise<
   // because it happens to start with `<html>`. There is no route in this app
   // that wants it.
   if (!out.headers.has("x-content-type-options")) out.headers.set("x-content-type-options", "nosniff");
+
+  // A demonstration deployment asks not to be indexed, on every response and
+  // not only the ones a crawler asked permission for. `/robots.txt` is the
+  // polite request and this is the one that binds: a page already in an index,
+  // or reached by a link from somewhere else, is not covered by a `Disallow`
+  // the crawler read afterwards.
+  if (env && isDemoDeployment(env) && !out.headers.has("x-robots-tag")) {
+    out.headers.set("x-robots-tag", "noindex, nofollow");
+  }
 
   if (!out.headers.has("referrer-policy")) {
     // Paths here carry proposal, session and person ids. `strict-origin-when-

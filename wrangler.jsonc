@@ -112,7 +112,15 @@
 
   "vars": {
     "ENVIRONMENT": "development",
-    "PUBLIC_BASE_URL": "http://localhost:8787"
+    "PUBLIC_BASE_URL": "http://localhost:8787",
+
+    // A demonstration deployment sends nothing outward and offers
+    // credential-free sign-in as its fixture people (INV-09-28, INV-01-19).
+    // Off here: a laptop is not a demonstration, and leaving it on would hide
+    // every provider failure behind a rule meant for strangers. Set to "true"
+    // for one afternoon to see what app.podiumstack.com does. Production picks
+    // it up from PODIUM_DEMO in scripts/deploy-config.mjs.
+    "DEMO_MODE": "false"
   },
 
   // ---------------------------------------------------------------------------

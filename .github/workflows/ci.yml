@@ -212,6 +212,12 @@ jobs:
       PODIUM_HOSTNAME: ${{ vars.PODIUM_HOSTNAME }}
       CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
       CF_KV_CACHE_ID: ${{ secrets.CF_KV_CACHE_ID }}
+      # Whether this deployment is a demonstration — sends nothing outward and
+      # offers credential-free sign-in as its fixture people (INV-09-28,
+      # INV-01-19). An environment variable rather than a literal here, so the
+      # answer lives with the deployment it describes and a self-hoster's fork
+      # deploys a real instance by default.
+      PODIUM_DEMO: ${{ vars.PODIUM_DEMO }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

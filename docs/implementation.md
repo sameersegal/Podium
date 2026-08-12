@@ -67,6 +67,8 @@ await app.flush();               // persists the event log + audit, then publish
 | INV-09-17…19 sync field maps, authority and echo suppression | `packages/domain/src/platform/sync.ts` (pure); applied in `contexts/platform/sync.ts` |
 | INV-09-20 sync writes go through the owning context's service | `contexts/platform/sync-subjects.ts` — one adapter per subject, each calling that context's own `service.ts` |
 | INV-09-22 erasure propagation to external mirrors | `erasePersonEverywhere` in `contexts/platform/sync.ts`, driven by the `platform.sync_erasure` reaction |
+| INV-09-28 a demonstration deployment sends nothing outward | Three egress points, each naming the invariant: `resolveSecret` (`contexts/platform/service.ts`), `deliverWebhook` (`contexts/platform/delivery.ts`), `attemptSend` (`contexts/platform/notifications.ts`). The predicate is `isDemoDeployment` in `packages/data/src/context.ts` |
+| INV-01-19 credential-free sign-in as a fixture person | `workers/api/src/surfaces/demo.ts` |
 
 ### Password hashing is currently below the OWASP floor, on purpose
 
@@ -197,6 +199,7 @@ integration tests drive it with.
 | Management API | `/v1/…` |
 | Provider callbacks | `/integrations/:id/inbound` (signed URL, no session — 09; dispatched on the integration's capability) |
 | Sync | `/admin/sync` (conflict queue), `/admin/sync/:mappingId`, `/admin/integrations/:id/sync`, `/v1/sync/…` |
+| Demonstration | `/demo/status` (the restore job's interlock), `/demo/sign-in` — both absent unless `DEMO_MODE` is `"true"`; `/robots.txt` always answers |
 
 ## Conventions
 
@@ -312,3 +315,35 @@ Four properties, in the order they matter:
   the JSON layer as the documented body shape.
 - Enum members live as `as const` arrays in `packages/domain/src/<context>/types.ts`, so a
   drift checker can compare them with the model.
+
+### The demonstration deployment
+
+`app.podiumstack.com` runs with `DEMO_MODE = "true"` (R32 in
+[`13`](domain/13-open-questions.md)). Everything that follows from that is deliberately
+small and lives in four places, none of which a self-hoster's deployment reaches:
+
+- **Three egress checks**, listed in the table above. The rule they implement is one
+  sentence — nothing reaches anybody outside the deployment (INV-09-28) — and each is at the
+  point of egress rather than the point of composition, so the message, the delivery row and
+  the audit trail are produced exactly as they are anywhere else. `resolveSecret` returning
+  null is the widest of the three: it covers `chat`, `sync`, `crm` and `calendar`, which
+  authenticate with the credential and have no dispatcher of their own to guard.
+- **`surfaces/demo.ts`** — sign-in as a fixture person (INV-01-19), the status endpoint the
+  restore job checks before it deletes anything, and `/robots.txt`.
+- **`ui/demo.ts`**, injected in `http/headers.ts` in the pass that already buffers HTML to
+  substitute the CSP nonce. It is not a `page()` option on purpose; see the file.
+- **`scripts/demo-reset.mjs`**, run hourly by `.github/workflows/demo-reset.yml`. It runs
+  *outside* the Worker — the seed is ~615 statements and four Argon2id hashes, which does not
+  fit the CPU ceiling, and a "delete every row in every table" path does not belong in an
+  application other people deploy. Rehearse it against the local D1 with
+  `node scripts/demo-reset.mjs --local`.
+
+Two things it deliberately does not do. **R2 is not purged**: objects a visitor uploaded are
+reachable only through the `asset` rows naming them, and the wipe deletes those, so the bytes
+are orphaned rather than served. Bucket growth is a lifecycle rule's job, set once out of
+band — `wrangler r2 bucket lifecycle add podium-assets expire-demo-uploads --expire-days 2 -c
+wrangler.production.jsonc`, and never on a deployment holding a real conference's files.
+And **the window between the wipe and the seed** leaves no `Organization` row, during which
+`/setup` is reachable by INV-01-16's own terms. The wipe and the seed are therefore one file
+and one round trip rather than two commands, which is as short as that window gets without
+moving the restore inside the Worker; anything done in it is undone by the next one.

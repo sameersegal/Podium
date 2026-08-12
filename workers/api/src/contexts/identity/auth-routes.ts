@@ -6,6 +6,7 @@
  * invitation's `accept_url` is shown on screen when it is created.
  */
 
+import { isDemoDeployment } from "@podiumstack/data/context.js";
 import { str } from "@podiumstack/data/db.js";
 import { normaliseEmail } from "@podiumstack/domain/identity/types.js";
 import { DomainError } from "@podiumstack/domain/shared/errors.js";
@@ -16,6 +17,7 @@ import { htmlResponse, redirect } from "../../http/responses.js";
 import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "../../http/throttle.js";
 import type { Router } from "../../http/router.js";
 import { html, raw } from "../../ui/html.js";
+import { demoPersonas } from "../../surfaces/demo.js";
 import { field, page, submitButton } from "../../ui/layout.js";
 import {
   acceptInvitation,
@@ -42,6 +44,10 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
     if (ctx.person) return redirect(destinationFor(ctx));
     const app = ctx.app();
     const passwords = await passwordLoginEnabled(app);
+    // INV-01-19: on a demonstration deployment the fixture people are the
+    // point of the page, and the password form below is the fallback rather
+    // than the other way round. Empty everywhere else, so this renders nothing.
+    const demo = isDemoDeployment(ctx.env) ? await demoPersonas(ctx) : [];
     // Screened on the way in as well as on the way out, so the form does not
     // carry a poisoned value and the "Create one" link cannot propagate one.
     const next = safeNext(ctx.url.searchParams.get("next"), "");
@@ -50,6 +56,21 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
         "Sign in",
         html`<div class="card">
           <h1>Sign in to Podium</h1>
+          ${demo.length
+            ? html`<div class="demo-personas">
+                <p class="lede">Pick who you want to be. Each of these is a real account on this conference, seeing what that person sees.</p>
+                ${demo.map(
+                  (p) => html`<form method="post" action="/demo/sign-in">
+                    <input type="hidden" name="email" value="${p.email}">
+                    <button type="submit" class="persona">
+                      <span class="persona-name">${p.name}</span>
+                      <span class="persona-label">${p.label}</span>
+                    </button>
+                  </form>`,
+                )}
+              </div>
+              <p class="small muted or-divider">or sign in with an account you made here</p>`
+            : raw("")}
           ${passwords
             ? html`<form method="post" action="/login" class="stack">
                 <input type="hidden" name="next" value="${next}">

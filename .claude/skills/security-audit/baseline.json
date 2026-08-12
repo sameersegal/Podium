@@ -21,6 +21,7 @@
       "route-unguarded|workers/api/src/contexts/submissions/routes.ts|POST /portal/proposals/:id/step/:stepKey",
       "route-unguarded|workers/api/src/contexts/submissions/routes.ts|POST /portal/proposals/:id/submit",
       "route-unguarded|workers/api/src/contexts/submissions/routes.ts|POST /portal/proposals/:id/withdraw",
+      "route-unguarded|workers/api/src/surfaces/demo.ts|GET /demo/status",
       "route-unguarded|workers/api/src/surfaces/public.ts|GET /v1/public/events/:eventSlug/schedule",
       "route-unguarded|workers/api/src/surfaces/public.ts|GET /v1/public/events/:eventSlug/sessions",
       "route-unguarded|workers/api/src/surfaces/public.ts|GET /v1/public/events/:eventSlug/speakers"
@@ -79,7 +80,8 @@
       "redirect-dynamic|workers/api/src/contexts/sponsorship/routes.ts|return redirect(back, 303, { \"set-cookie\": flashCookie(\"ok\", \"Removed.\") });",
       "redirect-dynamic|workers/api/src/http/concurrency.ts|return redirect(backTo, 303, { \"set-cookie\": flashCookie(\"warn\", STALE_WRITE_MESSAGE) });",
       "redirect-dynamic|workers/api/src/http/responses.ts|export function redirect(location: string, status: 302 | 303 | 307 = 303, headers: Record<string, string> = {}",
-      "redirect-dynamic|workers/api/src/index.ts|return redirect(back.pathname + back.search, 303, { \"set-cookie\": flashCookie(\"err\", `${err.message}${detail}`"
+      "redirect-dynamic|workers/api/src/index.ts|return redirect(back.pathname + back.search, 303, { \"set-cookie\": flashCookie(\"err\", `${err.message}${detail}`",
+      "redirect-dynamic|workers/api/src/surfaces/demo.ts|return redirect(persona.destination, 303, {"
     ],
     "outbound-fetch": [
       "outbound-fetch|packages/plugins/src/chat/slack.ts|const res = await fetch(ctx.secret, {",

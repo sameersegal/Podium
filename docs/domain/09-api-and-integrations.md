@@ -471,7 +471,7 @@ guess.
 | `channel` / `integration_id` | | which provider actually sent it |
 | `subject_type` / `subject_id` | | proposal, task, session |
 | `status` | `enum(queued, sent, delivered, bounced, complained, failed, suppressed)` | |
-| `suppressed_reason` | `enum(unsubscribed, hard_bounced, complained, duplicate, quiet_hours, digest_batched, no_provider)` | |
+| `suppressed_reason` | `enum(unsubscribed, hard_bounced, complained, duplicate, quiet_hours, digest_batched, no_provider, demo)` | |
 | `provider_message_id` / `sent_at` / `delivered_at` / `error` | | |
 
 **Suppression is global per email address** for hard bounces and complaints, and
@@ -581,6 +581,36 @@ did we actually send her", and what makes the product operable in a deployment w
 email provider configured at all. Where no `email` integration is active, messages are
 recorded as `queued` with `suppressed_reason = no_provider` and remain readable and
 copyable rather than being silently dropped (INV-09-12).
+
+## Demonstration deployments
+
+A deployment may be marked as a **demonstration**: an instance whose whole purpose is that
+strangers sign in and change things. `app.podiumstack.com` is one. Its data is fixture data,
+restored on a schedule, and nothing a visitor does to it is worth keeping.
+
+That is a property of the deployment, not of the `Organization` — an organizer cannot switch
+it on, and switching it on is not a thing the product does to itself. It is named here rather
+than left to configuration because it changes what three invariants in this file already
+govern, and a behaviour change nobody wrote down is the drift this model exists to prevent.
+
+**The rule is one sentence: in a demonstration deployment, nothing reaches anybody outside
+it** (INV-09-28). A visitor holds the organizer's permissions, and every one of those
+permissions ends in something leaving the building — a campaign to four hundred addresses, a
+webhook `POST` to a URL they typed, a provider credential the deployment holds and they do
+not. A restore undoes the database. It does not un-send an email, and it does not un-make a
+request from this origin to somewhere else.
+
+What that costs is nothing a demonstration needs, because of a property this model already
+has: an undispatchable message is **recorded and readable**, never dropped (INV-09-12). So a
+visitor who publishes a decision still sees the acceptance letter, rendered, in the outbox,
+addressed to the speaker it would have gone to. The outbox is a better demonstration of that
+feature than an inbox is, since they cannot read the speaker's mail either way.
+
+Two other consequences follow from the same rule and are stated where they belong: a
+demonstration deployment offers credential-free sign-in as its fixture people
+([`01`](01-identity-and-access.md), INV-01-19), and it asks not to be indexed, because a
+fixture conference competing with the real product's own pages in search results is a
+marketing defect rather than a technical one.
 
 ## Platform mapping (non-normative)
 
@@ -716,6 +746,16 @@ model depends on these choices.
 
   Uploading a file is refused to keys for a related but distinct reason — an `Asset` records
   who uploaded it, and the scan pipeline is built around that — and is not governed here.
+
+- **INV-09-28** **A demonstration deployment sends nothing outward.** No `Integration.secret_ref`
+  resolves, so no plugin is ever handed a credential; every `WebhookDelivery` is resolved
+  `skipped` without the request being made; and every `NotificationDelivery` is held with
+  `suppressed_reason = demo`, recorded and readable in the outbox under INV-09-12 rather than
+  dropped. Each is checked at the point of egress, not at the point of composition: the
+  message, the delivery row and the audit trail are all produced exactly as they are in a real
+  deployment, because a demonstration of a feature that does not run the feature demonstrates
+  nothing. A deployment not marked as a demonstration is unaffected by this rule in every
+  respect.
 
 ### What each scope reaches
 

@@ -445,6 +445,17 @@ stateDiagram-v2
   must be a path within this deployment; anything else is replaced by the default
   destination for that person. Sign-in is the request most worth stealing and the page most
   worth impersonating, and both properties exist to stop exactly that.
+- **INV-01-19** In a **demonstration deployment** ([`09`](09-api-and-integrations.md),
+  INV-09-28) a visitor may start a session as one of the fixture people with no credential at
+  all, and only as one of those: the address must be in `example.com`, the domain RFC 2606
+  reserves for documentation, which can receive no mail and therefore belongs to nobody. The
+  exact domain is the rule, not a family of them — the fixture data's other people are in the
+  reserved `.example` TLD, and widening this to "anything reserved" would turn every one of
+  them into an account a visitor can wear. Everywhere else
+  this path does not exist — not disabled by a setting, absent — and no other deployment is
+  reachable by it. The rule it appears to break is the one it protects: on an instance whose
+  passwords are printed on its own sign-in page, a credential proves nothing, and the first
+  visitor to change one locks out every visitor after them until the next restore.
 
 ## Emitted events
 

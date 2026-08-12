@@ -5,7 +5,7 @@
  * (the last lives in notifications.ts, next to the delivery it drives).
  */
 
-import type { AppContext, Env } from "@podiumstack/data/context.js";
+import { isDemoDeployment, type AppContext, type Env } from "@podiumstack/data/context.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { hashToken, newToken } from "@podiumstack/domain/identity/credentials.js";
 import type { ApiScope } from "@podiumstack/domain/shared/authorization.js";
@@ -469,9 +469,19 @@ export function availablePlugins(capability?: PluginCapability): AnyPlugin[] {
  * Secrets live behind `secret_ref`, "never the secret itself" (INV-09-3).
  * `secret_ref` names a Workers Secret binding on this deployment; resolving it
  * is an environment lookup, never a database read.
+ *
+ * INV-09-28: on a demonstration deployment nothing resolves. `secret_ref` is a
+ * *string an organizer types*, and on that deployment the organizer is whoever
+ * turned up — so installing `email.resend` pointed at the name of a secret this
+ * deployment happens to hold would otherwise hand a visitor the real key and
+ * the real sending domain. This is the widest of the three egress checks and
+ * the only one that also covers the capabilities with no dispatcher of their
+ * own: `chat` posts to a webhook URL held *in* the secret, and `sync` and `crm`
+ * authenticate with it.
  */
 export function resolveSecret(env: Env, secretRef: string | null | undefined): string | null {
   if (!secretRef) return null;
+  if (isDemoDeployment(env)) return null;
   const v = (env as unknown as Record<string, string | undefined>)[secretRef];
   return v ?? null;
 }

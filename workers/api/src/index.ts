@@ -50,14 +50,15 @@ export default {
               { error: "not_configured", message: "This deployment has not been set up yet. Visit /setup to create the first organization." },
               { status: 503 },
             ),
+            env,
           );
         }
-        return await withSecurityHeaders(req, redirect("/setup", 303));
+        return await withSecurityHeaders(req, redirect("/setup", 303), env);
       }
 
       if (isMutating(req.method)) {
         const replay = await replayIfSeen(env, ctx.orgId, req);
-        if (replay) return await withSecurityHeaders(req, replay);
+        if (replay) return await withSecurityHeaders(req, replay, env);
       }
 
       // R30's admin console. It answers before the router because it shares
@@ -66,10 +67,10 @@ export default {
       // or an event that does not exist — declines it and falls through to the
       // page that has always answered.
       const consoleRes = await consoleDocument(req, ctx);
-      if (consoleRes) return await withSecurityHeaders(req, consoleRes);
+      if (consoleRes) return await withSecurityHeaders(req, consoleRes, env);
 
       const match = router.match(req.method, url.pathname);
-      if (!match) return await withSecurityHeaders(req, notFound(req, ctx));
+      if (!match) return await withSecurityHeaders(req, notFound(req, ctx), env);
 
       let res = await match.handler(req, ctx, match.params);
 
@@ -88,15 +89,15 @@ export default {
       }
 
       if (isMutating(req.method)) res = await remember(env, ctx.orgId, req, res);
-      return await withSecurityHeaders(req, res);
+      return await withSecurityHeaders(req, res, env);
     } catch (err) {
       // The error paths need the headers too — an error page is still a page,
       // and `errorResponse` is what an injected payload would most like to
       // reach unhardened.
       if (err instanceof DomainError && !wantsJson(req)) {
-        return await withSecurityHeaders(req, recoverableRedirect(req, err) ?? errorPage(err));
+        return await withSecurityHeaders(req, recoverableRedirect(req, err) ?? errorPage(err), env);
       }
-      return await withSecurityHeaders(req, errorResponse(err));
+      return await withSecurityHeaders(req, errorResponse(err), env);
     }
   },
 

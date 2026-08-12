@@ -18,6 +18,20 @@ Six capabilities:
 Built for Cloudflare, with email and other providers attached as plugins behind capability
 contracts.
 
+## Try it
+
+**[app.podiumstack.com](https://app.podiumstack.com)** — a live instance with a conference
+mid-flight in it: proposals in every state, a review round under way, accepted sessions with
+onboarding outstanding, and a placed agenda. Pick a person on the sign-in page and you are
+them; no account, no email.
+
+It is a demonstration, and behaves like one on purpose. Everyone shares it, it is restored
+to the same conference every hour, and it sends nothing outward — messages the product would
+have emailed are written to the organizer's outbox instead, which is a better view of them
+anyway. Don't put anything real in it. The rules are
+[INV-09-28 and INV-01-19](docs/domain/09-api-and-integrations.md); how it is run is
+[R32](docs/domain/13-open-questions.md).
+
 ## Status
 
 **Built and running.** Every bounded context in the model is implemented end to end —

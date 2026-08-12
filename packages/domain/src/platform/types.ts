@@ -102,6 +102,8 @@ export const DELIVERY_STATUS_RANK: Record<string, number> = {
 /**
  * `no_provider` and `complained` were added by C6 in 13-open-questions.md: the
  * enum omitted values INV-09-12 and the suppression paragraph already require.
+ * `demo` came with INV-09-28 and behaves like `no_provider` — the message is
+ * composed, recorded and readable, and only the provider call is missing.
  */
 export const SUPPRESSED_REASONS = [
   "unsubscribed",
@@ -111,6 +113,7 @@ export const SUPPRESSED_REASONS = [
   "quiet_hours",
   "digest_batched",
   "no_provider",
+  "demo",
 ] as const;
 export type SuppressedReason = (typeof SUPPRESSED_REASONS)[number];
 

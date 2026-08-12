@@ -163,6 +163,19 @@ insert("organization", {
 /* people                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The four with a password are also the four a demonstration deployment offers
+ * credential-free sign-in as, and the thing that makes them so is the address:
+ * INV-01-19 admits `example.com` and nothing else. Everybody below them is in
+ * the reserved `.example` TLD, which is what keeps the sign-in page four
+ * buttons rather than seventeen.
+ *
+ * So an address here is load-bearing in a way a fixture name is not. A fifth
+ * `@example.com` person becomes a fifth button; moving one of these four to
+ * `.example` takes their button away. `workers/api/src/surfaces/demo.ts`
+ * discovers them rather than listing them, so neither change needs an edit
+ * there — which is the point, and also why the rule is written down here.
+ */
 const people = [
   {
     key: "jordan",

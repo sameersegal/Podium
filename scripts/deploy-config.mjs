@@ -129,6 +129,12 @@ config.vars = {
   // Invitation accept_urls (INV-01-15), unsubscribe links and the portal links
   // inside email bodies are built from this. It must be one of the routes above.
   PUBLIC_BASE_URL: `https://${canonicalHostname}`,
+  // INV-09-28 / INV-01-19. Opt-in and off unless PODIUM_DEMO is exactly "true",
+  // so a self-hoster who copies this script gets a real deployment; ours sets
+  // it because app.podiumstack.com is a demonstration whose data is restored
+  // hourly (R32). Written as a literal rather than passed through, so the
+  // generated config states which kind of deployment it is at a glance.
+  DEMO_MODE: process.env.PODIUM_DEMO === "true" ? "true" : "false",
 };
 
 const db = config.d1_databases?.find((d) => d.binding === "DB");
@@ -149,5 +155,6 @@ const banner = [
 
 writeFileSync(OUT, banner + JSON.stringify(config, null, 2) + "\n");
 console.log(
-  `✅ ${OUT} — ${hostnames.join(", ")}, D1 ${db.database_id.slice(0, 8)}…, KV ${cache.id.slice(0, 8)}…`,
+  `✅ ${OUT} — ${hostnames.join(", ")}, D1 ${db.database_id.slice(0, 8)}…, KV ${cache.id.slice(0, 8)}…` +
+    (config.vars.DEMO_MODE === "true" ? ", demonstration deployment (sends nothing outward)" : ""),
 );

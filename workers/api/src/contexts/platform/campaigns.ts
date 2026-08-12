@@ -257,7 +257,13 @@ export interface CampaignSendResult {
   sent: number;
   suppressed: number;
   failed: number;
-  queued_no_provider: number;
+  /**
+   * Written, held and readable in the outbox rather than sent — INV-09-12.
+   * Was `queued_no_provider` until INV-09-28 gave it a second reason: on a
+   * demonstration deployment nothing is dispatched whether a provider is
+   * configured or not. The per-recipient `suppressed_reason` says which.
+   */
+  queued_undispatched: number;
 }
 
 /**
@@ -272,7 +278,7 @@ export async function runCampaignSend(app: AppContext, campaignId: string): Prom
   if (status !== "sending" && status !== "scheduled") {
     // Already finished (sent / partially_failed / cancelled) — a redelivered
     // queue message is a no-op.
-    return { sent: 0, suppressed: 0, failed: 0, queued_no_provider: 0 };
+    return { sent: 0, suppressed: 0, failed: 0, queued_undispatched: 0 };
   }
   if (status === "scheduled") await app.db.update("campaign", campaignId, { status: "sending", updated_at: app.now() });
 
@@ -283,7 +289,7 @@ export async function runCampaignSend(app: AppContext, campaignId: string): Prom
   const existing = await app.db.raw<Row>("SELECT person_id FROM campaign_recipient WHERE campaign_id = ?", [campaignId]);
   const already = new Set(existing.map((r) => str(r.person_id)));
 
-  const result: CampaignSendResult = { sent: 0, suppressed: 0, failed: 0, queued_no_provider: 0 };
+  const result: CampaignSendResult = { sent: 0, suppressed: 0, failed: 0, queued_undispatched: 0 };
   const templateKey = await templateKeyFor(app, strOrNull(campaign.template_id));
 
   for (const member of members) {
@@ -331,7 +337,7 @@ export async function runCampaignSend(app: AppContext, campaignId: string): Prom
         subject: { type: "campaign", id: campaignId },
         data: { campaign_id: campaignId, person_id: member.person_id, reason: outcome.suppressed_reason ?? "send_failed" },
       });
-    } else result.queued_no_provider++;
+    } else result.queued_undispatched++;
   }
 
   const finalStatus = result.failed > 0 ? "partially_failed" : "sent";

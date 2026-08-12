@@ -4,7 +4,7 @@
  * 24h, then `exhausted`), never a hand-rolled loop in the request path.
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { AppContext, isDemoDeployment, type Env } from "@podiumstack/data/context.js";
 import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
@@ -45,6 +45,16 @@ export async function deliverWebhook(env: Env, msg: Extract<DeliveryMessage, { k
   // Idempotent: a delivery no longer `pending` has already been resolved by an
   // earlier attempt at processing this same at-least-once message.
   if (!delivery || str(delivery.status) !== "pending") return;
+
+  // INV-09-28: a demonstration deployment makes no request to a URL a visitor
+  // typed. `skipped` already means "this delivery was resolved without being
+  // attempted" — it is what an inactive webhook and a vanished event get — so
+  // the outcome is legible on the deliveries screen without a new state.
+  if (isDemoDeployment(env)) {
+    await app.db.rawRun("UPDATE webhook_delivery SET status = 'skipped' WHERE id = ?", [msg.delivery_id]);
+    console.log(JSON.stringify({ level: "info", event: "webhook.skipped_demo", delivery_id: msg.delivery_id, webhook_id: str(delivery.webhook_id) }));
+    return;
+  }
 
   const webhook = await app.db.byId<Row>("webhook", str(delivery.webhook_id));
   if (!webhook || str(webhook.status) !== "active") {
