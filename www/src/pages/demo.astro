@@ -127,7 +127,7 @@ npm run dev</code></pre>
       <ol class="steps">
         {
           TOUR.map((t) => (
-            <li class="reveal">
+            <li>
               <h3>{t.title}</h3>
               <p>{t.body}</p>
             </li>
@@ -137,7 +137,7 @@ npm run dev</code></pre>
 
       {/* The screen two of those five steps happen on, so the reader knows what
           they are looking for before they sign in. */}
-      <div class="reveal" style="margin-top: 2.5rem">
+      <div style="margin-top: 2.5rem">
         <Shot
           name="agenda"
           height={1170}
@@ -153,7 +153,7 @@ npm run dev</code></pre>
 
   <section class="band">
     <div class="wrap">
-      <div class="feature reveal">
+      <div class="feature">
         <div class="copy">
           <span class="eyebrow">While it is running</span>
           <h3>Point it at your own provider and watch mail leave.</h3>

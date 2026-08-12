@@ -8,279 +8,469 @@
  * for, and linking it would be exactly the coupling this site exists without.
  * If the brand palette changes, both files change. That is the whole cost.
  *
- * The `--glow-*` and `--display-*` tokens below have no counterpart in the app.
- * A landing page is allowed a bigger voice than the tool it is selling; the
- * shared tokens are what keep the two recognisably the same product anyway.
+ * Design system 2.0. Two surfaces: graphite (primary, the default) and warm
+ * paper, swapped under `prefers-color-scheme: light`. Every component below is
+ * written against the surface tokens and nothing else, so the swap is four
+ * exceptions rather than a second stylesheet — they are marked `LIGHT-ONLY`
+ * where they appear.
+ *
+ * Two rules do more work here than any value:
+ *
+ *   1. One accented element per viewport. Where two things want violet, one of
+ *      them is decoration and becomes a line, a label or a border.
+ *   2. Cobalt is reserved. It marks a machine acting, on `.agent` and nowhere
+ *      else — never marketing copy *about* AI, never a second brand colour.
  */
-:root {
-  --indigo: #6366f1;
-  --indigo-dark: #4338ca;
-  --indigo-soft: #eef2ff;
-  --navy: #1e1b4b;
-  --ink: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --bg: #f8fafc;
-  --card: #ffffff;
-  --radius: 10px;
 
-  /* Landing-page-only. */
-  --navy-deep: #14113a;
-  /* `--indigo` is the brand fill and stays as the app has it, but white on it
-     measures 4.47:1 — under the 4.5 body-text floor, and a button label is body
-     text. This is the same hue two steps down, used only where white sits on
-     top of it. Hover goes darker still; the old hover went lighter, which made
-     the least readable state the one under the pointer. */
-  --indigo-btn: #5457ee;
-  --indigo-btn-hover: #4b4ee6;
-  --glow-violet: #7c6cf5;
-  --glow-blue: #3b5bdb;
-  --on-dark: #c7d2fe;
-  --on-dark-dim: #9aa3d4;
-  --radius-lg: 18px;
-  --shadow-lift: 0 1px 2px rgb(30 27 75 / 8%), 0 12px 32px -12px rgb(30 27 75 / 18%);
-  --shadow-shot: 0 2px 6px rgb(20 17 58 / 12%), 0 32px 64px -24px rgb(20 17 58 / 45%);
+/* ---------- fonts ----------
+   Self-hosted, because a page load on this site is one request to one Worker
+   and a Google Fonts stylesheet would add a second origin, a DNS lookup and a
+   render block to every one of them.
+
+   All five are variable and subsetted to Latin plus the punctuation the site
+   actually sets: the em dash, curly quotes, the arrow that ends every "next
+   question" link, and the tick and cross the argument lists use. 116 KB for
+   the set. `swap` so the first paint is the fallback rather than nothing, and
+   the fallback stacks are matched for width as closely as the platform allows.
+
+   Newsreader ships its optical-size axis dropped at the display end of its
+   range, which is where this site uses it and nowhere else. */
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/newsreader.woff2") format("woff2-variations");
+  font-weight: 300 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/newsreader-italic.woff2") format("woff2");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Public Sans";
+  src: url("/fonts/public-sans.woff2") format("woff2-variations");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Public Sans";
+  src: url("/fonts/public-sans-italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono.woff2") format("woff2-variations");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ---------- surface, dark (primary) ---------- */
+  --canvas: #0b0c0f;
+  --surface: #121419;
+  --raised: #1a1d24;
+  /* The alternating section tint. The dark token table calls this
+     `--section-alt` and the light one calls it `--sunken`; they are the same
+     job, so they get the same name and the components stay surface-agnostic. */
+  --sunken: #0f1116;
+  --well: #0d1117;
+  --line: #22252d;
+  --line-soft: #1a1d24;
+  --control-line: #33374a;
+  --control-line-hover: #5a5f70;
+  --control-bg-hover: #15171d;
+
+  --text-1: #f4f3ef;
+  --text-2: #a8acb8;
+  /* The handoff specifies #6E7380 for this and states 5.1:1 for it. Measured,
+     #6E7380 is 4.12:1 on the canvas and 3.7:1 on a card — under the floor for
+     the 12–14px meta this token sets, which is most of the small type on the
+     site. #7D8290 is the same hue at the lightness the stated ratio implies:
+     5.09:1 on the canvas, 4.80 on a card, 4.92 on a band, 4.93 in a well. */
+  --text-3: #7d8290;
+  --text-4: #5a5f70;
+
+  /* ---------- accents ----------
+     One lightness and chroma, hue apart, so nothing in the set out-shouts the
+     rest. The fill pair is identical on both surfaces; only the text pair
+     moves, because a text colour has to clear 4.5:1 on the ground under it and
+     the two grounds are at opposite ends. */
+  /* The handoff specifies `oklch(0.60 0.19 285)` for the fill. White on it
+     measures 4.21:1, and a button label is body text, so it is two hundredths
+     of a step darker here: 4.61:1 at 0.58, with hover keeping the same 0.05
+     gap below it. Same hue, same chroma, invisible against the specified value
+     and the difference between a legible primary action and one that fails.
+     The stylesheet this replaced carried the identical note about the indigo
+     it used before; the trap has not moved. */
+  --violet-fill: oklch(0.58 0.19 285);
+  --violet-fill-hover: oklch(0.53 0.19 285);
+  --violet-text: oklch(0.8 0.12 285);
+  --violet-text-hover: oklch(0.88 0.09 285);
+  --violet-chip-text: oklch(0.82 0.11 285);
+  --cobalt-fill: oklch(0.6 0.19 255);
+  --cobalt-text: oklch(0.82 0.11 255);
+  --success: oklch(0.8 0.13 155);
+  --warning: oklch(0.85 0.12 75);
+  --danger: oklch(0.62 0.19 25);
+  /* The focus ring is the one colour that does not swap. A ring has to be
+     found in a hurry on either ground, and this one clears 3:1 on both. */
+  --focus: oklch(0.8 0.12 285);
+
+  /* ---------- type ---------- */
+  --font-display: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Fluid only where a headline would otherwise break the layout before it
+     breaks the line. Everything else in the scale is a fixed step.
+     `--display-2` is declared and unused: it is the step between the hero and
+     a section heading, and the interior pages have not been drawn yet. */
+  --display-1: clamp(44px, 6.4vw, 76px);
+  --display-2: clamp(38px, 5vw, 56px);
+  --heading-1: clamp(32px, 4.4vw, 48px);
+  --heading-2: clamp(26px, 3.2vw, 32px);
+
+  /* ---------- space, 4px base ---------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+  --section-y: var(--s-9);
+  --gutter: 40px;
+  --measure: 1200px;
+
+  /* ---------- radius ----------
+     A 6px corner reads as engineered where an 18px one reads as friendly, and
+     this product is sold on rigour. */
+  --r-chip: 2px;
+  --r-control: 6px;
+  --r-surface: 12px;
+  --r-pill: 999px;
+
+  /* ---------- elevation ----------
+     Black, never tinted. The navy `rgb(30 27 75 / 18%)` this replaced is what
+     gave every light card a bruised purple edge. e-0 is the default and is not
+     a shadow at all — a 1px border and nothing else. */
+  /* e-1 has no user on the landing page; every card here is flat with a
+     hairline. It stays because it is the middle of a three-step scale and a
+     scale with a hole in it gets filled by whoever needs it next. */
+  --e-1: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -12px rgb(0 0 0 / 60%);
+  --e-2: 0 2px 4px rgb(0 0 0 / 50%), 0 24px 48px -20px rgb(0 0 0 / 80%);
+  --e-shot: 0 2px 4px rgb(0 0 0 / 50%), 0 32px 64px -32px rgb(0 0 0 / 80%);
+
+  /* ---------- motion ----------
+     One duration and one curve, and nothing on the site translates at all.
+     The system also names 400ms for anything entering; deleting the scroll
+     reveal took away its only consumer, so it is not declared here. If
+     something ever enters, it enters at 400ms on this curve. */
+  --dur-hover: 150ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  color-scheme: dark;
+}
+
+/* ---------- surface, light ----------
+   A straight token swap plus four exceptions, all of them marked LIGHT-ONLY at
+   the component that needs them: the logo asset, the terminal block, the agent
+   panel's ground, and the hero screenshot's shadow opacity.
+
+   `--text-3` is #63656B and not a lightened `--text-2`: it has to clear 4.5:1
+   on `--paper` *and* on the `--sunken` and `--well` tints. #6B6D73 measures
+   4.50 on sunken, which is the floor exactly, so it was rejected. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --canvas: #faf9f6;
+    --surface: #ffffff;
+    --raised: #f1efea;
+    --sunken: #f1efea;
+    --well: #f5f3ee;
+    --line: #e3e0d8;
+    --line-soft: #eae7df;
+    --control-line: #c9c5bb;
+    --control-line-hover: #8c8e94;
+    --control-bg-hover: #f1efea;
+
+    --text-1: #14151a;
+    --text-2: #55585f;
+    --text-3: #63656b;
+    --text-4: #8c8e94;
+
+    --violet-text: oklch(0.48 0.19 285);
+    --violet-text-hover: oklch(0.4 0.19 285);
+    --violet-chip-text: oklch(0.44 0.19 285);
+    --cobalt-text: oklch(0.45 0.17 255);
+    --success: oklch(0.48 0.15 155);
+    --warning: oklch(0.52 0.13 75);
+
+    --e-1: 0 1px 2px rgb(20 21 26 / 6%), 0 8px 24px -12px rgb(20 21 26 / 20%);
+    --e-2: 0 2px 4px rgb(20 21 26 / 8%), 0 24px 48px -20px rgb(20 21 26 / 24%);
+    --e-shot: 0 1px 2px rgb(20 21 26 / 6%), 0 32px 64px -32px rgb(20 21 26 / 28%);
+
+    color-scheme: light;
+  }
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color: var(--ink);
-  background: var(--card);
-  line-height: 1.6;
+  font-family: var(--font-sans);
   font-size: 16px;
+  line-height: 1.65;
+  color: var(--text-2);
+  background: var(--canvas);
   -webkit-font-smoothing: antialiased;
-  /* The hero's glow layers are positioned outside the viewport on purpose; without
-     this a phone gets a horizontal scrollbar and a few hundred px of dead space. */
-  overflow-x: hidden;
 }
 
-h1, h2, h3 { line-height: 1.15; margin: 0 0 .5rem; color: var(--navy); letter-spacing: -0.025em; }
-p { margin: 0 0 1rem; }
-a { color: var(--indigo-dark); }
+/* ---------- type scale ----------
+   Three faces, each with a job it never leaves. Newsreader carries the
+   argument and never appears below 24px or as an interface label. Public Sans
+   runs the interface. JetBrains Mono is for anything the reader might type,
+   paste or be shown as a receipt.
 
-.wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem; }
+   Measure caps sit on the text element itself and never on a wrapper: `ch`
+   resolves against the element's own font-size, so a 68ch cap on a 16px
+   wrapper silently strangles a 59px headline inside it. */
+h1, h2, h3, h4 { margin: 0 0 var(--s-3); color: var(--text-1); }
+
+h1, h2 { font-family: var(--font-display); font-weight: 300; }
+h1 { font-size: var(--heading-1); line-height: 1.08; letter-spacing: -0.02em; max-width: 20ch; }
+h2 { font-size: var(--heading-2); font-weight: 400; line-height: 1.14; letter-spacing: -0.015em; max-width: 18ch; }
+h3 { font-size: 20px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
+h4 { font-size: 16px; font-weight: 600; line-height: 1.4; }
+
+p { margin: 0 0 var(--s-4); }
+strong, b { color: var(--text-1); font-weight: 600; }
+em { font-style: italic; }
+a { color: var(--violet-text); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--violet-text-hover); }
+
+code, kbd, samp, pre { font-family: var(--font-mono); }
+
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 0 var(--gutter); }
 
 /* ---------- skip link ----------
    Off-screen until focused, then a solid chip over the topbar. `top` rather
    than `transform` so it is where a screen magnifier expects it to be. */
 .skip {
   position: absolute;
-  left: .75rem;
+  left: var(--s-3);
   top: -4rem;
-  z-index: 10;
-  background: var(--card);
-  color: var(--indigo-dark);
-  border-radius: var(--radius);
-  padding: .6rem 1rem;
+  z-index: 20;
+  background: var(--surface);
+  color: var(--text-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  padding: var(--s-3) var(--s-4);
   font-weight: 600;
   text-decoration: none;
-  transition: top .15s ease;
+  transition: top var(--dur-hover) var(--ease);
 }
-.skip:focus { top: .75rem; }
+.skip:focus { top: var(--s-3); }
 
-:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; border-radius: 3px; }
-.band-dark :focus-visible, .topbar :focus-visible, .hero :focus-visible { outline-color: #c7d2fe; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-chip); }
 
 /* ---------- header ----------
-   The topbar shares the hero's top colour so the two read as one dark slab.
-   On an interior page the same colour continues into `.pagehead`.
+   Sticky, the canvas at 88% with a blur behind it, and a single hairline at
+   the bottom. Deliberately no hamburger: six short labels wrap onto a second
+   line, which costs a few pixels above the fold and buys a nav with nothing to
+   toggle, nothing to trap focus in, and no dependency on a script running.
 
-   Two rows on a phone — brand and the action, then the nav wrapping under
-   them — and one row from 56rem up, where the nav has space beside the brand.
-   Deliberately no hamburger: six short labels wrap onto a second line, which
-   costs a few pixels above the fold and buys a nav with nothing to toggle,
-   nothing to trap focus in, and no dependency on a script running. */
-.topbar { background: var(--navy-deep); position: relative; z-index: 3; }
+   Source order is brand, action, nav; from 56rem up the nav is reordered to
+   sit between them, which is the reading order. On a phone that puts the
+   action on the brand's row rather than below the whole nav, and saves about
+   70px of the first screen. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
 .topbar .wrap {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: .6rem 1.25rem;
-  padding-block: .85rem;
+  gap: var(--s-2) var(--s-5);
+  min-height: 72px;
+  padding-block: var(--s-2);
 }
 /* The logo is 28px tall; the padding is what makes the link a 44px target,
-   the same trick the nav links below use. */
-.topbar .brand { display: flex; align-items: center; margin-right: auto; min-height: 44px; }
+   the same trick the nav links below use. `align-self` because a flex parent
+   that ever goes vertical would otherwise stretch a `width: auto` image. */
+.topbar .brand { display: flex; align-items: center; align-self: center; margin-right: auto; min-height: 44px; }
 .topbar .brand img { height: 28px; width: auto; display: block; }
-.topbar a { color: var(--on-dark); text-decoration: none; font-weight: 500; }
-.topbar a:hover { color: #fff; }
+.topbar a { color: var(--text-2); text-decoration: none; font-weight: 500; }
+.topbar a:hover { color: var(--text-1); }
 .topbar .topnav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: .35rem 1.35rem;
+  gap: 0 var(--s-5);
   width: 100%;
   order: 3;
-  font-size: .95rem;
+  font-size: 15px;
 }
 /* The 44px touch target is the padding, not the text — hence the negative
    inline margin, which keeps the row visually tight while each link stays big
    enough to hit with a thumb. */
 .topbar .topnav a {
-  padding: .55rem 0;
-  margin-inline: -.1rem;
+  padding: var(--s-2) 0;
+  margin-inline: -2px;
   min-height: 44px;
   display: flex;
   align-items: center;
 }
-.topbar .topnav a[aria-current="page"] { color: #fff; box-shadow: inset 0 -2px 0 var(--indigo); }
+.topbar .topnav a[aria-current="page"] { color: var(--text-1); box-shadow: inset 0 -2px 0 var(--violet-fill); }
 /* A nav link whose label is a glyph: the social handle, and nothing else so far.
    Text links get their 44px width from the word; this one has to be given it,
    hence `min-width` and the small negative start margin that keeps the visual
    gap to `GitHub` the same as every other gap in the row. */
-.topbar .topnav .icon-link { min-width: 44px; justify-content: center; margin-inline-start: -.4rem; }
+.topbar .topnav .icon-link { min-width: 44px; justify-content: center; margin-inline-start: -14px; }
 .topbar .topnav .icon-link svg { width: 17px; height: 17px; display: block; }
 .topbar .top-cta { order: 2; }
 
-/* From here the nav fits beside the brand, and the source order (brand, action,
-   nav) is reordered to the reading order (brand, nav, action). */
 @media (min-width: 56rem) {
   .topbar .topnav { width: auto; order: 1; margin-left: auto; }
   .topbar .top-cta { order: 2; }
   .topbar .brand { margin-right: 0; }
 }
 
-/* ---------- buttons ---------- */
+/* ---------- buttons ----------
+   44px default, 48px in the hero and the closing call to action, 36px in
+   secondary contexts. Nothing lifts and nothing scales: hover shifts the fill
+   or the border and that is the whole interaction. */
 .btn {
-  display: inline-block;
-  padding: .7rem 1.35rem;
-  border-radius: var(--radius);
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: var(--r-control);
+  font: 600 15px/1.2 var(--font-sans);
   text-decoration: none;
   border: 1px solid transparent;
   white-space: nowrap;
-  transition: transform .15s ease, background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease), color var(--dur-hover) var(--ease);
 }
-.btn:hover { transform: translateY(-1px); }
-.btn.primary {
-  background: var(--indigo-btn);
-  color: #fff;
-  box-shadow: 0 8px 20px -8px rgb(99 102 241 / 70%);
-}
-.btn.primary:hover { background: var(--indigo-btn-hover); color: #fff; }
-.btn.secondary { border-color: var(--line); color: var(--navy); background: var(--card); }
-.btn.secondary:hover { border-color: var(--indigo); color: var(--indigo-dark); }
-/* The ghost secondary, for every dark ground — not just the two the site had
-   when it was one page. On `.pagehead` and in the closing band the light
-   secondary rendered as a solid white block beside the indigo primary and won
-   the eye, which is two primary actions and therefore none. */
-.topbar .btn.secondary,
-.hero .btn.secondary,
-.pagehead .btn.secondary,
-.band-dark .btn.secondary {
-  background: rgb(255 255 255 / 6%);
-  border-color: rgb(199 210 254 / 35%);
-  color: #e0e7ff;
-  padding: .55rem 1.1rem;
-}
-.topbar .btn.secondary:hover,
-.hero .btn.secondary:hover,
-.pagehead .btn.secondary:hover,
-.band-dark .btn.secondary:hover { border-color: #c7d2fe; color: #fff; background: rgb(255 255 255 / 12%); }
-.hero .btn.secondary,
-.pagehead .btn.secondary,
-.band-dark .btn.secondary { padding: .7rem 1.35rem; }
+.btn.primary { background: var(--violet-fill); color: #fff; }
+.btn.primary:hover { background: var(--violet-fill-hover); color: #fff; }
+.btn.secondary { border-color: var(--control-line); color: var(--text-1); background: transparent; }
+.btn.secondary:hover { border-color: var(--control-line-hover); background: var(--control-bg-hover); color: var(--text-1); }
+.btn.ghost { color: var(--text-2); background: transparent; }
+.btn.ghost:hover { color: var(--text-1); }
+.btn.sm { min-height: 36px; padding: 0 var(--s-4); font-size: 14px; }
+.btn[aria-disabled="true"] { background: var(--raised); color: var(--text-4); cursor: not-allowed; pointer-events: none; }
+.hero .btn, .cta .btn { min-height: 48px; padding: 0 var(--s-5); font-size: 16px; }
 
-/* ---------- hero ---------- */
-.hero {
-  position: relative;
-  isolation: isolate;
-  background: linear-gradient(178deg, var(--navy-deep) 0%, #241f5e 55%, #2b2570 100%);
-  color: #fff;
-  padding: 4.5rem 0 0;
-}
-/* Two soft colour fields behind the copy. Pure decoration — hence aria-hidden on
-   the wrapper and no content of any kind inside it.
-   The wrapper exists only to carry `overflow: hidden`: the glows are positioned
-   well outside the hero's box and have to be trimmed to it, but putting that
-   clip on `.hero` itself would also cut off the screenshot below, which is
-   deliberately hanging past the bottom edge into the next section. */
-.hero .glows { position: absolute; inset: 0; overflow: hidden; z-index: -1; pointer-events: none; }
-.hero .glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: .55;
-}
-.hero .glow.one { width: 46rem; height: 46rem; top: -18rem; right: -14rem; background: var(--glow-violet); }
-.hero .glow.two { width: 34rem; height: 34rem; top: 12rem; left: -16rem; background: var(--glow-blue); opacity: .4; }
+/* ---------- sections and bands ----------
+   96px of rhythm top and bottom, 64px below 640px. A band is the sunken tint
+   with a hairline each side; it is what separates the argument into movements,
+   and two adjacent bands with different grounds would read as a seam. */
+section { padding: var(--section-y) 0; }
+.band { background: var(--sunken); border-block: 1px solid var(--line); }
+/* `.band-dark` was a second, darker band when the site was light. The surface
+   is dark now, so it means nothing and it is an alias until the interior pages
+   are rebuilt and it can go. */
+.band-dark { background: var(--sunken); border-block: 1px solid var(--line); }
 
+.eyebrow {
+  display: block;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--violet-text);
+  margin-bottom: var(--s-4);
+}
+/* A section heading is heading-1 wherever it sits in the section — directly
+   under the wrap, or one column into a `.split`. The selector used to be
+   `section > .wrap > h2`, which is the shape the single-column sections have,
+   and every split section's heading quietly rendered a step smaller than the
+   one above it. */
+section > .wrap h2 { font-size: var(--heading-1); font-weight: 300; line-height: 1.08; letter-spacing: -0.02em; max-width: 20ch; }
+section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; max-width: 56ch; margin-bottom: var(--s-7); }
+.lede { font-size: 18px; line-height: 1.6; color: var(--text-2); max-width: 56ch; }
+
+/* Several paragraphs of argument standing on their own in a section — no card,
+   no grid, no `.sub`. A bare `p` inherits the 1200px wrap, which is about 120
+   characters a line and unreadable; everything else on this site gets its
+   measure from the card or column it sits in. */
+.prose { max-width: 68ch; }
+.prose h3 { margin-bottom: var(--s-2); }
+.prose p:last-child { margin-bottom: 0; }
+.more { max-width: 68ch; color: var(--text-2); }
+
+/* A section split into an argument and its evidence. The copy column is
+   narrower because it is text and the evidence is usually a panel or a table.
+   `minmax(0, …)` on both tracks: the default `minmax(auto, …)` lets the widest
+   unbreakable thing in the row — a screenshot frame's URL, a command in a
+   `<pre>` — set a floor the track cannot go under, and the row then overflows
+   the viewport. */
+.split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--s-8); align-items: start; }
+.split > * { min-width: 0; }
+
+/* ---------- hero ----------
+   No glow, no gradient clipped into the headline, and no screenshot hanging
+   out of the bottom of the slab. The page and the hero are the same ground now,
+   so the screenshot sits in the flow and the fold is where the content ends. */
+.hero { padding: var(--s-9) 0 var(--s-8); }
 .hero h1 {
-  color: #fff;
-  font-size: clamp(2.1rem, 5.2vw, 3.7rem);
-  max-width: 19ch;
-  margin-bottom: 1.1rem;
+  font-size: var(--display-1);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  max-width: 15ch;
+  margin-bottom: var(--s-5);
 }
-.hero h1 .hl {
-  background: linear-gradient(100deg, #a5b4fc, #e9d5ff 55%, #a5b4fc);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.hero .lede { font-size: clamp(1.05rem, 2.2vw, 1.3rem); color: var(--on-dark); max-width: 54ch; margin-bottom: 2rem; }
-.hero .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; margin-bottom: 1.25rem; }
-.hero .reassure { color: var(--on-dark-dim); font-size: .9rem; margin: 0; }
-.hero .reassure strong { color: #e0e7ff; font-weight: 600; }
+/* Emphasis inside a serif headline is italic, never colour and never a
+   gradient. The gradient this replaced clipped to the text, which meant the
+   most important four words on the site were invisible anywhere
+   `background-clip` failed. */
+.hero h1 em { font-style: italic; }
+.hero .lede { margin-bottom: var(--s-6); }
+.hero .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); margin-bottom: var(--s-5); }
+.hero .reassure { color: var(--text-3); font-size: 14px; margin: 0; }
+.hero .reassure strong { color: var(--text-2); }
+.hero .stage { margin-top: var(--s-8); }
+.hero .stage .shot { box-shadow: var(--e-shot); }
 
-/* The hero screenshot sits half in the dark slab and half in the section below
-   it, which is what makes the fold feel deliberate rather than cut off. The
-   spacer below the hero reserves the overhang so nothing collides with it. */
-/* The negative margin is what makes the shot hang out of the hero: it ends the
-   hero's dark box 8rem above the bottom of the image. `.hero-spacer` then puts
-   that 8rem back as blank page, so the overhang has somewhere to be and the
-   next section does not collide with it. The two numbers move together.
-   `flow-root` is load-bearing: `.stage` is the last in-flow child, so without a
-   block formatting context here its negative margin collapses straight up
-   through `.wrap` and out of `.hero`, which shortens the hero and moves the
-   image with it — no overhang, just a smaller hero. */
-.hero .wrap { display: flow-root; }
-.hero .stage { position: relative; margin-top: 3rem; margin-bottom: -8rem; }
-.hero .stage .shot { margin: 0; }
-.hero-spacer { height: 8rem; }
-
-/* The small dashboard card tucked into the corner of the hero screenshot. Two
-   overlapping surfaces read as "there is more product here than one screen".
-
-   The overhang is the wrap's own gutter and not a pixel more. At -1.5rem it was
-   4px wider than the padding, which nothing shows between 960px — where this
-   card appears — and 1128px, where the wrap starts collecting a margin: in that
-   band `scrollWidth` came back 4px over `clientWidth` on every load. */
-.hero .inset {
-  position: absolute;
-  right: -1.25rem;
-  bottom: -3rem;
-  width: 24rem;
-  max-width: 46%;
-  z-index: 2;
-}
-.hero .inset .shot { margin: 0; }
-
-/* ---------- screenshot frames ---------- */
+/* ---------- screenshot frames ----------
+   1px border, 12px radius, the card ground, and a single header bar holding
+   the path. No fake traffic lights: the frame is saying "this is a photograph
+   of the running app at this URL", and three coloured dots say nothing. */
 .shot {
-  /* Spacing belongs to `.shot-fig`, which also has to hold the caption. */
   margin: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-surface);
   overflow: hidden;
-  background: #12102e;
-  border: 1px solid rgb(255 255 255 / 12%);
-  box-shadow: var(--shadow-shot);
+  background: var(--surface);
+  border: 1px solid var(--line);
 }
 .shot-bar {
   display: flex;
   align-items: center;
-  gap: .4rem;
-  padding: .55rem .8rem;
-  background: #1b1746;
-  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  padding: var(--s-2) var(--s-3);
+  background: var(--sunken);
+  border-bottom: 1px solid var(--line);
 }
-.shot-bar i { width: .6rem; height: .6rem; border-radius: 50%; background: rgb(199 210 254 / 25%); }
 .shot-bar span {
-  margin-left: .6rem;
-  font: 500 .72rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--on-dark-dim);
+  font: 400 13px/1.7 var(--font-mono);
+  letter-spacing: 0.01em;
+  color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -291,249 +481,318 @@ a { color: var(--indigo-dark); }
   min-width: 0;
 }
 .shot img { display: block; width: 100%; height: auto; }
-/* Small frames get a lighter bar so the chrome does not out-weigh the screen. */
-.shot.sm { border-radius: 12px; }
-.shot.sm .shot-bar { padding: .4rem .6rem; }
-.shot.sm .shot-bar i { width: .45rem; height: .45rem; }
+.shot.sm .shot-bar { padding: var(--s-1) var(--s-2); }
 .shot.sm .shot-bar span { display: none; }
-
-/* ---------- sections ---------- */
-section { padding: 4.5rem 0; }
-.eyebrow {
-  display: inline-block;
-  font-size: .78rem;
-  font-weight: 700;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-  color: var(--indigo-dark);
-  margin-bottom: .6rem;
+.shot-fig { margin: 0; }
+.shot-fig figcaption { margin-top: var(--s-3); color: var(--text-3); font-size: 14px; }
+/* A phone capture has no browser chrome to sit in — the frame is the device. */
+.shot.phone { max-width: 19.5rem; margin-inline: auto; border-radius: 26px; padding: var(--s-2); background: var(--surface); }
+.shot.phone img { border-radius: 18px; }
+/* A frame holding both a desktop and a phone capture of the same screen
+   (`Shot`'s `phoneName`). Below 40rem the `<picture>` serves the phone file, so
+   the desktop title bar has to go with it — a browser chrome bar drawn around a
+   phone layout is a frame lying about what it is holding. */
+@media (max-width: 40rem) {
+  .shot.has-phone .shot-bar { display: none; }
+  .shot.has-phone { max-width: 19.5rem; margin-inline: auto; }
 }
-section > .wrap > h2 { font-size: clamp(1.6rem, 3.6vw, 2.3rem); max-width: 22ch; }
-section > .wrap > .sub { color: var(--muted); max-width: 58ch; font-size: 1.08rem; margin-bottom: 2.5rem; }
 
-/* Several paragraphs of argument standing on their own in a section — no card,
-   no grid, no `.sub`. A bare `p` inherits the 1120px wrap, which is about 110
-   characters a line and unreadable; everything else on this site gets its
-   measure from the card or column it sits in. Used by the security page's
-   account of what the review never read. */
-.prose { max-width: 62ch; }
-.prose h3 { font-size: 1.2rem; margin-bottom: .6rem; }
-.prose p:last-child { margin-bottom: 0; }
+/* ---------- the surface primitive ----------
+   One card, three densities. It replaced `.pain`, `.card`, `.kpi` and
+   `.pillar`, which were four boxes with four borders and four radii doing one
+   job. The heading is the only `--text-1` in the box. */
+.card, .pain, .kpi, .pillar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-surface);
+  padding: 28px;
+}
+.card h3, .pillar h3 { margin-bottom: var(--s-2); }
+.card p, .pillar p { color: var(--text-2); font-size: 15px; margin-bottom: 0; }
+.card p + p, .pillar p + p { margin-top: var(--s-3); }
+.card .key {
+  display: inline-block;
+  font: 400 13px/1.6 var(--font-mono);
+  letter-spacing: 0.01em;
+  color: var(--violet-chip-text);
+  background: color-mix(in srgb, var(--violet-fill) 14%, transparent);
+  border-radius: var(--r-chip);
+  padding: 2px 6px;
+  margin-bottom: var(--s-3);
+}
+
+/* `minmax(min(100%, 17.5rem), 1fr)` rather than `minmax(17.5rem, 1fr)`, here
+   and in every `auto-fit` grid below. A bare rem floor is a floor the track
+   keeps even when the container is narrower than it, so the row silently
+   overhangs the screen: `.cards.two` at 24rem was 384px wide inside a 350px
+   column on a 390px phone and had its headings cut off. `min(100%, …)` lets
+   the floor collapse to the container on the narrow end and changes nothing
+   above it. */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr)); gap: var(--s-4); }
+.cards.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: var(--s-6); }
+.two-col h3 { font-size: 18px; }
+.two-col p { color: var(--text-2); font-size: 15px; }
+
+/* ---------- hairline grids ----------
+   Cards that share their borders instead of each drawing its own box: a 1px
+   gap over a `--line`-coloured parent, clipped to one 12px radius. Hover is a
+   background shift and nothing else. */
+.grid-hair {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-surface);
+  overflow: hidden;
+}
+.grid-hair > * { border: 0; border-radius: 0; background: var(--canvas); }
+.grid-hair > *:hover { background: var(--surface); }
+.grid-hair.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-hair.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 62rem) { .grid-hair.three { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 40rem) {
+  .grid-hair.three,
+  .grid-hair.two { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* ---------- the pains ----------
-   `minmax(min(100%, 17.5rem), 1fr)` rather than `minmax(17.5rem, 1fr)`, here and
-   in every `auto-fit` grid below. A bare rem floor is a floor the track keeps
-   even when the container is narrower than it, so the row silently overhangs
-   the screen: `.cards.two` at 24rem was 384px wide inside a 350px column on a
-   390px phone and had its headings cut off. `min(100%, …)` lets the floor
-   collapse to the container on the narrow end and changes nothing above it. */
-.pains {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
-  gap: 1rem;
-}
-.pain {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem 1.4rem 1.35rem;
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-}
-.pain:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: #c7d2fe; }
-.pain q {
-  display: block;
-  font-size: 1.08rem;
-  font-weight: 600;
-  color: var(--navy);
-  line-height: 1.4;
-  margin-bottom: .7rem;
-}
-.pain p { margin: 0; color: var(--muted); font-size: .95rem; }
-.pain p strong { color: var(--indigo-dark); font-weight: 600; }
+   The quote is the claim and it is set in the display face; the answer under
+   it is interface copy. */
+.pains { transition: background-color var(--dur-hover) var(--ease); }
+.pain q { display: block; font-family: var(--font-display); font-size: 20px; font-weight: 400; line-height: 1.3; letter-spacing: -0.01em; color: var(--text-1); margin-bottom: var(--s-3); }
+.pain p { margin: 0; color: var(--text-2); font-size: 15px; }
+.pain { transition: background-color var(--dur-hover) var(--ease); }
 
 /* ---------- alternating feature rows ---------- */
 .feature {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: 3rem;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: var(--s-8);
   align-items: center;
-  padding: 3.25rem 0;
+  padding: var(--s-8) 0;
   border-top: 1px solid var(--line);
 }
 .feature:first-of-type { border-top: 0; padding-top: 0; }
 /* Alternate rows put the screenshot on the left. `order` alone would leave it in
    the narrow 5fr column meant for the copy, so the track widths swap with it —
    the screenshot always gets the wide side. */
-.feature.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.feature.flip { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); }
 .feature.flip .copy { order: 2; }
-.feature h3 { font-size: clamp(1.35rem, 2.8vw, 1.85rem); margin-bottom: .75rem; }
-.feature p { color: var(--muted); font-size: 1.02rem; }
+/* No `ch` cap: the 5fr column is already the measure, and a second cap on
+   top of it broke every one of these headings onto two lines inside a column
+   wide enough for one. */
+.feature h3 { font-family: var(--font-display); font-size: var(--heading-2); font-weight: 400; line-height: 1.14; letter-spacing: -0.015em; margin-bottom: var(--s-4); }
+.feature p { color: var(--text-2); max-width: 56ch; }
 .feature .copy > p:last-child { margin-bottom: 0; }
-.feature .note {
-  font-size: .9rem;
-  color: var(--muted);
-  border-left: 3px solid var(--indigo-soft);
-  padding-left: .9rem;
-  margin-top: 1.1rem;
-}
-.feature .note code { font-size: .85em; color: var(--indigo-dark); }
-/* Light-background frames need a visible edge; the dark shadow alone disappears. */
-.feature .shot { border-color: rgb(30 27 75 / 10%); box-shadow: 0 2px 6px rgb(30 27 75 / 6%), 0 24px 48px -20px rgb(30 27 75 / 28%); }
 
-/* ---------- bands ---------- */
-/* `--muted` is 4.32:1 on the band's tint — it clears 4.5 on white and does not
-   clear it here, which is the trap with a token that was measured against one
-   background. Redefining it for the subtree fixes every muted thing on the band
-   at once (the lede, captions, contract lines, the aside) and leaves the cards
-   inside it, which are white, reading a shade darker rather than differently. */
-.band { background: var(--indigo-soft); border-block: 1px solid #dfe3ff; --muted: #5f6674; }
-.band-dark {
-  background: linear-gradient(165deg, var(--navy-deep), #2b2570);
-  color: var(--on-dark);
-  position: relative;
+/* ---------- badge ----------
+   The only place status colour appears anywhere on the site. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: var(--r-pill);
+  padding: var(--s-1) 10px;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--text-3) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-3) 30%, transparent);
+}
+.badge.ok { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+.badge.wait { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
+.badge.blocked { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); border-color: color-mix(in srgb, var(--danger) 32%, transparent); }
+
+/* ---------- the agent surface ----------
+   Cobalt, and the only cobalt on the site. It marks a machine acting — never
+   copy about AI, never a second brand colour, and never a screen a person
+   drove.
+
+   The rule the component enforces by shape: an agent surface always shows what
+   it did *and* what it refused to do. A suggestion the reader cannot audit is
+   not shown at all, which is why the refusal line is not an error state here
+   but the point of the panel, and is set in the success colour.
+
+   Nothing in it is interactive. What is inside is a transcript of a real run
+   against a real instance, so a button drawn here would be a button that does
+   nothing — the panel quotes, it does not simulate. */
+.agent {
+  background: var(--well);
+  border: 1px solid color-mix(in srgb, var(--cobalt-fill) 36%, transparent);
+  border-radius: var(--r-surface);
   overflow: hidden;
 }
-.band-dark h2, .band-dark h3 { color: #fff; }
-.band-dark a { color: #c7d2fe; }
-.band-dark .eyebrow { color: #a5b4fc; }
-/* Two classes and a type selector — `section > .wrap > .sub` below — outranks
-   two classes, so the plain `.band-dark .sub` this used to be lost, and every
-   dark band's opening sentence rendered in `--muted`: 2.71:1 on the closing
-   call to action. Matched shape, so it wins where it is meant to. */
-.band-dark > .wrap > .sub { color: var(--on-dark); }
+/* LIGHT-ONLY — on paper the well tint is barely off-white and the panel would
+   dissolve into the page, so it keeps the card ground and picks up e-2. The
+   cobalt hairline is what still says "different kind of surface". */
+@media (prefers-color-scheme: light) {
+  .agent { background: var(--surface); box-shadow: var(--e-2); }
+}
+.agent-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  background: color-mix(in srgb, var(--cobalt-fill) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cobalt-fill) 20%, transparent);
+}
+.agent-bar i { width: 6px; height: 6px; border-radius: 50%; background: var(--cobalt-fill); flex: none; }
+.agent-bar span { font: 500 12px/1 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cobalt-text); }
+.agent-bar time { margin-left: auto; white-space: nowrap; font: 400 12px/1 var(--font-mono); color: var(--text-3); }
+.agent-body { margin: 0; padding: var(--s-4); display: grid; gap: var(--s-3); }
+.agent-body div {
+  font: 400 13px/1.7 var(--font-mono);
+  letter-spacing: 0.01em;
+  color: var(--text-2);
+  padding-left: 22px;
+  text-indent: -22px;
+}
+.agent-body div::before { content: "> "; color: var(--text-4); }
+/* The consequential line, and the refusal. Two of the four, so the reader's eye
+   lands on what changed and on what did not. */
+.agent-body .said { color: var(--text-1); }
+.agent-body .refused { color: var(--success); }
+.agent-body .refused::before { content: "✓ "; color: var(--success); }
+.agent-foot {
+  border-top: 1px solid var(--line);
+  padding: var(--s-3) var(--s-4);
+  font: 400 12px/1.5 var(--font-sans);
+  color: var(--text-3);
+  margin: 0;
+}
 
-.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: 2.5rem; }
-.two-col h3 { font-size: 1.2rem; }
-.two-col p { font-size: .98rem; }
-.band-dark .two-col p { color: var(--on-dark-dim); }
+/* ---------- notice ----------
+   Rules top and bottom, a mono status word in the left column, the copy in the
+   right. It replaced a tinted box with a rounded accent bar, which looked like
+   an alert on a page that has nothing to alert anybody about. */
+/* Two grid items: the generated status word and *one* element holding the copy.
+   A bare text node inside a grid container becomes an anonymous grid item of
+   its own, so a `.notice` whose copy is not wrapped puts every stray word into
+   the 56px label column, one word per line. The `> *` floor is the other half
+   of that: without it the copy column takes its width from the longest word. */
+.notice {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--s-4);
+  border-block: 1px solid var(--line);
+  padding: var(--s-4) 0;
+  font-size: 15px;
+  color: var(--text-2);
+}
+.notice > * { min-width: 0; }
+/* `attr()` with a fallback is not everywhere yet, so the default label is a
+   second rule. Every notice on the site says "note"; the attribute is there for
+   the day one of them says something else. */
+.notice:not([data-label])::before { content: "Note"; }
+.notice::before {
+  content: attr(data-label);
+  font: 500 12px/1.7 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--warning);
+}
+.notice > :last-child { margin-bottom: 0; }
 
-.more { max-width: 62ch; color: var(--muted); font-size: 1.05rem; }
+/* ---------- steps ----------
+   Mono ordinals in a 36px column. No circles, no counters, nothing that reads
+   as a badge — the number is a label, not a status. */
+.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-6); }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--s-4); }
+.steps li::before {
+  content: counter(step, decimal-leading-zero);
+  font: 400 13px/1.6 var(--font-mono);
+  letter-spacing: 0.01em;
+  color: var(--text-3);
+}
+.steps h3 { margin-bottom: var(--s-2); }
+.steps p { color: var(--text-2); font-size: 15px; margin-bottom: 0; }
+.steps p + .term { margin-top: var(--s-4); }
 
-/* ---------- closing call to action ----------
-   Flat, and the colour the band above it ends on: two stacked gradients each
-   restarting from dark would put a hard light-to-dark seam across the middle of
-   what should read as one slab. The hairline border is the only divider. */
-.cta.band-dark { background: #2b2570; border-top: 1px solid rgb(255 255 255 / 8%); }
-.cta { text-align: center; }
-.cta h2 { margin-inline: auto; max-width: 20ch; }
-.cta .sub { margin-inline: auto; text-align: center; }
-.cta .actions { display: flex; flex-wrap: wrap; gap: .9rem; justify-content: center; margin-bottom: 1.75rem; }
-.cta pre {
-  margin: 0 auto;
-  max-width: 26rem;
-  text-align: left;
-  background: rgb(0 0 0 / 28%);
-  color: #e0e7ff;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: var(--radius);
-  padding: 1rem 1.15rem;
-  font-size: .88rem;
-  line-height: 1.6;
+/* ---------- terminal ----------
+   The prompt is a `::before` on each line rather than a character in the
+   markup, so what a reader copies is the command and not `$ ` in front of it. */
+pre.term {
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  padding: var(--s-4);
+  margin: 0;
+  font: 400 13px/1.9 var(--font-mono);
+  letter-spacing: 0.01em;
+  color: var(--text-1);
   overflow-x: auto;
 }
-
-.aside {
-  font-size: .875rem;
-  color: var(--muted);
-  border-left: 3px solid var(--line);
-  padding-left: .9rem;
-  margin-top: 2.5rem;
+/* Generated content is not part of a selection in any current browser, so the
+   prompt is visible and uncopyable. A literal `$` in the markup would be
+   pasted into the reader's shell along with the command. */
+pre.term .line::before { content: "$ "; color: var(--text-4); }
+/* On a phone the clone line is wider than the screen, and `overflow-x: auto`
+   hides the half of the URL that matters behind a scroll nobody discovers.
+   Soft-wrap it instead: the break is visual, so what a reader copies is still
+   one line. Only below 40rem — on a laptop the block fits and a wrapped
+   command reads like two. */
+@media (max-width: 40rem) {
+  pre.term { white-space: pre-wrap; overflow-wrap: break-word; font-size: 12px; }
 }
 
-/* ---------- footer ----------
-   Also the site map. Every page in the nav is here, plus the ones that are not
-   in the nav because they answer a question only some readers have. A page in
-   neither is a page nobody arrives at. */
-footer { background: var(--navy-deep); color: #a5b4fc; padding: 3rem 0 2.25rem; font-size: .9rem; }
-footer a { color: #c7d2fe; text-decoration: none; }
-footer a:hover { color: #fff; text-decoration: underline; }
-footer .cols {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
-  gap: 1.75rem 1.5rem;
-}
-footer .cols h2 {
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-  color: #fff;
-  margin-bottom: .75rem;
-}
-footer .cols div { display: flex; flex-direction: column; align-items: flex-start; }
-footer .cols a { padding: .35rem 0; min-height: 44px; display: flex; align-items: center; }
-footer .legal {
-  margin: 2.25rem 0 0;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgb(199 210 254 / 18%);
-  color: #8f9ad0;
-  font-size: .82rem;
-  max-width: 70ch;
-}
+/* ---------- the numbers ----------
+   Mono numerals, because the number is the receipt. */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--s-4); }
+/* Three of them, which `auto-fit` widows: a phone gets two on the first row and
+   the third beside a hole. Stated columns instead — three across where they
+   fit, one each below. */
+.kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 46rem) { .kpis.three { grid-template-columns: minmax(0, 1fr); } }
+.kpi b { display: block; font: 300 36px/1 var(--font-mono); letter-spacing: -0.02em; color: var(--text-1); margin-bottom: var(--s-2); }
+.kpi span { color: var(--text-3); font-size: 14px; }
 
-/* ---------- interior page header ----------
-   The same dark ground as the hero, without the glows or the screenshot. What
-   makes an interior page feel like the same site is the colour continuing over
-   the fold, not a second hero. */
-.pagehead {
-  background: linear-gradient(178deg, var(--navy-deep), #241f5e);
-  color: #fff;
-  padding: 3.25rem 0 3.5rem;
+/* ---------- the six pillars ----------
+   Six equal cards in a shared-hairline grid. They used to be one lead card
+   with a big picture and five under it, and the picture was an abstract webp
+   composited with `mix-blend-mode: screen`. The art is gone: every other image
+   on this site is a photograph of the running product, and a wordless render
+   beside a claim carried no part of the claim. The words and the number do. */
+.pillars-band { padding-block: var(--section-y); }
+.pillar { display: grid; align-content: start; }
+.pillar-n { display: block; font: 400 13px/1 var(--font-mono); letter-spacing: 0.01em; color: var(--text-3); margin-bottom: var(--s-3); }
+.pillar h3 { font-size: 18px; }
+/* The number, sized like the claim it is. `baseline` so a two-character value
+   and a three-word unit sit on one line without the unit floating. */
+.pillar-stat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 0;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-soft);
 }
-.pagehead .eyebrow { color: #a5b4fc; }
-.pagehead h1 { color: #fff; font-size: clamp(1.9rem, 4.4vw, 3rem); max-width: 20ch; margin-bottom: 1rem; }
-.pagehead .lede { color: var(--on-dark); font-size: clamp(1.02rem, 2vw, 1.2rem); max-width: 60ch; margin: 0; }
-.pagehead .actions { display: flex; flex-wrap: wrap; gap: .9rem; margin-top: 1.75rem; }
-
-/* ---------- cards ----------
-   The workhorse grid: integrations, security, pricing, "where they win". One
-   pattern rather than four means a new page cannot quietly invent a fifth
-   card, which is how a site starts looking assembled rather than designed. */
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr)); gap: 1rem; }
-.cards.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem 1.4rem;
-}
-.card h3 { font-size: 1.1rem; margin-bottom: .5rem; }
-.card p { color: var(--muted); font-size: .95rem; margin-bottom: 0; }
-.card p + p { margin-top: .7rem; }
-.card .key {
-  display: inline-block;
-  font: 500 .75rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--indigo-dark);
-  background: var(--indigo-soft);
-  border-radius: 5px;
-  padding: .15rem .45rem;
-  margin-bottom: .6rem;
-}
-.band .card { border-color: #d7dcff; }
-.band-dark .card {
-  background: rgb(255 255 255 / 5%);
-  border-color: rgb(199 210 254 / 20%);
-}
-.band-dark .card p { color: var(--on-dark-dim); }
-.band-dark .card .key { background: rgb(199 210 254 / 14%); color: #c7d2fe; }
-
-/* A capability and the contract behind it: heading, one line of what the core
-   asks for, then the adapters that satisfy it. */
-.capability { border-top: 1px solid var(--line); padding: 2.25rem 0; }
-.capability:first-of-type { border-top: 0; padding-top: .5rem; }
-.capability > h3 { font-size: 1.45rem; }
-.capability > .contract { color: var(--muted); max-width: 62ch; font-size: 1rem; }
+.pillar-stat b { font: 400 20px/1 var(--font-mono); letter-spacing: -0.01em; color: var(--text-1); }
+.pillar-stat span { color: var(--text-3); font-size: 13px; }
+.pillar .jump { margin: var(--s-3) 0 0; font-size: 14px; font-weight: 600; }
 
 /* ---------- tables ----------
+   Mono uppercase headers, hairline rows, no zebra. The column that matters
+   carries a 2px violet left rule and an accent header, which is a mark rather
+   than a fill: the tinted `.mine` cell it replaced turned a third of every
+   comparison table into a coloured block.
+
    Wide content scrolls inside its own box; the page body never does. */
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); }
-table.matrix { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: .95rem; }
-table.matrix th, table.matrix td { text-align: left; padding: .85rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-table.matrix thead th { font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: #fbfbfe; }
-table.matrix tbody th { font-weight: 600; color: var(--navy); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-surface); background: var(--surface); }
+table.matrix { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: 15px; }
+table.matrix th, table.matrix td { text-align: left; padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line-soft); vertical-align: top; color: var(--text-2); }
+table.matrix thead th {
+  font: 500 12px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  border-bottom-color: var(--line);
+}
+table.matrix tbody th { font-weight: 600; color: var(--text-1); }
 table.matrix tr:last-child th, table.matrix tr:last-child td { border-bottom: 0; }
-table.matrix .mine { background: var(--indigo-soft); color: var(--navy); font-weight: 600; }
-table.matrix thead .mine { color: var(--indigo-dark); }
+table.matrix .mine { box-shadow: inset 2px 0 0 var(--violet-fill); color: var(--text-1); }
+table.matrix thead .mine { color: var(--violet-text); }
 /* The demo's sign-ins. Two columns that must not wrap (see `.cred`) will take
    every pixel they can and leave the sentence beside them one word wide, so
    that column gets a floor and the table scrolls a little further instead. */
@@ -551,212 +810,65 @@ table.matrix.creds td:last-child { min-width: 15rem; }
   table.matrix.stack { min-width: 0; display: block; }
   table.matrix.stack thead { display: none; }
   table.matrix.stack tbody, table.matrix.stack tr, table.matrix.stack th, table.matrix.stack td { display: block; width: auto; }
-  table.matrix.stack tr { padding: 1rem 0; border-bottom: 1px solid var(--line); }
+  table.matrix.stack tr { padding: var(--s-4) 0; border-bottom: 1px solid var(--line); }
   table.matrix.stack tr:last-child { border-bottom: 0; }
-  table.matrix.stack th, table.matrix.stack td { border-bottom: 0; padding: .15rem 1rem; }
-  table.matrix.stack tbody th { font-size: 1.02rem; }
+  table.matrix.stack th, table.matrix.stack td { border-bottom: 0; padding: 2px var(--s-4); }
+  table.matrix.stack tbody th { font-size: 17px; }
   table.matrix.stack td[data-label]::before {
     content: attr(data-label);
     display: block;
-    font-size: .7rem;
-    letter-spacing: .07em;
+    font: 500 11px/1.6 var(--font-mono);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--muted);
-    margin-top: .5rem;
+    color: var(--text-3);
+    margin-top: var(--s-2);
   }
-  table.matrix.stack .mine { background: none; color: var(--indigo-dark); }
+  table.matrix.stack .mine { box-shadow: none; color: var(--text-1); }
 }
 
 /* ---------- lists that argue ----------
    `.ticks` for what is true, `.crosses` for what is not. The mark is
    decorative — the sentence has to stand up read aloud with the mark ignored,
    because that is how a screen reader will get it. */
-.ticks, .crosses { list-style: none; padding: 0; margin: 0; display: grid; gap: .7rem; }
-.ticks li, .crosses li { position: relative; padding-left: 1.9rem; color: var(--muted); }
-.ticks li::before, .crosses li::before {
-  position: absolute;
-  left: 0;
-  top: -.05rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-.ticks li::before { content: "✓"; color: #0f9d58; }
-.crosses li::before { content: "✕"; color: #c0392b; }
-.band-dark .ticks li, .band-dark .crosses li { color: var(--on-dark-dim); }
-.band-dark .ticks li::before { color: #6ee7b7; }
-.band-dark .crosses li::before { color: #fca5a5; }
+.ticks, .crosses { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-3); }
+.ticks li, .crosses li { position: relative; padding-left: var(--s-6); color: var(--text-2); }
+.ticks li::before, .crosses li::before { position: absolute; left: 0; top: 0; font-size: 15px; }
+.ticks li::before { content: "✓"; color: var(--success); }
+.crosses li::before { content: "✕"; color: var(--danger); }
 
-/* ---------- numbered steps ---------- */
-.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 1.25rem; }
-.steps li { counter-increment: step; position: relative; padding-left: 3rem; }
-.steps li::before {
-  content: counter(step);
-  position: absolute;
-  left: 0;
-  top: -.15rem;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--indigo-soft);
-  color: var(--indigo-dark);
-  font-weight: 700;
-  font-size: .9rem;
-}
-.steps h3 { font-size: 1.05rem; margin-bottom: .35rem; }
-.steps p { color: var(--muted); margin-bottom: 0; font-size: .97rem; }
+/* ---------- capability rows ---------- */
+.capability { border-top: 1px solid var(--line); padding: var(--s-7) 0; }
+.capability:first-of-type { border-top: 0; padding-top: var(--s-2); }
+.capability > h3 { font-family: var(--font-display); font-size: 26px; font-weight: 400; letter-spacing: -0.015em; }
+.capability > .contract { color: var(--text-2); max-width: 68ch; }
 
-/* ---------- callout ---------- */
-.notice {
-  border: 1px solid #d7dcff;
-  border-left: 4px solid var(--indigo);
-  background: var(--indigo-soft);
-  border-radius: var(--radius);
-  padding: 1.1rem 1.25rem;
-  color: var(--navy);
-  font-size: .97rem;
-}
-.notice :last-child { margin-bottom: 0; }
-.band-dark .notice { background: rgb(255 255 255 / 6%); border-color: rgb(199 210 254 / 22%); border-left-color: #a5b4fc; color: var(--on-dark); }
-
-/* ---------- the numbers ---------- */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 1rem; }
-/* Three of them, which `auto-fit` widows: a phone gets two on the first row and
-   the third beside a hole. Stated columns instead — three across where they
-   fit, one each below. Same defect and same fix as `.pillar-grid`. */
-.kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 40rem) {
-  .kpis.three { grid-template-columns: minmax(0, 1fr); }
-}
-.kpi { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.1rem 1.2rem; background: var(--card); }
-.kpi b { display: block; font-size: 1.9rem; line-height: 1.1; color: var(--navy); letter-spacing: -.03em; }
-.kpi span { color: var(--muted); font-size: .88rem; }
-.band-dark .kpi { background: rgb(255 255 255 / 5%); border-color: rgb(199 210 254 / 20%); }
-.band-dark .kpi b { color: #fff; }
-.band-dark .kpi span { color: var(--on-dark-dim); }
-
-/* ---------- the six pillars ----------
-   The claims the whole site rests on, at the size they are worth. The first one
-   takes a full row and the biggest picture and the other five share a grid
-   under it, because a reader who takes one thing from the section should take
-   the first one — six equal cards give them no way to know which that is.
-
-   All of it sits on `.band-dark`, so the card surface, the muted paragraph
-   colour and the link colour are already correct and nothing here restates
-   them. What is new is the picture, the number and the ranking. */
-.pillars-band { padding-block: 5rem; }
-.pillar {
-  background: rgb(255 255 255 / 5%);
-  border: 1px solid rgb(199 210 254 / 20%);
-  border-radius: var(--radius-lg);
-  padding: 1.75rem 1.6rem;
-  display: grid;
-  gap: 1.5rem;
-}
-.pillar.lead {
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  align-items: center;
-  gap: 2.5rem;
-  padding: 2.25rem 2rem;
-  margin-bottom: 1rem;
-  /* The lead pillar is the one thing here that should look promoted, so it gets
-     a tint the other four do not have. One step, not a second style. */
-  background: linear-gradient(135deg, rgb(124 108 245 / 14%), rgb(255 255 255 / 4%) 60%);
-  border-color: rgb(199 210 254 / 30%);
-}
-/* Five cards under the lead, and five is the count that orphans one. `auto-fit`
-   put three on a row and left the fourth alone; two columns leaves the fifth
-   alone; three columns leaves a hole beside the last two. So the track count is
-   six and the cards claim spans out of it, which makes every row full at every
-   width:
-
-     ≥ 64rem   two cards of three tracks, then three cards of two — 2 + 3
-     52–64rem  two cards a row, and the fifth takes the whole row
-     < 52rem   one card a row
-
-   The wide pair is the top of the grid rather than the bottom, so the widths
-   descend in the same order the claims are ranked. */
-.pillar-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 1rem;
-}
-.pillar-grid .pillar { grid-column: span 2; }
-.pillar-grid .pillar:nth-child(-n + 2) { grid-column: span 3; }
-@media (max-width: 64rem) {
-  .pillar-grid .pillar,
-  .pillar-grid .pillar:nth-child(-n + 2) { grid-column: span 3; }
-  .pillar-grid .pillar:last-child { grid-column: 1 / -1; }
-}
-@media (max-width: 52rem) {
-  .pillar-grid .pillar,
-  .pillar-grid .pillar:nth-child(-n + 2) { grid-column: 1 / -1; }
-}
-/* The five in the grid put the picture above the copy; the lead puts it beside.
-   `align-content: start` so a short card does not stretch its picture. */
-.pillar-grid .pillar { align-content: start; }
-
-/* The abstract art. Every other image on this site is a photograph of the
-   running product and these are the only ones that are not, so they are shaped
-   like nothing the product contains: square, wordless, and without the frame
-   that marks a screenshot.
-
-   Two properties together are what stop it reading as a pasted-on tile.
-   `mix-blend-mode: screen` drops the render's near-black ground into the band
-   behind it, and the radial mask fades the four corners to nothing. Screen
-   alone was not enough: over the card's translucent white surface it lifted the
-   square just enough to draw a visible lighter box, which is the one thing an
-   image with no edges is supposed to avoid. */
-.pillar-art {
-  display: block;
-  width: 100%;
-  height: auto;
-  mix-blend-mode: screen;
-  -webkit-mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
-  mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
-}
-.pillar-grid .pillar-art { max-width: 13rem; margin-inline: auto; }
-
-.pillar-n {
-  display: block;
-  font: 700 .78rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: .12em;
-  color: #a5b4fc;
-  margin-bottom: .6rem;
-}
-.pillar h3 { font-size: 1.25rem; margin-bottom: .6rem; }
-.pillar.lead h3 { font-size: clamp(1.35rem, 2.8vw, 1.85rem); }
-.band-dark .pillar p { color: var(--on-dark-dim); font-size: .97rem; }
-.pillar.lead p { font-size: 1.02rem; }
-
-/* The number, sized like the claim it is. `baseline` so a two-character value
-   ("22") and a three-word unit sit on one line without the unit floating. */
-.pillar-stat {
+/* ---------- questions ----------
+   Native disclosure, so it opens with scripts blocked and announces its own
+   state without any of it being reimplemented. The `+` is the marker, and the
+   default triangle goes with it. */
+.faq { display: grid; border-block: 1px solid var(--line); }
+.faq details { border-bottom: 1px solid var(--line-soft); }
+.faq details:last-child { border-bottom: 0; }
+.faq summary {
+  cursor: pointer;
+  list-style: none;
+  padding: var(--s-4) 0;
+  padding-right: var(--s-6);
+  font-weight: 600;
+  color: var(--text-1);
+  min-height: 44px;
   display: flex;
-  align-items: baseline;
-  gap: .6rem;
-  margin: 1.1rem 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid rgb(199 210 254 / 18%);
+  align-items: center;
+  position: relative;
 }
-.pillar-stat b { font-size: 1.75rem; line-height: 1; letter-spacing: -.03em; color: #fff; }
-.band-dark .pillar-stat span { color: var(--on-dark-dim); font-size: .85rem; }
-.pillar .jump { margin: .9rem 0 0; font-weight: 600; font-size: .95rem; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; position: absolute; right: 0; font: 400 20px/1 var(--font-mono); color: var(--text-3); }
+.faq details[open] summary::after { content: "–"; }
+.faq .body { padding: 0 0 var(--s-4); color: var(--text-2); font-size: 15px; max-width: 68ch; }
+.faq .body :last-child { margin-bottom: 0; }
 
-@media (max-width: 60rem) {
-  /* The lead loses its second column before the copy gets too narrow to read,
-     and its picture goes under the copy rather than beside it. */
-  .pillar.lead { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding: 1.75rem 1.6rem; }
-  .pillar.lead .pillar-art { max-width: 20rem; margin-inline: auto; }
-  .pillars-band { padding-block: 3.5rem; }
-}
-
-/* The pillar rail — five short labels as chips under the hero — was removed
-   with its markup. It read as five noun phrases ("complete control", "the whole
-   program"), every one of which would have sat unchanged on a competitor's
-   page. If something ever needs that slot again, it should be the thing the
-   reader came for: the deploy command, or the bill. */
+/* ---------- callouts ---------- */
+.aside { font-size: 14px; color: var(--text-3); border-left: 2px solid var(--line); padding-left: var(--s-4); margin-top: var(--s-7); max-width: 68ch; }
 
 /* ---------- logo strips ----------
    A row of brand marks under a sentence saying what the row is claiming.
@@ -767,174 +879,134 @@ table.matrix.creds td:last-child { min-width: 15rem; }
    `flex` and not a grid: the entries are different widths because the names
    are, and a grid would either clip "Cloudflare Workers" or leave a hole after
    "Slack". */
-.logos { margin: 2rem 0 0; }
+.logos { margin: var(--s-6) 0 0; }
 .logos-claim {
-  font-size: .82rem;
-  font-weight: 700;
-  letter-spacing: .06em;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: .9rem;
+  color: var(--text-3);
+  margin-bottom: var(--s-4);
 }
-.logos-row {
+.logos-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); list-style: none; margin: 0; padding: 0; }
+.logos-row li {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: .75rem 1.75rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  gap: var(--s-2);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: var(--s-2) var(--s-4);
 }
-.logos-row li { display: flex; align-items: center; gap: .5rem; font-size: .95rem; font-weight: 600; color: var(--navy); }
-.logos-row svg { flex: none; }
-/* On a dark ground the marks go to the dim tint and the names to the bright
-   one, which keeps the glyphs from out-shouting the words they label. */
-.logos.on-dark .logos-claim { color: #a5b4fc; }
-.logos.on-dark .logos-row li { color: #e0e7ff; }
-.logos.on-dark .logos-row svg { color: var(--on-dark-dim); }
-.hero .logos { margin-top: 2.25rem; }
+.logos-row svg { flex: none; color: var(--text-3); }
 
 /* ---------- credentials ----------
    `word-break: break-all` fitted these into the column and broke them
    mid-address — "sbek-organ / izer@examp / le.com" — which is unreadable and
    worse than unreadable to copy by hand. They stay whole and the table scrolls
    inside its own box instead, which it already does for the same reason. */
-.cred { font: 500 .9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+.cred { font: 400 14px/1.6 var(--font-mono); letter-spacing: 0.01em; white-space: nowrap; color: var(--text-1); }
 
-/* ---------- questions ----------
-   Native disclosure, so it opens with scripts blocked and announces its own
-   state without any of it being reimplemented. */
-.faq { display: grid; gap: .6rem; }
-.faq details { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
-.faq summary {
-  cursor: pointer;
-  padding: 1rem 1.15rem;
-  font-weight: 600;
-  color: var(--navy);
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-.faq details[open] summary { border-bottom: 1px solid var(--line); }
-.faq .body { padding: 1rem 1.15rem; color: var(--muted); font-size: .97rem; }
-.faq .body :last-child { margin-bottom: 0; }
+/* ---------- closing call to action ---------- */
+.cta { text-align: center; }
+.cta > .wrap h2 { margin-inline: auto; max-width: 20ch; }
+.cta .sub { margin-inline: auto; text-align: center; }
+.cta .actions { display: flex; flex-wrap: wrap; gap: var(--s-3); justify-content: center; }
+.cta pre { margin: var(--s-6) auto 0; max-width: 26rem; text-align: left; }
 
-/* ---------- code ---------- */
-pre.term {
-  background: var(--navy-deep);
-  color: #e0e7ff;
-  border-radius: var(--radius);
-  padding: 1.1rem 1.25rem;
-  font-size: .88rem;
-  line-height: 1.65;
-  overflow-x: auto;
-}
-.band-dark pre.term { background: rgb(0 0 0 / 28%); border: 1px solid rgb(255 255 255 / 10%); }
-/* On a phone the clone line is wider than the screen, and `overflow-x: auto`
-   hides the half of the URL that matters behind a scroll nobody discovers.
-   Soft-wrap it instead: the break is visual, so what a reader copies is still
-   one line. Only below 40rem — on a laptop the block fits and a wrapped
-   command reads like two. */
-@media (max-width: 40rem) {
-  pre.term { white-space: pre-wrap; overflow-wrap: break-word; font-size: .8rem; }
-}
+/* ---------- interior page header ----------
+   The same ground as everything else now that the page is dark, so what marks
+   it is the hairline under it and the space, not a second colour. */
+.pagehead { padding: var(--s-8) 0 var(--s-7); border-bottom: 1px solid var(--line); }
+.pagehead h1 { font-size: var(--heading-1); max-width: 18ch; margin-bottom: var(--s-4); }
+.pagehead .lede { margin: 0; }
+.pagehead .actions { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-6); }
 
 /* ---------- the next question ----------
    This is navigation dressed as a sentence, so it is sized like navigation: the
    inline-flex and the vertical padding are what get it to a 44px target without
-   putting a visible box around it. */
-.nextstep { margin: 2.5rem 0 0; font-size: 1.05rem; font-weight: 600; }
-/* A paragraph whose entire content is one link is navigation wearing a
-   sentence, not prose — the "→" ones that close a section or a card. Sized as
-   navigation, so a thumb can hit it.
+   putting a visible box around it.
+
    `.jump` is declared rather than detected. The selector here used to be
    `main p > a:only-child`, which reads as "the link is the paragraph" but is
    not: `:only-child` counts elements, so it also matched every paragraph with
    one link in the middle of a sentence, and gave that line a 44px line box —
    visibly loosening the leading of one line in a block of prose. Links inside a
    sentence are left alone; the ones that are navigation say so. */
+.nextstep { margin: var(--s-7) 0 0; font-size: 16px; font-weight: 600; }
+.nextstep a, .jump a { text-decoration: none; }
+.nextstep a:hover, .jump a:hover { text-decoration: underline; }
 main p.nextstep > a, main p.jump > a { display: inline-flex; align-items: center; min-height: 44px; }
 
-/* ---------- screenshot captions and phone frames ---------- */
-.shot-fig { margin: 0; }
-.shot-fig figcaption { margin-top: .75rem; color: var(--muted); font-size: .88rem; }
-.band-dark .shot-fig figcaption { color: var(--on-dark-dim); }
-/* A phone capture has no browser chrome to sit in — the frame is the device. */
-.shot.phone { max-width: 19.5rem; margin-inline: auto; border-radius: 26px; padding: .5rem; background: #12102e; }
-.shot.phone img { border-radius: 18px; }
-
-/* A frame holding both a desktop and a phone capture of the same screen
-   (`Shot`'s `phoneName`). Below 40rem the `<picture>` serves the phone file, so
-   the desktop title bar has to go with it — a browser chrome bar drawn around a
-   phone layout is a frame lying about what it is holding. The image keeps the
-   frame's own rounded corners once the bar above it is gone. Above 40rem
-   nothing here applies and the frame is the ordinary one. */
-@media (max-width: 40rem) {
-  .shot.has-phone .shot-bar { display: none; }
-  .shot.has-phone { max-width: 19.5rem; margin-inline: auto; }
+/* ---------- footer ----------
+   Also the site map. Every page in the nav is here, plus the ones that are not
+   in the nav because they answer a question only some readers have. A page in
+   neither is a page nobody arrives at. */
+footer { border-top: 1px solid var(--line); padding: var(--s-8) 0 var(--s-7); font-size: 14px; color: var(--text-3); }
+footer a { color: var(--text-2); text-decoration: none; }
+footer a:hover { color: var(--text-1); }
+footer .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--s-6) var(--s-5); }
+footer .cols h2 {
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: var(--s-3);
+  max-width: none;
 }
+footer .cols div { display: flex; flex-direction: column; align-items: flex-start; }
+footer .cols a { padding: var(--s-1) 0; min-height: 44px; display: flex; align-items: center; }
+/* `align-self` on the picture, not the image: `footer .cols div` is a column
+   flex container, so a `width: auto` logo left to the default `stretch` gets
+   pulled to the full column width and the lockup distorts. */
+footer .brand-col picture { align-self: flex-start; margin-bottom: var(--s-3); }
+footer .brand-col img { height: 24px; width: auto; display: block; }
+footer .brand-col p { color: var(--text-3); margin: 0; max-width: 28ch; }
+footer .legal { margin: var(--s-7) 0 0; padding-top: var(--s-5); border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; max-width: 78ch; }
 
 /* ---------- 404 ---------- */
-.notfound { padding: 6rem 0; text-align: center; }
-.notfound h1 { font-size: 2.25rem; }
-.notfound p { color: var(--muted); }
+.notfound { padding: var(--s-9) 0; text-align: center; }
+.notfound h1 { margin-inline: auto; }
+.notfound p { color: var(--text-2); }
 
-/* ---------- scroll reveal ----------
-   Set by the inline script in Base.astro, and only there: an element is hidden
-   solely because JavaScript is present and has promised to reveal it. Without
-   the script the class is never added and everything renders normally, which is
-   the behaviour a crawler and a reader with JS off both get. */
-.js-reveal .reveal { opacity: 0; transform: translateY(18px); }
-.reveal { transition: opacity .55s ease, transform .55s ease; }
-.reveal.in { opacity: 1; transform: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  .js-reveal .reveal, .reveal { opacity: 1; transform: none; transition: none; }
-  .btn:hover, .pain:hover { transform: none; }
+/* ---------- responsive ----------
+   Three breakpoints: 640, 900, 1200. Everything above is written mobile-safe
+   and these three collapse the multi-track rows. */
+@media (max-width: 62rem) {
+  .split { grid-template-columns: minmax(0, 1fr); gap: var(--s-7); }
 }
 
 @media (max-width: 60rem) {
-  /* `minmax(0, 1fr)` and not `1fr`: the default `minmax(auto, 1fr)` lets the
-     widest unbreakable thing in the row — a screenshot frame's URL, the clone
-     command in a `<pre>` — set a floor the track cannot go under, and the row
-     then overflows the viewport. The desktop tracks above are already written
-     this way for the same reason. */
-  .feature { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; padding: 2.5rem 0; }
   /* `.feature.flip` and not `.feature`: two classes outrank one whatever the
      source order, so collapsing `.feature` alone left every flipped row still
      in two columns on a phone — the copy in a 55% track and the screenshot
      shrunk into the 45% beside it, at about a third of the width the rows above
      and below it use. The rule that collapses a row has to be as specific as
      the rule that widened it. */
-  .feature, .feature.flip { grid-template-columns: minmax(0, 1fr); }
+  .feature, .feature.flip { grid-template-columns: minmax(0, 1fr); gap: var(--s-6); padding: var(--s-7) 0; }
   /* `order` is what flips alternate rows on desktop; on one column it would put
      half the screenshots above their own heading. */
   .feature.flip .copy { order: 0; }
-  .hero .inset { display: none; }
-  /* The overhang and the spacer that reserves it are one number, and it has to
-     shrink in step. Only the spacer was being reduced here, so the image kept
-     hanging 8rem below the hero while the page put 4rem of blank back — the
-     other 4rem landed on top of the next section, and at 390px that put the
-     screenshot squarely over the first eyebrow (measured: 36px of overlap,
-     "The move" unreadable behind the agenda grid). Both move now. */
-  .hero .stage { margin-bottom: -5rem; }
-  .hero-spacer { height: 4rem; }
 }
 
 @media (max-width: 40rem) {
-  .pagehead { padding: 2.25rem 0 2.5rem; }
-  .pagehead h1 { max-width: none; }
-  .pagehead .actions .btn { flex: 1 1 auto; text-align: center; }
-  .capability { padding: 1.75rem 0; }
-  .cta .actions .btn { flex: 1 1 auto; text-align: center; }
-  .hero { padding-top: 2.75rem; }
+  :root { --section-y: var(--s-8); --gutter: var(--s-5); }
+  .hero { padding-top: var(--s-8); }
   .hero h1 { max-width: none; }
-  .hero .stage { margin-top: 2rem; margin-bottom: -3rem; }
-  .hero .actions { gap: .6rem; }
-  .hero .actions .btn { flex: 1 1 auto; text-align: center; }
-  .hero-spacer { height: 2.5rem; }
-  section { padding: 3rem 0; }
-  .shot { border-radius: 12px; }
-  .topbar .wrap { gap: .75rem; }
+  .hero .stage { margin-top: var(--s-6); }
+  .hero .actions .btn,
+  .cta .actions .btn,
+  .pagehead .actions .btn { flex: 1 1 auto; }
+  .card, .pain, .kpi, .pillar { padding: var(--s-5); }
+  .capability { padding: var(--s-6) 0; }
+  .notice { grid-template-columns: minmax(0, 1fr); gap: var(--s-2); }
   .topbar .brand img { height: 24px; }
+}
+
+/* Motion is two durations, one curve, and nothing that moves more than 8px.
+   Under `reduce` all of it stops; the hover colours stay, because a colour
+   change is not motion and losing it would cost the affordance. */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }

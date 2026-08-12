@@ -60,7 +60,19 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="theme-color" content="#6366F1" />
+    {/* Two, because the site ships two surfaces. A browser that understands
+        neither `media` attribute takes the last one, which is the dark
+        canvas — the default. */}
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF9F6" />
+    <meta name="theme-color" content="#0B0C0F" />
+
+    {/* Self-hosted, subsetted and variable — the whole set is 116 KB and none
+        of it is a third-party request. Only the two faces above the fold are
+        preloaded: the display face sets the headline and the sans sets the
+        lede and the buttons under it. The mono and the two italics load in the
+        ordinary way, because nothing they set is on the first screen. */}
+    <link rel="preload" href="/fonts/newsreader.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/public-sans.woff2" as="font" type="font/woff2" crossorigin />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={SITE_TITLE} />
@@ -77,20 +89,11 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
     <meta name="twitter:site" content={SOCIAL_HANDLE} />
     <meta name="twitter:creator" content={SOCIAL_HANDLE} />
 
-    {/* Arms the scroll reveal. This has to run before first paint, or the
-        sections paint, then hide, then fade back in — a flicker worse than no
-        animation. It is deliberately the only thing here: the observer that
-        reveals them is at the end of <body>, and the two are a pair. A browser
-        without IntersectionObserver, or a reader who has asked for less motion,
-        never gets the class and so never gets the hidden state either. */}
-    <script is:inline>
-      if (
-        "IntersectionObserver" in window &&
-        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ) {
-        document.documentElement.classList.add("js-reveal");
-      }
-    </script>
+    {/* There is no script on this site, here or anywhere else, and the build
+        output is checked for it. The scroll reveal that used to live here hid
+        every section until an IntersectionObserver put it back — content that
+        needs JavaScript to become visible can fail to appear, and did, for
+        anyone who blocked it. */}
   </head>
 
   <body>
@@ -106,8 +109,15 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
             650×192 and 183 KB. This is the same artwork at the size the markup
             actually renders — every byte of the difference was being paid on
             every page load of every page. If the logo is redrawn, both move. */}
+        {/* Two wordmarks, one lockup. The gradient mark is unchanged and never
+            recoloured; what swaps is the "Podium" text beside it, which is
+            white on graphite and near-black on paper. `<picture>` does the
+            swap without a script and downloads one file, not two. */}
         <a class="brand" href="/">
-          <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" />
+          <picture>
+            <source srcset="/podium-logo-horizontal.png" media="(prefers-color-scheme: light)" />
+            <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" />
+          </picture>
         </a>
         <a class="btn secondary top-cta" href="/demo">Run the demo</a>
         <nav class="topnav" aria-label="Primary">
@@ -149,29 +159,19 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
       <slot />
     </main>
 
-    {/* The second half of the reveal: the observer that puts each section back.
-        The class that hides them was set in <head> (see the note there), so if
-        this ever failed to run the page would stay blank — hence no early return
-        on anything the head script did not already check. */}
-    <script is:inline>
-      (() => {
-        const io = new IntersectionObserver(
-          (entries) => {
-            for (const e of entries) {
-              if (!e.isIntersecting) continue;
-              e.target.classList.add("in");
-              io.unobserve(e.target);
-            }
-          },
-          { rootMargin: "0px 0px -12% 0px" },
-        );
-        for (const el of document.querySelectorAll(".reveal")) io.observe(el);
-      })();
-    </script>
-
     <footer>
       <div class="wrap">
         <div class="cols">
+          {/* The wordmark and one line saying what this is, for the reader who
+              landed on an interior page from a search result and scrolled to
+              the bottom before they scrolled up. */}
+          <div class="brand-col">
+            <picture>
+              <source srcset="/podium-logo-horizontal.png" media="(prefers-color-scheme: light)" />
+              <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" loading="lazy" />
+            </picture>
+            <p>Open-source conference program management. MIT.</p>
+          </div>
           <div>
             <h2>Product</h2>
             <a href="/features">Features</a>

@@ -4,24 +4,23 @@ import { PILLARS } from "../data/pillars";
 /**
  * The six pillars, at the size they are worth.
  *
- * The first one gets a full row and the largest picture; the other five share a
- * grid under it, two wide and three narrow. That is a deliberate ranking, not a
- * layout convenience — a reader who takes one thing from this section should
- * take the first one, and six equal cards give them no way to know which that
- * is. The span rules and the reason for six tracks are in `.pillar-grid`.
+ * Six equal cards in a shared-hairline grid. They used to be one lead card
+ * across the top and five under it, ranked by width, because a reader who takes
+ * one thing from the section should take the first one. The ranking is now the
+ * reading order and nothing else, which is what a numbered list already means.
  *
- * The art is abstract on purpose. Every other image on this site is a
- * photograph of the running product, and these are the only ones that are not,
- * so they must never be mistakable for one: no screens, no charts, no interface
- * and no text inside the frame. They carry no information, which is why every
- * fact in this section is in the words beside them and none of it is in the
- * picture.
+ * The abstract art is gone with the lead card. Every other image on this site
+ * is a photograph of the running product; those six were wordless renders that
+ * carried no part of the claim beside them, and they were composited with
+ * `mix-blend-mode: screen` against a band colour that no longer exists. The
+ * words and the number do the work now. The files are still in `public/art/`
+ * until the interior pages are rebuilt and can say whether they want them.
  */
 interface Props {
   eyebrow?: string;
   heading?: string;
   sub?: string;
-  /** Above the fold on the home page; the lead image must not be lazy. */
+  /** Kept for callers; nothing in this section is above the fold any more. */
   eager?: boolean;
 }
 
@@ -29,60 +28,22 @@ const {
   eyebrow = "Why this one",
   heading = "Six things that are true before you look at a single screen.",
   sub,
-  eager = false,
 } = Astro.props;
-
-const [lead, ...rest] = PILLARS;
 ---
 
-<section class="band-dark pillars-band">
+<section class="pillars-band">
   <div class="wrap">
     <span class="eyebrow">{eyebrow}</span>
     <h2>{heading}</h2>
     {sub && <p class="sub">{sub}</p>}
 
-    <div class="pillar lead reveal">
-      <div class="pillar-copy">
-        <span class="pillar-n" aria-hidden="true">01</span>
-        <h3>{lead.heading}</h3>
-        <p>{lead.body}</p>
-        {
-          lead.stat && (
-            <p class="pillar-stat">
-              <b>{lead.stat.value}</b>
-              <span>{lead.stat.unit}</span>
-            </p>
-          )
-        }
-        <p class="jump"><a href={lead.href}>{lead.hrefLabel} →</a></p>
-      </div>
-      <img
-        class="pillar-art"
-        src={`/art/${lead.art}.webp`}
-        width={720}
-        height={720}
-        alt={lead.alt}
-        loading={eager ? "eager" : "lazy"}
-        decoding="async"
-      />
-    </div>
-
-    <div class="pillar-grid">
+    <div class="grid-hair three">
       {
-        rest.map((p, i) => (
-          <div class="pillar reveal">
-            <img
-              class="pillar-art"
-              src={`/art/${p.art}.webp`}
-              width={420}
-              height={420}
-              alt={p.alt}
-              loading="lazy"
-              decoding="async"
-            />
+        PILLARS.map((p, i) => (
+          <div class="pillar">
             <div class="pillar-copy">
               <span class="pillar-n" aria-hidden="true">
-                0{i + 2}
+                0{i + 1}
               </span>
               <h3>{p.heading}</h3>
               <p>{p.body}</p>
