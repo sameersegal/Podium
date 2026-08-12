@@ -39,7 +39,7 @@ looked at that thing during this task — not remembered it:
 
 1. **The screenshot next to it**, taken from the running product against the shipped seed.
 2. **An invariant or entity in `docs/domain/`**, cited in your report (never on the page — see
-   D, the model's vocabulary does not leak into the reader's).
+   E, the model's vocabulary does not leak into the reader's).
 3. **Code or configuration in the repository**, at a path you can quote.
 4. **A dated, linked third-party source**, for anything about someone else's product.
 
@@ -72,8 +72,9 @@ that answers only the first loses the deal in the second meeting:
 | Engineer or platform owner | "What am I signing up to run, and can I read it?" | The source, the deploy path, the domain model, the tests |
 | Sponsorship / commercial lead | "Do sponsor sessions work, or is that email again?" | Countable entitlements on the same screen as the deal |
 | Whoever holds the budget | "What does this cost, in money and in people?" | A straight answer including the parts that are not free |
+| The agent one of them is working through | "Can I operate this without breaking it?" | A written spec, typed refusals, and writes that are safe to retry |
 
-Write for the chair, but make sure each of the other three can find their page in one click.
+Write for the chair, but make sure each of the others can find their page in one click.
 
 **Lead with the pain in their words, not the capability in ours.** Nobody wakes up needing
 "proposal evaluation"; they wake up to a reviewer who works with a submitter, a sponsor asking
@@ -84,13 +85,61 @@ the site, one layer down, because that is the vocabulary of the docs they will r
 the contract, on the same screen as the deal" outsells "powerful sponsor management" because
 only one of them proves somebody has run a conference.
 
-## C) Positioning and comparison — win on the real difference, never on a straw man
+## C) Agents built it, and agents have to be able to run it
+
+Podium is **agents-first**: written by agents, for agents and humans. That is a real property of
+this repository, and it is the newest reason a buyer picks it over a hosted incumbent — the
+conference team increasingly *is* a person plus the agent they work through, and most tools in
+this category assume a browser and a human hand.
+
+It is also the easiest claim on the site to inflate into nothing. "AI-powered" is a phrase, not
+a property. So split it in two and back each half separately.
+
+**Claim 1 — it was built by agents.** Provenance. What backs it, all checkable in the repo:
+`docs/domain/` is a normative specification written before the code; `CLAUDE.md` states the
+working rules; `.claude/agents/` and `.claude/skills/` ship the agents and skills that do the
+work — `implementer` validates a request against the model and stops when the model does not
+cover it, `domain-drift` checks the model against the code afterwards and exits non-zero in CI,
+`domain-expert` answers questions from the model rather than from a grep. The loop is the point:
+an agent cannot quietly invent behaviour here, because a machine checks it against the written
+spec on every commit.
+
+**Claim 2 — an agent can operate it.** Capability, and the one a buyer actually pays for. Do
+not assert it in the abstract; name the property that makes it true. Each of these is in
+[`09`](../../docs/domain/09-api-and-integrations.md) or
+[`11`](../../docs/domain/11-cross-cutting.md), and each maps to a way autonomous callers
+normally break things:
+
+| Property | The failure it prevents |
+|---|---|
+| Every write takes an idempotency key, stored and replayed for 24h | A retried call that books the room twice |
+| Errors are typed and name the rule they broke | An agent that reads `400 Bad Request` and guesses |
+| A write may carry the row version; a stale one is refused with the current state | An agent overwriting the edit a human made while it was thinking |
+| Read and write are separate scopes, and personal data is its own scope on top | An agent with schedule access reading a speaker's phone number |
+| Keys are scoped to named events and expire | Blast radius |
+| Named domain events with signed webhooks | Polling, and the staleness that comes with it |
+| The whole management surface is on `/v1`, scheduling included | A capability that only exists as a form |
+| The specification is a document a model can read | Guessing what "entitlement" means |
+
+**The boundary, and you state it rather than letting them find it.** The skills and agents that
+ship today work *on* Podium — they build and check the product. They do not run a conference
+from a chat window. There is no MCP server, no OpenAPI document and no organizer-facing skill,
+and none of those may be implied. The honest sentence is that an agent can drive Podium through
+an API designed for one, and that the tooling in the box is how the product is built rather than
+how your CFP is run.
+
+The AI first-pass review is a separate thing again, and its own honest sentence: it exists, it
+is off unless switched on, its opinions are counted beside your reviewers' rather than inside
+them, and the evaluator that ships calls no external model.
+
+## D) Positioning and comparison — win on the real difference, never on a straw man
 
 Podium's actual differences, in the order they matter to a buyer, are: it is **free and
 Apache-2.0**; it runs on **infrastructure the organizer owns**, with no per-speaker pricing and
-no data they cannot export; **sponsor sessions are first-class**, not a bolt-on; and the
-**rules are written down before the code**, with a check in CI that fails when the two
-disagree. Everything else is table stakes and should be presented as such.
+no data they cannot export; **sponsor sessions are first-class**, not a bolt-on; the **rules are
+written down before the code**, with a check in CI that fails when the two disagree; and it is
+**built for agents to operate** (C), which none of the incumbents was. Everything else is table
+stakes and should be presented as such.
 
 Podium's actual weaknesses are equally real and belong on the site: **no attendee registration
 or ticketing** (deliberately — see the ticketing decision in
@@ -114,7 +163,7 @@ When you write a comparison page:
 - Verify competitor facts against a live source with `WebFetch`/`WebSearch` in the same task.
   If the source is unreachable, weaken the claim to what you can support, or drop the row.
 
-## D) The page speaks the buyer's language, not the repository's
+## E) The page speaks the buyer's language, not the repository's
 
 **No identifier from the domain model appears in anything a reader sees.** Not `INV-05-9`, not
 a decision record (`R23`), not a context number, not a capability key, not a raw entity or
@@ -130,21 +179,53 @@ rule, in the reader's terms, and cites nothing.
 The one narrow exception already on the site: naming that the rules are enforced and checked in
 CI is a *feature*, and may be described — as a property, not as an identifier.
 
-Copy rules, in descending order of how often they are broken:
+### Sharp copy — the standard, and the tic to hunt
 
+Copy on this site is **short, concrete and load-bearing**. Every sentence either makes a claim
+or dies. A paragraph is three sentences; four needs a reason.
+
+**The tic this site actually has, and the one you will reproduce if nobody names it:** a long
+sentence carrying a claim, then a dash, then a clause justifying the claim.
+
+> Publish a snapshot your marketing site embeds and a CDN can cache — which is what makes
+> publishing an hour before doors open survivable, because rolling back is just pointing at the
+> previous version.
+
+The clause after the dash is usually the better sentence. Promote it, cut the setup, and you
+have two short sentences that both land:
+
+> Publish a snapshot. Your site embeds it, a CDN caches it, and rolling back is pointing at the
+> previous version.
+
+Twenty-eight words to twenty-two, and the second one can be read aloud in one breath.
+
+Rules, in descending order of how often they are broken:
+
+- **One em-dash per paragraph. Never two in a sentence.** A dash is a promotion, not a hinge.
+- **The sentence carrying the claim is under 25 words.** Count it. Longer means you joined two
+  claims and should use a full stop.
 - **Cut every word that survives its own deletion.** Read each sentence back without its
   adjectives; if nothing is lost, they were not doing anything.
+- **Delete the second example.** One specific beats two general, always.
+- **Kill the connective tissue**: "which is what makes", "that is why", "rather than", "not
+  only … but". They almost always join a strong clause to a weak one; keep the strong one.
 - **Ban the filler set**: seamless, robust, powerful, leverage, unlock, empower, revolutionise,
   cutting-edge, best-in-class, "we're excited to". Also "simply" and "just", which relocate the
   difficulty onto the reader.
 - **Verbs over nouns.** "Publish a snapshot your site embeds" beats "snapshot publication
   functionality".
+- **Headings are under nine words and contain a verb.** No colons. A heading that needs a colon
+  is two headings, and the second one is better.
 - **One idea per paragraph, one job per section, one primary action per page.**
 - **Numbers where you have them**, and only where you have them.
 - **British or American spelling: match the file you are editing.** The repository is
   inconsistent by history; a page is not.
 
-## E) Information architecture — one job per page, and a route to the next question
+**The pass that does the work is the second one.** Draft, then go back through and cut a third
+of the words. If the page did not get shorter, you did not do it. Read the result aloud; where
+you run out of breath, there is a full stop missing.
+
+## F) Information architecture — one job per page, and a route to the next question
 
 The site is multi-page. Each page exists because a specific reader has a specific question, and
 a page that cannot be described in one sentence should be split or deleted.
@@ -164,7 +245,7 @@ a page that cannot be described in one sentence should be split or deleted.
 - **URLs are permanent.** Renaming one means a redirect in `www/public/_redirects`, never a
   silent 404. Read the comments in that file before touching it; its rule ordering is load-bearing.
 
-## F) Taste — the site is the first evidence that the product is well made
+## G) Taste — the site is the first evidence that the product is well made
 
 The design system already exists in [`www/src/styles/global.css`](../../www/src/styles/global.css),
 and its tokens are copied by value from the app's stylesheet so that the site and the product
@@ -191,7 +272,7 @@ next to every other page within one change.
   `width`/`height` so nothing reflows as they arrive; no web font unless it earns its bytes; no
   client JavaScript for anything a reader needs in order to understand the page.
 
-## G) Verify in a real browser, at both widths, before you report
+## H) Verify in a real browser, at both widths, before you report
 
 **A page you have not looked at is a page you have not finished.** Playwright is already a
 dev dependency of `www/`, and Chromium is installed — drive it. Reasoning about CSS is not
@@ -230,7 +311,7 @@ may break at:
 Report what you measured. "Checked at both viewports" without numbers or screenshots is not a
 check, and you must not write it.
 
-## H) Product screenshots are photographs, never mockups
+## I) Product screenshots are photographs, never mockups
 
 Every image of the product on this site comes from
 [`www/scripts/screenshots.mjs`](../../www/scripts/screenshots.mjs), which signs into the running
@@ -264,9 +345,10 @@ npm --prefix www run screenshots
    are about to change.
 2. **Say who the page is for and what it must make them do**, in one sentence, before drafting.
    Track anything beyond a couple of pages with the task tools.
-3. **Draft, then cut.** The second pass removes a third of the words and loses nothing.
+3. **Draft, then cut a third.** The second pass is where sharp copy comes from (E). Read it
+   aloud before you call it done.
 4. **Check every claim** against A. List the ones you weakened or dropped.
-5. **Build, then drive the browser** through F at both widths.
+5. **Build, then drive the browser** through H at both widths.
 6. **Fix what you found, then look again** — a fix you have not re-verified is a claim, not a fix.
 7. **Refresh the screenshots** if any screen you show has changed.
 8. **Commit** on the branch you were told to use, describing the argument the page makes rather
@@ -280,7 +362,11 @@ Short, factual, and about the reader rather than the markup:
 - The claims you checked, and **what backed each** (screenshot / model / code path / dated
   source). Anything you weakened or dropped for lack of evidence, and what it said before.
 - Competitor facts used, with source and date.
-- What you verified in the browser: viewports, the measured numbers from F, and where the
+- Every agents-first sentence you wrote (C), which of the two claims it makes, and the property
+  or repository path behind it. Anything you had to weaken because the tooling that would back
+  it does not exist yet.
+- Word count before and after your cutting pass, per page you rewrote.
+- What you verified in the browser: viewports, the measured numbers from H, and where the
   screenshots are. Name anything you could not check and why.
 - Screenshots regenerated, and any state you arranged in the app to take them.
 - Design system changes — new tokens, components or patterns, and why an existing one did not fit.
