@@ -2,37 +2,117 @@
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
-import Pillars from "../components/Pillars.astro";
 import {
   AUDIENCES,
   CHECKED,
+  MOVES,
   NOT_FOR_YOU,
   SESSIONBOARD_URL,
   SESSIONIZE_URL,
+  SPEAKER_CHANGES,
   STRUCTURAL,
   WHERE_THEY_WIN,
 } from "../data/comparison";
 
 /*
- * For the buyer with three tabs open, and for the colleague who will ask "why
- * not just use Sessionize?" in the next meeting.
+ * This page stopped being a comparison and became an estimate.
  *
- * The rule this page is written under: nothing here characterises a competitor's
- * product as bad, and every row they win is on the page. A comparison that a
+ * The reader is not deciding whether to leave. They are pricing the move, in
+ * the week the call opens, and the thing that stalls a switch is never the
+ * feature list — it is the four boxes nobody can tell them about: what comes
+ * out, what goes in, what has no equivalent, and what a speaker notices. So
+ * `MOVES` leads and the product-versus-product material sits under it, for the
+ * colleague who will ask "why not just use Sessionize?" in the next meeting.
+ *
+ * The rule this page is written under: nothing here characterises a
+ * competitor's product as bad, every row they win is on the page, and every
+ * claim about somebody else's product is dated and linked. A comparison a
  * reader can catch being unfair costs more than the deal it was written to win.
- * See `src/data/comparison.ts` for why there is no feature matrix.
+ *
+ * Sessionize's 499 USD is on the page because they publish it and we link to
+ * it. Sessionboard's monthly figure is not, and deliberately: their page states
+ * one, but it renders identically against all three plans when read back, so
+ * the number we would print is one we could not stand behind. The row says what
+ * is not in doubt — three plans, a published price, a sales conversation for
+ * the top one — and links out. Our own bill is on /pricing, itemised, and the
+ * subtraction is the reader's to do.
  */
 ---
 
 <Base
-  title="Compare"
-  description="Podium against Sessionize and Sessionboard: what each is built for, where the incumbents are stronger, and when you should not pick Podium at all."
+  title="Switching"
+  description="What it costs to move a conference programme onto Podium: what a CSV brings across, what has no equivalent here, what your speakers notice, and where Sessionize and Sessionboard are the better buy."
 >
   <PageHead
-    eyebrow="Compare"
-    title="Three good answers to different questions."
-    lede={`Sessionize and Sessionboard are both reasonable buys, and for some conferences they are the right one. Here is the shape of the choice, including where they win. Checked against their own pages in ${CHECKED}.`}
+    eyebrow="Switching"
+    title="What a switch actually costs you."
+    lede={`Four things decide whether this is survivable: what comes out of the tool you are leaving, what goes into this one, what has no equivalent here, and what your speakers notice. Claims about anyone else's product were checked against their own pages in ${CHECKED}.`}
   />
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">What moves</span>
+      <h2>Two things import cleanly. Four do not move at all.</h2>
+      <p class="sub">
+        A CSV creates people and the event roster. For the rest the honest answer is that last year
+        stays where it is.
+      </p>
+      {/* `.stack` turns this into a list of records below 40rem. The third
+          column is the whole point of the table and it is the one a phone
+          hides behind a sideways scroll. */}
+      <div class="table-wrap">
+        <table class="matrix stack">
+          <thead>
+            <tr>
+              <th scope="col">What you are moving</th>
+              <th scope="col">How</th>
+              <th scope="col">What that means in practice</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              MOVES.map((m) => (
+                <tr>
+                  <th scope="row">{m.item}</th>
+                  <td class="mine" data-label="How">{m.how}</td>
+                  <td data-label="What that means">{m.note}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="notice" style="margin-top: 1.75rem">
+        <p>
+          <strong>Nobody has publicly moved a live conference onto Podium yet.</strong> The import
+          runs against a real database on every commit, and it has never been pointed at an export
+          from a commercial tool in anger. Budget an afternoon for the file, not five minutes.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">What your speakers notice</span>
+      <h2>They did not choose any of this.</h2>
+      <p class="sub">
+        Four things change for the two hundred people who never see an admin screen. One of them is
+        a real loss.
+      </p>
+      <div class="cards two">
+        {
+          SPEAKER_CHANGES.map((s) => (
+            <div class="card reveal">
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+            </div>
+          ))
+        }
+      </div>
+      <p class="nextstep"><a href="/features">What a speaker sees once they are in →</a></p>
+    </div>
+  </section>
 
   <section>
     <div class="wrap">
@@ -60,11 +140,11 @@ import {
   <section class="band">
     <div class="wrap">
       <span class="eyebrow">The structural difference</span>
-      <h2>Everything below is true regardless of what ships next.</h2>
+      <h2>Everything below holds whatever ships next.</h2>
       <p class="sub">
         There is no feature matrix here. It would mean asserting from the outside what two
         proprietary products do, and it would be stale the day either ships a release. These rows
-        are licensing, hosting and packaging.
+        are licensing, hosting and published packaging.
       </p>
       <div class="table-wrap">
         <table class="matrix">
@@ -90,12 +170,16 @@ import {
           </tbody>
         </table>
       </div>
+      {/* The explicit {" "} are load-bearing. A newline before an element at the
+          start of a line is stripped in the build, which ran these three
+          together as "decide:Sessionize andSessionboard". */}
       <p class="aside">
-        Pricing and packaging change. Confirm both on their own pages before you decide:
-        <a href={SESSIONIZE_URL} rel="nofollow noopener">Sessionize</a> and
+        Pricing and packaging change. Confirm both on their own pages before you decide:{" "}
+        <a href={SESSIONIZE_URL} rel="nofollow noopener">Sessionize</a>{" "}and{" "}
         <a href={SESSIONBOARD_URL} rel="nofollow noopener">Sessionboard</a>. Do not take a
         competitor's word for it, ours included.
       </p>
+      <p class="nextstep"><a href="/pricing">Our side of that table, itemised →</a></p>
     </div>
   </section>
 
@@ -117,40 +201,7 @@ import {
     </div>
   </section>
 
-  {/* This band used to carry five hand-written differences that were the five
-      pillars in different words. Two wordings of one argument is how a reader
-      comes away unable to repeat either, so it is now the pillars themselves —
-      the same sentences the home page uses, on the page where the reader is
-      deciding between three products. The two claims that were only ever here,
-      because they are only interesting next to a competitor, are the cards
-      below it. */}
-  <Pillars
-    eyebrow="Where Podium wins"
-    heading="Five differences worth switching for."
-    sub="Not a feature list. These are the ones that hold whatever either product ships next."
-  >
-    <div class="cards two" style="margin-top: 2.5rem">
-      <div class="card reveal">
-        <h3>Sponsor sessions are modelled, not bolted on</h3>
-        <p>
-          A package is a countable set of entitlements — two session slots, a logo placement — and
-          a sponsor session consumes one. Used against bought, on the same screen as the deal. Most
-          tools in this category leave the paid half in email.
-        </p>
-      </div>
-      <div class="card reveal">
-        <h3>Review integrity is enforced, not requested</h3>
-        <p>
-          A reviewer who submitted, is credited on, or has declared a conflict with a proposal
-          cannot score it. The write is refused, with no convention to rely on and no flag for
-          someone to catch afterwards.
-        </p>
-      </div>
-    </div>
-    <p class="nextstep"><a href="/pricing">The actual bill, itemised →</a></p>
-  </Pillars>
-
-  <section>
+  <section class="band-dark">
     <div class="wrap">
       <span class="eyebrow">Be honest with yourself</span>
       <h2>Do not pick Podium if any of these is true.</h2>

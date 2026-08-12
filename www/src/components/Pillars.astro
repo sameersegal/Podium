@@ -2,12 +2,13 @@
 import { PILLARS } from "../data/pillars";
 
 /**
- * The five pillars, at the size they are worth.
+ * The six pillars, at the size they are worth.
  *
- * The first one gets a full row and the largest picture; the other four share a
- * grid under it. That is a deliberate ranking, not a layout convenience — a
- * reader who takes one thing from this section should take the first one, and
- * five equal cards give them no way to know which that is.
+ * The first one gets a full row and the largest picture; the other five share a
+ * grid under it, two wide and three narrow. That is a deliberate ranking, not a
+ * layout convenience — a reader who takes one thing from this section should
+ * take the first one, and six equal cards give them no way to know which that
+ * is. The span rules and the reason for six tracks are in `.pillar-grid`.
  *
  * The art is abstract on purpose. Every other image on this site is a
  * photograph of the running product, and these are the only ones that are not,
@@ -26,7 +27,7 @@ interface Props {
 
 const {
   eyebrow = "Why this one",
-  heading = "Five things that are true before you look at a single screen.",
+  heading = "Six things that are true before you look at a single screen.",
   sub,
   eager = false,
 } = Astro.props;
@@ -101,7 +102,7 @@ const [lead, ...rest] = PILLARS;
     </div>
 
     {/* Whatever the page wants to close the band with — the counts, a logo
-        strip, the link into the model. Kept as a slot so the five pillars read
+        strip, the link into the model. Kept as a slot so the six pillars read
         identically on every page and only the footer of the band changes. */}
     <slot />
   </div>

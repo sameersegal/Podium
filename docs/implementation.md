@@ -68,44 +68,49 @@ await app.flush();               // persists the event log + audit, then publish
 | INV-09-20 sync writes go through the owning context's service | `contexts/platform/sync-subjects.ts` — one adapter per subject, each calling that context's own `service.ts` |
 | INV-09-22 erasure propagation to external mirrors | `erasePersonEverywhere` in `contexts/platform/sync.ts`, driven by the `platform.sync_erasure` reaction |
 
-### Password hashing is currently below the OWASP floor, on purpose
+### Password hashing, and the plan that pays for it
 
-`ARGON2_PARAMS` is `m=256 KiB, t=1`. The model requires Argon2id
-([`01`](domain/01-identity-and-access.md), INV-01-12) and does not name parameters, so this
-is an implementation choice — but it is a bad one, taken knowingly, and it should not
-survive.
+`ARGON2_PARAMS` is `m=12 MiB, t=3, p=1` — a configuration on OWASP's Argon2id list. The model
+requires Argon2id ([`01`](domain/01-identity-and-access.md), INV-01-12) and names no
+parameters, so the choice is an implementation one.
 
-The deployment runs on the Cloudflare Workers **free plan**, which allows **10 ms of CPU per
-invocation**. The previous `m=12 MiB, t=3` was sized against the paid plan's 30 s budget and
-costs **~345 ms** of Worker CPU. Every sign-in was therefore killed with `exceededCpu`
-(Cloudflare error 1102): password login was down in production, intermittently succeeding
-only when the platform tolerated a burst. `m=256 KiB, t=1` costs ~3 ms, which is what is left
-once the rest of the sign-in request is paid for.
+**It was not always this.** Between the move to the Cloudflare Workers **free plan** and
+2026-08-12 it was `m=256 KiB, t=1`, roughly two orders of magnitude cheaper to attack offline
+than it should have been. That was not an oversight and it was documented as a stopgap while
+it lasted: the free plan allows **10 ms of CPU per invocation**, a correctly-sized hash costs
+far more than that, and every sign-in was being killed with `exceededCpu` (Cloudflare error
+1102). Password login was down in production, intermittently succeeding only when the platform
+tolerated a burst. A weak hash that works beat a strong one that does not, until the plan
+changed. The deployment is now on **Workers Paid**, whose budget is measured in seconds, and
+the stopgap is reverted.
 
-This is roughly two orders of magnitude cheaper to attack offline than RFC 9106's second
-recommendation (19 MiB, t=2). **The fix is to move to Workers Paid and revert**: raise
-`ARGON2_PARAMS` back to `{ t: 3, m: 12288 }` and nothing else changes — `needsRehash` carries
-each stored hash up to the new parameters on its owner's next sign-in.
+**Why `m=12288, t=3` rather than the `m=19456, t=2` OWASP lists first.** Measured directly,
+they cost the same — 108 ms against 116 ms per hash — so the choice is not about time. It is
+about memory. A Workers isolate has 128 MB, each concurrent sign-in holds its own Argon2
+buffer for the duration of the hash, and 12 MiB leaves room for roughly ten at once where
+19 MiB leaves six. Both are OWASP configurations; this one has more headroom on the runtime
+that has to run it. Worth revisiting if sign-in concurrency is ever measured rather than
+guessed at.
 
-Two things follow from parameters living inside the stored PHC string rather than in code:
+**Nothing migrates.** Parameters live inside each stored PHC string, so:
 
-- A hash written with the old parameters still costs its own ~345 ms to check, so it cannot
-  be verified on this plan at all. `beyondCpuBudget` refuses those deliberately and
-  `verifyPasswordLogin` returns `credential_needs_reset` (409), because the alternative is a
-  503 that looks like an outage instead of a credential that needs re-setting. There is no
-  password reset route, so that 409 points at an invitation (INV-01-15), not a reset form.
-- Re-hashing happens on successful sign-in, while the plaintext is in hand. There is no
-  batch migration path; nobody holds the plaintexts.
+- A hash written at `m=256` still verifies at its own cost, and `needsRehash` carries it up to
+  the current parameters on its owner's next successful sign-in, while the plaintext is in
+  hand. There is no batch path and none is needed — nobody holds the plaintexts.
+- `beyondCpuBudget` refuses a stored hash whose `m` exceeds `MAX_VERIFIABLE_M`, because
+  attempting one does not fail the sign-in, it kills the isolate. **That ceiling must always
+  sit above `ARGON2_PARAMS.m`.** It was left at 1024 when `m` dropped to 256, which was
+  correct then and became a trap: raising `m` back to 12288 alone would have made every
+  newly-set password unverifiable the moment it was written, with no error until somebody
+  tried to sign in. It is now 65536, and `credentials.ts` throws at module load if the two
+  ever invert.
 - `scripts/seed.mjs` writes its own hashes and carries its own copy of the parameters, so it
-  has to move with `ARGON2_PARAMS`. It did not, and every seeded password became
-  unverifiable; `tests/unit/shared/seed-credentials.test.ts` now holds the two in step.
+  moves with `ARGON2_PARAMS`. It did not, once, and every seeded password became unverifiable;
+  `tests/unit/shared/seed-credentials.test.ts` holds the two in step in both directions.
 
-The 10 ms is not enforced per request. Measured on 2026-08-11, `POST /login` ranges 5–46 ms
-and all of it is served; `/admin` routinely measures ~19 ms. Cloudflare tolerates bursts and
-kills sustained or extreme overruns, which is why a 345 ms hash was fatal, why it still got
-through perhaps once in four, and why the app appears healthy today at twice the nominal
-limit. Do not read the current green state as headroom. The free plan does not fit this
-application; the password hash is only where it broke first.
+Online guessing is separately bounded by INV-01-17 (`workers/api/src/http/throttle.ts`), which
+matters less now than it did when the hash was cheap, but is the control that stops the
+guessing rather than merely making each guess expensive.
 
 `row_version` is the optimistic-concurrency counter. It is not called `version` because
 several entities already use that name with a domain meaning. **Every** write to a versioned

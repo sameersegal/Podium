@@ -199,7 +199,12 @@ export const ALWAYS_ON = [
     body: "The public schedule is an immutable, versioned snapshot. Your site embeds it, a CDN caches it, and it renders with scripts blocked. Nothing public reads your database.",
   },
   {
-    title: "Import and export that go both ways",
-    body: "Bring speakers and proposals in from the tool you are leaving as CSV, and take everything back out the same way. No export ticket, no format only we can read.",
+    // Deliberately narrower than it reads elsewhere. The importer writes people
+    // and roster rows and nothing else — `RUNNABLE_SUBJECTS` in
+    // workers/api/src/contexts/content/import.ts — and the export generator
+    // implements csv, json and zip, not the xlsx and ics the enum also names
+    // (`IMPLEMENTED_FORMATS`, packages/domain/src/content/export.ts).
+    title: "Import that previews before it writes",
+    body: "Bring your speakers in from the tool you are leaving as CSV, and see what will be created, updated and rejected before a row is written. Everything goes back out as CSV, JSON or a ZIP of the files, under the permissions of whoever asked.",
   },
 ];

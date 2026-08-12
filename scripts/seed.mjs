@@ -112,8 +112,13 @@ const dayAt = (dayIndex, hh, mm = 0) => {
  * seed kept writing `m=12288`. Every seeded persona's password became
  * unverifiable, `npm run dev` could not publish the seeded schedule, and
  * `scripts/smoke.mjs` could not sign in at all.
+ *
+ * Back to `m=12288` now that the deployment is on Workers Paid — the drift is
+ * the same distance in the other direction, and the same test catches it.
+ * Seeding sixteen personas costs about a second and a half of hashing rather
+ * than a hundredth of that; `npm run dev` pays it once.
  */
-const ARGON = { t: 1, m: 256, p: 1, dkLen: 32 };
+const ARGON = { t: 3, m: 12288, p: 1, dkLen: 32 };
 
 function b64(bytes) {
   return Buffer.from(bytes).toString("base64");
@@ -140,7 +145,10 @@ insert("organization", {
   default_timezone: TZ,
   contact_email: "hello@devflowconf.example",
   settings: {
-    // R23: on in the shipped default seed.
+    // R23: on in the shipped default seed. This is load-bearing rather than
+    // decorative — the seed installs an active `email.resend` integration
+    // further down, which is precisely the condition `passwordLoginEnabled`
+    // switches password sign-in off for when no explicit setting is present.
     auth: { password_login_enabled: true },
     // R24: AI first-pass review ships behind an org setting, default off.
     // R24 keeps the product default off, and it stays off — `aiEvaluationEnabled`
@@ -1888,6 +1896,50 @@ const STAGES = {};
     note: null,
     created_at: daysFromNow(-6 + i),
   });
+});
+
+/* -------------------------------------------------------------------------- */
+/* integrations                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * An active email provider, because that is what a real deployment looks like
+ * and because the pair it forms with the org's `auth` setting is the
+ * interesting case.
+ *
+ * `passwordLoginEnabled` takes the org's explicit
+ * `settings.auth.password_login_enabled` when it is set, and otherwise falls
+ * back to "on only where no active `email` integration exists" (R23). Installing
+ * this row crosses that condition, so a seed with an active provider and no
+ * explicit setting would render `/login` with no form at all — which is exactly
+ * how production locked itself out on 2026-08-12 when Resend went active against
+ * an org whose settings were `{}`. The seed carries both halves on purpose: the
+ * explicit `true` above is what keeps password sign-in alive here, and a seed
+ * that exercised only one of them would never show the interaction.
+ *
+ * INV-09-3: the key itself is never seeded. `secret_ref` names a Workers Secret
+ * binding, so a local run that wants real sends puts `RESEND_API_KEY` in
+ * `.dev.vars`. Without it `send` returns "No API key is configured." and the
+ * delivery is recorded `failed` rather than resting at `queued`/`no_provider` —
+ * a provider installed without its key is a different state from no provider,
+ * and the outbox is meant to tell them apart.
+ */
+insert("integration", {
+  id: id("itg_", "resend"),
+  org_id: ORG,
+  event_id: null,
+  plugin_key: "email.resend",
+  capability: "email",
+  display_name: "Resend",
+  config: { from_email: "hello@devflowconf.example", from_name: "DevFlow Events" },
+  secret_ref: "RESEND_API_KEY",
+  // INV-09-4: at most one default per capability per scope. This is the only
+  // email integration in the seed, so it is the org-scoped default.
+  is_default_for_capability: 1,
+  status: "active",
+  last_health_check_at: null,
+  last_error: null,
+  created_at: daysFromNow(-40),
 });
 
 /* -------------------------------------------------------------------------- */

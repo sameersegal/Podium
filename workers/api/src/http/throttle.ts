@@ -6,14 +6,18 @@
  * implemented it until 2026-08-12, so this file is a defect fix against the
  * specification rather than a new rule.
  *
- * Nothing stood between an attacker and unlimited password guesses, and this
- * deployment is a worse place than most for that: `ARGON2_PARAMS` is
- * `m=256 KiB, t=1`, roughly two orders of magnitude below RFC 9106's second
- * recommendation, because the Cloudflare free plan allows 10 ms of CPU per
- * invocation (docs/implementation.md, "Password hashing is currently below the
- * OWASP floor, on purpose"). A weak hash raises the value of each online guess
- * at the same time as the CPU ceiling makes each guess cheap to serve. Limiting
- * the guesses is the part of that triangle we can fix today.
+ * Nothing stood between an attacker and unlimited password guesses. When this
+ * was written that was doubly bad, because `ARGON2_PARAMS` was `m=256 KiB, t=1`
+ * to fit the free plan's 10 ms CPU ceiling: a weak hash raised the value of
+ * each guess at the same moment the ceiling made each guess cheap to serve.
+ *
+ * The hash is no longer weak — the deployment moved to Workers Paid and the
+ * parameters are back to `m=12 MiB, t=3` (docs/implementation.md, "Password
+ * hashing, and the plan that pays for it"). That changes what this file is for
+ * rather than removing the need for it. An expensive hash makes each guess
+ * costly; only a limit stops the guessing. It also now protects a real CPU
+ * spend: ~108 ms per verification is worth refusing before it is paid for,
+ * which is why the check still runs ahead of the hash rather than after it.
  *
  * State lives in KV rather than D1 deliberately. It is infrastructure, not
  * domain: it has a TTL, it is never read by a user-facing screen, nothing in

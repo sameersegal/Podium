@@ -96,7 +96,7 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
   <body>
     <a class="skip" href="#main">Skip to content</a>
 
-    {/* No hamburger, and no script behind the nav. Five short labels wrap onto
+    {/* No hamburger, and no script behind the nav. Six short labels wrap onto
         a second line on a phone, which costs a few pixels above the fold and
         buys a nav that cannot fail: nothing to toggle, nothing to trap focus
         in, and it is all still there with scripts blocked. */}
@@ -109,7 +109,7 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
         <a class="brand" href="/">
           <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" />
         </a>
-        <a class="btn secondary top-cta" href="/demo">Try the demo</a>
+        <a class="btn secondary top-cta" href="/demo">Run the demo</a>
         <nav class="topnav" aria-label="Primary">
           {
             NAV.map((item) => (
@@ -181,12 +181,13 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
           </div>
           <div>
             <h2>Deciding</h2>
-            <a href="/compare">Compare</a>
-            <a href="/demo">Try the demo</a>
+            <a href="/compare">Switching</a>
+            <a href="/demo">Run the demo</a>
             <a href={SIGN_IN_URL}>Sign in</a>
           </div>
           <div>
             <h2>Source</h2>
+            <a href="/fork">Fork it</a>
             <a href={GITHUB_URL}>GitHub</a>
             <a href={SOCIAL_URL}>{SOCIAL_HANDLE} on X</a>
             <a href={DOMAIN_MODEL_URL}>Domain model</a>

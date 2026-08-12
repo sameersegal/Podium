@@ -113,21 +113,40 @@ describe("credentials (INV-01-12, INV-01-7, INV-09-1)", () => {
     expect(hashPassword("same")).not.toBe(hashPassword("same"));
   });
 
-  it("stays inside the 10 ms CPU an invocation gets on the free plan", () => {
-    // The regression this guards is a 503, not a slow page: a hash that costs
-    // more CPU than the plan allows takes the isolate down mid-sign-in. The
-    // bound is generous because CI is not the Worker; anything near it means
-    // the parameters have drifted back up, which is the thing to catch.
+  it("costs real CPU, which on Workers Paid is the point rather than the problem", () => {
+    // This assertion used to run the other way — under 20 ms, guarding the free
+    // plan's 10 ms ceiling against parameters drifting back up. The deployment
+    // moved to Workers Paid on 2026-08-12 and the parameters went back up on
+    // purpose, so the regression worth catching is now the opposite one: a hash
+    // that has become cheap again is a hash that is cheap to attack offline.
+    //
+    // Bounded on both sides, and loosely, because CI is not the Worker. The
+    // floor is what carries the meaning; the ceiling only catches somebody
+    // reaching for a parameter set that would make sign-in feel broken.
     const start = performance.now();
     verifyPassword("correct horse battery staple", hashPassword("correct horse battery staple"));
-    expect(performance.now() - start).toBeLessThan(20);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeGreaterThan(20);
+    expect(elapsed).toBeLessThan(3000);
   });
 
-  it("refuses a hash too costly to verify rather than blowing the CPU budget", () => {
-    // What the pre-existing production hashes look like: m=12 MiB, t=3.
-    const legacy = "$argon2id$v=19$m=12288,t=3,p=1$c2FsdHNhbHRzYWx0c2E=$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGE=";
-    expect(beyondCpuBudget(legacy)).toBe(true);
+  it("refuses only a hash nothing here would ever have written", () => {
+    // `m=12288` was above the ceiling while the free plan forced `m=256`, and is
+    // the current setting now — so the fixture that used to prove the guard
+    // works would today prove the app refuses its own hashes.
+    const absurd = "$argon2id$v=19$m=1048576,t=3,p=1$c2FsdHNhbHRzYWx0c2E=$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGE=";
+    expect(beyondCpuBudget(absurd)).toBe(true);
     expect(beyondCpuBudget(hashPassword("current"))).toBe(false);
+  });
+
+  it("never refuses what it has just written — MAX_VERIFIABLE_M sits above ARGON2_PARAMS.m", () => {
+    // The trap in this revert: raising `m` without raising the ceiling makes
+    // every newly-set password unverifiable the instant it is written, with no
+    // error until somebody tries to sign in. `credentials.ts` throws at module
+    // load if the two invert; this is the behavioural half of that guard.
+    const fresh = hashPassword("written by this very build");
+    expect(beyondCpuBudget(fresh)).toBe(false);
+    expect(verifyPassword("written by this very build", fresh)).toBe(true);
   });
 
   it("re-hashes a credential written with other parameters on next sign-in", () => {
