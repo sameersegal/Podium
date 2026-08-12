@@ -21,6 +21,7 @@ const CHAIR = "per_sched_chair";
 const SPEAKER = "per_sched_speaker";
 const SESSION_1 = "ses_sched_1";
 const SESSION_2 = "ses_sched_2";
+const SPEAKER_HEADSHOT = "ast_sched_headshot";
 
 async function run(sql: string, params: unknown[] = []) {
   await env.DB.prepare(sql).bind(...params).run();
@@ -83,6 +84,18 @@ async function seed() {
   await run(
     "INSERT OR IGNORE INTO session_speaker (id, session_id, person_id, speaker_role, confirmation_status, is_public, added_at) VALUES (?,?,?,?,?,?,?)",
     ["spk_sched_1", SESSION_1, SPEAKER, "primary", "confirmed", 1, now],
+  );
+
+  // A public, clean headshot in the speaker's profile — what exercises
+  // `assetUrl` in the snapshot builder, below.
+  await run(
+    "INSERT OR IGNORE INTO asset (id, org_id, storage_key, filename, content_type, size_bytes, checksum, scan_status, visibility, uploaded_by_person_id, purpose, slot_key, version, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    [SPEAKER_HEADSHOT, ORG, `${ORG}/person/${SPEAKER}/headshot/1/me.png`, "me.png", "image/png", 9, "deadbeef", "clean", "public", SPEAKER, "headshot", `person:${SPEAKER}:headshot`, 1, now],
+  );
+  await env.ASSETS_BUCKET.put(`${ORG}/person/${SPEAKER}/headshot/1/me.png`, "headshot bytes");
+  await run(
+    "INSERT OR IGNORE INTO speaker_profile (id, person_id, org_id, headshot_asset_id, is_listed, visibility, updated_at) VALUES (?,?,?,?,?,?,?)",
+    ["spf_sched", SPEAKER, ORG, SPEAKER_HEADSHOT, 1, "{}", now],
   );
 }
 
@@ -322,6 +335,29 @@ describe("publish, roll back, and pending changes", () => {
       .bind(EVENT)
       .all<{ change_type: string }>();
     expect(diffRows.some((r) => r.change_type === "content_changed")).toBe(true);
+  });
+
+  /**
+   * `headshotUrl`/`assetUrl` (identity, event-config, scheduling, the public
+   * surface) built `/assets/<id>` strings that no route ever answered —
+   * caught only by requesting the URL a browser actually requests, not by
+   * checking that the string merely looks right. A snapshot's `headshot_url`
+   * is computed once, at publish time, and served verbatim from then on, so
+   * this is the level a regression here has to be caught at.
+   */
+  it("a published speaker's headshot_url is /assets/<assetId>, and that URL actually serves the file", async () => {
+    const { results: published } = await env.DB.prepare(
+      `SELECT headshot_url FROM published_speaker WHERE person_id = ? AND publication_id = (SELECT id FROM schedule_publication WHERE event_id = ? AND status = 'live')`,
+    )
+      .bind(SPEAKER, EVENT)
+      .all<{ headshot_url: string | null }>();
+    expect(published).toHaveLength(1);
+    expect(published[0].headshot_url).toBe(`/assets/${SPEAKER_HEADSHOT}`);
+
+    const res = await SELF.fetch(`http://localhost${published[0].headshot_url}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(new TextDecoder().decode(await res.arrayBuffer())).toBe("headshot bytes");
   });
 
   it("INV-08-9 / rollback restores the previous version as the one live publication", async () => {

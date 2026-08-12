@@ -337,8 +337,9 @@ export interface PublicCfp {
 async function logoUrl(app: AppContext, assetId: string | null): Promise<string | null> {
   if (!assetId) return null;
   const asset = await app.db.byId<Row>("asset", assetId);
-  if (!asset) return null;
-  return `/assets/${str(asset.storage_key)}`;
+  // `/assets/:assetId` — keyed by id, not by the R2 `storage_key`, which is
+  // where the bytes live and was never itself a routable path.
+  return asset ? `/assets/${str(asset.id)}` : null;
 }
 
 /**

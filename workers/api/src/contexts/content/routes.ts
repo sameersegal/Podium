@@ -250,6 +250,30 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
     });
   });
 
+  /**
+   * `/assets/:assetId` — the inline counterpart to `/files/:assetId/download`.
+   * Every `<img src>` a headshot, a sponsor logo, or a session's public slides
+   * link points here (`headshotUrl`/`logoUrl`/`assetUrl` across identity,
+   * event-config, scheduling and the public surface). No content-disposition,
+   * so the browser renders it in place; a year-long cache is safe because a
+   * new upload is a new `Asset` id (INV-04-4-style versioning), never a
+   * mutation of an existing one.
+   */
+  router.get("/assets/:assetId", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const asset = await getAsset(app, params.assetId);
+    await assertCanViewAsset(ctx, asset);
+    const object = await app.env.ASSETS_BUCKET.get(str(asset.storage_key));
+    if (!object) throw notFound("File");
+    return new Response(object.body, {
+      headers: {
+        "content-type": str(asset.content_type),
+        "content-length": String(num(asset.size_bytes)),
+        "cache-control": "public, max-age=31536000, immutable",
+      },
+    });
+  });
+
   router.post("/files/:assetId/comments", async (req, ctx, params) => {
     ctx.requirePerson();
     const input = await readInput(req);

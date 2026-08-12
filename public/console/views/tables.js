@@ -360,7 +360,16 @@ export function roster(params) {
     return h(
       "div",
       null,
-      pageHead("Speakers", "Everyone taking part in this event, and what each of them still owes."),
+      pageHead(
+        "Speakers",
+        "Everyone taking part in this event, and what each of them still owes.",
+        // Adding someone, changing a status, and inviting to the portal are
+        // small per-row writes on one already-working page, not worth a
+        // second implementation (the pattern "Edit configuration" already
+        // uses below for event setup). Without this link the list was
+        // read-only with no way back to any of the three.
+        h("a", { class: "btn secondary", href: "/admin/events/" + params.eventId + "/roster?nojs=1" }, "Manage roster"),
+      ),
       stats([
         stat("participants", list.length, null, { key: "p" }),
         stat("outstanding tasks", outstanding, "/admin/events/" + params.eventId + "/onboarding", { key: "o", tone: outstanding ? "warn" : null }),

@@ -59,8 +59,14 @@ export interface PublishScope {
   track_ids?: string[];
 }
 
-function assetUrl(storageKey: string | null): string | null {
-  return storageKey ? `/assets/${storageKey}` : null;
+/**
+ * `/assets/:assetId` is the one route that serves an `Asset`'s bytes inline
+ * (`assertCanViewAsset`, content/routes.ts) — keyed by id, not by the R2
+ * `storage_key`, which is an implementation detail of where the bytes live
+ * and was never a routable path on its own.
+ */
+function assetUrl(assetId: string | null): string | null {
+  return assetId ? `/assets/${assetId}` : null;
 }
 
 /**
@@ -152,7 +158,7 @@ export async function buildSnapshot(
         const asset = assetById.get(str(a.asset_id));
         // INV-11-3: no asset reaches a public surface unless the scan is clean.
         if (!asset || str(asset.scan_status) !== "clean") return null;
-        return { kind: str(a.kind), url: assetUrl(str(asset.storage_key)) ?? "", label: strOrNull(asset.filename) };
+        return { kind: str(a.kind), url: assetUrl(str(asset.id)) ?? "", label: strOrNull(asset.filename) };
       }) as (PublishedAssetRef | null)[])
       .filter((a): a is PublishedAssetRef => !!a && !!a.url);
 
@@ -181,7 +187,7 @@ export async function buildSnapshot(
               id: str(sponsor.id),
               name: str(sponsor.display_name) || str(sponsor.name),
               slug: str(sponsor.slug),
-              logo_url: assetUrl(sponsor.logo_asset_id ? (assetById.get(str(sponsor.logo_asset_id))?.storage_key as string) ?? null : null),
+              logo_url: assetUrl(sponsor.logo_asset_id ? str(sponsor.logo_asset_id) : null),
               tier_name: tier ? str(tier.name) : null,
             }
           : null,
@@ -237,7 +243,7 @@ export async function buildSnapshot(
       short_bio: shown("short_bio", strOrNull(profile?.short_bio)),
       bio: shown("bio", strOrNull(profile?.bio)),
       // INV-11-3: an infected or unscanned headshot never reaches the website.
-      headshot_url: headshot && str(headshot.scan_status) === "clean" ? assetUrl(str(headshot.storage_key)) : null,
+      headshot_url: headshot && str(headshot.scan_status) === "clean" ? assetUrl(str(headshot.id)) : null,
       links: linkRows
         .filter((l) => profile && str(l.speaker_profile_id) === str(profile.id) && bool(l.is_public))
         .map((l) => ({ kind: str(l.kind), url: str(l.url), label: strOrNull(l.label) })),

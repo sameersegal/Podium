@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { AppContext } from "@podiumconf/data/context.js";
 import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
@@ -86,5 +86,52 @@ describe("INV-11-9: asset slot versioning end to end", () => {
 
     const after = await env.DB.prepare("SELECT scan_status FROM asset WHERE id = ?").bind(asset.id).first<{ scan_status: string }>();
     expect(after?.scan_status).toBe("clean");
+  });
+});
+
+/**
+ * `/assets/:assetId` — the route every `<img src>` on the site actually
+ * points at (`headshotUrl`/`logoUrl`/`assetUrl` across identity, event-config,
+ * scheduling and the public surface). It did not exist: every one of those
+ * builders constructed a URL server-side, and no handler answered a request
+ * to it — a broken image on every headshot, sponsor logo and public slides
+ * link on the site, catchable only by requesting the URL a browser actually
+ * requests, which no test here did before.
+ */
+describe("GET /assets/:assetId — the route every asset URL on the site points at", () => {
+  beforeAll(seed);
+
+  it("serves a public, clean asset's bytes inline, to an anonymous request", async () => {
+    const app = new AppContext({ env, orgId: ORG, actor: { type: "person", id: PERSON, display_name: "Ann Uploader" } });
+    const { asset } = await uploadAssetDirect(app, {
+      file: new File(["headshot bytes"], "me.png", { type: "image/png" }),
+      slot_key: "person:per_asset_test:headshot",
+      purpose: "headshot",
+      visibility: "public",
+    });
+    await app.flush();
+    await env.DB.prepare("UPDATE asset SET scan_status = 'clean' WHERE id = ?").bind(asset.id).run();
+
+    const res = await SELF.fetch(`http://localhost/assets/${asset.id}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    // No content-disposition — an `<img src>` needs to render it inline, not
+    // trigger a download, which is what distinguishes this from `/files/:id/download`.
+    expect(res.headers.get("content-disposition")).toBeNull();
+    expect(new TextDecoder().decode(await res.arrayBuffer())).toBe("headshot bytes");
+  });
+
+  it("refuses a private asset to a caller with no relationship to it", async () => {
+    const app = new AppContext({ env, orgId: ORG, actor: { type: "person", id: PERSON, display_name: "Ann Uploader" } });
+    const { asset } = await uploadAssetDirect(app, {
+      file: new File(["private bytes"], "contract.pdf", { type: "application/pdf" }),
+      slot_key: "task:tsk_asset_test:signed-contract",
+      purpose: "task_attachment",
+      visibility: "private",
+    });
+    await app.flush();
+
+    const res = await SELF.fetch(`http://localhost/assets/${asset.id}`);
+    expect([401, 403]).toContain(res.status);
   });
 });

@@ -78,7 +78,9 @@ function toRef(row: Row): EventRef {
 async function assetUrl(ctx: RequestContext, assetId: string | null): Promise<string | null> {
   if (!assetId) return null;
   const asset = await ctx.app().db.byId<Row>("asset", assetId);
-  return asset ? `/assets/${str(asset.storage_key)}` : null;
+  // `/assets/:assetId` — keyed by id, not by the R2 `storage_key`, which is
+  // where the bytes live and was never itself a routable path.
+  return asset ? `/assets/${str(asset.id)}` : null;
 }
 
 export function registerPublicRoutes(router: Router<RequestContext>): void {
