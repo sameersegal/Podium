@@ -1,0 +1,171 @@
+---
+import Base from "../layouts/Base.astro";
+import Cta from "../components/Cta.astro";
+import PageHead from "../components/PageHead.astro";
+import Shot from "../components/Shot.astro";
+import { ALWAYS_ON, CONTRACTED_NOT_BUILT, SHIPPED } from "../data/integrations";
+import { API_DOC_URL, STATS } from "../consts";
+
+/*
+ * For the engineer or platform owner, and for the chair who has been burned by
+ * a tool that could not talk to anything.
+ *
+ * The page's argument is the plugin model, not the logo wall: the core imports
+ * no vendor SDK, so what you are buying into is a contract rather than a
+ * provider. That is also why the "specified, not built yet" list is on the page
+ * — a catalogue that hides its gaps is a catalogue nobody trusts.
+ */
+---
+
+<Base
+  title="Integrations"
+  description="Podium sends mail through Resend or SendGrid, posts to Slack, mirrors your programme two ways into Airtable, stores assets in your own bucket, and publishes a signed webhook for every change. The core imports no vendor SDK."
+>
+  <PageHead
+    eyebrow="Integrations"
+    title="It connects to your stack without becoming part of it."
+    lede="Podium's core imports no vendor SDK and names no provider. Every integration is an adapter behind a narrow contract, which is what makes swapping Resend for SendGrid an install and a default flag rather than a migration."
+  />
+
+  <section>
+    <div class="wrap">
+      <div class="feature reveal">
+        <div class="copy">
+          <span class="eyebrow">How it works</span>
+          <h3>Install it, name the secret, make it the default.</h3>
+          <p>
+            Each integration declares the settings it needs and one credential. The credential is
+            never stored in the settings — you give Podium the <em>name</em> of a secret, and it
+            resolves it at call time. A misconfigured provider says so on this screen with the
+            provider's own error, rather than failing silently at the moment four hundred
+            acceptance emails go out.
+          </p>
+          <p>
+            One default per capability, per scope. Everything else is installed and idle until you
+            point at it.
+          </p>
+        </div>
+        <Shot
+          name="integrations"
+          height={900}
+          url="app.podiumstack.com/admin/integrations"
+          alt="The integrations screen listing five installed adapters — Resend and SendGrid for email, Slack for chat, and two sync providers including Airtable — each active, with Resend and Airtable flagged as the default for their capability."
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">Shipped today</span>
+      <h2>Six capabilities with an adapter you can install now.</h2>
+      <p class="sub">
+        The contract under each one is the interesting part: it is deliberately the smallest thing
+        that a provider could satisfy, so the widest set of providers can.
+      </p>
+
+      {
+        SHIPPED.map((group) => (
+          <div class="capability reveal">
+            <h3>{group.capability}</h3>
+            <p class="contract">{group.contract}</p>
+            <div class="cards">
+              {group.adapters.map((a) => (
+                <div class="card">
+                  <span class="key">{a.key}</span>
+                  <h3>{a.display}</h3>
+                  <p>{a.blurb}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="feature flip reveal">
+        <div class="copy">
+          <span class="eyebrow">Two-way sync, in detail</span>
+          <h3>The spreadsheet your team keeps anyway, made live.</h3>
+          <p>
+            Organizers keep a spreadsheet regardless — for the columns this tool will never have
+            (<em>hotel booked?</em>, <em>swag size</em>, <em>legal cleared the recording</em>) and
+            for the people who will never have a login: sponsorship sales, the AV contractor, the
+            volunteer coordinator. Today that sheet is a stale copy somebody pasted in March.
+          </p>
+          <p>
+            Map a kind of record to a table and Podium mirrors it — with linked records, single
+            selects and attachments, not a wall of flattened text. Every mapped field is pushed;
+            only the ones you mark two-way come back.
+          </p>
+          <p>
+            And when both sides moved, the inbound edit loses, because it was written against a
+            value that is no longer true. It is not thrown away: it goes into a conflict queue
+            showing both values, with Podium's current value re-pushed so the table converges. An
+            edit that vanishes silently is how every sync product loses its users' trust exactly
+            once.
+          </p>
+          <p>
+            Decisions, entitlements and the schedule are push-only and always will be. A dropdown
+            in a spreadsheet must not be able to send four hundred rejections at 2 a.m.
+          </p>
+        </div>
+        <Shot
+          name="sync"
+          height={840}
+          url="app.podiumstack.com/admin/integrations/…/sync"
+          alt="The sync screen: two mapped tables, Sessions and Proposals, both active, with counts of records in sync, pending, in conflict and errored, above the form for mirroring another kind of record."
+          caption="Mapping a record type to a table. Shot against the in-memory provider that ships for development — the screen is the same for every sync provider, which is the point of the contract."
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="band-dark">
+    <div class="wrap">
+      <span class="eyebrow">Always on</span>
+      <h2>The integration surface you get without installing anything.</h2>
+      <p class="sub">
+        {STATS.events} named events, {STATS.scopes} API scopes, and a public schedule your CDN can
+        cache. This part is not a plugin.
+      </p>
+      <div class="cards two">
+        {
+          ALWAYS_ON.map((item) => (
+            <div class="card reveal">
+              <h3>{item.title}</h3>
+              <p>{item.body}</p>
+            </div>
+          ))
+        }
+      </div>
+      <p class="nextstep"><a href={API_DOC_URL}>The API and webhook reference →</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Not built yet</span>
+      <h2>Specified, with no adapter shipped.</h2>
+      <p class="sub">
+        The capability contracts exist and the install surface knows about them; nobody has written
+        the provider yet. They are here so the list above can be read as complete, because a
+        catalogue that hides its gaps is a catalogue you will discover the hard way.
+      </p>
+      <ul class="crosses">
+        {CONTRACTED_NOT_BUILT.map((c) => <li><strong>{c.capability}</strong> — {c.note}</li>)}
+      </ul>
+      <p class="nextstep"><a href="/pricing">What running this costs →</a></p>
+    </div>
+  </section>
+
+  <Cta
+    heading="Install one against the demo and watch it work."
+    sub="The demo signs you in as the program chair, with the install screen and the outbox both open to you."
+    secondaryHref={API_DOC_URL}
+    secondaryLabel="Read the API reference"
+  />
+</Base>

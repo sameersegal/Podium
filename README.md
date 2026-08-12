@@ -21,7 +21,7 @@ contracts.
 ## Status
 
 **Built and running.** Every bounded context in the model is implemented end to end —
-domain rules, repository layer, HTTP surface and UI — with 411 tests, a clean model↔code
+domain rules, repository layer, HTTP surface and UI — with 708 tests, a clean model↔code
 drift check, and a seeded conference you can sign into in one command.
 
 What that covers, beyond the six capabilities above: sponsor sessions as first-class
@@ -81,7 +81,7 @@ One caveat while it is running: `npm run db:seed`, `npm run db:reset` and
 server before running them, or just restart it — `npm run dev` reseeds anyway.
 
 ```bash
-npm test                  # 411 tests: unit + integration
+npm test                  # 708 tests: unit + integration
 npm run test:unit         # pure domain, no I/O
 npm run test:integration  # real local D1, KV, R2, Queues and Durable Objects
 npm run typecheck
@@ -123,6 +123,20 @@ link that pointed at the apex before the split working.
 The app does not know either hostname. It reads `PUBLIC_BASE_URL`, which
 [`scripts/deploy-config.mjs`](scripts/deploy-config.mjs) sets from `PODIUM_HOSTNAME` at deploy
 time — which is what lets the same artifact serve your domain when you self-host.
+
+Seven pages, one per question a buyer arrives with: the landing page, `/features`,
+`/integrations`, `/compare`, `/pricing`, `/demo` and `/security`. Every product image on them is
+a photograph of the running app taken by [`www/scripts/screenshots.mjs`](www/scripts/screenshots.mjs)
+against this repository's own seed — never a mockup — so a redesigned screen means re-running it:
+
+```bash
+npm run dev                      # repo root: resets, seeds, serves :8787
+npm --prefix www run screenshots # signs in as each persona and recaptures every shot
+```
+
+Changes to any of it go through the [`marketing-site`](.claude/agents/marketing-site.md) agent,
+which will not ship a claim it has not checked and drives a browser at phone and desktop widths
+before reporting.
 
 ## Brand
 

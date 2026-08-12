@@ -54,6 +54,21 @@ event-driven by default, context-shaped layout, responsive on phone and desktop,
 against performance budgets, structured PII-free instrumentation, integration tests, migrations
 over destructive changes).
 
+## Changing the marketing site
+
+Use the [`marketing-site`](.claude/agents/marketing-site.md) agent for anything in
+[`www/`](www) — a page, its copy, its screenshots, its design, or positioning the product
+against an alternative. It carries the buyer, the taste rules and the design system the site
+already has, and it verifies its own work by driving a browser at phone and desktop widths
+rather than reasoning about the CSS.
+
+The line between the two agents is the line the repository already draws: `www/` imports
+nothing from `packages/` and has its own CI job, and the marketing agent may not touch anything
+outside it. Its first rule is that no claim ships without being checked against a screenshot of
+the running product, a rule in `docs/domain/`, a path in this repository, or a dated third-party
+source — which is what stops a marketing page from becoming the one document in here that is
+allowed to be aspirational.
+
 ## Skills
 
 Two project skills in [`.claude/skills/`](.claude/skills) do the work the rules above

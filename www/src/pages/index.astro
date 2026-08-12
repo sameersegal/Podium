@@ -1,7 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
+import Cta from "../components/Cta.astro";
 import Shot from "../components/Shot.astro";
-import { DOMAIN_MODEL_URL, GITHUB_URL, SIGN_IN_URL } from "../consts";
+import { DOMAIN_MODEL_URL, GITHUB_URL, STATS } from "../consts";
 
 /*
  * The order of this page is the order the pain arrives in.
@@ -14,8 +15,13 @@ import { DOMAIN_MODEL_URL, GITHUB_URL, SIGN_IN_URL } from "../consts";
  * job and shows the screen that does it; the capability names are still here,
  * one layer down, because that is the vocabulary of the docs they will read next.
  *
- * Every claim below is either visible in the screenshot beside it or cites the
- * invariant in docs/domain/ that enforces it. Nothing here is aspirational.
+ * Since the site went multi-page this page carries the argument and three
+ * proofs, not all six: a landing page that says everything is a landing page
+ * nobody finishes. The rest is one click away at /features, and every section
+ * below ends pointing somewhere specific.
+ *
+ * Every claim below is either visible in the screenshot beside it or backed by
+ * the rule in docs/domain/ that enforces it. Nothing here is aspirational.
  */
 
 const pains = [
@@ -31,7 +37,7 @@ const pains = [
   },
   {
     quote: "How many sessions does this sponsor actually get?",
-    answer: "Three of five used, counted against the contract, on the same screen as the deal.",
+    answer: "Used against bought, counted from the contract, on the same screen as the deal.",
   },
   {
     quote: "Two talks, one room, same slot.",
@@ -62,7 +68,7 @@ const pains = [
         and it runs on infrastructure you own.
       </p>
       <div class="actions">
-        <a class="btn primary" href={SIGN_IN_URL}>See it running</a>
+        <a class="btn primary" href="/demo">Try the demo</a>
         <a class="btn secondary" href={GITHUB_URL}>Get the source</a>
       </div>
       <p class="reassure">
@@ -74,7 +80,7 @@ const pains = [
           name="agenda"
           height={1170}
           url="app.podiumstack.com/admin/events/…/agenda"
-          alt="The agenda screen: a room-by-time grid with sessions placed across Main Stage, Room 2A and Room 2B, beside a panel listing two conflicts that block publication."
+          alt="The agenda screen: a room-by-time grid with sessions placed across Main Stage, Room 2A, Room 2B and the Workshop Lab, under a panel naming two conflicts that block publication."
           eager
         />
         <div class="inset">
@@ -114,10 +120,10 @@ const pains = [
   <section class="band">
     <div class="wrap">
       <span class="eyebrow">What it looks like</span>
-      <h2>Six screens, doing the six jobs.</h2>
+      <h2>Three of them, on the running product.</h2>
       <p class="sub">
-        These are photographs of the running product against its own seeded conference — a real
-        program mid-flight, not a mockup.
+        These are photographs of Podium against its own seeded conference — a real program
+        mid-flight, not a mockup. The other three are on the features page.
       </p>
 
       <div class="feature reveal">
@@ -153,7 +159,6 @@ const pains = [
             Run it open, single-blind or double-blind. Every score, comment and decision is
             recorded, so "why was this rejected" has an answer a year later.
           </p>
-          <p class="note">Enforced as <code>INV-05</code> in the domain model, and named in the tests.</p>
         </div>
         <Shot
           name="review"
@@ -173,7 +178,7 @@ const pains = [
           </p>
           <p>
             Here a package is a countable set of entitlements. Two session slots and a logo
-            placement, one used, one left — visible to you and to them, so nobody discovers a
+            placement; one slot spent, two rights still open — visible to you and to them, so nobody discovers a
             missing slot the week before.
           </p>
         </div>
@@ -185,84 +190,48 @@ const pains = [
         />
       </div>
 
-      <div class="feature flip reveal">
-        <div class="copy">
-          <h3>Decide as a batch. Tell everyone at once.</h3>
-          <p>
-            Outcomes stay provisional until you publish them. Nothing reaches a speaker early,
-            nobody finds out from a friend, and the awkward middle where half the program knows is
-            gone.
-          </p>
-          <p>
-            Podium shows you which proposals have reached quorum and which are short of it before
-            you commit — and records who waived it, and why, when you decide anyway.
-          </p>
-        </div>
-        <Shot
-          name="decisions"
-          height={1050}
-          url="app.podiumstack.com/admin/events/…/decisions"
-          alt="The decisions screen: proposals with quorum badges, an outcome, and a publication status, each with controls to record a decision."
-        />
-      </div>
-
-      <div class="feature reveal">
-        <div class="copy">
-          <h3>A schedule that cannot quietly break.</h3>
-          <p>
-            Place sessions into rooms and times and Podium recomputes conflicts on every change —
-            a double-booked room, a speaker in two places, a session whose onboarding is not done.
-            It will let you save a broken schedule. It will not let you publish one.
-          </p>
-          <p>
-            What the public sees is an immutable, versioned snapshot your marketing site embeds
-            and a CDN can cache. Publishing an hour before doors open is survivable, because
-            rolling back is just pointing at the previous version.
-          </p>
-        </div>
-        <Shot
-          name="schedule"
-          height={1170}
-          url={`podiumstack.com/e/your-event/schedule`}
-          alt="The public schedule: an itinerary of sessions with times, rooms and speakers beside a room-by-time grid, with search and add-to-calendar."
-        />
-      </div>
-
-      <div class="feature flip reveal">
-        <div class="copy">
-          <h3>One place for speakers to look.</h3>
-          <p>
-            Where their proposal stands, what they have been accepted for, when and where it is,
-            what they still owe you and by when — all on one page, behind one login, across every
-            event you have ever run.
-          </p>
-          <p>
-            They keep their own profile, and it is what appears on the public schedule. You stop
-            being the copy-editor of sixty biographies.
-          </p>
-        </div>
-        <Shot
-          name="portal"
-          height={1140}
-          url="app.podiumstack.com/portal"
-          alt="A speaker's dashboard: an accepted proposal with a confirm-by date, a published session with its room and time, and three outstanding tasks with due dates."
-        />
-      </div>
+      <p class="nextstep"><a href="/features">The full tour: all six screens, and the parts nobody demos →</a></p>
     </div>
   </section>
 
   <section>
     <div class="wrap">
-      <span class="eyebrow">Also in the box</span>
-      <h2>And the parts nobody demos.</h2>
-      <p class="more">
-        Multi-step submission forms with custom fields and saved drafts, and a deadline that
-        actually closes. An event roster. Content approval with revision history. Campaigns with an
-        auditable outbox, so you can prove what was sent to whom. Bulk import and export. A scoped
-        REST API and signed webhooks on every change, so the rest of your stack keeps up. And a
-        speaker directory that spans every edition you have run — because the compounding asset a
-        conference builds is not its schedule, it is the people it knows.
+      <span class="eyebrow">It talks to the rest of your stack</span>
+      <h2>Your email provider, your spreadsheet, your website.</h2>
+      <p class="sub">
+        Podium sends through <strong>Resend</strong> or <strong>SendGrid</strong>, posts into
+        <strong>Slack</strong>, mirrors the program two ways into <strong>Airtable</strong> for the
+        people who will never have a login here, and puts your schedule on your own site as a
+        cacheable embed. None of it is a vendor lock: the core imports no provider's SDK, so
+        swapping one for another is an install and a default.
       </p>
+      <div class="cards">
+        <div class="card reveal">
+          <h3>Mail that is auditable</h3>
+          <p>
+            Templates, quiet hours, batching and suppression stay on Podium's side of the line —
+            the provider only puts the message on the wire. "Did they get the acceptance email?"
+            is a query, not a guess.
+          </p>
+        </div>
+        <div class="card reveal">
+          <h3>Two-way, without losing an edit</h3>
+          <p>
+            An edit made in the linked table applies only against the version Podium last pushed.
+            If it lost, it is not discarded — it goes into a conflict queue with both values
+            showing. Nothing vanishes quietly.
+          </p>
+        </div>
+        <div class="card reveal">
+          <h3>An API you can hand out</h3>
+          <p>
+            A key for your marketing site reads the schedule and cannot read a review or a
+            speaker's email address. Personal data is its own scope, off by default, on every
+            endpoint.
+          </p>
+        </div>
+      </div>
+      <p class="nextstep"><a href="/integrations">Every integration, and the contract behind it →</a></p>
     </div>
   </section>
 
@@ -270,9 +239,7 @@ const pains = [
     <div class="wrap">
       <span class="eyebrow">Yours, actually</span>
       <h2>Run it on your own account, or read every line first.</h2>
-      <p class="sub">
-        Two things most tools in this category will not let you do.
-      </p>
+      <p class="sub">Two things most tools in this category will not let you do.</p>
       <div class="two-col">
         <div>
           <h3>It deploys to infrastructure you own</h3>
@@ -281,7 +248,7 @@ const pains = [
             your speakers' data in your database. There is no hosted tier to be locked into and no
             price that changes when your conference grows.
           </p>
-          <p><a href={GITHUB_URL}>Read the code →</a></p>
+          <p><a href="/pricing">What it actually costs to run →</a></p>
         </div>
 
         <div>
@@ -294,33 +261,31 @@ const pains = [
           <p><a href={DOMAIN_MODEL_URL}>Read the domain model →</a></p>
         </div>
       </div>
-    </div>
-  </section>
 
-  <section class="band-dark cta">
-    <div class="wrap">
-      <h2>See it with a conference already in it.</h2>
-      <p class="sub">
-        The seed ships a three-day event mid-flight — proposals in every state, a review round with
-        real scores, sponsors part-way through their entitlements, an agenda with genuine conflicts
-        — and four personas you can sign in as. An empty shell teaches you nothing.
-      </p>
-      <div class="actions">
-        <a class="btn primary" href={SIGN_IN_URL}>Sign in and look around</a>
-        <a class="btn secondary" href={GITHUB_URL}>Star it on GitHub</a>
+      <div class="kpis" style="margin-top: 2.75rem">
+        <div class="kpi"><b>{STATS.tests}</b><span>tests, unit and integration</span></div>
+        <div class="kpi"><b>{STATS.invariants}</b><span>written rules the code enforces</span></div>
+        <div class="kpi"><b>{STATS.events}</b><span>events you can subscribe to</span></div>
+        <div class="kpi"><b>{STATS.scopes}</b><span>API scopes, personal data its own</span></div>
       </div>
-      <pre><code>git clone …/Podium
-npm install
-npm run dev</code></pre>
     </div>
   </section>
 
-  <section style="padding-block: 2.5rem">
+  <section>
     <div class="wrap">
-      <p class="aside" style="margin-top: 0">
-        Unrelated to podium.com (lead management) and to <a href="https://podium-lib.io">podium-lib</a>{" "}
-        (micro-frontends), both of which hold the obvious namespaces.
+      <span class="eyebrow">Before you decide</span>
+      <h2>It is not the right tool for every conference.</h2>
+      <p class="sub">
+        Podium does no attendee registration, no badging and no ticketing, and there is no hosted
+        tier — somebody has to deploy it once. If that rules it out, the comparison page says so
+        plainly and names what to buy instead.
       </p>
+      <p class="nextstep"><a href="/compare">Podium against Sessionize and Sessionboard →</a></p>
     </div>
   </section>
+
+  <Cta
+    heading="See it with a conference already in it."
+    sub="The demo is a three-day event mid-flight — proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with genuine conflicts — and sign-ins for the chair, a reviewer and a speaker. An empty shell teaches you nothing."
+  />
 </Base>

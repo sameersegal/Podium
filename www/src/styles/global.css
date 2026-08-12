@@ -56,20 +56,77 @@ a { color: var(--indigo-dark); }
 
 .wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem; }
 
+/* ---------- skip link ----------
+   Off-screen until focused, then a solid chip over the topbar. `top` rather
+   than `transform` so it is where a screen magnifier expects it to be. */
+.skip {
+  position: absolute;
+  left: .75rem;
+  top: -4rem;
+  z-index: 10;
+  background: var(--card);
+  color: var(--indigo-dark);
+  border-radius: var(--radius);
+  padding: .6rem 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top .15s ease;
+}
+.skip:focus { top: .75rem; }
+
+:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; border-radius: 3px; }
+.band-dark :focus-visible, .topbar :focus-visible, .hero :focus-visible { outline-color: #c7d2fe; }
+
 /* ---------- header ----------
    The topbar shares the hero's top colour so the two read as one dark slab.
-   On the 404 page, where no hero follows, it is simply a navy bar. */
+   On an interior page the same colour continues into `.pagehead`.
+
+   Two rows on a phone — brand and the action, then the nav wrapping under
+   them — and one row from 56rem up, where the nav has space beside the brand.
+   Deliberately no hamburger: five short labels wrap onto a second line, which
+   costs a few pixels above the fold and buys a nav with nothing to toggle,
+   nothing to trap focus in, and no dependency on a script running. */
 .topbar { background: var(--navy-deep); position: relative; z-index: 3; }
 .topbar .wrap {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1rem;
+  gap: .6rem 1.25rem;
   padding-block: .85rem;
 }
 .topbar .brand { display: flex; margin-right: auto; }
 .topbar .brand img { height: 28px; width: auto; display: block; }
 .topbar a { color: var(--on-dark); text-decoration: none; font-weight: 500; }
 .topbar a:hover { color: #fff; }
+.topbar .topnav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem 1.35rem;
+  width: 100%;
+  order: 3;
+  font-size: .95rem;
+}
+/* The 44px touch target is the padding, not the text — hence the negative
+   inline margin, which keeps the row visually tight while each link stays big
+   enough to hit with a thumb. */
+.topbar .topnav a {
+  padding: .55rem 0;
+  margin-inline: -.1rem;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.topbar .topnav a[aria-current="page"] { color: #fff; box-shadow: inset 0 -2px 0 var(--indigo); }
+.topbar .top-cta { order: 2; }
+
+/* From here the nav fits beside the brand, and the source order (brand, action,
+   nav) is reordered to the reading order (brand, nav, action). */
+@media (min-width: 56rem) {
+  .topbar .topnav { width: auto; order: 1; margin-left: auto; }
+  .topbar .top-cta { order: 2; }
+  .topbar .brand { margin-right: 0; }
+}
 
 /* ---------- buttons ---------- */
 .btn {
@@ -173,7 +230,8 @@ a { color: var(--indigo-dark); }
 
 /* ---------- screenshot frames ---------- */
 .shot {
-  margin: 0 0 1rem;
+  /* Spacing belongs to `.shot-fig`, which also has to hold the caption. */
+  margin: 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: #12102e;
@@ -323,13 +381,206 @@ section > .wrap > .sub { color: var(--muted); max-width: 58ch; font-size: 1.08re
   margin-top: 2.5rem;
 }
 
-/* ---------- footer ---------- */
-footer { background: var(--navy-deep); color: #a5b4fc; padding: 2rem 0; font-size: .9rem; }
-footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.5rem; }
+/* ---------- footer ----------
+   Also the site map. Every page in the nav is here, plus the ones that are not
+   in the nav because they answer a question only some readers have. A page in
+   neither is a page nobody arrives at. */
+footer { background: var(--navy-deep); color: #a5b4fc; padding: 3rem 0 2.25rem; font-size: .9rem; }
 footer a { color: #c7d2fe; text-decoration: none; }
 footer a:hover { color: #fff; text-decoration: underline; }
-footer .spacer { flex: 1; }
-footer nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+footer .cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1.75rem 1.5rem;
+}
+footer .cols h2 {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #fff;
+  margin-bottom: .75rem;
+}
+footer .cols div { display: flex; flex-direction: column; align-items: flex-start; }
+footer .cols a { padding: .3rem 0; min-height: 40px; display: flex; align-items: center; }
+footer .legal {
+  margin: 2.25rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgb(199 210 254 / 18%);
+  color: #8f9ad0;
+  font-size: .82rem;
+  max-width: 70ch;
+}
+
+/* ---------- interior page header ----------
+   The same dark ground as the hero, without the glows or the screenshot. What
+   makes an interior page feel like the same site is the colour continuing over
+   the fold, not a second hero. */
+.pagehead {
+  background: linear-gradient(178deg, var(--navy-deep), #241f5e);
+  color: #fff;
+  padding: 3.25rem 0 3.5rem;
+}
+.pagehead .eyebrow { color: #a5b4fc; }
+.pagehead h1 { color: #fff; font-size: clamp(1.9rem, 4.4vw, 3rem); max-width: 20ch; margin-bottom: 1rem; }
+.pagehead .lede { color: var(--on-dark); font-size: clamp(1.02rem, 2vw, 1.2rem); max-width: 60ch; margin: 0; }
+.pagehead .actions { display: flex; flex-wrap: wrap; gap: .9rem; margin-top: 1.75rem; }
+
+/* ---------- cards ----------
+   The workhorse grid: integrations, security, pricing, "where they win". One
+   pattern rather than four means a new page cannot quietly invent a fifth
+   card, which is how a site starts looking assembled rather than designed. */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr)); gap: 1rem; }
+.cards.two { grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.4rem;
+}
+.card h3 { font-size: 1.1rem; margin-bottom: .5rem; }
+.card p { color: var(--muted); font-size: .95rem; margin-bottom: 0; }
+.card p + p { margin-top: .7rem; }
+.card .key {
+  display: inline-block;
+  font: 500 .75rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--indigo-dark);
+  background: var(--indigo-soft);
+  border-radius: 5px;
+  padding: .15rem .45rem;
+  margin-bottom: .6rem;
+}
+.band .card { border-color: #d7dcff; }
+.band-dark .card {
+  background: rgb(255 255 255 / 5%);
+  border-color: rgb(199 210 254 / 20%);
+}
+.band-dark .card p { color: var(--on-dark-dim); }
+.band-dark .card .key { background: rgb(199 210 254 / 14%); color: #c7d2fe; }
+
+/* A capability and the contract behind it: heading, one line of what the core
+   asks for, then the adapters that satisfy it. */
+.capability { border-top: 1px solid var(--line); padding: 2.25rem 0; }
+.capability:first-of-type { border-top: 0; padding-top: .5rem; }
+.capability > h3 { font-size: 1.45rem; }
+.capability > .contract { color: var(--muted); max-width: 62ch; font-size: 1rem; }
+
+/* ---------- tables ----------
+   Wide content scrolls inside its own box; the page body never does. */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); }
+table.matrix { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: .95rem; }
+table.matrix th, table.matrix td { text-align: left; padding: .85rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.matrix thead th { font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: #fbfbfe; }
+table.matrix tbody th { font-weight: 600; color: var(--navy); }
+table.matrix tr:last-child th, table.matrix tr:last-child td { border-bottom: 0; }
+table.matrix .mine { background: var(--indigo-soft); color: var(--navy); font-weight: 600; }
+table.matrix thead .mine { color: var(--indigo-dark); }
+
+/* ---------- lists that argue ----------
+   `.ticks` for what is true, `.crosses` for what is not. The mark is
+   decorative — the sentence has to stand up read aloud with the mark ignored,
+   because that is how a screen reader will get it. */
+.ticks, .crosses { list-style: none; padding: 0; margin: 0; display: grid; gap: .7rem; }
+.ticks li, .crosses li { position: relative; padding-left: 1.9rem; color: var(--muted); }
+.ticks li::before, .crosses li::before {
+  position: absolute;
+  left: 0;
+  top: -.05rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.ticks li::before { content: "✓"; color: #0f9d58; }
+.crosses li::before { content: "✕"; color: #c0392b; }
+.band-dark .ticks li, .band-dark .crosses li { color: var(--on-dark-dim); }
+.band-dark .ticks li::before { color: #6ee7b7; }
+.band-dark .crosses li::before { color: #fca5a5; }
+
+/* ---------- numbered steps ---------- */
+.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 1.25rem; }
+.steps li { counter-increment: step; position: relative; padding-left: 3rem; }
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -.15rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--indigo-soft);
+  color: var(--indigo-dark);
+  font-weight: 700;
+  font-size: .9rem;
+}
+.steps h3 { font-size: 1.05rem; margin-bottom: .35rem; }
+.steps p { color: var(--muted); margin-bottom: 0; font-size: .97rem; }
+
+/* ---------- callout ---------- */
+.notice {
+  border: 1px solid #d7dcff;
+  border-left: 4px solid var(--indigo);
+  background: var(--indigo-soft);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  color: var(--navy);
+  font-size: .97rem;
+}
+.notice :last-child { margin-bottom: 0; }
+.band-dark .notice { background: rgb(255 255 255 / 6%); border-color: rgb(199 210 254 / 22%); border-left-color: #a5b4fc; color: var(--on-dark); }
+
+/* ---------- the numbers ---------- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1rem; }
+.kpi { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.1rem 1.2rem; background: var(--card); }
+.kpi b { display: block; font-size: 1.9rem; line-height: 1.1; color: var(--navy); letter-spacing: -.03em; }
+.kpi span { color: var(--muted); font-size: .88rem; }
+.band-dark .kpi { background: rgb(255 255 255 / 5%); border-color: rgb(199 210 254 / 20%); }
+.band-dark .kpi b { color: #fff; }
+.band-dark .kpi span { color: var(--on-dark-dim); }
+
+/* ---------- credentials ---------- */
+.cred { font: 500 .9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+
+/* ---------- questions ----------
+   Native disclosure, so it opens with scripts blocked and announces its own
+   state without any of it being reimplemented. */
+.faq { display: grid; gap: .6rem; }
+.faq details { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.faq summary {
+  cursor: pointer;
+  padding: 1rem 1.15rem;
+  font-weight: 600;
+  color: var(--navy);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.faq details[open] summary { border-bottom: 1px solid var(--line); }
+.faq .body { padding: 1rem 1.15rem; color: var(--muted); font-size: .97rem; }
+.faq .body :last-child { margin-bottom: 0; }
+
+/* ---------- code ---------- */
+pre.term {
+  background: var(--navy-deep);
+  color: #e0e7ff;
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  font-size: .88rem;
+  line-height: 1.65;
+  overflow-x: auto;
+}
+.band-dark pre.term { background: rgb(0 0 0 / 28%); border: 1px solid rgb(255 255 255 / 10%); }
+
+/* ---------- the next question ---------- */
+.nextstep { margin: 2.5rem 0 0; font-size: 1.05rem; font-weight: 600; }
+
+/* ---------- screenshot captions and phone frames ---------- */
+.shot-fig { margin: 0; }
+.shot-fig figcaption { margin-top: .75rem; color: var(--muted); font-size: .88rem; }
+.band-dark .shot-fig figcaption { color: var(--on-dark-dim); }
+/* A phone capture has no browser chrome to sit in — the frame is the device. */
+.shot.phone { max-width: 19.5rem; margin-inline: auto; border-radius: 26px; padding: .5rem; background: #12102e; }
+.shot.phone img { border-radius: 18px; }
 
 /* ---------- 404 ---------- */
 .notfound { padding: 6rem 0; text-align: center; }
@@ -360,6 +611,11 @@ footer nav { display: flex; flex-wrap: wrap; gap: 1.25rem; }
 }
 
 @media (max-width: 40rem) {
+  .pagehead { padding: 2.25rem 0 2.5rem; }
+  .pagehead h1 { max-width: none; }
+  .pagehead .actions .btn { flex: 1 1 auto; text-align: center; }
+  .capability { padding: 1.75rem 0; }
+  .cta .actions .btn { flex: 1 1 auto; text-align: center; }
   .hero { padding-top: 2.75rem; }
   .hero h1 { max-width: none; }
   .hero .stage { margin-top: 2rem; }

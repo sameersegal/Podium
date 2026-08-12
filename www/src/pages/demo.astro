@@ -1,0 +1,166 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHead from "../components/PageHead.astro";
+import Shot from "../components/Shot.astro";
+import { APP_URL, DEMO_PERSONAS, GITHUB_URL, SIGN_IN_URL } from "../consts";
+
+/*
+ * The page the rest of the site points at, and the one that has to work.
+ *
+ * A "see it running" link that lands on a login form with no credentials on it
+ * is a dead end dressed up as a call to action, and it was the single biggest
+ * hole in this site. The sign-ins below are seed personas on a database that is
+ * reset — publishing them is the whole point, and README.md already does.
+ *
+ * Ordered by who is most likely to be reading: the chair first, then the two
+ * roles they will want to show a colleague.
+ */
+
+const TOUR = [
+  {
+    title: "Open the agenda and break it",
+    body: "Drag a session onto a room that is already busy. The conflict appears in the panel beside the grid as you drop it, not after a refresh, and the publish button stays shut until it is resolved or acknowledged with a reason.",
+  },
+  {
+    title: "Try to review your own proposal",
+    body: "As the reviewer, find a proposal you are credited on. There is no score box to fill in — the refusal is in the model, not in a warning nobody reads.",
+  },
+  {
+    title: "Spend a sponsor's second session slot",
+    body: "On the sponsors screen, watch the used-against-bought count move. Then try to spend one more than the package holds.",
+  },
+  {
+    title: "Publish the schedule, then roll it back",
+    body: "Publishing writes an immutable snapshot. Rolling back points at the previous one. Neither touches the live programme tables, which is why the public page cannot be slowed down by either.",
+  },
+  {
+    title: "Look at the outbox",
+    body: "Every message the platform has sent or tried to send, with its template, its recipient and its status. The seed installs no email provider, so mail is composed, rendered, recorded — and stopped.",
+  },
+];
+---
+
+<Base
+  title="Try the demo"
+  description="Sign in to a conference already mid-flight — proposals in every state, a review round with real scores, sponsors part-way through their entitlements and an agenda with genuine conflicts. Credentials on the page, no form to fill in."
+>
+  <PageHead
+    eyebrow="Try it"
+    title="Sign in to a conference that is already halfway through its year."
+    lede="No form, no card, no trial clock. DevFlow Conf 2027 is a seeded three-day event with proposals in every state, a review round with real scores, sponsors part-way through their entitlements and an agenda with conflicts in it. Pick a role and go."
+  />
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Sign-ins</span>
+      <h2>Three roles. Same conference, three different products.</h2>
+      <p class="sub">
+        What each person may see is worked out per request, so signing in as the speaker is the
+        only honest way to find out what a speaker can see.
+      </p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th scope="col">Role</th>
+              <th scope="col">Email</th>
+              <th scope="col">Password</th>
+              <th scope="col">What you land in</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              DEMO_PERSONAS.map((p) => (
+                <tr>
+                  <th scope="row">{p.role}</th>
+                  <td class="cred">{p.email}</td>
+                  <td class="cred">{p.password}</td>
+                  <td>{p.sees}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="actions" style="display:flex; flex-wrap:wrap; gap:.9rem; margin-top:1.75rem">
+        <a class="btn primary" href={SIGN_IN_URL}>Open the sign-in page</a>
+        <a class="btn secondary" href={`${APP_URL}/e/devflow-conf-2027/schedule`}>See the public schedule</a>
+      </div>
+      <div class="notice" style="margin-top: 1.75rem">
+        <p>
+          <strong>It is a shared sandbox, and it gets reset.</strong> Anyone reading this page can
+          sign in as the same organizer you did, so treat anything you type as public and do not put
+          a real speaker's details into it. Nothing you do can leave the demo: the seed installs no
+          email provider, so every message is recorded in the outbox and never sent.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">Fifteen minutes</span>
+      <h2>Five things worth trying, in the order they prove something.</h2>
+      <p class="sub">
+        Every one of these is a claim made elsewhere on this site. Go and check them rather than
+        believing us.
+      </p>
+      <ol class="steps">
+        {
+          TOUR.map((t) => (
+            <li class="reveal">
+              <h3>{t.title}</h3>
+              <p>{t.body}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="feature reveal">
+        <div class="copy">
+          <span class="eyebrow">Or run it yourself</span>
+          <h3>The same conference, on your laptop, in one command.</h3>
+          <p>
+            The seed the demo runs on ships with the source. This resets a local database, applies
+            every migration, seeds the conference, serves it on port 8787 and publishes the schedule
+            so the public pages have something in them.
+          </p>
+          <pre class="term"><code>git clone https://github.com/sameersegal/Podium
+cd Podium
+npm install
+npm run dev</code></pre>
+          <p>
+            Then sign in with the same credentials as above. Running it locally is also the only way
+            to try the integrations — you can point it at your own Resend key and watch real mail
+            leave.
+          </p>
+          <p><a href={GITHUB_URL}>The repository, and the rest of the setup →</a></p>
+        </div>
+        <Shot
+          name="dashboard"
+          height={660}
+          url="localhost:8787/admin/events/…"
+          alt="The event dashboard on a local install, showing counts of days, tracks, formats, rooms and calls for proposals."
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="band-dark cta">
+    <div class="wrap">
+      <h2>Found something that does not hold up?</h2>
+      <p class="sub">
+        Every claim on this site is meant to be checkable in the demo. If one is not, that is a bug
+        in the site or in the product, and both live in the same repository.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href={`${GITHUB_URL}/issues/new`}>Tell us what broke</a>
+        <a class="btn secondary" href="/features">Back to the tour</a>
+      </div>
+    </div>
+  </section>
+</Base>

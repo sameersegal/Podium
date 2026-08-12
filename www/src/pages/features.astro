@@ -1,0 +1,259 @@
+---
+import Base from "../layouts/Base.astro";
+import Cta from "../components/Cta.astro";
+import PageHead from "../components/PageHead.astro";
+import Shot from "../components/Shot.astro";
+import { GITHUB_URL } from "../consts";
+
+/*
+ * For the program chair who has decided the problem is real and now wants to
+ * see whether the product actually does it. Six screens in the order the year
+ * runs — call, review, decide, onboard, place, publish — then the parts that
+ * never make a demo but decide whether March is survivable.
+ *
+ * One primary action, at the bottom: go and use it.
+ */
+
+/** The parts nobody demos. Each is built; none of them is a screenshot. */
+const alsoInTheBox = [
+  {
+    title: "Submission forms that survive a deadline",
+    body: "Multi-step, with your own custom fields, saved drafts a submitter can come back to, and a deadline that actually closes the form rather than trusting people not to notice.",
+  },
+  {
+    title: "Content approval with a history",
+    body: "Edit an approved session and the approval is revoked and the previous version kept, in the same write. Nobody quietly changes a title after the programme is printed.",
+  },
+  {
+    title: "Campaigns with an auditable outbox",
+    body: "Compose to a segment — everyone rejected, everyone with a task overdue, every sponsor contact — and every message sent is recorded against the person who got it.",
+  },
+  {
+    title: "Bulk import and export",
+    body: "Bring last year's speakers in from the tool you are leaving, take everything out again as CSV. There is no export ticket to raise.",
+  },
+  {
+    title: "An event roster",
+    body: "Who is staff, who is a reviewer, who is a speaker, per event — because someone who chaired review last year is a submitter this year, and the tool should not need telling twice.",
+  },
+  {
+    title: "A cross-event speaker directory",
+    body: "Every edition you have run, in one searchable directory with tags, companies and history. The compounding asset a conference builds is not its schedule; it is the people it knows.",
+  },
+];
+---
+
+<Base
+  title="Features"
+  description="The six screens that run a conference program — call for proposals, review, decisions, speaker onboarding, the agenda and the published schedule — photographed on the running product."
+>
+  <PageHead
+    eyebrow="The tour"
+    title="Six screens, doing the six jobs."
+    lede="Every image on this page is a photograph of Podium running against its own seeded conference: proposals in every state, a review round with real scores, sponsors part-way through their entitlements, and an agenda with genuine conflicts in it. Nothing here is a mockup."
+  >
+    <div class="actions">
+      <a class="btn primary" href="/demo">Sign in and try it</a>
+      <a class="btn secondary" href={GITHUB_URL}>Get the source</a>
+    </div>
+  </PageHead>
+
+  <section>
+    <div class="wrap">
+      <div class="feature reveal">
+        <div class="copy">
+          <h3>A call for proposals people can finish.</h3>
+          <p>
+            Multi-step forms with your own fields, drafts a submitter can leave and come back to,
+            and one board where every proposal, its state and its reviews are visible at once —
+            filterable, bulk-actionable, and current for everyone looking at it.
+          </p>
+          <p>
+            Two organizers working the board at the same time see each other's changes as they
+            land, rather than overwriting them and finding out later.
+          </p>
+        </div>
+        <Shot
+          name="proposals"
+          height={1140}
+          url="app.podiumstack.com/admin/events/…/proposals"
+          alt="The proposal board: thirteen proposals in a filterable table showing reference, title, state — accepted, draft, submitted, in review, rejected, waitlisted — track, format, speakers, reviews received and submission date."
+        />
+      </div>
+
+      <div class="feature flip reveal">
+        <div class="copy">
+          <h3>Review that holds up when someone asks.</h3>
+          <p>
+            Reviewers get a queue, a rubric and a progress bar — not a shared sheet with a hundred
+            rows. A reviewer who submitted, is credited on, or has declared a conflict with a
+            proposal cannot score it: the write is refused, not logged for someone to notice.
+          </p>
+          <p>
+            Run it open, single-blind or double-blind. Every score, comment and decision is
+            recorded, so "why was this rejected" has an answer a year later. An optional first-pass
+            triage can sort the pile before humans see it — off unless you turn it on, and its
+            opinions never count toward quorum.
+          </p>
+        </div>
+        <Shot
+          name="review"
+          height={1050}
+          url="app.podiumstack.com/review"
+          alt="A reviewer's queue: a screening round showing 7 of 7 done, with a card per assigned proposal."
+        />
+      </div>
+
+      <div class="feature reveal">
+        <div class="copy">
+          <h3>Decide as a batch. Tell everyone at once.</h3>
+          <p>
+            Outcomes stay provisional until you publish them. Nothing reaches a speaker early,
+            nobody finds out from a friend, and the awkward middle where half the program knows is
+            gone.
+          </p>
+          <p>
+            Podium shows you which proposals have reached quorum and which are short of it before
+            you commit — and records who waived it, and why, when you decide anyway.
+          </p>
+        </div>
+        <Shot
+          name="decisions"
+          height={1050}
+          url="app.podiumstack.com/admin/events/…/decisions"
+          alt="The decisions screen: proposals with quorum badges, an outcome, and a publication status, each with controls to record a decision."
+        />
+      </div>
+
+      <div class="feature flip reveal">
+        <div class="copy">
+          <h3>Stop chasing people for bios.</h3>
+          <p>
+            Say once what an accepted speaker owes you — headshot, bio, slides, code of conduct,
+            AV requirements — and Podium tracks every one of them, for every session and every
+            sponsor, and sends the reminders itself.
+          </p>
+          <p>
+            Mark a task <em>blocking</em> and an unfinished one keeps that session off the public
+            schedule until it is done. You find out now, not on the morning of the event.
+          </p>
+        </div>
+        <Shot
+          name="onboarding"
+          height={1140}
+          url="app.podiumstack.com/admin/events/…/onboarding"
+          alt="The onboarding board listing each session against each required task, with an assignee, a status and a due date per row."
+        />
+      </div>
+
+      <div class="feature reveal">
+        <div class="copy">
+          <h3>Sponsor sessions are not an afterthought.</h3>
+          <p>
+            A sponsor session is paid for, not selected — but it still needs content review, the
+            same onboarding and the same slot on the schedule. Most CFP tools model only the call
+            for proposals and leave this in email.
+          </p>
+          <p>
+            Here a package is a countable set of entitlements. Two session slots and a logo
+            placement; one slot spent, two rights still open — visible to you and to them, so nobody discovers a
+            missing slot the week before. An unused slot is never quietly lost, and one cannot be
+            spent twice.
+          </p>
+        </div>
+        <Shot
+          name="sponsorships"
+          height={840}
+          url="app.podiumstack.com/admin/events/…/sponsors"
+          alt="A sponsorships table showing three sponsors, their tier, and a progress bar of entitlements used against entitlements bought."
+        />
+      </div>
+
+      <div class="feature flip reveal">
+        <div class="copy">
+          <h3>A schedule that cannot quietly break.</h3>
+          <p>
+            Place sessions into rooms and times and Podium recomputes conflicts on every change —
+            a double-booked room, a speaker in two places, a session whose onboarding is not done.
+            It will let you save a broken schedule. It will not let you publish one.
+          </p>
+          <p>
+            What the public sees is an immutable, versioned snapshot your marketing site embeds
+            and a CDN can cache. Publishing an hour before doors open is survivable, because
+            rolling back is just pointing at the previous version.
+          </p>
+        </div>
+        <Shot
+          name="schedule"
+          height={1170}
+          url="podiumstack.com/e/your-event/schedule"
+          alt="The public schedule: an itinerary of sessions with times, rooms and speakers beside a room-by-time grid, with search and add-to-calendar."
+        />
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">The other side of it</span>
+      <h2>One place for speakers to look — on the phone they are holding.</h2>
+      <p class="sub">
+        Where their proposal stands, what they have been accepted for, when and where it is, what
+        they still owe you and by when, across every event you have ever run. They keep their own
+        profile, and it is what appears on the public schedule. You stop being the copy-editor of
+        sixty biographies.
+      </p>
+      <div class="feature reveal">
+        <div class="copy">
+          <h3>Built for the screen it is actually read on</h3>
+          <p>
+            Speakers accept from an emailed link, upload a headshot from the camera roll and tick
+            off onboarding tasks standing in a queue somewhere. The portal is not a desktop layout
+            that survives a phone; the narrow layout is the one it is designed at.
+          </p>
+          <p>
+            Attendees get the same treatment: the public schedule renders as an itinerary on a
+            phone and a room-by-time grid on a laptop, and both work with scripts blocked on
+            conference wifi.
+          </p>
+        </div>
+        <Shot
+          name="portal-phone"
+          height={1266}
+          phone
+          alt="The speaker portal on a phone: an accepted proposal with a confirm-by date, a published session with its room and time, and outstanding tasks with due dates."
+          caption="The speaker portal at 390 px — the width it is most often read at."
+        />
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Also in the box</span>
+      <h2>And the parts nobody demos.</h2>
+      <p class="sub">
+        None of these wins a bake-off. Between them they are most of what makes the last three
+        weeks before a conference survivable.
+      </p>
+      <div class="cards">
+        {
+          alsoInTheBox.map((item) => (
+            <div class="card reveal">
+              <h3>{item.title}</h3>
+              <p>{item.body}</p>
+            </div>
+          ))
+        }
+      </div>
+      <p class="nextstep"><a href="/integrations">What it connects to →</a></p>
+    </div>
+  </section>
+
+  <Cta
+    heading="Fifteen minutes with the real thing beats any of this."
+    sub="Sign in as the program chair of a conference already mid-flight, and go looking for the screen you did not believe."
+    secondaryHref="/compare"
+    secondaryLabel="Compare the alternatives"
+  />
+</Base>

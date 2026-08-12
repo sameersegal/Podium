@@ -1,0 +1,27 @@
+---
+/**
+ * The top of an interior page.
+ *
+ * The home page has the hero — a dark slab with a screenshot hanging out of the
+ * bottom of it. Every other page gets this instead: the same dark ground, no
+ * glow, no image, and room for one sentence saying who the page is for. Sharing
+ * the ground colour is what keeps the header from looking like it belongs to a
+ * different site once you leave the landing page.
+ */
+interface Props {
+  eyebrow: string;
+  title: string;
+  lede: string;
+}
+
+const { eyebrow, title, lede } = Astro.props;
+---
+
+<div class="pagehead">
+  <div class="wrap">
+    <span class="eyebrow">{eyebrow}</span>
+    <h1>{title}</h1>
+    <p class="lede">{lede}</p>
+    <slot />
+  </div>
+</div>

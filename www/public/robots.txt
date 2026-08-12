@@ -1,3 +1,7 @@
-# One page. A sitemap would say nothing the crawler cannot see from the root.
+# Every page is linked from the footer, so a crawler finds them all from the
+# root. The sitemap is here anyway because it carries change dates, which the
+# footer cannot.
 User-agent: *
 Allow: /
+
+Sitemap: https://podiumstack.com/sitemap.xml
