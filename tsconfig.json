@@ -15,12 +15,16 @@
     "noEmit": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
-    "baseUrl": ".",
+    // Relative, and no `baseUrl`: TypeScript 7 removed the option and rejects a
+    // non-relative path target. `./` resolves against this file's directory,
+    // which is what `baseUrl: "."` meant here anyway, so the mapping is
+    // unchanged — it just also compiles under 5.x, which is why it is safe to
+    // land alongside the bump rather than ahead of it.
     "paths": {
-      "@podiumstack/domain/*": ["packages/domain/src/*"],
-      "@podiumstack/data/*": ["packages/data/src/*"],
-      "@podiumstack/plugins/*": ["packages/plugins/src/*"],
-      "@podiumstack/web/*": ["workers/api/src/*"]
+      "@podiumstack/domain/*": ["./packages/domain/src/*"],
+      "@podiumstack/data/*": ["./packages/data/src/*"],
+      "@podiumstack/plugins/*": ["./packages/plugins/src/*"],
+      "@podiumstack/web/*": ["./workers/api/src/*"]
     }
   },
   "include": ["packages/**/*.ts", "workers/**/*.ts", "tests/**/*.ts", "worker-configuration.d.ts"],

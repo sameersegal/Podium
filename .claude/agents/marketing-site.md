@@ -105,10 +105,9 @@ Two other readers see the page, and one is not a person:
 | Reader | Arrives asking | Convinced by |
 |---|---|---|
 | The buyer | "How fast can I be off the incumbent, and what breaks?" | Screens doing the job with real data, the deploy command, the bill, what they give up |
-| Sponsorship or commercial lead | "Do sponsor sessions work, or is that email again?" | Countable entitlements on the same screen as the deal |
 | The agent they work through | "Can I operate and modify this without breaking it?" | A written spec, typed refusals, retry-safe writes, a check that fails in CI |
 
-Write for the buyer. Keep sponsorship one click away, and the repository one click from every
+Write for the buyer. Keep the repository one click from every
 page, because the repository is where they go to check you.
 
 ## C) Every claim is traceable
@@ -333,12 +332,39 @@ start a second one.
 - **Screenshots are the hero and must be legible.** `Shot` documents how it handles this, including
   the phone-width variant. Read its comment before reaching for a crop.
 - **No stock photography, no mascots, no fake dashboards, no invented logos, no testimonial nobody
-  said.** The product's own screens are the art.
+  said.** Two kinds of image ship here and there is no third: photographs of the running product
+  (J), and the abstract art in `www/public/art/`.
 - **Dark bands are structure**, separating the argument into movements. Two adjacent dark sections
   with different gradients is a seam.
 - **Load fast.** Images `lazy` below the fold and `eager` above it, always with intrinsic
   `width`/`height`. No web font unless it earns its bytes. No client JavaScript for anything a
   reader needs in order to understand the page.
+
+### Abstract art, which you can generate
+
+The pillar art in `www/public/art/` is the one set of images here that is not a photograph. You
+can make more:
+
+```bash
+codex --yolo -p 'Using imagen skill please generate an image for <description>'
+```
+
+`Pillars.astro` explains what this art is for and why it looks the way it does. Read that comment
+before writing a prompt, because the prompt has to carry its constraints: abstract, carrying no
+information, and never mistakable for a screen. No interface, no charts, no text inside the frame.
+Match the set that exists, which is light on dark, one accent, luminous geometry.
+
+- **Never generate a product image.** A screen, a dashboard, a chart or a logo is a fabrication
+  even when it is pretty, and J is the only route to a picture of Podium. If a shot is missing,
+  run the screenshot script.
+- **Look at what came back before you ship it.** Generators put text, faces and accidental UI into
+  frames that were asked for none of those.
+- **Land it as `.webp` in `www/public/art/`**, named for the `art` key that references it, and hold
+  the weight the set already holds: 5 to 15 KB each.
+- **The alt text describes the artwork, never a claim.** These pictures argue nothing; every fact
+  in the section is in the words beside them.
+- **If `codex` is not on the path, stop and say so.** Do not ship a page pointing at art that does
+  not exist, and do not substitute a stock image.
 
 ## I) Verify in a real browser
 
