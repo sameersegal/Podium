@@ -38,9 +38,37 @@ rules:
       the document as markup. Each one must be escapeHtml()'d at the interpolation,
       already SafeHtml, or a constant fixed by this file — check all of them, not
       just the first.
+    # `metavariable-pattern`, not `pattern-not`, and the difference is a trap
+    # worth recording because the broken version looks obviously correct:
+    #
+    #   - pattern:     raw(`...${$X}...`)
+    #   - pattern-not: raw(`...${escapeHtml($X)}...`)
+    #
+    # `$X` is shared across the two clauses. In the first it binds to the whole
+    # interpolation — `escapeHtml(opts.confirm)` — so in the second it would
+    # have to bind to `opts.confirm` at the same time. It cannot, the
+    # `pattern-not` never matches, and the rule fires on every `raw()` with an
+    # interpolation including the properly escaped ones. It shipped that way and
+    # reported 9 findings of which 9 were escaped and safe.
+    #
+    # Giving the second clause its own metavariable fixes the false positives
+    # and buys a worse bug: `raw(`<a href="${escapeHtml(u)}">${untrusted}</a>`)`
+    # matches the exclusion on its *first* interpolation and the unescaped
+    # second one is never reported. A false negative in an XSS rule is the one
+    # outcome worth avoiding above all others here.
+    #
+    # `metavariable-pattern` tests each binding of `$X` on its own. Semgrep
+    # already enumerates one match per interpolation, so the mixed case above
+    # reports exactly once, against the interpolation that is actually unsafe.
     patterns:
       - pattern: raw(`...${$X}...`)
-      - pattern-not: raw(`...${escapeHtml($X)}...`)
+      - metavariable-pattern:
+          metavariable: $X
+          patterns:
+            # Only `escapeHtml` counts. `str()`, `String()` and friends convert
+            # a type; they do not make markup safe, and treating them as
+            # sanitizers here is how this rule would start lying.
+            - pattern-not: escapeHtml(...)
     paths:
       include: ["**/workers/**"]
       exclude: ["**/workers/api/src/ui/html.ts"]
