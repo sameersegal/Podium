@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Agent from "../components/Agent.astro";
 import Cta from "../components/Cta.astro";
 import Logos from "../components/Logos.astro";
 import Pillars from "../components/Pillars.astro";
@@ -63,16 +64,49 @@ const pains = [
     answer: "They sign in and see status, next action, deadline, and what you still need.",
   },
 ];
+
+/*
+ * The agent panel in the AI section, transcribed from a run against a local
+ * instance on the shipped seed on 13 August 2026, through the CLI in
+ * `claude-plugin/scripts/podium.mjs` on a key minted by `bootstrap-key`:
+ *
+ *   list /v1/tasks event_id=… status=not_started   → count 12
+ *   list /v1/tasks event_id=… status=completed     → count 27
+ *   post /v1/tasks/tsk_…/remind                    → { "sent": 1, "suppressed": 0 }
+ *   post /v1/reviews …                             → 403 authorship_requires_person
+ *
+ * The refusal text is the API's own message, verbatim minus the rule
+ * identifier it also returns — the reader is not the audience for that, and it
+ * would be the only citation anywhere on this site. The rule itself is that a
+ * first-person statement is authored by its person and never by a credential.
+ *
+ * If the seed changes, these numbers change. Re-run before editing them.
+ */
+const agentLines = [
+  { text: "12 onboarding tasks not started, 27 done" },
+  { text: "reminded 1 speaker · 0 suppressed", said: true },
+];
+
+/*
+ * The five rows under "before you decide". Each one is argued at length on the
+ * page the section links to; what they are doing here is letting a reader who
+ * scrolled this far see the shape of the deal without opening anything. Two of
+ * the five are a no, and they are the two that lose the wrong buyer fastest.
+ */
+const terms = [
+  { label: "Licence", value: "MIT, $0, every event you run", ok: true },
+  { label: "Hosting", value: "Your Cloudflare account, from $5 a month", ok: true },
+  { label: "Your data", value: "Your D1 database, exportable as CSV", ok: true },
+  { label: "Attendee ticketing", value: "Not offered", ok: false },
+  { label: "Hosted tier", value: "Not offered — you deploy it", ok: false },
+];
 ---
 
 <Base>
-  <div class="hero">
-    <div class="glows" aria-hidden="true">
-      <div class="glow one"></div>
-      <div class="glow two"></div>
-    </div>
+  <section class="hero">
     <div class="wrap">
-      <h1>Run the whole program from <span class="hl">an account in your name</span>.</h1>
+      <span class="eyebrow">Open-source conference program management</span>
+      <h1>Run the whole program from <em>an account in your name</em>.</h1>
       <p class="lede">
         The call for proposals, the review, the sponsor sessions, the chase for bios and slides,
         the schedule your website embeds. MIT-licensed. It deploys to your Cloudflare account, and
@@ -97,66 +131,67 @@ const pains = [
           alt="The agenda screen: a panel naming two conflicts that block publication, above a room-by-time grid with sessions placed across Main Stage, Room 2A, Room 2B and the Workshop Lab."
           eager
         />
-        <div class="inset">
-          <Shot
-            name="dashboard"
-            height={660}
-            small
-            alt="An event overview showing counts of days, tracks, formats, rooms and calls for proposals."
-          />
-        </div>
       </div>
     </div>
-  </div>
-  <div class="hero-spacer"></div>
+  </section>
 
   <section>
     <div class="wrap">
-      <span class="eyebrow">The move</span>
-      <h2>Leave in three steps.</h2>
-      <p class="sub">
-        Deploying is two commands. What costs you is the part that does not come across.
-      </p>
-
-      <ol class="steps">
-        <li class="reveal">
-          <h3>Deploy it into your own account</h3>
-          <p>
-            A D1 database, a KV namespace, an R2 bucket and three queues, then two commands. The
-            hostname is yours, and the app only ever learns it at deploy time.
+      <div class="split">
+        <div>
+          <span class="eyebrow">The move</span>
+          <h2>Leave in three steps.</h2>
+          <p class="sub">
+            Deploying is two commands. What costs you is the part that does not come across.
           </p>
-          <pre class="term"><code>npm run deploy:migrate
-npm run deploy</code></pre>
-        </li>
-        <li class="reveal">
-          <h3>Bring last year's people in as a CSV</h3>
-          <p>
-            Columns headed <em>Speaker Name</em>, <em>E-mail</em> and <em>Employer</em> map
-            themselves, and you see what will be created, updated and rejected before a row is
-            written. People and the roster arrive that way. Last year's sessions, scores and
-            decisions do not arrive at all.
-          </p>
-        </li>
-        <li class="reveal">
-          <h3>Open the call</h3>
-          <p>
-            Build the form, publish it, invite the speakers you already know. There is no password
-            for a speaker to set: they arrive on a link the event emailed them.
-          </p>
-        </li>
-      </ol>
 
-      <div class="notice" style="margin-top: 2rem">
-        <p>
-          <strong>Nobody has publicly moved a live conference onto this yet.</strong> The import is
-          built and tested; the first migration off a commercial tool is still ahead of us. If it
-          is yours, the issue tracker is where it goes.
-        </p>
-      </div>
+          <div class="notice" data-label="Note">
+            <p>
+              <strong>Nobody has publicly moved a live conference onto this yet.</strong> The import
+              is built and tested; the first migration off a commercial tool is still ahead of us.
+              If it is yours, the issue tracker is where it goes.
+            </p>
+          </div>
 
-      <div class="kpis" style="margin-top: 1.5rem">
-        <div class="kpi"><b>$0</b><span>to licence, for every event you will ever run</span></div>
-        <div class="kpi"><b>$5</b><span>a month, the one fixed line, on Cloudflare's price list</span></div>
+          <div class="kpis" style="margin-top: var(--s-6)">
+            <div class="kpi"><b>$0</b><span>to licence, for every event you will ever run</span></div>
+            <div class="kpi"><b>$5</b><span>a month, the one fixed line, on Cloudflare's price list</span></div>
+          </div>
+        </div>
+
+        <ol class="steps">
+          <li>
+            <div>
+              <h3>Deploy it into your own account</h3>
+              <p>
+                A D1 database, a KV namespace, an R2 bucket and three queues, then two commands. The
+                hostname is yours, and the app only ever learns it at deploy time.
+              </p>
+              <pre class="term"><code><span class="line">npm run deploy:migrate</span>
+<span class="line">npm run deploy</span></code></pre>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>Bring last year's people in as a CSV</h3>
+              <p>
+                Columns headed <em>Speaker Name</em>, <em>E-mail</em> and <em>Employer</em> map
+                themselves, and you see what will be created, updated and rejected before a row is
+                written. People and the roster arrive that way. Last year's sessions, scores and
+                decisions do not arrive at all.
+              </p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>Open the call</h3>
+              <p>
+                Build the form, publish it, invite the speakers you already know. There is no password
+                for a speaker to set: they arrive on a link the event emailed them.
+              </p>
+            </div>
+          </li>
+        </ol>
       </div>
 
       <p class="nextstep"><a href="/compare">What a switch costs, and what has no equivalent here →</a></p>
@@ -171,15 +206,76 @@ npm run deploy</code></pre>
         Every one is somebody waiting on you. Podium answers all six from one record of the
         program.
       </p>
-      <div class="pains">
+      <div class="pains grid-hair three">
         {
           pains.map((p) => (
-            <div class="pain reveal">
+            <div class="pain">
               <q>{p.quote}</q>
               <p>{p.answer}</p>
             </div>
           ))
         }
+      </div>
+    </div>
+  </section>
+
+  {/*
+    The AI section. Three claims, backed separately, because "built with AI" as
+    one claim is the easiest sentence on this site to inflate into nothing.
+
+      built by agents      docs/domain/ is normative and predates the code
+                           (CLAUDE.md); .claude/agents/implementer.md halts on
+                           a request the model does not cover; `npm run drift`
+                           is a step in the check job of .github/workflows/ci.yml
+      operated by one      the typed refusal in the panel, run against a live
+                           instance today — see the note on `agentLines` above
+      changed by yours     MIT, and the fork inherits the document and the check
+
+    The boundary is stated on the page rather than left for the reader to find:
+    there is no MCP server and no OpenAPI document, and nothing here may imply
+    one. The assisted placement in the product is a constraint solver, not a
+    model, and is deliberately not mentioned in this section for that reason.
+  */}
+  <section>
+    <div class="wrap">
+      <div class="split">
+        <div>
+          <span class="eyebrow">Built with agents</span>
+          <h2>A codebase a model can read, and change.</h2>
+          {/* `.lede` and not `.sub`: this is the first of four paragraphs of
+              argument, and `.sub` puts 48px under itself for the grid that
+              usually follows a section heading. Here that gap fell in the
+              middle of a block of prose. */}
+          <p class="lede">
+            The rules live in a document written before the code, and the code is held to it. Ask an
+            agent for behaviour the document does not cover and it stops instead of inventing it.
+            When the two drift apart, the build fails.
+          </p>
+          <p>
+            Your own agent drives Podium through the management API rather than a browser. A refusal
+            comes back typed and names the reason, not <code>400 Bad Request</code>. There is no MCP
+            server and no OpenAPI document; the API was built for a machine to call, and the
+            specification was written for one to read.
+          </p>
+          <p>
+            MIT-licensed, so the fork is yours. It inherits the document and the check that fails
+            when the code disagrees with it. A change you make is a merge you own, and nobody has
+            run that upgrade in public yet.
+          </p>
+          <p>
+            The first-pass AI review is built and off. Switch it on and its scores sit beside your
+            reviewers' rather than inside them. The evaluator that ships calls no external model.
+          </p>
+          <p class="nextstep"><a href={DOMAIN_MODEL_URL}>The rules, written down before the code →</a></p>
+        </div>
+
+        <Agent
+          label="Agent · onboarding"
+          meta="4 calls"
+          lines={agentLines}
+          refused="writing a review is that person's own statement and cannot be done with an API key"
+          caption="A run against the demo conference, in full. The last line is what it was not allowed to do."
+        />
       </div>
     </div>
   </section>
@@ -193,7 +289,7 @@ npm run deploy</code></pre>
         features page.
       </p>
 
-      <div class="feature reveal">
+      <div class="feature">
         <div class="copy">
           <h3>Stop chasing people for bios.</h3>
           <p>
@@ -216,7 +312,7 @@ npm run deploy</code></pre>
         />
       </div>
 
-      <div class="feature flip reveal">
+      <div class="feature flip">
         <div class="copy">
           <h3>Review that holds up when someone asks.</h3>
           <p>
@@ -237,7 +333,7 @@ npm run deploy</code></pre>
         />
       </div>
 
-      <div class="feature reveal">
+      <div class="feature">
         <div class="copy">
           <h3>Sponsor sessions are not an afterthought.</h3>
           <p>
@@ -272,8 +368,12 @@ npm run deploy</code></pre>
         The core imports no provider's SDK, so swapping one for another is an install and a
         default.
       </p>
-      <div class="cards">
-        <div class="card reveal">
+      <div class="cards two">
+        {/* The chip is the plugin key, which is what a self-hoster puts in
+            their config to swap one adapter for another. It is on
+            /integrations for the same reason. */}
+        <div class="card">
+          <span class="key">email.resend</span>
           <h3>Mail you can audit</h3>
           <p>
             Templates, quiet hours, batching and suppression stay on Podium's side; the provider
@@ -281,7 +381,8 @@ npm run deploy</code></pre>
             not a guess.
           </p>
         </div>
-        <div class="card reveal">
+        <div class="card">
+          <span class="key">sync.airtable</span>
           <h3>Two-way sync that loses no edit</h3>
           <p>
             An edit in the linked table applies only against the version Podium last pushed. A
@@ -303,10 +404,13 @@ npm run deploy</code></pre>
   >
     {/* The event count moved into the sixth pillar above, so it is not repeated
         here — the same number twice in one band reads as padding. */}
-    <div class="kpis three" style="margin-top: 2.75rem">
+    <div class="kpis three" style="margin-top: var(--s-6)">
       <div class="kpi"><b>{STATS.tests}</b><span>tests, unit and integration</span></div>
       <div class="kpi"><b>{STATS.endpoints}</b><span>endpoints on one versioned API</span></div>
-      <div class="kpi"><b>{STATS.routes}</b><span>routes, each inventoried with its guard</span></div>
+      {/* Not "routes, each inventoried with its guard", which is a number we
+          keep for ourselves. What the reader feels is that nobody can add a
+          screen and forget the permission check on it. */}
+      <div class="kpi"><b>{STATS.routes}</b><span>URLs in the app; a new one without a permission check fails the build</span></div>
     </div>
 
     <p class="nextstep">
@@ -316,14 +420,41 @@ npm run deploy</code></pre>
 
   <section>
     <div class="wrap">
-      <span class="eyebrow">Before you decide</span>
-      <h2>It is not the right tool for every conference.</h2>
-      <p class="sub">
-        Podium does no attendee registration, no badging and no ticketing, and there is no hosted
-        tier, so somebody deploys it. If that rules it out, the switching page names what to buy
-        instead.
-      </p>
-      <p class="nextstep"><a href="/compare">Podium against Sessionize and Sessionboard →</a></p>
+      <div class="split">
+        <div>
+          <span class="eyebrow">Before you decide</span>
+          <h2>It is not the right tool for every conference.</h2>
+          <p class="sub">
+            Podium does no attendee registration, no badging and no ticketing, and there is no hosted
+            tier, so somebody deploys it. If that rules it out, the switching page names what to buy
+            instead.
+          </p>
+          <p class="nextstep"><a href="/compare">Podium against Sessionize and Sessionboard →</a></p>
+        </div>
+
+        <div class="table-wrap">
+          <table class="matrix stack">
+            <thead>
+              <tr>
+                <th scope="col">Term</th>
+                <th scope="col" class="mine">Podium</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                terms.map((t) => (
+                  <tr>
+                    <th scope="row">{t.label}</th>
+                    <td class="mine" data-label="Podium" style={t.ok ? undefined : "color: var(--text-3)"}>
+                      {t.value}
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </section>
 

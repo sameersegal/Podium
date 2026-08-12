@@ -49,7 +49,15 @@ export interface Pillar {
   body: string;
   /** The number, where there is one worth showing. */
   stat?: { value: string; unit: string };
-  /** File in `public/art/`, without the extension. */
+  /**
+   * File in `public/art/`, without the extension.
+   *
+   * Nothing renders these any more. The six wordless renders were dropped with
+   * the redesign — every other image on this site is a photograph of the
+   * running product, and these carried no part of the claim beside them. The
+   * fields and the files stay until the interior pages are rebuilt and can say
+   * whether any of them wants a picture back.
+   */
   art: string;
   /** Wordless abstract art still needs to say what it is to a screen reader. */
   alt: string;

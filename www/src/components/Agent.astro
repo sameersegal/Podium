@@ -1,0 +1,51 @@
+---
+/**
+ * The agent surface — the one cobalt thing on this site.
+ *
+ * Cobalt marks a machine acting. It is never used for copy *about* AI, never
+ * as a second brand colour, and never on a screen a person drove. If a page
+ * wants to say Podium is built with agents, it says it in the ordinary text
+ * colour; this panel is for showing one of them working.
+ *
+ * **What goes in it.** A transcript of a run that actually happened, against a
+ * running instance, with the numbers that run returned. Nothing here is
+ * composed. The `refused` line is required, not decoration: an agent surface
+ * shows what it did *and* what it was not allowed to do, because a suggestion
+ * the reader cannot audit is worth nothing to somebody deciding whether to let
+ * software near their programme. If a run has no refusal in it, it is not a
+ * run worth publishing.
+ *
+ * **Nothing in it is interactive.** The design reference drew a confirm and a
+ * discard button in the footer. On a marketing page those would be buttons
+ * that do nothing, which is a fake dashboard by another name. The panel quotes
+ * a run; it does not simulate one. The footer is a caption saying so.
+ */
+interface Props {
+  /** What the run was for, in the reader's words. Shown mono and uppercase. */
+  label: string;
+  /** Right of the bar. A count of calls, not a duration — a duration measured
+      on a laptop says nothing about the reader's instance. */
+  meta: string;
+  /** What it did. `said` promotes the consequential one to `--text-1`. */
+  lines: readonly { text: string; said?: boolean }[];
+  /** What it was refused. Required. */
+  refused: string;
+  /** One line saying where the transcript came from. */
+  caption: string;
+}
+
+const { label, meta, lines, refused, caption } = Astro.props;
+---
+
+<figure class="agent">
+  <div class="agent-bar">
+    <i aria-hidden="true"></i>
+    <span>{label}</span>
+    <time>{meta}</time>
+  </div>
+  <div class="agent-body">
+    {lines.map((l) => <div class={l.said ? "said" : undefined}>{l.text}</div>)}
+    <div class="refused">{refused}</div>
+  </div>
+  <figcaption class="agent-foot">{caption}</figcaption>
+</figure>

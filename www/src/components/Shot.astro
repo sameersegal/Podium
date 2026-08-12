@@ -16,6 +16,10 @@
  * The frame is a `<div>` inside the `<figure>` rather than being the figure
  * itself, because the frame clips to its own rounded corners and a caption has
  * to sit outside that box.
+ *
+ * The header bar holds the path and nothing else. It used to draw three
+ * coloured dots as well; a browser has traffic lights, a screenshot of one does
+ * not need to pretend, and the URL is the part that says which screen this is.
  */
 interface Props {
   /** File name in `public/screens/`, without the extension. */
@@ -70,9 +74,6 @@ const cls = ["shot", small && "sm", phone && "phone", phoneName && "has-phone"].
     {
       !phone && (
         <div class="shot-bar" aria-hidden="true">
-          <i />
-          <i />
-          <i />
           {url && <span>{url}</span>}
         </div>
       )
