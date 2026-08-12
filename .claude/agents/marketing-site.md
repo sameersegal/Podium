@@ -105,10 +105,9 @@ Two other readers see the page, and one is not a person:
 | Reader | Arrives asking | Convinced by |
 |---|---|---|
 | The buyer | "How fast can I be off the incumbent, and what breaks?" | Screens doing the job with real data, the deploy command, the bill, what they give up |
-| Sponsorship or commercial lead | "Do sponsor sessions work, or is that email again?" | Countable entitlements on the same screen as the deal |
 | The agent they work through | "Can I operate and modify this without breaking it?" | A written spec, typed refusals, retry-safe writes, a check that fails in CI |
 
-Write for the buyer. Keep sponsorship one click away, and the repository one click from every
+Write for the buyer. Keep the repository one click from every
 page, because the repository is where they go to check you.
 
 ## C) Every claim is traceable
