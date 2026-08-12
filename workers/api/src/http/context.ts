@@ -332,6 +332,7 @@ const CAPABILITY_PHRASE: Record<Capability, string> = {
   "schedule.publish": "publish the schedule",
   "schedule.read_published": "read the published schedule",
   "pii.read": "see personal contact details",
+  "sync.resolve_conflict": "resolve a sync conflict",
   "audit.read": "read the audit log",
 };
 
@@ -375,6 +376,11 @@ const CAPABILITY_SCOPES: Partial<Record<Capability, { read: ApiScope[]; write: A
   "event.configure": { read: ["events:read"], write: ["events:write"] },
   "config.manage": { read: ["events:read"], write: ["events:write"] },
   "cfp.configure": { read: ["events:read"], write: ["events:write"] },
+  // A key driving the sync must hold `events:write`; without it, reading a
+  // conflict queue is all it can do. `hasScopeFor` defaults an unmapped
+  // capability to `true`, so leaving this out would let a `tasks:write` key
+  // resolve conflicts on the programme.
+  "sync.resolve_conflict": { read: ["events:read"], write: ["events:write"] },
 };
 
 function hasScopeFor(scopes: ApiScope[] | null, capability: Capability, write: boolean): boolean {

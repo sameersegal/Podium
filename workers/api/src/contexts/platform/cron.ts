@@ -12,8 +12,10 @@ import { str, type Row } from "@podiumconf/data/db.js";
 import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { sendCampaignNow } from "./campaigns.js";
+import { writableFields } from "@podiumconf/domain/platform/sync.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { replayUnprocessedEvents } from "../../consumers/replay.js";
+import { schedulePull, schedulePush } from "./sync-delivery.js";
 
 export const PLATFORM_CRON: CronJob[] = [
   {
@@ -96,6 +98,50 @@ export const PLATFORM_CRON: CronJob[] = [
     async run(env, now) {
       const { replayed } = await replayUnprocessedEvents(env, { now, graceMinutes: 5, lookbackHours: 24 });
       return replayed;
+    },
+  },
+  {
+    /**
+     * The two-way sync's backstop — 09, "The `sync` capability contract".
+     *
+     * Pulls exist on a schedule rather than only on a provider ping because an
+     * integration that works only while webhooks land is an integration that
+     * stops working silently. Airtable's automation webhook is best-effort, has
+     * no delivery guarantee and no retry, so it is treated as a hint that makes
+     * the sync feel live — never as the thing correctness depends on.
+     *
+     * The push half is swept for the same reason in reverse: `schedulePush`
+     * swallows a queue failure because the link is already `pending_push` in the
+     * database, and this is what makes that swallow safe.
+     */
+    name: "platform.sweep_sync",
+    everyMinutes: 15,
+    async run(env: Env) {
+      const mappings = await env.DB.prepare(
+        "SELECT id, org_id, subject FROM sync_mapping WHERE is_active = 1 LIMIT 200",
+      ).all<Row>();
+
+      let n = 0;
+      for (const row of mappings.results ?? []) {
+        const orgId = str(row.org_id);
+        const mappingId = str(row.id);
+        // Push first: a record left dirty by a queue outage should reach the
+        // provider before the pull reads a table that is missing it.
+        const pending = await env.DB.prepare(
+          "SELECT COUNT(*) AS n FROM external_record_link WHERE mapping_id = ? AND status = 'pending_push'",
+        )
+          .bind(mappingId)
+          .first<{ n: number }>();
+        if (Number(pending?.n ?? 0) > 0) {
+          await schedulePush(env, orgId, mappingId, "cron");
+          n++;
+        }
+        if (writableFields(str(row.subject)).length > 0) {
+          await schedulePull(env, orgId, mappingId, "cron");
+          n++;
+        }
+      }
+      return n;
     },
   },
 ];

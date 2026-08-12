@@ -26,6 +26,8 @@ const EXEMPT: Record<string, string> = {
   "POST /admin/events/:eventId/schedule/place": "delegates to the schedule Durable Object, which flushes inside the critical section",
   "POST /admin/events/:eventId/schedule/move": "delegates to the schedule Durable Object, which flushes inside the critical section",
   "PUT /files/upload": "the presigned upload callback stamps size and checksum; the asset's events were raised when it was created",
+  "POST /admin/sync/:mappingId/pull": "reads the mapping to check it accepts writes at all, then enqueues; the run itself flushes on the delivery queue",
+  "POST /v1/sync/mappings/:id/pull": "reads the mapping to check it accepts writes at all, then enqueues; the run itself flushes on the delivery queue",
 };
 
 function sourceFiles(dir: string): string[] {

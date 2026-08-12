@@ -81,7 +81,12 @@ login screen and the invoice, not in a rejection letter.
 | **Subject** | The primary entity a domain event is about; webhook ordering is per subject. | Actor |
 | **Actor** | Who or what caused an event: person, API key, system, integration. | Assignee |
 | **Correlation / causation id** | Groups events from one request / names the event that caused this one. | Idempotency key |
-| **Capability** | A plugin contract the core calls: `email`, `chat`, `calendar`, `crm`, `storage`, `identity`. | Integration (an installed instance) |
+| **Capability** | A plugin contract the core calls: `email`, `chat`, `calendar`, `crm`, `storage`, `identity`, `sync`. | Integration (an installed instance) |
+| **`crm` capability** | The push-only contact/company contract to a *sales* CRM (HubSpot and the like). Nothing to do with the Speaker CRM in [`14`](14-speaker-crm.md), which is a bounded context, not an integration. | Speaker CRM, Sync mapping |
+| **Sync mapping** | One Podium subject mirrored into one external table, with a per-field direction. The unit an organizer configures. | Integration, External record link |
+| **External record link** | The join between one Podium record and its row in the external tool, holding the hashes and the version that make the sync safe to run twice. | Sync mapping |
+| **Echo** | An inbound change that is only this system hearing its own last push. Detected by hash and dropped; it is what keeps push and pull from driving each other forever. | Idempotency key |
+| **Sync conflict** | An inbound edit written against a value Podium has since changed. Refused, retained, and shown to a human — never silently applied or silently dropped. | Version conflict |
 | **Scope** | What an API key may touch. `pii:read` is separate and additive. | Role |
 | **Role grant** | A scoped, revocable, expiring permission held by a person. | Relationship-derived access |
 | **Relationship-derived access** | Permission that comes from *being* a speaker or sponsor contact, and ends with the relationship. | Role grant |

@@ -17,11 +17,25 @@ import { isVersioned } from "@podiumconf/data/db.js";
 
 const MIGRATIONS = new URL("../../../migrations", import.meta.url).pathname;
 
+/**
+ * Migration text with `--` comments removed.
+ *
+ * Every check below asks whether a *column* exists, and a comment is not a
+ * column. Migrations here explain themselves at length and cite the invariant
+ * they enforce, so the word `row_version` appears in prose far more often than
+ * it appears as a definition — and a prose mention was enough to make a table
+ * look versioned when it is not. No migration contains a string literal, so
+ * stripping to end-of-line is safe.
+ */
+function withoutComments(sql: string): string {
+  return sql.replace(/--[^\n]*/g, "");
+}
+
 /** Tables the schema gives a `row_version` column, whether at create or by ALTER. */
 function versionedInSchema(): Set<string> {
   const found = new Set<string>();
   for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort()) {
-    const sql = readFileSync(join(MIGRATIONS, file), "utf8");
+    const sql = withoutComments(readFileSync(join(MIGRATIONS, file), "utf8"));
     for (const m of sql.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+(\w+)\s*\(([\s\S]*?)\n\);/g)) {
       if (/\brow_version\b/.test(m[2])) found.add(m[1]);
     }
@@ -52,7 +66,7 @@ describe("row_version (11-cross-cutting.md, \"Concurrency\")", () => {
     // column that does not exist, and every write to it throws.
     const tables = new Set<string>();
     for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql"))) {
-      const sql = readFileSync(join(MIGRATIONS, file), "utf8");
+      const sql = withoutComments(readFileSync(join(MIGRATIONS, file), "utf8"));
       for (const m of sql.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+(\w+)/g)) tables.add(m[1]);
     }
     const spurious = [...tables].filter((t) => isVersioned(t) && !schema.has(t)).sort();

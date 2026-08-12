@@ -55,6 +55,7 @@ export const CAPABILITIES = [
   "analytics",
   "identity",
   "ticketing",
+  "sync",
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 

@@ -10,6 +10,7 @@ export const EVENT_TYPES = [
   // Identity
   "organization.created",
   "person.created",
+  "person.updated",
   "person.merged",
   "person.merge_candidate_detected",
   "person.deactivated",
@@ -136,6 +137,17 @@ export const EVENT_TYPES = [
   "campaign.created",
   "campaign.sent",
   "campaign.recipient_failed",
+
+  // Two-way sync
+  "sync_mapping.created",
+  "sync_mapping.activated",
+  "sync_mapping.deactivated",
+  "sync_link.created",
+  "sync_link.conflicted",
+  "sync_link.resolved",
+  "sync_link.unlinked",
+  "sync_run.completed",
+  "sync_run.failed",
 
   // Content and bulk operations
   "asset.uploaded",

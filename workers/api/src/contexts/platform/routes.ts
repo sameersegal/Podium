@@ -13,6 +13,10 @@ import { API_SCOPES, type ApiScope } from "@podiumconf/domain/shared/authorizati
 import { notFound } from "@podiumconf/domain/shared/errors.js";
 import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumconf/domain/platform/types.js";
 import type { AudienceCriteria } from "@podiumconf/domain/platform/types.js";
+import { writableFields } from "@podiumconf/domain/platform/sync.js";
+import { activeMappings } from "./sync.js";
+import { schedulePull } from "./sync-delivery.js";
+import { registerSyncRoutes } from "./sync-routes.js";
 import {
   applyDeliveryStatusUpdates,
   inboundWebhookUrl,
@@ -112,6 +116,9 @@ export function registerPlatformRoutes(router: Router<RequestContext>): void {
   registerEventLogRoutes(router);
   registerUnsubscribeRoutes(router);
   registerInboundWebhookRoutes(router);
+  // Before the management API, so `/admin/sync/:mappingId` is matched by its own
+  // handler rather than by a broader pattern registered later.
+  registerSyncRoutes(router);
   registerManagementApi(router);
 }
 
@@ -657,9 +664,12 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
     if (!plugin) throw notFound("Plugin", str(integration.plugin_key));
     const config = parseJson<Record<string, unknown>>(integration.config, {});
     const canWrite = ctx.canWrite("org.configure");
-    // Only email plugins receive provider callbacks today (09, `email`:
-    // `handle_inbound_webhook`); nothing else in the contract set has one.
-    const inbound = plugin.capability === "email" ? await inboundWebhookUrl(ctx.env, str(integration.id)) : null;
+    // `email` receives delivery-status callbacks; `sync` receives a change ping
+    // (09). Nothing else in the contract set has an inbound side.
+    const hasInbound = plugin.capability === "email" || plugin.capability === "sync";
+    const inbound = hasInbound ? await inboundWebhookUrl(ctx.env, str(integration.id)) : null;
+    const isSync = plugin.capability === "sync";
+    const mappingCount = isSync ? await app.db.count("sync_mapping", { integration_id: str(integration.id) }) : 0;
     return htmlResponse(
       adminPage(
         ctx,
@@ -682,15 +692,28 @@ function registerIntegrationRoutes(router: Router<RequestContext>): void {
                 "Settings",
               )
             : raw("")}
+          ${isSync
+            ? card(
+                html`<p class="small muted">
+                    ${mappingCount === 0
+                      ? "Nothing is mirrored yet. A mapping points one kind of record at one table in the base."
+                      : `${mappingCount} table(s) mapped.`}
+                  </p>
+                  <p><a class="button" href="/admin/integrations/${str(integration.id)}/sync">Tables and fields</a>
+                    <a class="button secondary" href="/admin/sync">Conflicts</a></p>`,
+                "Two-way sync",
+              )
+            : raw("")}
           ${inbound
             ? card(
                 html`<p class="small muted">
-                    Paste this into the provider's delivery-event webhook setting. Bounces and complaints arriving here move the outbox row past
-                    <code>sent</code> and put a hard bounce on the suppression list.
+                    ${isSync
+                      ? "Call this from an automation in the base whenever a record changes. It is only a hint that makes the sync feel live — a scheduled sweep runs either way, so a ping that never arrives costs a few minutes, not a change."
+                      : "Paste this into the provider's delivery-event webhook setting. Bounces and complaints arriving here move the outbox row past `sent` and put a hard bounce on the suppression list."}
                   </p>
                   <p class="mono small">${inbound}</p>
                   <p class="small muted">The signature in the URL is what authenticates the provider, so treat it as a credential.</p>`,
-                "Delivery events webhook",
+                isSync ? "Change ping" : "Delivery events webhook",
               )
             : raw("")}`,
       ),
@@ -1340,13 +1363,38 @@ function registerInboundWebhookRoutes(router: Router<RequestContext>): void {
     // INV-09-11: a disabled integration stops accepting callbacks immediately.
     const resolved = await resolvePluginForIntegration(app, integration);
     if (!resolved) return json({ error: "integration_unavailable" }, { status: 409 });
-    if (resolved.plugin.capability !== "email") return json({ error: "capability_has_no_inbound" }, { status: 400 });
+
+    // Dispatched on the installed integration's capability, not on the shape of
+    // the payload: two providers can post the same JSON and mean different
+    // things, and the URL already names the one installation this concerns.
+    const capability = resolved.plugin.capability;
+    if (capability !== "email" && capability !== "sync") {
+      return json({ error: "capability_has_no_inbound" }, { status: 400 });
+    }
 
     let payload: unknown;
     try {
       payload = await req.json();
     } catch {
       return json({ error: "invalid_payload" }, { status: 400 });
+    }
+
+    if (capability === "sync") {
+      // A ping, not a payload (09). Airtable's automation webhook carries no
+      // signature we could verify uniformly and no ordering guarantee, so the
+      // only safe reading of it is "something changed, go and look" — and the
+      // cron sweep runs regardless, so a ping that never arrives costs latency
+      // rather than correctness.
+      const hint = (await resolved.plugin.handle_inbound_webhook?.(payload, resolved.ctx)) ?? { external_table_ids: null };
+      const wanted = hint.external_table_ids;
+      let scheduled = 0;
+      for (const mapping of await activeMappings(app, params.id)) {
+        if (wanted && !wanted.includes(str(mapping.external_table_id))) continue;
+        if (writableFields(str(mapping.subject)).length === 0) continue; // push-only (INV-09-23)
+        await schedulePull(ctx.env, app.orgId, str(mapping.id), "inbound");
+        scheduled++;
+      }
+      return json({ received: scheduled });
     }
 
     const updates = await resolved.plugin.handle_inbound_webhook(payload, resolved.ctx);

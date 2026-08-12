@@ -59,6 +59,9 @@ await app.flush();               // persists the event log + audit, then publish
 | Cron cadence (elapsed time, not epoch modulus) | `consumers/cron.ts` + `cron_job_run` |
 | INV-01-12 password hashing (Argon2id) | `packages/domain/src/identity/credentials.ts` |
 | INV-02-14…17 event provisioning (starter blueprint, clone) | `contexts/event-config/provisioning.ts` over `packages/domain/src/event-config/blueprint.ts` |
+| INV-09-17…19 sync field maps, authority and echo suppression | `packages/domain/src/platform/sync.ts` (pure); applied in `contexts/platform/sync.ts` |
+| INV-09-20 sync writes go through the owning context's service | `contexts/platform/sync-subjects.ts` — one adapter per subject, each calling that context's own `service.ts` |
+| INV-09-22 erasure propagation to external mirrors | `erasePersonEverywhere` in `contexts/platform/sync.ts`, driven by the `platform.sync_erasure` reaction |
 
 ### Password hashing is currently below the OWASP floor, on purpose
 
@@ -128,6 +131,53 @@ them, and are never accepted from a request body (INV-11-6). The two materialise
 exceptions are the publication snapshot (immutable once live) and `schedule_conflict`
 (recomputed on every placement write so acknowledgements survive).
 
+Until the two-way sync, that rule held by omission: every service builds its patch from a
+named field set, so a derived column simply had no route that could write it. Two surfaces
+now take a field bag from outside — bulk import and sync — and they carry the rule
+explicitly instead, as per-subject writable sets (`SUBJECT_SPECS` in
+`packages/domain/src/platform/sync.ts`) validated at save time. `derivedFieldWrite` in
+`shared/errors.ts` had no call site before this and now has one.
+
+## Two-way sync
+
+`sync_mapping` → `external_record_link` → `sync_run`, with the domain rules pure in
+`packages/domain/src/platform/sync.ts` and the orchestration in `contexts/platform/`:
+
+| Piece | File |
+|---|---|
+| Field sets, value space, hashing, echo check, link state machine | `packages/domain/src/platform/sync.ts` |
+| Per-subject load / list / derive / apply | `contexts/platform/sync-subjects.ts` |
+| Mappings, push, pull, conflicts, erasure | `contexts/platform/sync.ts` |
+| Debounced enqueue and the delivery handlers | `contexts/platform/sync-delivery.ts` |
+| Admin screens and `/v1/sync/…` | `contexts/platform/sync-routes.ts` |
+| Providers | `packages/plugins/src/sync/{airtable,memory}.ts` |
+
+The field model is deliberately not lowest-common-denominator. A subject declares semantic
+kinds — `select`, `multi_select`, `link`, `attachment` — and only the adapter knows those are
+`singleSelect`, `multipleSelects`, `multipleRecordLinks` and `multipleAttachments`. Speakers
+are pushed as real links to the Speakers table, tracks as a dropdown matched by name, headshots
+as files the provider fetches. A base whose Track column is text cannot group by track, and a
+grid that cannot group is the spreadsheet the organizer was trying to leave.
+
+Three rules fall out of that: a relationship is declared on **one side only** (providers create
+the reverse column themselves); `link` and `attachment` are **never hashed**, because their
+values are provider record ids and fetched file copies this system cannot reproduce; and
+neither is ever **accepted back** (INV-09-24). `ensure_table` creates the columns with the
+right types, so setup is not twenty hand-typed names.
+
+Two more things to know before changing any of it. **The push half never calls a provider from a
+reaction** — it flips links to `pending_push` and enqueues one debounced sweep per mapping,
+because a `decision.published` batch over four hundred proposals is four hundred events.
+**Accepting an inbound change leaves the link `pending_push`, not `in_sync`**, so Podium
+re-pushes what it actually stored rather than what the spreadsheet proposed; that cannot
+loop, because the re-push's own hash lands in `last_pushed_hash` and the provider's echo of
+it fails the check in INV-09-19.
+
+`sync.memory` is a working provider against an in-memory store, in the same spirit as
+`email.log`. Install it in `npm run dev` to watch the loop close without an Airtable
+account; `resetExternalTables`, `editExternally` and `insertExternally` are what the
+integration tests drive it with.
+
 ## URL map
 
 | Surface | Paths |
@@ -140,7 +190,8 @@ exceptions are the publication snapshot (immutable once live) and `schedule_conf
 | Live | `/live/subscribe` (WebSocket upgrade), `/live.js` (static asset) |
 | Public API | `/v1/public/…` |
 | Management API | `/v1/…` |
-| Provider callbacks | `/integrations/:id/inbound` (signed URL, no session — 09) |
+| Provider callbacks | `/integrations/:id/inbound` (signed URL, no session — 09; dispatched on the integration's capability) |
+| Sync | `/admin/sync` (conflict queue), `/admin/sync/:mappingId`, `/admin/integrations/:id/sync`, `/v1/sync/…` |
 
 ## Conventions
 
