@@ -90,7 +90,7 @@ a { color: var(--indigo-dark); }
 
    Two rows on a phone — brand and the action, then the nav wrapping under
    them — and one row from 56rem up, where the nav has space beside the brand.
-   Deliberately no hamburger: five short labels wrap onto a second line, which
+   Deliberately no hamburger: six short labels wrap onto a second line, which
    costs a few pixels above the fold and buys a nav with nothing to toggle,
    nothing to trap focus in, and no dependency on a script running. */
 .topbar { background: var(--navy-deep); position: relative; z-index: 3; }
@@ -242,10 +242,15 @@ a { color: var(--indigo-dark); }
 .hero-spacer { height: 8rem; }
 
 /* The small dashboard card tucked into the corner of the hero screenshot. Two
-   overlapping surfaces read as "there is more product here than one screen". */
+   overlapping surfaces read as "there is more product here than one screen".
+
+   The overhang is the wrap's own gutter and not a pixel more. At -1.5rem it was
+   4px wider than the padding, which nothing shows between 960px — where this
+   card appears — and 1128px, where the wrap starts collecting a margin: in that
+   band `scrollWidth` came back 4px over `clientWidth` on every load. */
 .hero .inset {
   position: absolute;
-  right: -1.5rem;
+  right: -1.25rem;
   bottom: -3rem;
   width: 24rem;
   max-width: 46%;
@@ -305,6 +310,15 @@ section { padding: 4.5rem 0; }
 }
 section > .wrap > h2 { font-size: clamp(1.6rem, 3.6vw, 2.3rem); max-width: 22ch; }
 section > .wrap > .sub { color: var(--muted); max-width: 58ch; font-size: 1.08rem; margin-bottom: 2.5rem; }
+
+/* Several paragraphs of argument standing on their own in a section — no card,
+   no grid, no `.sub`. A bare `p` inherits the 1120px wrap, which is about 110
+   characters a line and unreadable; everything else on this site gets its
+   measure from the card or column it sits in. Used by the security page's
+   account of what the review never read. */
+.prose { max-width: 62ch; }
+.prose h3 { font-size: 1.2rem; margin-bottom: .6rem; }
+.prose p:last-child { margin-bottom: 0; }
 
 /* ---------- the pains ----------
    `minmax(min(100%, 17.5rem), 1fr)` rather than `minmax(17.5rem, 1fr)`, here and
@@ -525,6 +539,34 @@ table.matrix thead .mine { color: var(--indigo-dark); }
    that column gets a floor and the table scrolls a little further instead. */
 table.matrix.creds td:last-child { min-width: 15rem; }
 
+/* `.stack` — a table that becomes a list of records on a phone.
+   The default is fine for a comparison grid, where the row heading and one or
+   two short cells carry the meaning and a sideways scroll costs nothing. It is
+   not fine when the payload is in the last column: at 390px that column is off
+   the screen behind a scrollbar nobody sees, and the switching table on
+   /compare is the one place on this site where the reader came for exactly that
+   column. Cells carry `data-label` so the column heading travels with them;
+   `<thead>` goes, because it has nothing left to head. */
+@media (max-width: 40rem) {
+  table.matrix.stack { min-width: 0; display: block; }
+  table.matrix.stack thead { display: none; }
+  table.matrix.stack tbody, table.matrix.stack tr, table.matrix.stack th, table.matrix.stack td { display: block; width: auto; }
+  table.matrix.stack tr { padding: 1rem 0; border-bottom: 1px solid var(--line); }
+  table.matrix.stack tr:last-child { border-bottom: 0; }
+  table.matrix.stack th, table.matrix.stack td { border-bottom: 0; padding: .15rem 1rem; }
+  table.matrix.stack tbody th { font-size: 1.02rem; }
+  table.matrix.stack td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: .7rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: .5rem;
+  }
+  table.matrix.stack .mine { background: none; color: var(--indigo-dark); }
+}
+
 /* ---------- lists that argue ----------
    `.ticks` for what is true, `.crosses` for what is not. The mark is
    decorative — the sentence has to stand up read aloud with the mark ignored,
@@ -580,6 +622,13 @@ table.matrix.creds td:last-child { min-width: 15rem; }
 
 /* ---------- the numbers ---------- */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 1rem; }
+/* Three of them, which `auto-fit` widows: a phone gets two on the first row and
+   the third beside a hole. Stated columns instead — three across where they
+   fit, one each below. Same defect and same fix as `.pillar-grid`. */
+.kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 40rem) {
+  .kpis.three { grid-template-columns: minmax(0, 1fr); }
+}
 .kpi { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.1rem 1.2rem; background: var(--card); }
 .kpi b { display: block; font-size: 1.9rem; line-height: 1.1; color: var(--navy); letter-spacing: -.03em; }
 .kpi span { color: var(--muted); font-size: .88rem; }
@@ -587,11 +636,11 @@ table.matrix.creds td:last-child { min-width: 15rem; }
 .band-dark .kpi b { color: #fff; }
 .band-dark .kpi span { color: var(--on-dark-dim); }
 
-/* ---------- the five pillars ----------
+/* ---------- the six pillars ----------
    The claims the whole site rests on, at the size they are worth. The first one
-   takes a full row and the biggest picture and the other four share a grid
+   takes a full row and the biggest picture and the other five share a grid
    under it, because a reader who takes one thing from the section should take
-   the first one — five equal cards give them no way to know which that is.
+   the first one — six equal cards give them no way to know which that is.
 
    All of it sits on `.band-dark`, so the card surface, the muted paragraph
    colour and the link colour are already correct and nothing here restates
@@ -616,18 +665,35 @@ table.matrix.creds td:last-child { min-width: 15rem; }
   background: linear-gradient(135deg, rgb(124 108 245 / 14%), rgb(255 255 255 / 4%) 60%);
   border-color: rgb(199 210 254 / 30%);
 }
-/* Two columns, stated rather than fitted. `auto-fit` gave three at 1440px and
-   left the fourth card alone on a row of its own — four items want 2×2, and no
-   viewport width makes an orphan of them. */
+/* Five cards under the lead, and five is the count that orphans one. `auto-fit`
+   put three on a row and left the fourth alone; two columns leaves the fifth
+   alone; three columns leaves a hole beside the last two. So the track count is
+   six and the cards claim spans out of it, which makes every row full at every
+   width:
+
+     ≥ 64rem   two cards of three tracks, then three cards of two — 2 + 3
+     52–64rem  two cards a row, and the fifth takes the whole row
+     < 52rem   one card a row
+
+   The wide pair is the top of the grid rather than the bottom, so the widths
+   descend in the same order the claims are ranked. */
 .pillar-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
 }
-@media (max-width: 52rem) {
-  .pillar-grid { grid-template-columns: minmax(0, 1fr); }
+.pillar-grid .pillar { grid-column: span 2; }
+.pillar-grid .pillar:nth-child(-n + 2) { grid-column: span 3; }
+@media (max-width: 64rem) {
+  .pillar-grid .pillar,
+  .pillar-grid .pillar:nth-child(-n + 2) { grid-column: span 3; }
+  .pillar-grid .pillar:last-child { grid-column: 1 / -1; }
 }
-/* The four in the grid put the picture above the copy; the lead puts it beside.
+@media (max-width: 52rem) {
+  .pillar-grid .pillar,
+  .pillar-grid .pillar:nth-child(-n + 2) { grid-column: 1 / -1; }
+}
+/* The five in the grid put the picture above the copy; the lead puts it beside.
    `align-content: start` so a short card does not stretch its picture. */
 .pillar-grid .pillar { align-content: start; }
 
@@ -686,30 +752,11 @@ table.matrix.creds td:last-child { min-width: 15rem; }
   .pillars-band { padding-block: 3.5rem; }
 }
 
-/* ---------- the pillar rail ----------
-   Five short labels directly under the hero's call to action: the whole
-   argument in five noun phrases, before the reader has scrolled once. It is a
-   summary and not navigation — no links, because every one of them is a section
-   further down, and a rail of five competing links beside two buttons is how a
-   hero ends up with seven primary actions and therefore none. */
-.rail {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .5rem .6rem;
-  list-style: none;
-  margin: 1.5rem 0 0;
-  padding: 0;
-}
-.rail li {
-  font-size: .84rem;
-  font-weight: 600;
-  color: #e0e7ff;
-  background: rgb(255 255 255 / 8%);
-  border: 1px solid rgb(199 210 254 / 22%);
-  border-radius: 999px;
-  padding: .35rem .85rem;
-  white-space: nowrap;
-}
+/* The pillar rail — five short labels as chips under the hero — was removed
+   with its markup. It read as five noun phrases ("complete control", "the whole
+   program"), every one of which would have sat unchanged on a competitor's
+   page. If something ever needs that slot again, it should be the thing the
+   reader came for: the deploy command, or the bill. */
 
 /* ---------- logo strips ----------
    A row of brand marks under a sentence saying what the row is claiming.
@@ -783,6 +830,14 @@ pre.term {
   overflow-x: auto;
 }
 .band-dark pre.term { background: rgb(0 0 0 / 28%); border: 1px solid rgb(255 255 255 / 10%); }
+/* On a phone the clone line is wider than the screen, and `overflow-x: auto`
+   hides the half of the URL that matters behind a scroll nobody discovers.
+   Soft-wrap it instead: the break is visual, so what a reader copies is still
+   one line. Only below 40rem — on a laptop the block fits and a wrapped
+   command reads like two. */
+@media (max-width: 40rem) {
+  pre.term { white-space: pre-wrap; overflow-wrap: break-word; font-size: .8rem; }
+}
 
 /* ---------- the next question ----------
    This is navigation dressed as a sentence, so it is sized like navigation: the
@@ -856,6 +911,13 @@ main p.nextstep > a, main p.jump > a { display: inline-flex; align-items: center
      half the screenshots above their own heading. */
   .feature.flip .copy { order: 0; }
   .hero .inset { display: none; }
+  /* The overhang and the spacer that reserves it are one number, and it has to
+     shrink in step. Only the spacer was being reduced here, so the image kept
+     hanging 8rem below the hero while the page put 4rem of blank back — the
+     other 4rem landed on top of the next section, and at 390px that put the
+     screenshot squarely over the first eyebrow (measured: 36px of overlap,
+     "The move" unreadable behind the agenda grid). Both move now. */
+  .hero .stage { margin-bottom: -5rem; }
   .hero-spacer { height: 4rem; }
 }
 
@@ -867,7 +929,7 @@ main p.nextstep > a, main p.jump > a { display: inline-flex; align-items: center
   .cta .actions .btn { flex: 1 1 auto; text-align: center; }
   .hero { padding-top: 2.75rem; }
   .hero h1 { max-width: none; }
-  .hero .stage { margin-top: 2rem; }
+  .hero .stage { margin-top: 2rem; margin-bottom: -3rem; }
   .hero .actions { gap: .6rem; }
   .hero .actions .btn { flex: 1 1 auto; text-align: center; }
   .hero-spacer { height: 2.5rem; }

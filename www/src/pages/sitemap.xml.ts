@@ -17,6 +17,7 @@ const PAGES = [
   { path: "/features", priority: "0.9" },
   { path: "/integrations", priority: "0.8" },
   { path: "/compare", priority: "0.8" },
+  { path: "/fork", priority: "0.8" },
   { path: "/pricing", priority: "0.8" },
   { path: "/demo", priority: "0.9" },
   { path: "/security", priority: "0.7" },

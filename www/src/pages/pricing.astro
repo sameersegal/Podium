@@ -1,10 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
-import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
 import { GITHUB_URL, LICENSE_URL } from "../consts";
-import { BUILT_WITH } from "../data/marks";
 
 /*
  * For whoever holds the budget, and for the chair who has to explain to them
@@ -14,6 +12,16 @@ import { BUILT_WITH } from "../data/marks";
  * loses the sale in the second meeting, when someone asks what the hosting
  * costs and there is no answer. So: what is free, what is metered, what is not
  * money at all, and a refusal to invent a monthly total we have not measured.
+ *
+ * What changed when this page was rewritten for the reader who has already
+ * decided to leave: deploying it is no longer filed under costs. This reader
+ * came *for* the self-hosting; a page that apologises for it is written for
+ * somebody else. So the sequence is on the page as a recipe — the resources are
+ * the bindings in `wrangler.jsonc`, the two commands are `deploy:migrate` and
+ * `deploy` in the root `package.json`, and the one Workers Secret is the block
+ * comment in `wrangler.jsonc`. What stays under costs is the part that is
+ * genuinely a cost and does not go away: upgrades are yours, and support is an
+ * issue tracker.
  */
 
 const CLOUDFLARE_PRICING = "https://developers.cloudflare.com/workers/platform/pricing/";
@@ -49,16 +57,16 @@ const LINE_ITEMS = [
 
 const NOT_MONEY = [
   {
-    title: "Somebody has to deploy it once",
-    body: "Clone, set two secrets, run one command. An afternoon for an engineer who has met Cloudflare before, and a real blocker if there is no such person. This is the honest cost of the model, and it is not in dollars.",
-  },
-  {
-    title: "Somebody has to upgrade it",
-    body: "Pulling a release and redeploying is a five-minute job, but it is a job, and nobody will do it for you. Migrations are additive and checked in.",
+    title: "Upgrades are yours to take",
+    body: "Pulling a release and redeploying is a five-minute job, but it is a job, and nobody will do it for you. Migrations are append-only and checked in, so the schema moves forward with the code.",
   },
   {
     title: "Support is an issue tracker",
     body: "Open an issue and the people who wrote it answer it. No ticket queue, no response-time commitment, nobody contractually on the hook the week of your event. If you need that, buy something hosted.",
+  },
+  {
+    title: "Nobody is watching it but you",
+    body: "Cloudflare's dashboard shows you the errors and the invoice. There is no status page to check and no vendor to email when something is slow at nine on a Monday.",
   },
 ];
 
@@ -91,13 +99,12 @@ const FAQ = [
   description="Podium is free and MIT-licensed. The only bill is your own Cloudflare account — here is what it is made of, and what the model costs you in things that are not money."
 >
   <PageHead
-    rail
     eyebrow="Pricing"
     title="The software is free. The hosting is yours. That is the whole model."
     lede="No licence, no seats, no per-speaker charge, no sales call and no quote. Below is what you will actually pay, and what this model costs you in things that are not money."
   >
     <div class="actions">
-      <a class="btn primary" href="/demo">Try the demo</a>
+      <a class="btn primary" href="/demo">Run the demo</a>
       <a class="btn secondary" href={LICENSE_URL}>Read the licence</a>
     </div>
   </PageHead>
@@ -107,7 +114,7 @@ const FAQ = [
       <span class="eyebrow">The bill, itemised</span>
       <h2>Five lines, one of which is fixed.</h2>
       <div class="table-wrap">
-        <table class="matrix">
+        <table class="matrix stack">
           <thead>
             <tr>
               <th scope="col">Line</th>
@@ -120,8 +127,8 @@ const FAQ = [
               LINE_ITEMS.map((l) => (
                 <tr>
                   <th scope="row">{l.item}</th>
-                  <td class="mine">{l.cost}</td>
-                  <td>{l.note}</td>
+                  <td class="mine" data-label="Cost">{l.cost}</td>
+                  <td data-label="What it is">{l.note}</td>
                 </tr>
               ))
             }
@@ -138,17 +145,47 @@ const FAQ = [
         </p>
       </div>
 
-      {/* Under the bill, so a reader can see how short the stack is against how
-          short the table is. The claim stays the neutral one used on every
-          other page: "one vendor on the bill, the rest of the stack is free"
-          reads better here and is not something this row can carry — Claude
-          Code is a paid product, and it is on the strip. What is free is stated
-          in the table above, line by line, where it is exact. */}
-      <Logos items={BUILT_WITH} claim="What builds it, and what it runs on" />
+      {/* A "what builds it" logo strip used to sit here. It made no claim this
+          page needed: the bill is the argument, and a row of marks under it
+          invited the reader to price things that are not on it. It now appears
+          once, on /fork, where provenance is the point. */}
     </div>
   </section>
 
   <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">What deploying involves</span>
+      <h2>Four resources, one secret, two commands.</h2>
+      <p class="sub">
+        Not a caveat. It is the reason the first line of that table is zero.
+      </p>
+      <div class="two-col">
+        <div>
+          <ul class="ticks">
+            <li>A D1 database, a KV namespace, an R2 bucket and three queues, in your account</li>
+            <li>
+              One Workers Secret — the key that signs unsubscribe links, so a speaker can leave a
+              mailing list without signing in
+            </li>
+            <li>Your hostname in an environment variable; the app never learns it any other way</li>
+            <li>A custom domain on the Worker, which is where your speakers arrive</li>
+          </ul>
+        </div>
+        <div>
+          <pre class="term"><code>npm run deploy:migrate
+npm run deploy</code></pre>
+          <p>
+            The first applies every migration to your database, the second puts the Worker up. Both
+            read a config generated at deploy time, so there are no account ids in the repository
+            you cloned and your first deploy cannot land in somebody else's database.
+          </p>
+        </div>
+      </div>
+      <p class="nextstep"><a href="/fork">And what happens when you change it →</a></p>
+    </div>
+  </section>
+
+  <section>
     <div class="wrap">
       <span class="eyebrow">The other half of the price</span>
       <h2>What it costs you that is not money.</h2>

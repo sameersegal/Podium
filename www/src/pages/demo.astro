@@ -2,15 +2,21 @@
 import Base from "../layouts/Base.astro";
 import PageHead from "../components/PageHead.astro";
 import Shot from "../components/Shot.astro";
-import { APP_URL, DEMO_PERSONAS, GITHUB_URL, SIGN_IN_URL } from "../consts";
+import { APP_URL, DEMO_PERSONAS, GITHUB_URL } from "../consts";
 
 /*
  * The page the rest of the site points at, and the one that has to work.
  *
- * A "see it running" link that lands on a login form with no credentials on it
- * is a dead end dressed up as a call to action, and it was the single biggest
- * hole in this site. The sign-ins below are seed personas on a database that is
- * reset — publishing them is the whole point, and README.md already does.
+ * It used to lead with the hosted instance and print these sign-ins as its
+ * credentials. On the day this was rewritten they did not work there:
+ * `POST /login` as sbek-organizer@example.com returns "That email and password
+ * did not match", and `/e/devflow-conf-2027` 404s, so the deployment is not
+ * carrying this seed. A call to action that dead-ends on a login form is the
+ * single worst thing a page like this can do, so the page now leads with the
+ * route that is checkable from the repository — `npm run dev`, and the seed
+ * personas in `scripts/seed.mjs` — and says plainly what the hosted instance
+ * currently is. Put the hosted route back at the top when signing into it
+ * works; the sign-ins are the same ones.
  *
  * Ordered by who is most likely to be reading: the chair first, then the two
  * roles they will want to show a colleague.
@@ -35,22 +41,42 @@ const TOUR = [
   },
   {
     title: "Look at the outbox",
-    body: "Every message sent or attempted, with its template, recipient and status. The seed installs no email provider, so mail is composed, recorded and stopped.",
+    body: "Every message sent or attempted, with its template, recipient and status. The seed installs no email provider, so every message is composed, recorded and stopped — which is how you rehearse an announcement to four hundred speakers.",
   },
 ];
 ---
 
 <Base
-  title="Try the demo"
-  description="Sign in to a conference already mid-flight — proposals in every state, a review round with real scores, sponsors part-way through their entitlements and an agenda with genuine conflicts. Credentials on the page, no form to fill in."
+  title="Try it"
+  description="Run a conference already mid-flight on your own laptop in one command — proposals in every state, a review round with real scores, sponsors part-way through their entitlements and an agenda with genuine conflicts. Sign-ins on the page."
 >
   <PageHead
     eyebrow="Try it"
-    title="Sign in to a conference that is already halfway through its year."
-    lede="No form, no card, no trial clock. DevFlow Conf 2027 is a seeded three-day event: proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with conflicts. Pick a role and go."
+    title="Run a conference that is halfway through its year."
+    lede="One command resets a local database, seeds DevFlow Conf 2027 and serves it on port 8787. Proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with conflicts. No form, no card, no trial clock."
   />
 
   <section>
+    <div class="wrap">
+      <span class="eyebrow">Four minutes</span>
+      <h2>Clone it and go.</h2>
+      <p class="sub">
+        The seed ships with the source, so the conference you are looking at is the one the
+        screenshots on this site were taken from.
+      </p>
+      <pre class="term"><code>git clone https://github.com/sameersegal/Podium
+cd Podium
+npm install
+npm run dev</code></pre>
+      <p>
+        Then open <code>http://localhost:8787/login</code> and sign in as whoever you want to be.
+        No Cloudflare account is involved: the database, the queues and the object store all run
+        on your machine.
+      </p>
+    </div>
+  </section>
+
+  <section class="band">
     <div class="wrap">
       <span class="eyebrow">Sign-ins</span>
       <h2>Three roles. Same conference, three different products.</h2>
@@ -59,7 +85,7 @@ const TOUR = [
         honest way to find out what a speaker sees.
       </p>
       <div class="table-wrap">
-        <table class="matrix creds">
+        <table class="matrix creds stack">
           <thead>
             <tr>
               <th scope="col">Role</th>
@@ -73,30 +99,27 @@ const TOUR = [
               DEMO_PERSONAS.map((p) => (
                 <tr>
                   <th scope="row">{p.role}</th>
-                  <td class="cred">{p.email}</td>
-                  <td class="cred">{p.password}</td>
-                  <td>{p.sees}</td>
+                  <td class="cred" data-label="Email">{p.email}</td>
+                  <td class="cred" data-label="Password">{p.password}</td>
+                  <td data-label="What you land in">{p.sees}</td>
                 </tr>
               ))
             }
           </tbody>
         </table>
       </div>
-      <div class="actions" style="display:flex; flex-wrap:wrap; gap:.9rem; margin-top:1.75rem">
-        <a class="btn primary" href={SIGN_IN_URL}>Open the sign-in page</a>
-        <a class="btn secondary" href={`${APP_URL}/e/devflow-conf-2027/schedule`}>See the public schedule</a>
-      </div>
       <div class="notice" style="margin-top: 1.75rem">
         <p>
-          <strong>It is a shared sandbox, and it gets reset.</strong> Anyone reading this page signs
-          in as the same organizer you did, so treat what you type as public. Nothing leaves the
-          demo: with no email provider installed, every message is recorded and never sent.
+          <strong>There is a hosted instance at <a href={APP_URL}>app.podiumstack.com</a>, and it
+          is not carrying this seed today.</strong> These sign-ins are the local ones. When it is
+          seeded again they are the same three, on the same conference. Sending you to a login you
+          cannot pass would be the one thing this site is not for.
         </p>
       </div>
     </div>
   </section>
 
-  <section class="band">
+  <section>
     <div class="wrap">
       <span class="eyebrow">Fifteen minutes</span>
       <h2>Five things worth trying, in the order they prove something.</h2>
@@ -120,31 +143,24 @@ const TOUR = [
           height={1170}
           phoneName="agenda-phone"
           phoneHeight={1266}
-          url="app.podiumstack.com/admin/events/…/agenda"
+          url="localhost:8787/admin/events/…/agenda"
           alt="The agenda screen: a panel naming two conflicts that block publication, above a room-by-time grid with sessions placed across Main Stage, Room 2A, Room 2B and the Workshop Lab."
-          caption="The agenda in the seeded demo, with the two conflicts already waiting for you."
+          caption="The agenda in the seeded conference, with the two conflicts already waiting for you."
         />
       </div>
     </div>
   </section>
 
-  <section>
+  <section class="band">
     <div class="wrap">
       <div class="feature reveal">
         <div class="copy">
-          <span class="eyebrow">Or run it yourself</span>
-          <h3>The same conference, on your laptop, in one command.</h3>
+          <span class="eyebrow">While it is running</span>
+          <h3>Point it at your own provider and watch mail leave.</h3>
           <p>
-            The seed the demo runs on ships with the source. One command resets a local database,
-            migrates, seeds the conference, serves it on port 8787 and publishes the schedule.
-          </p>
-          <pre class="term"><code>git clone https://github.com/sameersegal/Podium
-cd Podium
-npm install
-npm run dev</code></pre>
-          <p>
-            Then sign in with the credentials above. Running it locally is also the only way to try
-            the integrations: point it at your own Resend key and watch real mail leave.
+            The seed installs no email provider, so every acceptance and reminder is composed and
+            recorded and never sent. Install Resend with your own key and the same messages go out
+            for real. It is the only way to try the integrations, and it costs nothing.
           </p>
           <p class="jump"><a href={GITHUB_URL}>The repository, and the rest of the setup →</a></p>
         </div>
@@ -162,7 +178,7 @@ npm run dev</code></pre>
     <div class="wrap">
       <h2>Found something that does not hold up?</h2>
       <p class="sub">
-        Every claim on this site should be checkable in the demo. If one is not, that is a bug in
+        Every claim on this site should be checkable in that seed. If one is not, that is a bug in
         the site or the product, and both live in the same repository.
       </p>
       <div class="actions">

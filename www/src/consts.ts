@@ -28,20 +28,27 @@ export const SOCIAL_URL = "https://x.com/podiumstack";
 
 export const SITE_TITLE = "Podium";
 export const SITE_DESCRIPTION =
-  "Run your conference program without the spreadsheets. Podium handles the call for proposals, review, sponsor sessions, speaker onboarding and the schedule on your website. Open source, and it runs on infrastructure you own.";
+  "Run your conference program from your own Cloudflare account. Podium handles the call for proposals, review, sponsor sessions, speaker onboarding and the schedule your site embeds. MIT-licensed, and the only bill is your hosting.";
 
 /**
- * The nav. Five items is comfortable and seven is the ceiling; the primary
- * action is deliberately not one of them — it sits beside them, styled as an
- * action, so there is never a question of which link the page wants pressed.
+ * The nav. Five items is comfortable and seven is the ceiling — GitHub counts,
+ * so six pages is the most that fits. The primary action is deliberately not
+ * one of them: it sits beside them, styled as an action, so there is never a
+ * question of which link the page wants pressed.
  *
- * Every page here is also in the footer and in `public/sitemap.xml`. A page
- * added to one and not the others is a page nobody arrives at.
+ * `/compare` is labelled "Switching" because that is the decision the reader is
+ * actually making by the time they open it — they have chosen to leave and are
+ * pricing the move. The URL does not follow the label: it has been linked to
+ * from outside, and a rename buys a redirect and nothing else.
+ *
+ * Every page here is also in the footer and in `sitemap.xml.ts`. A page added
+ * to one and not the others is a page nobody arrives at.
  */
 export const NAV = [
   { href: "/features", label: "Features" },
   { href: "/integrations", label: "Integrations" },
-  { href: "/compare", label: "Compare" },
+  { href: "/compare", label: "Switching" },
+  { href: "/fork", label: "Fork it" },
   { href: "/pricing", label: "Pricing" },
   { href: "/security", label: "Security" },
 ] as const;
@@ -64,7 +71,7 @@ export const NAV = [
 export const STATS = {
   tests: 763,
   events: 136,
-  invariants: 163,
+  invariants: 164,
   scopes: 22,
   capabilities: 11,
   adapters: 9,

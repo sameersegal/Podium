@@ -1,10 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
-import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
 import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL, STATS } from "../consts";
-import { BUILT_WITH } from "../data/marks";
 
 /*
  * For the person who has to answer "where does our speakers' personal data go"
@@ -15,24 +13,41 @@ import { BUILT_WITH } from "../data/marks";
  * repository, which is the only reason to believe the rest of the page.
  *
  * That section carries the August 2026 review — five defects found and fixed —
- * and, after it, the one weakness still open. The order is deliberate: the
+ * and, after it, the sixth that a plan change closed. The order is deliberate: the
  * history is what makes the confession credible, and a page that quietly
  * acquired five new strengths and mentioned no history would read worse than
  * this does.
+ *
+ * It also carries what that review did not read, and that block is not
+ * decoration. "Six found, six fixed" reads as exhaustive, and the pass was not:
+ * the queries that go around the repository layer were counted and never read
+ * one by one, and object-level ownership — does this person own the record their
+ * permission is pointing at — was never walked at all. The thirty-six is
+ * `npm run security:semgrep`, rule `podium-raw-sql-unscoped`, and the CI comment
+ * beside it in `.github/workflows/ci.yml` says the same number. Re-measure it
+ * before editing it; it moves with the code.
  *
  * Three things this section may never say, each of which would be a stronger
  * sentence and a false impression:
  *
  *   - that a scanner "found nothing". CodeQL and six stock Semgrep packs both
  *     reported zero, and those zeros carry no information — nothing here looks
- *     like what those rules hunt for. The five defects came from a person
- *     reading the code.
+ *     like what those rules hunt for. The six defects came from a person
+ *     reading the code, and the two API-key defects named at the end of the
+ *     section came from someone working in that area afterwards.
  *   - that anyone outside this project audited it. "No third-party penetration
  *     test" stays on the crosses list because it is still true.
  *   - that the content policy is finished. Inline *script* is forbidden;
  *     inline styles are still allowed, and there is no CSRF token anywhere —
  *     the cookie policy is the whole of that defence. So the list below says
  *     "where scripts may come from" and stops there.
+ *
+ * The password-hash disclosure that used to close this section is now a
+ * past-tense paragraph, because the defect was fixed while this page was being
+ * rewritten. Check `ARGON2_PARAMS` in
+ * `packages/domain/src/identity/credentials.ts` before touching that block: if
+ * `m` is ever lowered again for a plan, this page says so again, in the present
+ * tense, on the same day.
  */
 
 const HANDLING = [
@@ -103,23 +118,19 @@ const ACCESS = [
 
 <Base
   title="Security & data"
-  description="Where your speakers' personal data lives, what is redacted by default, how export and erasure work, what an August 2026 security review found and fixed, and the one weakness still open."
+  description="Where your speakers' personal data lives, what is redacted by default, how export and erasure work, what an August 2026 security review found, what it never read, and what this project still does not have."
 >
   <PageHead
-    rail
     eyebrow="Security & data"
     title="It is your database, in your account, under your policy."
-    lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. Below is what the software does with it, and at the bottom, what a review found and what is still wrong."
-  >
-    {/* The same claim string as every other page's copy of this strip, and
-        deliberately so. It was briefly "everything in the deployment, and
-        nothing else", which is a better sentence for this page and false:
-        GitHub, Vitest and Claude Code are where the source lives, what tests it
-        and what wrote it. None of them is in the running deployment or ever
-        sees your data. The lede above already makes the page's own argument,
-        and it is the one that has to be exactly true. */}
-    <Logos dark items={BUILT_WITH} claim="What builds it, and what it runs on" />
-  </PageHead>
+    lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. Below is what the software does with it, and at the bottom, what a review found, what it never read, and what this project still does not have."
+  />
+
+  {/* A "what builds it" strip used to hang under that lede. On this page of all
+      pages a logo row invites a reading nobody stated — that those vendors are
+      in the deployment — and the honest caption for it ("what builds it") is
+      not a security claim at all. The lede makes the argument this page needs.
+      The strip now appears once, on /fork. */}
 
   <section>
     <div class="wrap">
@@ -184,13 +195,12 @@ const ACCESS = [
   <section class="band-dark">
     <div class="wrap">
       <span class="eyebrow">Disclosed</span>
-      <h2>What a review found, and what is still wrong.</h2>
+      <h2>What a review found, and where it stopped.</h2>
       <p class="sub">
         Nobody had read this product as a whole for security until August 2026. The review was
-        internal — our own people on our own code, not an outside audit — and found five defects.
-        All five are fixed, each with the test that would have caught it. The implementation notes
-        carry them in more detail. They are on this page because a security page that lists only
-        strengths is one nobody should believe.
+        internal: our own people on our own code, not an outside audit. It found six defects, all
+        fixed, the five below each with the test that would have caught it. It was also a first
+        pass. Two areas were counted and never read.
       </p>
       <ul class="ticks" style="margin-bottom: 2.25rem">
         <li>
@@ -211,31 +221,55 @@ const ACCESS = [
           screen that checks one.
         </li>
       </ul>
-      <p>
-        One thing it did not fix, because a hosting plan holds it up rather than a line of code:
-      </p>
+      <p>A sixth finding took a plan change rather than a line of code, and it is now closed:</p>
+      {/* This block said "deliberately below the recommended work factor" until
+          the hour this page was rewritten. The stopgap it described — m=256 KiB,
+          t=1, forced by the free plan's ten-millisecond CPU ceiling — was undone
+          in `packages/domain/src/identity/credentials.ts`, which now reads
+          `ARGON2_PARAMS = { t: 3, m: 12288, p: 1 }`. Leaving the confession up
+          after the defect is fixed is its own kind of inaccurate. */}
       <div class="notice">
         <p>
-          <strong>Password hashing is deliberately below the recommended work factor</strong> on
-          Cloudflare's free plan, which allows ten milliseconds of processing per request. The
-          correctly-sized hash costs about 345 ms and made signing in fail outright. What ships is
-          roughly two orders of magnitude cheaper to attack offline than the recommendation.
+          <strong>Passwords were hashed below the recommended work factor</strong> while the
+          deployment sat on Cloudflare's free plan, which allows ten milliseconds of processing per
+          request. That was roughly two orders of magnitude cheaper to attack offline than it
+          should have been, and it was disclosed here for as long as it was true.
         </p>
         <p>
-          The fix is one line and a plan change: move to the paid Workers plan and put the
-          parameters back. Stored hashes are carried up the next time each person signs in, so there
-          is no migration and no reset.
+          The plan changed and the parameters went back: 12 MiB of memory, three passes, on
+          OWASP's own list for this algorithm. A hash costs about 108 ms. An old hash is carried up
+          the next time its owner signs in, so nobody was reset and nothing was migrated.
         </p>
         <p>
-          Three things reduce what it is worth to an attacker. Guessing at the sign-in form is now
-          capped, which is the one that matters most because it is what anyone would actually try
-          against a running deployment. Passwords are optional and off by default in production,
-          with invitations the intended route in. And there is no password reset form to farm.
+          Two things still hold the line in front of it. Guessing at the sign-in form is capped and
+          refused before the password is checked at all, and password sign-in is off by default in
+          production, with invitations the intended route in.
+        </p>
+      </div>
+      {/* The point of this block: "six found, six fixed" is a true sentence that
+          leaves a false impression, and a buyer who later finds the gaps
+          themselves stops believing the four sections above it. Both areas are
+          real and both are named in `.claude/skills/security-audit/SKILL.md`
+          under "Work the lanes". Update the count, or delete the paragraph, if
+          `npm run security:semgrep` stops reporting thirty-six. */}
+      <div class="prose" style="margin-top: 2.5rem">
+        <h3>Two areas the review never read</h3>
+        <p>
+          Scoping to your organization happens once, in the layer every query is meant to go
+          through. Thirty-six go around it and answer for their own scoping. They were counted.
+          Nobody read them one at a time, and one missed scope there is one conference reading
+          another's data.
         </p>
         <p>
-          What is left is the offline case: somebody who already has a copy of your database can
-          work through the hashes faster than they should be able to. That is still the first thing
-          to fix on a deployment holding real speakers.
+          Holding a permission is not the same as owning the record you point it at. A handler that
+          checks "may this person edit proposals" and then trusts the id in the URL passes review.
+          Nobody has walked the routes where permission comes from a relationship: a speaker on
+          their own session, a sponsor contact on their own account. No tool finds this one.
+        </p>
+        <p>
+          Separate work on API keys found two more authorization defects after that pass closed. A
+          read-only key was refused every read it was granted. A key scoped to onboarding tasks
+          could mint a second key that read personal data. Both are fixed.
         </p>
       </div>
       <div class="two-col" style="margin-top: 2.5rem">
@@ -262,7 +296,7 @@ const ACCESS = [
           </ul>
         </div>
       </div>
-      <p class="nextstep"><a href={IMPLEMENTATION_URL}>The implementation notes, including that disclosure in full →</a></p>
+      <p class="nextstep"><a href={IMPLEMENTATION_URL}>The implementation notes, and the hashing decision in full →</a></p>
     </div>
   </section>
 

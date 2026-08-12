@@ -78,6 +78,12 @@ jobs:
               case "$f" in
                 # This file gates both, so a change to it must run both.
                 .github/workflows/ci.yml) app=true; www=true ;;
+                # Agent definitions and their reference docs are prose that
+                # nothing in this workflow reads or executes. `.claude/skills/`
+                # is the opposite — `npm run drift`, `npm run security` and the
+                # semgrep step all run out of it — so it stays in the catch-all
+                # below and is deliberately not matched here.
+                .claude/agents/*)         ;;
                 www/*)                    www=true ;;
                 *)                        app=true ;;
               esac
@@ -132,6 +138,15 @@ jobs:
       # `--check` exits non-zero on drift, which is the point of running it here.
       - name: Domain model drift
         run: npm run drift
+
+      # The same rule applied to what we tell agents about the product. The
+      # `podium-api` skill ships an endpoint catalogue generated from the
+      # routes, and a route added without regenerating it is drift between the
+      # product and its own reference — an agent that trusts a stale catalogue
+      # spends its turn on a 404. `--check` writes nothing and exits non-zero
+      # when the file is out of date.
+      - name: Plugin endpoint catalogue
+        run: npm run plugin:check
 
       # `.claude/skills/security-audit/`. Two halves, both cheap and offline:
       #
