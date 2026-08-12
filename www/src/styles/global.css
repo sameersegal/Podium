@@ -625,9 +625,14 @@ pre.term {
 .nextstep { margin: 2.5rem 0 0; font-size: 1.05rem; font-weight: 600; }
 /* A paragraph whose entire content is one link is navigation wearing a
    sentence, not prose — the "→" ones that close a section or a card. Sized as
-   navigation, so a thumb can hit it. Links *inside* a sentence are left alone:
-   padding them to 44px would put visible holes in the paragraph. */
-main p > a:only-child { display: inline-flex; align-items: center; min-height: 44px; }
+   navigation, so a thumb can hit it.
+   `.jump` is declared rather than detected. The selector here used to be
+   `main p > a:only-child`, which reads as "the link is the paragraph" but is
+   not: `:only-child` counts elements, so it also matched every paragraph with
+   one link in the middle of a sentence, and gave that line a 44px line box —
+   visibly loosening the leading of one line in a block of prose. Links inside a
+   sentence are left alone; the ones that are navigation say so. */
+main p.nextstep > a, main p.jump > a { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* ---------- screenshot captions and phone frames ---------- */
 .shot-fig { margin: 0; }
@@ -636,6 +641,17 @@ main p > a:only-child { display: inline-flex; align-items: center; min-height: 4
 /* A phone capture has no browser chrome to sit in — the frame is the device. */
 .shot.phone { max-width: 19.5rem; margin-inline: auto; border-radius: 26px; padding: .5rem; background: #12102e; }
 .shot.phone img { border-radius: 18px; }
+
+/* A frame holding both a desktop and a phone capture of the same screen
+   (`Shot`'s `phoneName`). Below 40rem the `<picture>` serves the phone file, so
+   the desktop title bar has to go with it — a browser chrome bar drawn around a
+   phone layout is a frame lying about what it is holding. The image keeps the
+   frame's own rounded corners once the bar above it is gone. Above 40rem
+   nothing here applies and the frame is the ordinary one. */
+@media (max-width: 40rem) {
+  .shot.has-phone .shot-bar { display: none; }
+  .shot.has-phone { max-width: 19.5rem; margin-inline: auto; }
+}
 
 /* ---------- 404 ---------- */
 .notfound { padding: 6rem 0; text-align: center; }

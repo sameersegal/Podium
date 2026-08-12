@@ -22,18 +22,25 @@ import { DOMAIN_MODEL_URL, GITHUB_URL, STATS } from "../consts";
  *
  * Every claim below is either visible in the screenshot beside it or backed by
  * the rule in docs/domain/ that enforces it. Nothing here is aspirational.
+ *
+ * The dark band carries three structural claims, the third of which is the
+ * agents-first pillar in its shortest honest form: agents build this repository
+ * (CLAUDE.md, .claude/agents/, .claude/skills/, `npm run drift` in CI) and the
+ * management API is shaped for a machine caller (idempotency keys, typed
+ * refusals, personal data behind its own scope). The boundary — the tooling in
+ * the box builds the product, it does not run a conference — is stated on
+ * /integrations, one click away, because that is where there is room to say it
+ * properly. Nothing on this page may imply an organizer-facing agent exists.
  */
 
 const pains = [
   {
     quote: "Who still hasn't sent a bio?",
-    answer:
-      "A board of every outstanding obligation, per speaker and per sponsor, with the reminders sent for you.",
+    answer: "One board of what everyone still owes you, per speaker and per sponsor. Reminders go out without you.",
   },
   {
     quote: "Two reviewers work with the submitter.",
-    answer:
-      "Conflicts are declared up front and the score is refused, not flagged for someone to catch later.",
+    answer: "A declared conflict refuses the score. Nothing is flagged for someone to catch later.",
   },
   {
     quote: "How many sessions does this sponsor actually get?",
@@ -41,15 +48,15 @@ const pains = [
   },
   {
     quote: "Two talks, one room, same slot.",
-    answer: "Found by the agenda the moment you place them — not by an attendee on the day.",
+    answer: "The agenda catches it as you drop the card, not an attendee on the day.",
   },
   {
     quote: "The website schedule is two versions behind.",
-    answer: "Publish a snapshot your marketing site embeds. Roll it back in one click if it is wrong.",
+    answer: "Publish a snapshot your site embeds. Roll it back in one click.",
   },
   {
     quote: "Every speaker emails me to ask where their talk stands.",
-    answer: "They sign in and see it: status, next action, deadline, and what you still need from them.",
+    answer: "They sign in and see status, next action, deadline, and what you still need.",
   },
 ];
 ---
@@ -63,9 +70,9 @@ const pains = [
     <div class="wrap">
       <h1>Your conference program is <span class="hl">eleven spreadsheets</span> and one person who knows where everything is.</h1>
       <p class="lede">
-        Podium replaces all of it — the call for proposals, the review, the sponsor sessions, the
-        chase for bios and slides, and the schedule that goes on your website. Free, open source,
-        and it runs on infrastructure you own.
+        Podium replaces all of it. The call for proposals, the review, the sponsor sessions, the
+        chase for bios and slides, the schedule on your website. Free, open source, and it runs on
+        infrastructure you own.
       </p>
       <div class="actions">
         <a class="btn primary" href="/demo">Try the demo</a>
@@ -79,8 +86,10 @@ const pains = [
         <Shot
           name="agenda"
           height={1170}
+          phoneName="agenda-phone"
+          phoneHeight={1266}
           url="app.podiumstack.com/admin/events/…/agenda"
-          alt="The agenda screen: a room-by-time grid with sessions placed across Main Stage, Room 2A, Room 2B and the Workshop Lab, under a panel naming two conflicts that block publication."
+          alt="The agenda screen: a panel naming two conflicts that block publication, above a room-by-time grid with sessions placed across Main Stage, Room 2A, Room 2B and the Workshop Lab."
           eager
         />
         <div class="inset">
@@ -101,8 +110,8 @@ const pains = [
       <span class="eyebrow">Sound familiar?</span>
       <h2>The six questions you cannot answer from a spreadsheet.</h2>
       <p class="sub">
-        Every one of them is somebody waiting on you. Podium answers all six from one record of
-        the program.
+        Every one is somebody waiting on you. Podium answers all six from one record of the
+        program.
       </p>
       <div class="pains">
         {
@@ -120,30 +129,32 @@ const pains = [
   <section class="band">
     <div class="wrap">
       <span class="eyebrow">What it looks like</span>
-      <h2>Three of them, on the running product.</h2>
+      <h2>See three of them on the running product.</h2>
       <p class="sub">
-        These are photographs of Podium against its own seeded conference — a real program
-        mid-flight, not a mockup. The other three are on the features page.
+        Photographs of Podium against its own seeded conference. The other three are on the
+        features page.
       </p>
 
       <div class="feature reveal">
         <div class="copy">
           <h3>Stop chasing people for bios.</h3>
           <p>
-            Say once what an accepted speaker owes you — headshot, bio, slides, code of conduct,
-            AV requirements — and Podium tracks every one of them, for every session and every
-            sponsor, and sends the reminders itself.
+            Say once what an accepted speaker owes you: headshot, bio, slides, code of conduct, AV
+            requirements. Podium tracks every one, for sessions and sponsors alike, and sends the
+            reminders itself.
           </p>
           <p>
-            Mark a task <em>blocking</em> and an unfinished one keeps that session off the public
-            schedule until it is done. You find out now, not on the morning of the event.
+            Mark a task <em>blocking</em> and it keeps that session off the public schedule. You
+            find out now, not on the morning of the event.
           </p>
         </div>
         <Shot
           name="onboarding"
           height={1140}
+          phoneName="onboarding-phone"
+          phoneHeight={975}
           url="app.podiumstack.com/admin/events/…/onboarding"
-          alt="The onboarding board listing each session against each required task, with an assignee, a status and a due date per row."
+          alt="The onboarding board: counts of open, blocking, overdue and completed tasks, over a row for each session and each required task with an assignee, a status and a due date."
         />
       </div>
 
@@ -151,9 +162,9 @@ const pains = [
         <div class="copy">
           <h3>Review that holds up when someone asks.</h3>
           <p>
-            Reviewers get a queue, a rubric and a progress bar — not a shared sheet with a hundred
+            Reviewers get a queue, a rubric and a progress bar. Not a shared sheet with a hundred
             rows. A reviewer who submitted, is credited on, or has declared a conflict with a
-            proposal cannot score it: the write is refused, not logged for someone to notice.
+            proposal cannot score it — the write is refused, not logged for someone to notice.
           </p>
           <p>
             Run it open, single-blind or double-blind. Every score, comment and decision is
@@ -162,9 +173,9 @@ const pains = [
         </div>
         <Shot
           name="review"
-          height={1050}
+          height={840}
           url="app.podiumstack.com/review"
-          alt="A reviewer's queue: a screening round showing 7 of 7 done, with a card per assigned proposal."
+          alt="A reviewer's queue: a progress bar reading 7 of 7 done, over a card per assigned proposal with its reference, title, track, format, status and due date."
         />
       </div>
 
@@ -172,14 +183,13 @@ const pains = [
         <div class="copy">
           <h3>Sponsor sessions are not an afterthought.</h3>
           <p>
-            A sponsor session is paid for, not selected — but it still needs content review, the
-            same onboarding and the same slot on the schedule. Most CFP tools model only the call
-            for proposals and leave this in email.
+            A sponsor session is paid for, not selected. It still needs content review, onboarding
+            and a slot on the schedule. Most CFP tools model the call for proposals and leave this
+            half in email.
           </p>
           <p>
-            Here a package is a countable set of entitlements. Two session slots and a logo
-            placement; one slot spent, two rights still open — visible to you and to them, so nobody discovers a
-            missing slot the week before.
+            A package is a countable set of entitlements: two session slots and a logo placement,
+            one spent, two still open. The sponsor sees the same count you do.
           </p>
         </div>
         <Shot
@@ -197,37 +207,34 @@ const pains = [
   <section>
     <div class="wrap">
       <span class="eyebrow">It talks to the rest of your stack</span>
-      <h2>Your email provider, your spreadsheet, your website.</h2>
+      <h2>Keep your email provider, your spreadsheet and your site.</h2>
       <p class="sub">
         Podium sends through <strong>Resend</strong> or <strong>SendGrid</strong>, posts into
-        <strong>Slack</strong>, mirrors the program two ways into <strong>Airtable</strong> for the
-        people who will never have a login here, and puts your schedule on your own site as a
-        cacheable embed. None of it is a vendor lock: the core imports no provider's SDK, so
-        swapping one for another is an install and a default.
+        <strong>Slack</strong>, and mirrors the program two ways into <strong>Airtable</strong>.
+        The core imports no provider's SDK, so swapping one for another is an install and a
+        default.
       </p>
       <div class="cards">
         <div class="card reveal">
-          <h3>Mail that is auditable</h3>
+          <h3>Mail you can audit</h3>
           <p>
-            Templates, quiet hours, batching and suppression stay on Podium's side of the line —
-            the provider only puts the message on the wire. "Did they get the acceptance email?"
-            is a query, not a guess.
+            Templates, quiet hours, batching and suppression stay on Podium's side; the provider
+            only puts the message on the wire. "Did they get the acceptance email?" is a query,
+            not a guess.
           </p>
         </div>
         <div class="card reveal">
-          <h3>Two-way, without losing an edit</h3>
+          <h3>Two-way sync that loses no edit</h3>
           <p>
-            An edit made in the linked table applies only against the version Podium last pushed.
-            If it lost, it is not discarded — it goes into a conflict queue with both values
-            showing. Nothing vanishes quietly.
+            An edit in the linked table applies only against the version Podium last pushed. A
+            losing edit is not discarded; it goes into a conflict queue showing both values.
           </p>
         </div>
         <div class="card reveal">
           <h3>An API you can hand out</h3>
           <p>
             A key for your marketing site reads the schedule and cannot read a review or a
-            speaker's email address. Personal data is its own scope, off by default, on every
-            endpoint.
+            speaker's email. Personal data is its own scope, off by default, on every endpoint.
           </p>
         </div>
       </div>
@@ -238,27 +245,40 @@ const pains = [
   <section class="band-dark">
     <div class="wrap">
       <span class="eyebrow">Yours, actually</span>
-      <h2>Run it on your own account, or read every line first.</h2>
-      <p class="sub">Two things most tools in this category will not let you do.</p>
+      <h2>Run it, read it, hand it to an agent.</h2>
+      <p class="sub">None of these is a feature. They are consequences of how it is built.</p>
       <div class="two-col">
         <div>
           <h3>It deploys to infrastructure you own</h3>
           <p>
-            Apache-2.0, built for Cloudflare, and it goes to a Cloudflare account in your name with
-            your speakers' data in your database. There is no hosted tier to be locked into and no
-            price that changes when your conference grows.
+            Apache-2.0, built for Cloudflare. It goes to an account in your name, with your
+            speakers' data in your database. No hosted tier, and no price that changes when your
+            conference grows.
           </p>
-          <p><a href="/pricing">What it actually costs to run →</a></p>
+          <p class="jump"><a href="/pricing">What it actually costs to run →</a></p>
         </div>
 
         <div>
-          <h3>The rules are written down before the code</h3>
+          <h3>The rules were written down before the code</h3>
           <p>
             Who may see a reviewer's score, what happens to an unused sponsor slot, what a deadline
-            does when it passes — all of it is specified in a normative domain model, and a check in
-            CI fails the build when the code and the model disagree.
+            does when it passes. All specified in a normative model, and a check in CI fails the
+            build when code and model disagree.
           </p>
-          <p><a href={DOMAIN_MODEL_URL}>Read the domain model →</a></p>
+          <p class="jump"><a href={DOMAIN_MODEL_URL}>Read the domain model →</a></p>
+        </div>
+
+        <div>
+          <h3>Agents built it, and can drive it</h3>
+          <p>
+            Podium is built by coding agents held to that specification. One stops when the model
+            does not cover the request. Another checks the code back against the model, in CI.
+          </p>
+          <p>
+            The API is shaped for the same caller. Every write takes an idempotency key, a refusal
+            names the rule it broke, and personal data needs a scope of its own.
+          </p>
+          <p class="jump"><a href="/integrations">What an agent needs to drive it →</a></p>
         </div>
       </div>
 
@@ -277,8 +297,8 @@ const pains = [
       <h2>It is not the right tool for every conference.</h2>
       <p class="sub">
         Podium does no attendee registration, no badging and no ticketing, and there is no hosted
-        tier — somebody has to deploy it once. If that rules it out, the comparison page says so
-        plainly and names what to buy instead.
+        tier, so somebody has to deploy it once. If that rules it out, the comparison page names
+        what to buy instead.
       </p>
       <p class="nextstep"><a href="/compare">Podium against Sessionize and Sessionboard →</a></p>
     </div>
@@ -286,6 +306,6 @@ const pains = [
 
   <Cta
     heading="See it with a conference already in it."
-    sub="The demo is a three-day event mid-flight — proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with genuine conflicts — and sign-ins for the chair, a reviewer and a speaker. An empty shell teaches you nothing."
+    sub="A three-day event mid-flight: proposals in every state, real review scores, sponsors part-way through their entitlements, an agenda with conflicts. Sign-ins for the chair, a reviewer and a speaker are on the page."
   />
 </Base>

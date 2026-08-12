@@ -85,15 +85,30 @@ contexts.anonymous = await browser.newContext({
   deviceScaleFactor: SCALE,
 });
 
-// A second speaker context at phone width. Playwright fixes a viewport per
-// context, so the phone shots need their own rather than a resize.
-contexts.speakerPhone = await browser.newContext({
-  viewport: { width: PHONE_WIDTH, height: 844 },
-  deviceScaleFactor: SCALE,
-  isMobile: true,
-  hasTouch: true,
-});
-await signIn(contexts.speakerPhone, PERSONAS.speaker);
+// Phone-width contexts. Playwright fixes a viewport per context, so every phone
+// shot needs its own rather than a resize.
+//
+// Three screens are shot twice, at both widths: the agenda, the onboarding board
+// and the public schedule. Each is a wide grid or table whose desktop capture,
+// scaled into a 350px column on a phone, is a grey rectangle rather than a
+// screenshot — and each has a genuine narrow layout in the product worth
+// showing. `Shot` picks between them with a `<picture>`, so a phone downloads
+// only the phone file. The screens whose narrow layout scrolls a table
+// sideways (proposals, sponsorships) are deliberately not here: the column that
+// carries the claim ends up off-frame, which is worse than small.
+const phoneContext = async (creds) => {
+  const context = await browser.newContext({
+    viewport: { width: PHONE_WIDTH, height: 844 },
+    deviceScaleFactor: SCALE,
+    isMobile: true,
+    hasTouch: true,
+  });
+  if (creds) await signIn(context, creds);
+  return context;
+};
+contexts.speakerPhone = await phoneContext(PERSONAS.speaker);
+contexts.organizerPhone = await phoneContext(PERSONAS.organizer);
+contexts.anonymousPhone = await phoneContext(null);
 
 /**
  * Arrange the state two screens need and the seed does not ship.
@@ -240,6 +255,15 @@ const SHOTS = [
     },
   },
   {
+    // The narrow agenda leads with the conflict panel, which is the claim the
+    // shot is on the landing page to make.
+    name: "agenda-phone",
+    persona: "organizerPhone",
+    path: `/admin/events/${E}/schedule`,
+    height: 844,
+    console: true,
+  },
+  {
     name: "proposals",
     persona: "organizer",
     path: `/admin/events/${E}/proposals`,
@@ -251,6 +275,17 @@ const SHOTS = [
     persona: "organizer",
     path: `/admin/events/${E}/onboarding`,
     height: 760,
+    console: true,
+  },
+  {
+    // Narrow, the board leads with the four counters — open, blocking, overdue,
+    // done — which is the same sentence the desktop table makes in a row.
+    // 650 ends on the counter block rather than part-way into the task table,
+    // whose last column is behind a sideways scroll at this width.
+    name: "onboarding-phone",
+    persona: "organizerPhone",
+    path: `/admin/events/${E}/onboarding`,
+    height: 650,
     console: true,
   },
   {
@@ -269,7 +304,16 @@ const SHOTS = [
     name: "review",
     persona: "reviewer",
     path: "/review",
-    height: 700,
+    height: 560,
+    // The seed's reviewer has finished the round, so the queue collapses to one
+    // line and the seven proposals they scored sit behind a closed disclosure —
+    // which made this shot two thirds empty page and left its caption claiming
+    // cards that were not in the frame. Opening it is a click an organizer
+    // makes, and it puts the reviewer's actual work back in the photograph.
+    async before(page) {
+      const summary = page.locator("summary", { hasText: "already submitted" }).first();
+      if (await summary.count()) await summary.click();
+    },
   },
   {
     name: "portal",
@@ -288,6 +332,16 @@ const SHOTS = [
     persona: "anonymous",
     path: `/e/${ids.event_slug}/schedule?day=${day.id}`,
     height: 780,
+  },
+  {
+    // The public schedule is a room-by-time grid on a laptop and an itinerary on
+    // a phone. The features page claims exactly that, so it should show both.
+    // Taller than a phone screen on purpose: the filter card fills the first
+    // 844, and the itinerary this shot exists to show starts under it.
+    name: "schedule-phone",
+    persona: "anonymousPhone",
+    path: `/e/${ids.event_slug}/schedule?day=${day.id}`,
+    height: 1200,
   },
   {
     name: "dashboard",
@@ -325,9 +379,14 @@ for (const shot of SHOTS) {
     await shot.before(page);
     await page.waitForLoadState("networkidle");
   }
-  const width = page.viewportSize().width;
+  const { width, height: viewportHeight } = page.viewportSize();
+  // A `clip` on its own is taken against the viewport, so a crop taller than
+  // the window is silently truncated to it — which is how the phone schedule
+  // shot came back as its own filter panel. `fullPage` clips against the whole
+  // document instead.
   await page.screenshot({
     path: `${outDir}${shot.name}.png`,
+    fullPage: shot.height > viewportHeight,
     clip: { x: 0, y: 0, width, height: shot.height },
   });
   console.log(`${shot.name.padEnd(14)} ${shot.persona.padEnd(13)} ${shot.path}`);

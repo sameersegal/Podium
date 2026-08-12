@@ -26,19 +26,19 @@ export const AUDIENCES = [
   {
     name: "Sessionize",
     built_for: "Community tech conferences and user groups.",
-    body: "A hosted call for speakers with a long track record in exactly this space, free for community events and priced per event for commercial ones. If your conference fits its shape and you want nothing to run, it is a good answer and has been for years.",
+    body: "A hosted call for speakers with a long track record in this space. Free for community events, priced per event for commercial ones. If your conference fits its shape, it is a good answer.",
     href: SESSIONIZE_URL,
   },
   {
     name: "Sessionboard",
     built_for: "Large commercial events with a content team and a budget line.",
-    body: "Speaker CRM, submissions, agenda building and a catalogue of integrations with the big event platforms, sold through a sales conversation rather than a price list. If you are running a 10,000-person trade show with a team to match, this is the category it is built for.",
+    body: "Speaker CRM, submissions, agenda building, and a catalogue of integrations with the big event platforms. Sold through a demo request. If you are running a 10,000-person trade show with a team to match, this is its category.",
     href: SESSIONBOARD_URL,
   },
   {
     name: "Podium",
     built_for: "AI-Engineer-shaped conferences that want to own the whole thing.",
-    body: "Free, Apache-2.0, and it deploys to your own Cloudflare account. Built for the program chair who is also the review chair, who sells sponsor sessions, and who would rather read the rules than file a support ticket to find out what they are.",
+    body: "Free, Apache-2.0, and it deploys to your own Cloudflare account. Built for the program chair who is also the review chair, sells sponsor sessions, and would rather read the rules than file a ticket to find out what they are.",
     href: null,
   },
 ];
@@ -96,23 +96,23 @@ export const STRUCTURAL = [
 export const WHERE_THEY_WIN = [
   {
     title: "Nothing to run",
-    body: "Both are hosted. You sign up and start. Podium needs somebody to deploy it once and keep an eye on it — twenty minutes if that somebody is an engineer, and a blocker if there is no such person.",
+    body: "Both are hosted. You sign up and start. Podium needs somebody to deploy it once and keep an eye on it — an afternoon for an engineer, a blocker if there is no such person.",
   },
   {
     title: "Years of conferences behind them",
-    body: "Sessionize has run thousands of events. Podium is new. Ours is a full test suite and a written specification rather than a decade of edge cases already found by somebody else, and if that trade sounds bad to you, it should.",
+    body: "Sessionize has run thousands of events. Podium is new. You get a full test suite and a written specification instead of a decade of edge cases somebody else already found. If that trade sounds bad, it should.",
   },
   {
     title: "Somebody to call",
-    body: "They sell support. Podium has an issue tracker and a discussion board, answered by the people who wrote it, with no promise attached about when.",
+    body: "They sell support. Podium has an issue tracker answered by the people who wrote it, with no promise about when.",
   },
   {
     title: "Bigger integration catalogues",
-    body: "Sessionboard in particular connects to the large event platforms — registration, badging, the expo floor. Podium ships adapters for email, chat, storage, two-way sync and workshop capacity, and a documented contract for the rest.",
+    body: "Sessionboard in particular connects to the large event platforms: registration, badging, the expo floor. Podium ships adapters for email, chat, storage, two-way sync and workshop capacity, and a contract for the rest.",
   },
   {
     title: "The attendee side of the event",
-    body: "Podium does no ticketing, no registration, no badge scanning and no attendee app, and is not going to. It asks your ticketing system one question — is this workshop full — and stays out of the rest.",
+    body: "Podium does no ticketing, no registration, no badge scanning and no attendee app, and is not going to. It asks your ticketing system one question — is this workshop full — and stays out.",
   },
 ];
 
@@ -120,6 +120,6 @@ export const WHERE_THEY_WIN = [
 export const NOT_FOR_YOU = [
   "You need registration, badging and the program in one system, from one vendor, on one invoice.",
   "Nobody on the team can deploy and own a web application, and nobody can be hired to.",
-  "You need a signed support agreement, a security questionnaire answered by a vendor, or somebody contractually on the hook in March.",
-  "Your event is a hundred people and one track. A spreadsheet is genuinely fine, and we would rather you kept it.",
+  "You need a signed support agreement, a vendor to answer a security questionnaire, or somebody contractually on the hook in March.",
+  "Your event is a hundred people and one track. A spreadsheet is fine, and we would rather you kept it.",
 ];

@@ -19,11 +19,11 @@ import { APP_URL, DEMO_PERSONAS, GITHUB_URL, SIGN_IN_URL } from "../consts";
 const TOUR = [
   {
     title: "Open the agenda and break it",
-    body: "Drag a session onto a room that is already busy. The conflict appears in the panel beside the grid as you drop it, not after a refresh, and the publish button stays shut until it is resolved or acknowledged with a reason.",
+    body: "Drag a session onto a room that is already busy. The conflict appears beside the grid as you drop it, and the publish button stays shut until it is resolved or acknowledged with a reason.",
   },
   {
     title: "Try to review your own proposal",
-    body: "As the reviewer, find a proposal you are credited on. There is no score box to fill in — the refusal is in the model, not in a warning nobody reads.",
+    body: "As the reviewer, find a proposal you are credited on. There is no score box to fill in.",
   },
   {
     title: "Spend a sponsor's second session slot",
@@ -31,11 +31,11 @@ const TOUR = [
   },
   {
     title: "Publish the schedule, then roll it back",
-    body: "Publishing writes an immutable snapshot. Rolling back points at the previous one. Neither touches the live programme tables, which is why the public page cannot be slowed down by either.",
+    body: "Publishing writes an immutable snapshot; rolling back points at the previous one. Neither touches the live programme tables.",
   },
   {
     title: "Look at the outbox",
-    body: "Every message the platform has sent or tried to send, with its template, its recipient and its status. The seed installs no email provider, so mail is composed, rendered, recorded — and stopped.",
+    body: "Every message sent or attempted, with its template, recipient and status. The seed installs no email provider, so mail is composed, recorded and stopped.",
   },
 ];
 ---
@@ -47,7 +47,7 @@ const TOUR = [
   <PageHead
     eyebrow="Try it"
     title="Sign in to a conference that is already halfway through its year."
-    lede="No form, no card, no trial clock. DevFlow Conf 2027 is a seeded three-day event with proposals in every state, a review round with real scores, sponsors part-way through their entitlements and an agenda with conflicts in it. Pick a role and go."
+    lede="No form, no card, no trial clock. DevFlow Conf 2027 is a seeded three-day event: proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with conflicts. Pick a role and go."
   />
 
   <section>
@@ -55,8 +55,8 @@ const TOUR = [
       <span class="eyebrow">Sign-ins</span>
       <h2>Three roles. Same conference, three different products.</h2>
       <p class="sub">
-        What each person may see is worked out per request, so signing in as the speaker is the
-        only honest way to find out what a speaker can see.
+        What each person may see is worked out per request. Signing in as the speaker is the only
+        honest way to find out what a speaker sees.
       </p>
       <div class="table-wrap">
         <table class="matrix creds">
@@ -88,10 +88,9 @@ const TOUR = [
       </div>
       <div class="notice" style="margin-top: 1.75rem">
         <p>
-          <strong>It is a shared sandbox, and it gets reset.</strong> Anyone reading this page can
-          sign in as the same organizer you did, so treat anything you type as public and do not put
-          a real speaker's details into it. Nothing you do can leave the demo: the seed installs no
-          email provider, so every message is recorded in the outbox and never sent.
+          <strong>It is a shared sandbox, and it gets reset.</strong> Anyone reading this page signs
+          in as the same organizer you did, so treat what you type as public. Nothing leaves the
+          demo: with no email provider installed, every message is recorded and never sent.
         </p>
       </div>
     </div>
@@ -101,10 +100,7 @@ const TOUR = [
     <div class="wrap">
       <span class="eyebrow">Fifteen minutes</span>
       <h2>Five things worth trying, in the order they prove something.</h2>
-      <p class="sub">
-        Every one of these is a claim made elsewhere on this site. Go and check them rather than
-        believing us.
-      </p>
+      <p class="sub">Every one is a claim made elsewhere on this site. Go and check them.</p>
       <ol class="steps">
         {
           TOUR.map((t) => (
@@ -125,20 +121,18 @@ const TOUR = [
           <span class="eyebrow">Or run it yourself</span>
           <h3>The same conference, on your laptop, in one command.</h3>
           <p>
-            The seed the demo runs on ships with the source. This resets a local database, applies
-            every migration, seeds the conference, serves it on port 8787 and publishes the schedule
-            so the public pages have something in them.
+            The seed the demo runs on ships with the source. One command resets a local database,
+            migrates, seeds the conference, serves it on port 8787 and publishes the schedule.
           </p>
           <pre class="term"><code>git clone https://github.com/sameersegal/Podium
 cd Podium
 npm install
 npm run dev</code></pre>
           <p>
-            Then sign in with the same credentials as above. Running it locally is also the only way
-            to try the integrations — you can point it at your own Resend key and watch real mail
-            leave.
+            Then sign in with the credentials above. Running it locally is also the only way to try
+            the integrations: point it at your own Resend key and watch real mail leave.
           </p>
-          <p><a href={GITHUB_URL}>The repository, and the rest of the setup →</a></p>
+          <p class="jump"><a href={GITHUB_URL}>The repository, and the rest of the setup →</a></p>
         </div>
         <Shot
           name="dashboard"
@@ -154,8 +148,8 @@ npm run dev</code></pre>
     <div class="wrap">
       <h2>Found something that does not hold up?</h2>
       <p class="sub">
-        Every claim on this site is meant to be checkable in the demo. If one is not, that is a bug
-        in the site or in the product, and both live in the same repository.
+        Every claim on this site should be checkable in the demo. If one is not, that is a bug in
+        the site or the product, and both live in the same repository.
       </p>
       <div class="actions">
         <a class="btn primary" href={`${GITHUB_URL}/issues/new`}>Tell us what broke</a>
