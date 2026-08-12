@@ -316,12 +316,10 @@ const SHOTS = [
     },
   },
   {
-    name: "portal",
-    persona: "speaker",
-    path: "/portal",
-    height: 760,
-  },
-  {
+    // The speaker portal is shown at phone width and only at phone width: it is
+    // the surface most often read on one, and the desktop capture of it was on
+    // no page. A shot nothing references is a file regenerated forever for
+    // nobody — put the desktop crop back here if a page ever wants it.
     name: "portal-phone",
     persona: "speakerPhone",
     path: "/portal",
