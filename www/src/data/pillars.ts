@@ -49,18 +49,6 @@ export interface Pillar {
   body: string;
   /** The number, where there is one worth showing. */
   stat?: { value: string; unit: string };
-  /**
-   * File in `public/art/`, without the extension.
-   *
-   * Nothing renders these any more. The six wordless renders were dropped with
-   * the redesign — every other image on this site is a photograph of the
-   * running product, and these carried no part of the claim beside them. The
-   * fields and the files stay until the interior pages are rebuilt and can say
-   * whether any of them wants a picture back.
-   */
-  art: string;
-  /** Wordless abstract art still needs to say what it is to a screen reader. */
-  alt: string;
   href: string;
   hrefLabel: string;
   evidence: string;
@@ -71,8 +59,6 @@ export const PILLARS: Pillar[] = [
     heading: "Agents built it, and your agent can change it",
     body: "The rules were written down before the code, and they are still the specification the code answers to. An agent that tries to build outside them stops. A check in the build fails when the code and the document disagree. Fork it and your own agent inherits the same guardrails.",
     stat: { value: String(STATS.invariants), unit: "written rules, checked against the code in CI" },
-    art: "agent",
-    alt: "Abstract artwork: a thread of light passing cleanly through a series of aligned frames.",
     href: "/fork",
     hrefLabel: "What survives your changes",
     evidence:
@@ -82,8 +68,6 @@ export const PILLARS: Pillar[] = [
     heading: "It deploys into an account in your name",
     body: "Your Cloudflare account, your database, your bucket, your speakers' data. Nobody here can read it, because nobody here has it. Everything comes back out as CSV or over API keys you issue, and a key for your marketing site cannot read a review or a speaker's email.",
     stat: { value: String(STATS.scopes), unit: "API scopes, personal data its own" },
-    art: "control",
-    alt: "Abstract artwork: a single glowing core held inside a complete cage of luminous struts.",
     href: "/security",
     hrefLabel: "Where your speakers' data lives",
     evidence:
@@ -93,8 +77,6 @@ export const PILLARS: Pillar[] = [
     heading: "Read every line, and pay for none of it",
     body: "MIT-licensed and on GitHub. No seats, no per-speaker charge, no activation code per conference, no edition that costs more. There is no company here to reprice it once you depend on it, and the licence on the version you hold cannot be revoked.",
     stat: { value: "MIT", unit: "no tiers, no quote, no sales call" },
-    art: "open",
-    alt: "Abstract artwork: a structure of luminous struts opening outward, its facets drifting apart.",
     href: "/pricing",
     hrefLabel: "The bill, itemised",
     evidence: "LICENSE_URL and GITHUB_URL in src/consts.ts; the LINE_ITEMS table and FAQ on /pricing.",
@@ -103,8 +85,6 @@ export const PILLARS: Pillar[] = [
     heading: "One record runs the whole year",
     body: "The call for proposals, review, decisions, speaker onboarding, sponsor entitlements, the agenda and the schedule your website embeds. Not six tools that each own a fifth of the year and disagree about who is speaking. Attendee ticketing and badging are the part it deliberately leaves alone.",
     stat: { value: "6", unit: "screens covering the year end to end" },
-    art: "stack",
-    alt: "Abstract artwork: six translucent planes stacked into one tower, joined by threads of light.",
     href: "/features",
     hrefLabel: "The full tour, screen by screen",
     evidence:
@@ -113,8 +93,6 @@ export const PILLARS: Pillar[] = [
   {
     heading: "Sponsor slots are counted, not chased",
     body: "A package is a countable set of rights — two session slots, a logo placement — and a sponsor session spends one. Used against bought, on the same screen as the deal. A submission that would overspend a package is refused, and cutting a package below what the sponsor has already spent is refused too.",
-    art: "events",
-    alt: "Abstract artwork: rings of light spreading from one bright node and lighting smaller nodes as they arrive.",
     href: "/demo",
     hrefLabel: "Spend a slot and watch the count",
     evidence:
@@ -124,8 +102,6 @@ export const PILLARS: Pillar[] = [
     heading: "Every change leaves on a signed webhook",
     body: "A proposal accepted, a task completed, a schedule published: each one goes out signed, to whatever you point it at. Retries back off from a minute to a day, and twenty failures in a row pause the hook. When your endpoint is back, replay that event type across the window it missed.",
     stat: { value: String(STATS.events), unit: "named events you can subscribe to" },
-    art: "signal",
-    alt: "Abstract artwork: a bead of light travelling along a filament through a receding line of open rings.",
     href: "/integrations",
     hrefLabel: "What comes out on the wire",
     evidence:

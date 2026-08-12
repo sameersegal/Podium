@@ -75,14 +75,14 @@ import {
                 <tr>
                   <th scope="row">{m.item}</th>
                   <td class="mine" data-label="How">{m.how}</td>
-                  <td data-label="What that means">{m.note}</td>
+                  <td class="wide" data-label="What that means">{m.note}</td>
                 </tr>
               ))
             }
           </tbody>
         </table>
       </div>
-      <div class="notice" style="margin-top: 1.75rem">
+      <div class="notice">
         <p>
           <strong>Nobody has publicly moved a live conference onto Podium yet.</strong> The import
           runs against a real database on every commit, and it has never been pointed at an export
@@ -100,7 +100,7 @@ import {
         Four things change for the two hundred people who never see an admin screen. One of them is
         a real loss.
       </p>
-      <div class="cards two">
+      <div class="grid-hair two">
         {
           SPEAKER_CHANGES.map((s) => (
             <div class="card">
@@ -118,7 +118,7 @@ import {
     <div class="wrap">
       <span class="eyebrow">Who each is for</span>
       <h2>Start here and you may not need the rest.</h2>
-      <div class="cards">
+      <div class="grid-hair three">
         {
           AUDIENCES.map((a) => (
             <div class="card">
@@ -146,8 +146,13 @@ import {
         proprietary products do, and it would be stale the day either ships a release. These rows
         are licensing, hosting and published packaging.
       </p>
+      {/* `.stack` here too. Four columns inside a 640px floor gave the row
+          heading about 120px on a phone — "Who holds the speaker data" set one
+          word per line — and put two of the three products off the right edge,
+          behind a scroll inside a box that nobody finds. A three-way
+          comparison where two of the three are invisible is not a comparison. */}
       <div class="table-wrap">
-        <table class="matrix">
+        <table class="matrix stack">
           <thead>
             <tr>
               <th scope="col"></th>
@@ -161,9 +166,9 @@ import {
               STRUCTURAL.map((r) => (
                 <tr>
                   <th scope="row">{r.row}</th>
-                  <td class="mine">{r.podium}</td>
-                  <td>{r.sessionize}</td>
-                  <td>{r.sessionboard}</td>
+                  <td class="mine" data-label="Podium">{r.podium}</td>
+                  <td data-label="Sessionize">{r.sessionize}</td>
+                  <td data-label="Sessionboard">{r.sessionboard}</td>
                 </tr>
               ))
             }
@@ -188,7 +193,9 @@ import {
       <span class="eyebrow">Where they win</span>
       <h2>Five things the incumbents do better, today.</h2>
       <p class="sub">None of these is fixable by writing a better sentence about it.</p>
-      <div class="cards">
+      {/* Five cards over three columns: the last one takes the slack, or the
+          grid draws a card-sized hole in its own hairlines. */}
+      <div class="grid-hair three">
         {
           WHERE_THEY_WIN.map((w) => (
             <div class="card">
@@ -201,7 +208,7 @@ import {
     </div>
   </section>
 
-  <section class="band-dark">
+  <section>
     <div class="wrap">
       <span class="eyebrow">Be honest with yourself</span>
       <h2>Do not pick Podium if any of these is true.</h2>

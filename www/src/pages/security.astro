@@ -140,7 +140,7 @@ const ACCESS = [
         Adding a field means deciding whether it is personal data before it can ship. That is a rule
         with a check behind it.
       </p>
-      <div class="cards">
+      <div class="grid-hair two">
         {
           HANDLING.map((h) => (
             <div class="card">
@@ -161,7 +161,7 @@ const ACCESS = [
         A speaker asking to be removed should not cost you an afternoon and a query you write by
         hand.
       </p>
-      <div class="cards">
+      <div class="grid-hair two">
         {
           RIGHTS.map((r) => (
             <div class="card">
@@ -178,7 +178,7 @@ const ACCESS = [
     <div class="wrap">
       <span class="eyebrow">Access control</span>
       <h2>Six properties the rest of it rests on.</h2>
-      <div class="cards">
+      <div class="grid-hair three">
         {
           ACCESS.map((a) => (
             <div class="card">
@@ -192,7 +192,7 @@ const ACCESS = [
     </div>
   </section>
 
-  <section class="band-dark">
+  <section>
     <div class="wrap">
       <span class="eyebrow">Disclosed</span>
       <h2>What a review found, and where it stopped.</h2>
@@ -202,7 +202,7 @@ const ACCESS = [
         fixed, the five below each with the test that would have caught it. It was also a first
         pass. Two areas were counted and never read.
       </p>
-      <ul class="ticks" style="margin-bottom: 2.25rem">
+      <ul class="ticks">
         <li>
           Bytes somebody uploaded are never served back as something a browser will run — screened
           on the way in and again on the way out, so files stored before the fix are covered too.
@@ -252,7 +252,7 @@ const ACCESS = [
           real and both are named in `.claude/skills/security-audit/SKILL.md`
           under "Work the lanes". Update the count, or delete the paragraph, if
           `npm run security:semgrep` stops reporting thirty-six. */}
-      <div class="prose" style="margin-top: 2.5rem">
+      <div class="prose">
         <h3>Two areas the review never read</h3>
         <p>
           Scoping to your organization happens once, in the layer every query is meant to go
@@ -272,7 +272,7 @@ const ACCESS = [
           could mint a second key that read personal data. Both are fixed.
         </p>
       </div>
-      <div class="two-col" style="margin-top: 2.5rem">
+      <div class="two-col">
         <div>
           <h3>What this project does not have</h3>
           <ul class="crosses">
@@ -287,9 +287,14 @@ const ACCESS = [
           <ul class="ticks">
             <li>The whole source, and the specification it was built against</li>
             <li>Every rule written down before the code, and checked against it in CI</li>
+            {/* Not "routes inventoried with the guard in front of them". That
+                is a repository concept and a number this project keeps for
+                itself; what a buyer feels is that nobody can add a screen and
+                forget the permission check on it. The landing page says the
+                same count the same way. */}
             <li>
-              Every one of the {STATS.routes} routes inventoried with the guard in front of it, so a
-              new route with no guard fails the build rather than waiting for the next review
+              All {STATS.routes} URLs in the app checked on every build; a new one with no permission
+              check fails rather than waiting for the next review
             </li>
             <li>Your own account, your own region choices, your own backups</li>
             <li>The ability to have your own people review it before you deploy it</li>

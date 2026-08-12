@@ -113,29 +113,21 @@ const FAQ = [
     <div class="wrap">
       <span class="eyebrow">The bill, itemised</span>
       <h2>Five lines, one of which is fixed.</h2>
-      <div class="table-wrap">
-        <table class="matrix stack">
-          <thead>
-            <tr>
-              <th scope="col">Line</th>
-              <th scope="col">Cost</th>
-              <th scope="col">What it is</th>
-            </tr>
-          </thead>
-          <tbody>
-            {
-              LINE_ITEMS.map((l) => (
-                <tr>
-                  <th scope="row">{l.item}</th>
-                  <td class="mine" data-label="Cost">{l.cost}</td>
-                  <td data-label="What it is">{l.note}</td>
-                </tr>
-              ))
-            }
-          </tbody>
-        </table>
-      </div>
-      <div class="notice" style="margin-top: 1.5rem">
+      {/* A receipt, not a matrix. It was a three-column comparison table with
+          the money column carrying the accent rule that means "this column is
+          ours" — and there is nobody else in this table to be ours against. */}
+      <dl class="bill">
+        {
+          LINE_ITEMS.map((l) => (
+            <div>
+              <dt>{l.item}</dt>
+              <dd class="amount">{l.cost}</dd>
+              <dd class="note">{l.note}</dd>
+            </div>
+          ))
+        }
+      </dl>
+      <div class="notice">
         <p>
           <strong>We are not going to invent a monthly total for you.</strong> Every "typical bill"
           figure on a page like this is a guess dressed up as a measurement, and you find out it was
@@ -157,7 +149,7 @@ const FAQ = [
       <span class="eyebrow">What deploying involves</span>
       <h2>Four resources, one secret, two commands.</h2>
       <p class="sub">
-        Not a caveat. It is the reason the first line of that table is zero.
+        Not a caveat. It is the reason the first line of that bill is zero.
       </p>
       <div class="two-col">
         <div>
@@ -193,7 +185,7 @@ npm run deploy</code></pre>
         This is where an open-source tool is genuinely more expensive than a hosted one. Pretending
         otherwise wastes your afternoon and ours.
       </p>
-      <div class="cards">
+      <div class="grid-hair three">
         {
           NOT_MONEY.map((n) => (
             <div class="card">
@@ -207,7 +199,7 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section class="band-dark">
+  <section class="band">
     <div class="wrap">
       <span class="eyebrow">What you never pay for</span>
       <h2>Things that are line items elsewhere.</h2>

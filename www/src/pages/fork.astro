@@ -90,7 +90,11 @@ const COMMANDS = [
   { cmd: "npm test", what: `${STATS.tests} unit and integration tests, the integration half against real local D1, KV, R2, queues and durable objects` },
   { cmd: "npm run typecheck", what: "the whole repository at once" },
   { cmd: "npm run drift", what: "the model against the code; non-zero on a disagreement" },
-  { cmd: "npm run security", what: `${STATS.routes} routes re-inventoried; a new one with no guard in front of it fails` },
+  /* Not "routes re-inventoried", which is a number this project keeps for
+     itself. What the reader feels is that their change cannot add a screen and
+     forget the permission check on it — the same phrasing the landing page
+     uses for the same count. */
+  { cmd: "npm run security", what: `every one of the ${STATS.routes} URLs in the app re-checked; a new one with no permission check fails` },
   { cmd: "node scripts/smoke.mjs", what: "walks every screen as each persona against a local server" },
 ];
 ---
@@ -117,7 +121,7 @@ const COMMANDS = [
       <p class="sub">
         Each one stops an agent, ours or yours, quietly inventing behaviour nobody asked for.
       </p>
-      <div class="cards">
+      <div class="grid-hair three">
         {
           GUARDRAILS.map((g) => (
             <div class="card">
@@ -250,7 +254,7 @@ const COMMANDS = [
     </div>
   </section>
 
-  <section class="band-dark">
+  <section>
     <div class="wrap">
       <span class="eyebrow">The boundary</span>
       <h2>What an agent still cannot do here.</h2>

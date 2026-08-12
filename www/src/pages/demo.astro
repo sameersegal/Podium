@@ -108,7 +108,7 @@ npm run dev</code></pre>
           </tbody>
         </table>
       </div>
-      <div class="notice" style="margin-top: 1.75rem">
+      <div class="notice">
         <p>
           <strong>There is a hosted instance at <a href={APP_URL}>app.podiumstack.com</a>, and it
           is not carrying this seed today.</strong> These sign-ins are the local ones. When it is
@@ -136,22 +136,22 @@ npm run dev</code></pre>
       </ol>
 
       {/* The screen two of those five steps happen on, so the reader knows what
-          they are looking for before they sign in. */}
-      <div style="margin-top: 2.5rem">
-        <Shot
-          name="agenda"
-          height={1170}
-          phoneName="agenda-phone"
-          phoneHeight={1266}
-          url="localhost:8787/admin/events/…/agenda"
-          alt="The agenda screen: a panel naming two conflicts that block publication, above a room-by-time grid with sessions placed across Main Stage, Room 2A, Room 2B and the Workshop Lab."
-          caption="The agenda in the seeded conference, with the two conflicts already waiting for you."
-        />
-      </div>
+          they are looking for before they sign in. Directly after the list, not
+          inside a spacer div: `.steps + .shot-fig` is a rule in the stylesheet
+          and a wrapper hides the adjacency from it. */}
+      <Shot
+        name="agenda"
+        height={1170}
+        phoneName="agenda-phone"
+        phoneHeight={1266}
+        url="localhost:8787/admin/events/…/agenda"
+        alt="The agenda screen: a panel naming two conflicts that block publication, above a room-by-time grid with sessions placed across Main Stage, Room 2A, Room 2B and the Workshop Lab."
+        caption="The agenda in the seeded conference, with the two conflicts already waiting for you."
+      />
     </div>
   </section>
 
-  <section class="band">
+  <section>
     <div class="wrap">
       <div class="feature">
         <div class="copy">
@@ -174,7 +174,7 @@ npm run dev</code></pre>
     </div>
   </section>
 
-  <section class="band-dark cta">
+  <section class="band cta">
     <div class="wrap">
       <h2>Found something that does not hold up?</h2>
       <p class="sub">
