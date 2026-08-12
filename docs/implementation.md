@@ -311,6 +311,13 @@ Reads the console alone needs are `GET /v1/console/bootstrap`, `GET /v1/events/:
 reason) and `GET /v1/cfps/:cfpId/builder`. Everything else it does goes through the ordinary
 management surface.
 
+**The board asks for its columns.** `GET /v1/proposals` takes `?fields=` (`http/projection.ts`,
+specified in [`09`](domain/09-api-and-integrations.md) under the list-endpoint rules) and the
+board sends the columns the reader has picked. Projection is applied to the *serialised* row,
+after `includePii` has decided its contents, which is what makes it unable to widen anything;
+`tests/integration/submissions/wizard.test.ts` asserts that naming a withheld field does not
+un-withhold it.
+
 **Measuring it.** `node scripts/perf-console.mjs` walks all fourteen console routes in a real
 browser and reports three numbers per screen — a cold load with an empty cache, a warm reload,
 and a client-side navigation into the screen — plus the server time for every document and
