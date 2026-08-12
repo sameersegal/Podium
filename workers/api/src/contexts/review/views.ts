@@ -870,7 +870,7 @@ export function publishPreviewView(d: { event: EventRef; rows: PublishPreviewRow
     ${publishable.length > 0
       ? html`<form method="post" action="/admin/events/${d.event.id}/decisions/publish" class="stack">
           ${publishable.map((r) => html`<input type="hidden" name="decision_id" value="${str(r.decision.id)}">`)}
-          <button type="submit" onclick="return confirm('Send ${publishable.length} notification${publishable.length === 1 ? "" : "s"} now? This cannot be undone from here.')">Publish ${publishable.length} decision${publishable.length === 1 ? "" : "s"}</button>
+          <button type="submit" data-confirm="Send ${publishable.length} notification${publishable.length === 1 ? "" : "s"} now? This cannot be undone from here.">Publish ${publishable.length} decision${publishable.length === 1 ? "" : "s"}</button>
         </form>`
       : empty("Nothing is ready to publish.")}
   `;

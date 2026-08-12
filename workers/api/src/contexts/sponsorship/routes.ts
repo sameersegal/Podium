@@ -225,7 +225,7 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
         ${card(html`${table(["Event", "Status", "Entitlements used", "Contract", ""], rows, "No sponsorships yet.")}`, "Sponsorships")}
         ${card(
           html`<form method="post" action="/admin/sponsors/${params.sponsorId}/delete" class="stack"
-                     onsubmit="return confirm('Remove this sponsor?')">
+                     data-confirm="Remove this sponsor?">
             ${field({ name: "reason", label: "Reason", required: true, help: "Recorded on the audit row." })}
             <button type="submit" class="danger">Remove sponsor</button>
           </form>`,

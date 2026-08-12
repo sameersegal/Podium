@@ -40,7 +40,7 @@ import { calendarDateInZone, formatDateInZone, formatInZone } from "@podiumstack
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json, text } from "../http/responses.js";
 import type { Router } from "../http/router.js";
-import { html, jsonScript, prose, raw, type SafeHtml } from "../ui/html.js";
+import { html, inlineScript, jsonScript, prose, raw, type SafeHtml } from "../ui/html.js";
 import { card, dayBar, empty, pageHead } from "../ui/layout.js";
 import { publicPage, type EventRef } from "../ui/shell.js";
 
@@ -397,7 +397,7 @@ function speakerSearchControl(): SafeHtml {
 }
 
 function speakerSearchScript(): SafeHtml {
-  return raw(`<script>
+  return inlineScript(`
 (function(){
   var box = document.getElementById("podium-speaker-search");
   if (!box) return;
@@ -414,7 +414,7 @@ function speakerSearchScript(): SafeHtml {
     if (count) count.textContent = shown + " of " + cards.length + " speakers";
   });
 })();
-</script>`);
+`);
 }
 
 /**
@@ -457,7 +457,7 @@ function scheduleControls(ref: EventRef, snapshot: ScheduleSnapshot): SafeHtml {
  */
 function scheduleClientScript(eventSlug: string): SafeHtml {
   const key = `podium:starred:${eventSlug}`;
-  return raw(`<script>
+  return inlineScript(`
 (function(){
   var STORE_KEY = ${JSON.stringify(key)};
   function starred(){ try { return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); } catch(e){ return []; } }
@@ -536,7 +536,7 @@ function scheduleClientScript(eventSlug: string): SafeHtml {
   updateIcsLink();
   applyFilters();
 })();
-</script>`);
+`);
 }
 
 /* -------------------------------------------------------------------------- */

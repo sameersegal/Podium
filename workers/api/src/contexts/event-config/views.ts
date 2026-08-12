@@ -23,7 +23,7 @@ import {
   type MapsTo,
 } from "@podiumstack/domain/event-config/types.js";
 import { notFound } from "@podiumstack/domain/shared/errors.js";
-import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
+import { escapeHtml, html, inlineScript, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 
 export interface SelectOption {
   value: string;
@@ -600,7 +600,7 @@ function renderPublicField(
 function conditionScript(conditions: Record<string, ConditionRule>): SafeHtml {
   if (Object.keys(conditions).length === 0) return raw("");
   const payload = JSON.stringify(conditions).replace(/</g, "\\u003c");
-  return raw(`<script>
+  return inlineScript(`
 (function(){
   var rules = ${payload};
   var root = document.currentScript.parentNode;
@@ -641,7 +641,7 @@ function conditionScript(conditions: Record<string, ConditionRule>): SafeHtml {
   root.addEventListener('input', apply);
   apply();
 })();
-</script>`);
+`);
 }
 
 /* -------------------------------------------------------------------------- */

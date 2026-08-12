@@ -1,6 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
+import { CSP_NONCE_MARKER } from "@podiumstack/web/ui/html.js";
 
 /**
  * The response-hardening headers, the session cookie's attributes, the `next=`
@@ -65,6 +66,35 @@ describe("security response headers", () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
     expect(csp).toContain("form-action 'self'");
+  });
+
+  it("forbids inline script and ships no unsubstituted nonce marker", async () => {
+    const res = await SELF.fetch(LOGIN, { redirect: "manual" });
+    const csp = res.headers.get("content-security-policy") ?? "";
+    const body = await res.text();
+
+    expect(/script-src[^;]*'unsafe-inline'/.test(csp)).toBe(false);
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1] ?? "";
+    expect(nonce).not.toBe("");
+    // The marker leaking through is the failure mode with no symptom in CI:
+    // the page renders, and every inline script on it silently does nothing.
+    expect(body).not.toContain(CSP_NONCE_MARKER);
+  });
+
+  it("gives every inline script on a real page the header's nonce", async () => {
+    const res = await SELF.fetch(LOGIN, { redirect: "manual" });
+    const nonce = /'nonce-([^']+)'/.exec(res.headers.get("content-security-policy") ?? "")?.[1] ?? "";
+    const body = await res.text();
+
+    // Every <script> without a `src` is inline and must carry the nonce or the
+    // browser drops it on the floor.
+    for (const tag of body.match(/<script\b[^>]*>/g) ?? []) {
+      if (/\bsrc=/.test(tag)) continue;
+      expect(tag).toContain(`nonce="${nonce}"`);
+    }
+    // And the confirm behaviour that replaced the inline handlers is loaded
+    // from a path `script-src 'self'` allows.
+    expect(body).toContain('src="/confirm.js"');
   });
 
   it("denies framing of the app, so the admin surfaces cannot be clickjacked", async () => {

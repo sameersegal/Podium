@@ -44,7 +44,7 @@ export default {
       // as "not found", which is the production defect this fixes.
       if (!ctx.orgId && url.pathname !== "/setup") {
         if (wantsJson(req)) {
-          return withSecurityHeaders(
+          return await withSecurityHeaders(
             req,
             json(
               { error: "not_configured", message: "This deployment has not been set up yet. Visit /setup to create the first organization." },
@@ -52,12 +52,12 @@ export default {
             ),
           );
         }
-        return withSecurityHeaders(req, redirect("/setup", 303));
+        return await withSecurityHeaders(req, redirect("/setup", 303));
       }
 
       if (isMutating(req.method)) {
         const replay = await replayIfSeen(env, ctx.orgId, req);
-        if (replay) return withSecurityHeaders(req, replay);
+        if (replay) return await withSecurityHeaders(req, replay);
       }
 
       // R30's admin console. It answers before the router because it shares
@@ -66,10 +66,10 @@ export default {
       // or an event that does not exist — declines it and falls through to the
       // page that has always answered.
       const consoleRes = await consoleDocument(req, ctx);
-      if (consoleRes) return withSecurityHeaders(req, consoleRes);
+      if (consoleRes) return await withSecurityHeaders(req, consoleRes);
 
       const match = router.match(req.method, url.pathname);
-      if (!match) return withSecurityHeaders(req, notFound(req, ctx));
+      if (!match) return await withSecurityHeaders(req, notFound(req, ctx));
 
       let res = await match.handler(req, ctx, match.params);
 
@@ -88,15 +88,15 @@ export default {
       }
 
       if (isMutating(req.method)) res = await remember(env, ctx.orgId, req, res);
-      return withSecurityHeaders(req, res);
+      return await withSecurityHeaders(req, res);
     } catch (err) {
       // The error paths need the headers too — an error page is still a page,
       // and `errorResponse` is what an injected payload would most like to
       // reach unhardened.
       if (err instanceof DomainError && !wantsJson(req)) {
-        return withSecurityHeaders(req, recoverableRedirect(req, err) ?? errorPage(err));
+        return await withSecurityHeaders(req, recoverableRedirect(req, err) ?? errorPage(err));
       }
-      return withSecurityHeaders(req, errorResponse(err));
+      return await withSecurityHeaders(req, errorResponse(err));
     }
   },
 
@@ -163,7 +163,7 @@ function errorPage(err: DomainError): Response {
         ${err.fieldErrors?.length
           ? html`<ul>${err.fieldErrors.map((f) => html`<li><strong>${f.field_key}</strong>: ${f.message}</li>`)}</ul>`
           : html``}
-        <p><a href="javascript:history.back()">Go back</a> · <a href="/">Home</a>${err.status === 401 ? html` · <a href="/login">Sign in</a>` : html``}</p>
+        <p><a href="/" data-back>Go back</a> · <a href="/">Home</a>${err.status === 401 ? html` · <a href="/login">Sign in</a>` : html``}</p>
       </div>`,
     ),
     { status: err.status },

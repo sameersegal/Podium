@@ -255,7 +255,7 @@ export function segmentDetailView(input: { segment: SegmentView; members: Direct
     ${canWrite
       ? card(
           html`<p class="muted small">Converting is explicit and recorded: a dynamic segment freezes its current members; a static list starts resolving a query instead.</p>
-            <form method="post" action="/admin/segments/${s.id}/convert" class="inline-form" onsubmit="return confirm('Convert this segment to ${s.kind === "dynamic" ? "static" : "dynamic"}?')">
+            <form method="post" action="/admin/segments/${s.id}/convert" class="inline-form" data-confirm="Convert this segment to ${s.kind === "dynamic" ? "static" : "dynamic"}?">
               <input type="hidden" name="to" value="${s.kind === "dynamic" ? "static" : "dynamic"}">
               <button type="submit" class="small secondary">Convert to ${s.kind === "dynamic" ? "static" : "dynamic"}</button>
             </form>
@@ -375,7 +375,7 @@ export function cardDetailView(input: {
               ${field({ name: "next_action_at", label: "Next action", type: "date", value: strOrNull(c.next_action_at)?.slice(0, 10) ?? "" })}
               <button type="submit" class="small">Save</button>
             </form>
-            <form method="post" action="/admin/pipelines/cards/${str(c.id)}/convert" class="inline-form" onsubmit="return confirm('Push to the event? This creates an EventParticipant and copies no profile data.')">
+            <form method="post" action="/admin/pipelines/cards/${str(c.id)}/convert" class="inline-form" data-confirm="Push to the event? This creates an EventParticipant and copies no profile data.">
               <button type="submit" class="small secondary">Push to event</button>
             </form>`,
           "Manage this card",

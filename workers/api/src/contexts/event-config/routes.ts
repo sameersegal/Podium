@@ -57,7 +57,7 @@ import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
-import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
+import { escapeHtml, html, inlineScript, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, addForm, badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
 import { adminPage, toEventRef, type EventRef } from "../../ui/shell.js";
 import {
@@ -1506,7 +1506,7 @@ function copyableUrl(url: string, id: string): SafeHtml {
     <input id="${elId}" class="mono" readonly value="${url}" size="52" onfocus="this.select()">
     <button type="button" class="secondary small" data-copy-for="${elId}">Copy</button>
   </span>
-  ${raw(`<script>(function(){var b=document.currentScript.previousElementSibling.querySelector('[data-copy-for]');if(!b)return;b.addEventListener('click',function(){var i=document.getElementById('${elId}');i.select();try{navigator.clipboard?navigator.clipboard.writeText(i.value):document.execCommand('copy');}catch(e){document.execCommand('copy');}b.textContent='Copied';setTimeout(function(){b.textContent='Copy';},1500);});})();</script>`)}`;
+  ${inlineScript(`(function(){var b=document.currentScript.previousElementSibling.querySelector('[data-copy-for]');if(!b)return;b.addEventListener('click',function(){var i=document.getElementById('${elId}');i.select();try{navigator.clipboard?navigator.clipboard.writeText(i.value):document.execCommand('copy');}catch(e){document.execCommand('copy');}b.textContent='Copied';setTimeout(function(){b.textContent='Copy';},1500);});})();`)}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1906,7 +1906,7 @@ function fieldFormControls(
               <input type="text" name="visible_when_value" value="${rule && !Array.isArray(rule.value) ? String(rule.value ?? "") : ""}" placeholder="value">
             </span>
           </div>
-          ${raw(`<script>(function(){
+          ${inlineScript(`(function(){
   var options = ${JSON.stringify(optionMap).replace(/</g, "\\u003c")};
   var current = ${JSON.stringify(rule && !Array.isArray(rule.value) ? String(rule.value ?? "") : "").replace(/</g, "\\u003c")};
   var sel = document.getElementById('cf_${uid}');
@@ -1936,7 +1936,7 @@ function fieldFormControls(
   }
   sel.addEventListener('change', function(){ current = ''; render(); });
   render();
-})();</script>`)}`}
+})();`)}`}
     </fieldset>`;
 }
 

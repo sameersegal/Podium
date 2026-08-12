@@ -2,7 +2,7 @@
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
-import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL } from "../consts";
+import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL, STATS } from "../consts";
 
 /*
  * For the person who has to answer "where does our speakers' personal data go"
@@ -11,6 +11,26 @@ import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL } from "../consts";
  * The last section is the one that matters. Every security page on the internet
  * lists what a product does well; the disclosure below is checkable in the
  * repository, which is the only reason to believe the rest of the page.
+ *
+ * That section carries the August 2026 review — five defects found and fixed —
+ * and, after it, the one weakness still open. The order is deliberate: the
+ * history is what makes the confession credible, and a page that quietly
+ * acquired five new strengths and mentioned no history would read worse than
+ * this does.
+ *
+ * Three things this section may never say, each of which would be a stronger
+ * sentence and a false impression:
+ *
+ *   - that a scanner "found nothing". CodeQL and six stock Semgrep packs both
+ *     reported zero, and those zeros carry no information — nothing here looks
+ *     like what those rules hunt for. The five defects came from a person
+ *     reading the code.
+ *   - that anyone outside this project audited it. "No third-party penetration
+ *     test" stays on the crosses list because it is still true.
+ *   - that the content policy is finished. Inline *script* is forbidden;
+ *     inline styles are still allowed, and there is no CSRF token anywhere —
+ *     the cookie policy is the whole of that defence. So the list below says
+ *     "where scripts may come from" and stops there.
  */
 
 const HANDLING = [
@@ -81,12 +101,12 @@ const ACCESS = [
 
 <Base
   title="Security & data"
-  description="Where your speakers' personal data lives, what is redacted by default, how export and erasure work, and one disclosed weakness in the current deployment — with the fix."
+  description="Where your speakers' personal data lives, what is redacted by default, how export and erasure work, what an August 2026 security review found and fixed, and the one weakness still open."
 >
   <PageHead
     eyebrow="Security & data"
     title="It is your database, in your account, under your policy."
-    lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. Below is what the software does with it, and at the bottom, what is currently wrong."
+    lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. Below is what the software does with it, and at the bottom, what a review found and what is still wrong."
   />
 
   <section>
@@ -152,10 +172,35 @@ const ACCESS = [
   <section class="band-dark">
     <div class="wrap">
       <span class="eyebrow">Disclosed</span>
-      <h2>One thing that is currently wrong, and the fix.</h2>
+      <h2>What a review found, and what is still wrong.</h2>
       <p class="sub">
-        The implementation notes carry it in more detail. It is on this page because a security page
-        that lists only strengths is one nobody should believe.
+        Nobody had read this product as a whole for security until August 2026. The review was
+        internal — our own people on our own code, not an outside audit — and found five defects.
+        All five are fixed, each with the test that would have caught it. The implementation notes
+        carry them in more detail. They are on this page because a security page that lists only
+        strengths is one nobody should believe.
+      </p>
+      <ul class="ticks" style="margin-bottom: 2.25rem">
+        <li>
+          Bytes somebody uploaded are never served back as something a browser will run — screened
+          on the way in and again on the way out, so files stored before the fix are covered too.
+          A speaker's headshot was the way in.
+        </li>
+        <li>
+          Every response declares where scripts may come from, and inline script is not one of the
+          answers. Nothing may frame the app or guess at a file's type. The schedule embed is the
+          one deliberate exception, because being put in someone else's page is its job.
+        </li>
+        <li>The session cookie travels only over https and is unreadable to scripts.</li>
+        <li>A sign-in link can only send you onward to a page inside your own deployment.</li>
+        <li>
+          Password guessing is capped — ten failures against one address, fifty from one source, in
+          a rolling fifteen minutes — and refused before the password is checked at all, on every
+          screen that checks one.
+        </li>
+      </ul>
+      <p>
+        One thing it did not fix, because a hosting plan holds it up rather than a line of code:
       </p>
       <div class="notice">
         <p>
@@ -170,10 +215,15 @@ const ACCESS = [
           is no migration and no reset.
         </p>
         <p>
-          Two things reduce what it is worth to an attacker. Passwords are optional and off by
-          default in production, with invitations the intended route in, and there is no password
-          reset form to farm. It is still the first thing to fix on a deployment holding real
-          speakers.
+          Three things reduce what it is worth to an attacker. Guessing at the sign-in form is now
+          capped, which is the one that matters most because it is what anyone would actually try
+          against a running deployment. Passwords are optional and off by default in production,
+          with invitations the intended route in. And there is no password reset form to farm.
+        </p>
+        <p>
+          What is left is the offline case: somebody who already has a copy of your database can
+          work through the hashes faster than they should be able to. That is still the first thing
+          to fix on a deployment holding real speakers.
         </p>
       </div>
       <div class="two-col" style="margin-top: 2.5rem">
@@ -191,6 +241,10 @@ const ACCESS = [
           <ul class="ticks">
             <li>The whole source, and the specification it was built against</li>
             <li>Every rule written down before the code, and checked against it in CI</li>
+            <li>
+              Every one of the {STATS.routes} routes inventoried with the guard in front of it, so a
+              new route with no guard fails the build rather than waiting for the next review
+            </li>
             <li>Your own account, your own region choices, your own backups</li>
             <li>The ability to have your own people review it before you deploy it</li>
           </ul>

@@ -25,7 +25,7 @@ import { answerDisplay } from "@podiumstack/domain/submissions/answer-display.js
 import { isBlank, type AnswerMap } from "@podiumstack/domain/submissions/answers.js";
 import { nextAction, type EditAffordance, type NextAction } from "@podiumstack/domain/submissions/types.js";
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
-import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
+import { escapeHtml, html, inlineScript, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import { visibleSteps, editAffordance, allFields } from "./service.js";
@@ -212,7 +212,7 @@ function conditionScript(fields: FormFieldSpec[]): SafeHtml {
   for (const f of fields) if (f.visible_when) rules[f.key] = f.visible_when;
   if (Object.keys(rules).length === 0) return raw("");
   const payload = JSON.stringify(rules).replace(/</g, "\\u003c");
-  return raw(`<script>
+  return inlineScript(`
 (function(){
   var rules = ${payload};
   var form = document.currentScript.closest('form');
@@ -253,7 +253,7 @@ function conditionScript(fields: FormFieldSpec[]): SafeHtml {
   form.addEventListener('input', apply);
   apply();
 })();
-</script>`);
+`);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -312,7 +312,7 @@ function speakerRosterBlock(
             type="submit"
             form="${formId(r.person_id)}"
             class="small secondary"
-            ${raw(`onclick="return confirm('${escapeHtml(`Remove ${r.full_name} from this proposal?`)}')"`)}
+            ${raw(`data-confirm="${escapeHtml(`Remove ${r.full_name} from this proposal?`)}"`)}
           >Remove</button>`
         : raw("")}</td>
     </tr>`,

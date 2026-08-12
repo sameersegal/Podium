@@ -46,6 +46,21 @@ const HEAD_ICONS = raw(`
   <link rel="stylesheet" href="/app.css">
 `);
 
+/**
+ * The behaviour behind every `data-confirm` and `data-back` in the app.
+ *
+ * A static file rather than an inline block on purpose. `script-src` names
+ * `'self'` and a per-request nonce and nothing else, and an event-handler
+ * attribute cannot carry a nonce — so `onsubmit="return confirm(…)"` had to
+ * become markup that declares intent plus one script that acts on it.
+ *
+ * `defer`, and nothing here is load-bearing for correctness: with scripts
+ * blocked the form still submits, exactly as it did when the handler was
+ * inline (08, "Degrade gracefully"). The server re-checks every rule anyway —
+ * a confirm dialog is a courtesy, never a control.
+ */
+const CONFIRM_SCRIPT = raw(`<script src="/confirm.js" defer></script>`);
+
 export function page(opts: PageOptions, body: SafeHtml): SafeHtml {
   const width = opts.width === "narrow" ? "narrow" : opts.width === "wide" ? "wide" : "";
   return html`<!doctype html>
@@ -66,6 +81,7 @@ export function page(opts: PageOptions, body: SafeHtml): SafeHtml {
     ${body}
   </main>
   ${opts.live ? liveRegion(opts.live) : raw("")}
+  ${CONFIRM_SCRIPT}
 </body>
 </html>`;
 }
@@ -425,7 +441,7 @@ export function addForm(label: string, body: SafeHtml): SafeHtml {
 
 /** A one-button POST, for state transitions that need no form. */
 export function actionForm(action: string, label: string, opts: { className?: string; confirm?: string; hidden?: Record<string, string> } = {}): SafeHtml {
-  return html`<form method="post" action="${action}" class="inline-form"${opts.confirm ? raw(` onsubmit="return confirm('${escapeHtml(opts.confirm)}')"`) : raw("")}>
+  return html`<form method="post" action="${action}" class="inline-form"${opts.confirm ? raw(` data-confirm="${escapeHtml(opts.confirm)}"`) : raw("")}>
     ${Object.entries(opts.hidden ?? {}).map(([k, v]) => html`<input type="hidden" name="${k}" value="${v}">`)}
     <button type="submit" class="small ${opts.className ?? "secondary"}">${label}</button>
   </form>`;

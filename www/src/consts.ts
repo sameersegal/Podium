@@ -59,15 +59,17 @@ export const NAV = [
  *   adapters     entries in PLUGINS in packages/plugins/src/registry.ts
  *   endpoints    grep -rhoE '\b(get|post|put|patch|del|delete)\(\s*"/v1[^"]*"' \
  *                  workers/api/src | sort -u | wc -l   (method + path pairs)
+ *   routes       the route-inventory total from `npm run security`
  */
 export const STATS = {
-  tests: 739,
+  tests: 750,
   events: 136,
-  invariants: 158,
+  invariants: 161,
   scopes: 22,
   capabilities: 11,
   adapters: 9,
   endpoints: 190,
+  routes: 510,
 } as const;
 
 /**

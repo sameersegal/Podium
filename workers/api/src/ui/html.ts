@@ -38,10 +38,45 @@ export function html(strings: TemplateStringsArray, ...parts: unknown[]): SafeHt
   return new SafeHtml(out);
 }
 
+/**
+ * Stands in for the per-request CSP nonce until the response is assembled.
+ *
+ * The nonce cannot be chosen here: this module renders fragments, and a
+ * fragment does not know which request it is part of. Threading one through
+ * every view function that emits a script would touch a dozen signatures to
+ * carry a value only two files care about. So the scripts are written with a
+ * marker and `withSecurityHeaders` — which generates the nonce, and is the same
+ * place the `script-src` directive naming it is built — substitutes it once,
+ * on the way out.
+ *
+ * The two must therefore agree, which is why the marker is exported rather than
+ * spelled out twice, and why `tests/integration/identity/hardening.test.ts`
+ * asserts that no marker survives into a served page.
+ */
+export const CSP_NONCE_MARKER = "__PODIUM_CSP_NONCE__";
+
+/**
+ * An inline `<script>` that will pass the CSP.
+ *
+ * Every inline script in the app goes through here. `script-src` carries no
+ * `'unsafe-inline'`, so one written by hand simply will not run — which is a
+ * loud enough failure to be the right one.
+ *
+ * `js` is emitted verbatim: it is code this repository wrote, not data. Values
+ * interpolated into it must be `JSON.stringify`d by the caller, exactly as
+ * before.
+ */
+export function inlineScript(js: string): SafeHtml {
+  return raw(`<script nonce="${CSP_NONCE_MARKER}">${js}</script>`);
+}
+
 /** Attribute-safe JSON, for embedding a payload in a data attribute or script. */
 export function jsonScript(id: string, data: unknown): SafeHtml {
   const body = JSON.stringify(data).replace(/</g, "\\u003c");
-  return raw(`<script type="application/json" id="${escapeHtml(id)}">${body}</script>`);
+  // A `type` the browser will not execute is not subject to `script-src`, but
+  // carrying the nonce costs nothing and means "every <script> this app emits
+  // has a nonce" stays a rule with no exceptions to remember.
+  return raw(`<script type="application/json" id="${escapeHtml(id)}" nonce="${CSP_NONCE_MARKER}">${body}</script>`);
 }
 
 /**

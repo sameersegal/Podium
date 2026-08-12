@@ -649,7 +649,7 @@ function revisionsPanel(session: Row, revisions: Row[], canRestore: boolean): Sa
         : html`<ul class="diff-list">${fields.map((f) => html`<li><span class="mono small">${f}</span>: <span class="small">${diffValue(diff[f].from)}</span> → <span class="small">${diffValue(diff[f].to)}</span></li>`)}</ul>`}</td>
       <td class="right">
         ${canRestore
-          ? html`<form method="post" action="/admin/sessions/${str(session.id)}/restore/${str(r.id)}" class="inline-form" onsubmit="return confirm('Restore this revision? A new revision is written forward — nothing is rewound.')">
+          ? html`<form method="post" action="/admin/sessions/${str(session.id)}/restore/${str(r.id)}" class="inline-form" data-confirm="Restore this revision? A new revision is written forward — nothing is rewound.">
               <button type="submit" class="small secondary">Restore</button>
             </form>`
           : raw("")}
@@ -683,7 +683,7 @@ function speakerRow(session: Row, s: Row & { name: string }, canWrite: boolean):
               ${field({ name: "email", label: "Replacement email", type: "email" })}
               <button type="submit" class="small">Replace</button>
             </form>
-            <form method="post" action="/admin/sessions/${str(session.id)}/speakers/${personId}/remove" class="inline-grid" onsubmit="return confirm('Remove this speaker?')">
+            <form method="post" action="/admin/sessions/${str(session.id)}/speakers/${personId}/remove" class="inline-grid" data-confirm="Remove this speaker?">
               ${field({ name: "reason", label: "Reason", required: true })}
               <button type="submit" class="small danger">Remove</button>
             </form>

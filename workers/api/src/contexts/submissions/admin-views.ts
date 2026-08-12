@@ -9,7 +9,7 @@ import { AUDIENCE_LEVEL, ORIGIN, RECORDING_CONSENT } from "@podiumstack/domain/e
 import type { FieldError } from "@podiumstack/domain/shared/errors.js";
 import { formatDateInZone, formatInZone } from "@podiumstack/domain/shared/time.js";
 import { PROPOSAL_STATUS } from "@podiumstack/domain/submissions/types.js";
-import { html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
+import { html, inlineScript, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, sortBar, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
 import type { ProposalDetail, QueueFilters, QueueRow } from "./views.js";
@@ -127,7 +127,7 @@ export function proposalQueueView(data: QueuePageData): SafeHtml {
       ${table(["", "Proposal", "Submitter", "Speakers", "Track", "Format", "Origin", "Status", "Submitted"], rows, "No proposals match these filters.")}
     </form>
     ${data.nextCursor ? html`<p><a href="${qs(url, { cursor: data.nextCursor })}">Next page →</a></p>` : raw("")}
-    <script>
+    ${inlineScript(`
       (function(){
         var all = document.getElementById('select-all');
         if (!all) return;
@@ -135,7 +135,7 @@ export function proposalQueueView(data: QueuePageData): SafeHtml {
           document.querySelectorAll('input[name="proposal_ids"]').forEach(function(cb){ cb.checked = all.checked; });
         });
       })();
-    </script>`;
+    `)}`;
 }
 
 /* -------------------------------------------------------------------------- */
