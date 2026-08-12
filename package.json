@@ -17,6 +17,8 @@
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "drift": "python3 .claude/skills/domain-drift/scripts/model_inventory.py --check",
+    "security": "python3 .claude/skills/security-audit/scripts/attack_surface.py --check",
+    "security:semgrep": "semgrep scan --metrics=off --config .claude/skills/security-audit/rules/ --exclude=node_modules --exclude=www --exclude=.wrangler",
     "smoke": "node scripts/smoke.mjs",
     "dev:lan": "node scripts/dev.mjs --host 0.0.0.0",
     "deploy:config": "node scripts/deploy-config.mjs",

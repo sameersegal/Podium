@@ -117,7 +117,7 @@ attachments.
 | `org_id` | `ref(Organization)` | Y | |
 | `storage_key` | `string` | Y | opaque key in the storage backend |
 | `filename` | `string` | Y | as uploaded, sanitised |
-| `content_type` / `size_bytes` | | Y | validated server-side, never trusted from the client |
+| `content_type` / `size_bytes` | | Y | validated server-side, never trusted from the client (INV-11-15) |
 | `checksum` | `string` | Y | SHA-256, for dedupe and integrity |
 | `width` / `height` | `int` | N | for images; drives headshot minimum-size validation |
 | `scan_status` | `enum(pending, clean, infected, failed)` | Y | (INV-11-3) |
@@ -147,6 +147,26 @@ Consumers read `is_latest` unless they ask otherwise — the published schedule,
 export and the session page all mean "the current one". The version list is a first-class
 surface wherever a file appears: every version with its number, uploader, timestamp and
 size, the current one marked, each individually retrievable.
+
+### An uploaded file is never served as a document (INV-11-15)
+
+An `Asset` holds bytes a person outside the organization chose. Any speaker with a headshot
+slot can put a file there, and the surfaces that display it — the roster, the session page,
+the public speaker list, the console — render it inside the application's own origin.
+
+So `content_type` is constrained on the way in **and** on the way out, and neither direction
+may ever resolve to a type the browser parses as a document rather than paints as an image:
+`text/html`, `application/xhtml+xml`, anything XML, anything JavaScript, and
+`image/svg+xml`. Such a file is still stored and still retrievable; it is served as opaque
+bytes for download rather than rendered in place.
+
+`image/svg+xml` is the member of that list worth naming, because it is the one that does not
+look like it belongs there. An SVG is an image in every conversation a person has about it
+and a scriptable XML document in every conversation a browser has about it. A rule that
+screens "markup" and quietly excepts SVG because it is an image screens nothing.
+
+The rule is stated on both directions deliberately. Constraining only the write leaves every
+row written before the constraint, and the read is where the damage lands.
 
 ### AssetComment
 
@@ -451,6 +471,11 @@ derived column fails while somebody is looking at it (INV-09-17).
 - **INV-11-14** A field edit submitted against a stale version of an aggregate root is
   refused with `409` and the current state. It is never silently applied, and the refusal
   costs the writer their edit rather than costing the other writer theirs.
+- **INV-11-15** An `Asset`'s `content_type` is resolved server-side on upload and screened
+  again on retrieval, and in neither direction may it be a type the browser parses as a
+  document — `text/html`, `application/xhtml+xml`, any XML, any JavaScript, or
+  `image/svg+xml`. Such a file is served as opaque bytes for download, never rendered
+  inline on the application's origin.
 
 ## Emitted events
 

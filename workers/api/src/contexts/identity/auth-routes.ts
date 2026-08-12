@@ -9,10 +9,11 @@
 import { str } from "@podiumconf/data/db.js";
 import { normaliseEmail } from "@podiumconf/domain/identity/types.js";
 import { DomainError } from "@podiumconf/domain/shared/errors.js";
-import { cookiesOf, flashCookie, SESSION_COOKIE, setCookie, clearCookie, type RequestContext } from "../../http/context.js";
+import { cookiesOf, flashCookie, safeNext, SESSION_COOKIE, setCookie, clearCookie, type RequestContext } from "../../http/context.js";
 import { closeSocketsFor } from "../../surfaces/live.js";
 import { readInput } from "../../http/input.js";
 import { htmlResponse, redirect } from "../../http/responses.js";
+import { assertLoginAllowed, clearLoginFailures, recordLoginFailure } from "../../http/throttle.js";
 import type { Router } from "../../http/router.js";
 import { html, raw } from "../../ui/html.js";
 import { field, page, submitButton } from "../../ui/layout.js";
@@ -41,7 +42,9 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
     if (ctx.person) return redirect(destinationFor(ctx));
     const app = ctx.app();
     const passwords = await passwordLoginEnabled(app);
-    const next = ctx.url.searchParams.get("next") ?? "";
+    // Screened on the way in as well as on the way out, so the form does not
+    // carry a poisoned value and the "Create one" link cannot propagate one.
+    const next = safeNext(ctx.url.searchParams.get("next"), "");
     return htmlResponse(
       authPage(
         "Sign in",
@@ -68,8 +71,14 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
     if (!(await passwordLoginEnabled(app))) {
       throw new DomainError({ code: "password_login_disabled", message: "Password sign-in is disabled.", status: 403 });
     }
-    const person = await verifyPasswordLogin(app, input.str("email"), input.str("password"));
+    // Before `verifyPasswordLogin`, not after: refusing here is what stops an
+    // attacker spending our Argon2 budget, which on the free plan is the
+    // scarcest thing the request has.
+    const email = input.str("email");
+    await assertLoginAllowed(ctx.env, req, email);
+    const person = await verifyPasswordLogin(app, email, input.str("password"));
     if (!person) {
+      ctx.waitUntil(recordLoginFailure(ctx.env, req, email));
       return htmlResponse(
         authPage(
           "Sign in",
@@ -89,13 +98,15 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
     }
     const token = await startSession(app, person.id);
     await app.flush();
-    const next = input.str("next") || "";
-    return redirect(next || "/portal", 303, { "set-cookie": setCookie(SESSION_COOKIE, token, { maxAge: 60 * 60 * 24 * 30 }) });
+    ctx.waitUntil(clearLoginFailures(ctx.env, email));
+    return redirect(safeNext(input.str("next"), "/portal"), 303, { "set-cookie": setCookie(SESSION_COOKIE, token, { maxAge: 60 * 60 * 24 * 30 }) });
   });
 
   router.get("/signup", async (_req, ctx) => {
     if (ctx.person) return redirect(destinationFor(ctx));
-    const next = ctx.url.searchParams.get("next") ?? "";
+    // Screened on the way in as well as on the way out, so the form does not
+    // carry a poisoned value and the "Create one" link cannot propagate one.
+    const next = safeNext(ctx.url.searchParams.get("next"), "");
     return htmlResponse(
       authPage(
         "Create your account",
@@ -128,14 +139,21 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
         // Signing up with an email that already has a password is almost always
         // somebody who forgot they had an account. If the password matches, let
         // them in rather than bouncing them to a second form.
+        //
+        // Which makes this a second password-guessing endpoint, and it has to
+        // be throttled like the first — a limit on /login that /signup does not
+        // share is not a limit.
+        await assertLoginAllowed(ctx.env, req, email);
         const verified = await verifyPasswordLogin(app, email, input.str("password"));
         if (verified) {
           const token = await startSession(app, verified.id);
           await app.flush();
-          return redirect(input.str("next") || "/portal", 303, {
+          ctx.waitUntil(clearLoginFailures(ctx.env, email));
+          return redirect(safeNext(input.str("next"), "/portal"), 303, {
             "set-cookie": setCookie(SESSION_COOKIE, token, { maxAge: 60 * 60 * 24 * 30 }),
           });
         }
+        ctx.waitUntil(recordLoginFailure(ctx.env, req, email));
         return redirect("/login", 303, {
           "set-cookie": flashCookie("info", "You already have an account with that email — sign in instead."),
         });
@@ -150,7 +168,7 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
       });
       const token = await startSession(app, person.id);
       await app.flush();
-      return redirect(input.str("next") || "/portal", 303, {
+      return redirect(safeNext(input.str("next"), "/portal"), 303, {
         "set-cookie": setCookie(SESSION_COOKIE, token, { maxAge: 60 * 60 * 24 * 30 }),
       });
     }
@@ -164,7 +182,7 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
     await setPassword(app, person.id, input.str("password"));
     const token = await startSession(app, person.id);
     await app.flush();
-    return redirect(input.str("next") || "/portal", 303, {
+    return redirect(safeNext(input.str("next"), "/portal"), 303, {
       "set-cookie": setCookie(SESSION_COOKIE, token, { maxAge: 60 * 60 * 24 * 30 }),
     });
   });

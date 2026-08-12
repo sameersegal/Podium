@@ -110,7 +110,7 @@ const EXTENSION_TYPES: Record<string, string> = {
   jpeg: "image/jpeg",
   gif: "image/gif",
   webp: "image/webp",
-  svg: "image/svg+xml",
+  // Note what is absent: `svg`. See RENDERS_AS_MARKUP below.
   csv: "text/csv",
   txt: "text/plain",
   json: "application/json",
@@ -125,19 +125,56 @@ const EXTENSION_TYPES: Record<string, string> = {
 };
 
 /**
+ * Types a browser will parse as a document rather than paint as an image, and
+ * therefore types this app must never hand back for bytes somebody uploaded.
+ *
+ * INV-11-15: neither direction may resolve to a type the browser parses as a
+ * document.
+ *
+ * `image/svg+xml` is the one that bites, because an SVG is an image everywhere
+ * a person reasons about it and a scriptable XML document everywhere a browser
+ * does. A headshot named `me.svg` used to be stored as `image/svg+xml` and
+ * served inline, same-origin, by `GET /assets/:id` — so any speaker could run
+ * script in an organizer's session on every screen that rendered their photo.
+ */
+const RENDERS_AS_MARKUP = /^(?:text\/html|application\/xhtml\+xml|image\/svg\+xml|.*javascript|.*\bxml)$/;
+
+/**
  * `content_type` is "validated server-side, never trusted from the client":
  * the extension decides where we know it, and anything unrecognised falls back
  * to a type the browser will not execute.
+ *
+ * The claimed type and the extension map used to be checked by different rules
+ * — the claimed one was screened for markup, the extension map was trusted
+ * outright — so `.svg` walked straight past a guard written to stop exactly it.
+ * One screen now applies to both, which is why it is the last thing this
+ * function does rather than a branch inside one arm.
  */
 export function resolveContentType(filename: string, claimed: string | null | undefined): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const known = EXTENSION_TYPES[ext];
-  if (known) return known;
   const c = (claimed ?? "").split(";")[0].trim().toLowerCase();
-  if (!c || c === "application/octet-stream") return "application/octet-stream";
-  // Never take the client's word for something that renders as script.
-  if (/html|xhtml|javascript|xml/.test(c)) return "text/plain";
-  return c;
+  const resolved = known || (!c || c === "application/octet-stream" ? "application/octet-stream" : c);
+  // `application/octet-stream` rather than `text/plain`: an octet-stream is
+  // downloaded, and a legitimate SVG logo stays a working file the organizer
+  // can retrieve — it simply stops being something the browser will paint
+  // inline on this origin.
+  return RENDERS_AS_MARKUP.test(resolved) ? "application/octet-stream" : resolved;
+}
+
+/**
+ * The type to actually put on the wire when serving a stored asset.
+ *
+ * `resolveContentType` fixes what gets *written*; rows written before it did
+ * are still sitting in the table saying `image/svg+xml`, and a migration cannot
+ * be the only answer because the read path is where the damage happens. So the
+ * screen runs again at serve time. Belt and braces is the correct posture for
+ * "bytes a stranger uploaded, rendered on our origin".
+ */
+export function safeServeContentType(stored: string | null | undefined): string {
+  const c = (stored ?? "").split(";")[0].trim().toLowerCase();
+  if (!c) return "application/octet-stream";
+  return RENDERS_AS_MARKUP.test(c) ? "application/octet-stream" : c;
 }
 
 /** Purposes whose slot lives on a public surface, so the scan gate matters most. */

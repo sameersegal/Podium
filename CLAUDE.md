@@ -71,7 +71,7 @@ allowed to be aspirational.
 
 ## Skills
 
-Two project skills in [`.claude/skills/`](.claude/skills) do the work the rules above
+Three project skills in [`.claude/skills/`](.claude/skills) do the work the rules above
 describe, so it happens the same way every time:
 
 - **`domain-expert`** — answers "how does this work / who can do that / what happens at the
@@ -82,9 +82,19 @@ describe, so it happens the same way every time:
   [`model_inventory.py`](.claude/skills/domain-drift/scripts/model_inventory.py) extracts
   entities, fields, enums, invariants, events and state machines from `docs/domain/`;
   `--check` exits non-zero on a defect and is ready to run in CI.
+- **`security-audit`** — the periodic whole-codebase security review: authorization and
+  tenancy, sessions, rendering, uploads, CSRF, SSRF, PII exposure. Its
+  [`attack_surface.py`](.claude/skills/security-audit/scripts/attack_surface.py) inventories
+  every route with the guard in front of it and every deliberate escape from a safe default
+  (`raw()` past the escaper, `db.raw()` past the org-scoping), and `--check` fails on
+  anything new since the last accepted baseline. Its
+  [`rules/podium.yml`](.claude/skills/security-audit/rules/podium.yml) is a Semgrep ruleset
+  for the same sinks — stock rulesets score zero here, because nothing in this app looks
+  like Express or React, and a zero from them means nothing. Reviewing one diff is the
+  built-in `/security-review`'s job, not this one's.
 
-The two close a loop around the `implementer` agent: it validates against the model before
-building, `domain-drift` checks the model against what was actually built afterwards.
+The first two close a loop around the `implementer` agent: it validates against the model
+before building, `domain-drift` checks the model against what was actually built afterwards.
 
 ## Current state
 

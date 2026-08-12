@@ -13,6 +13,7 @@ import type { Env } from "@podiumconf/data/context.js";
 import { DomainError } from "@podiumconf/domain/shared/errors.js";
 import { STALE_WRITE_MESSAGE } from "./http/concurrency.js";
 import { buildContext, FLASH_COOKIE, clearCookie, flashCookie, type RequestContext } from "./http/context.js";
+import { withSecurityHeaders } from "./http/headers.js";
 import { isMutating, remember, replayIfSeen } from "./http/idempotency.js";
 import { errorResponse, htmlResponse, json, redirect, wantsJson } from "./http/responses.js";
 import { Router } from "./http/router.js";
@@ -43,17 +44,20 @@ export default {
       // as "not found", which is the production defect this fixes.
       if (!ctx.orgId && url.pathname !== "/setup") {
         if (wantsJson(req)) {
-          return json(
-            { error: "not_configured", message: "This deployment has not been set up yet. Visit /setup to create the first organization." },
-            { status: 503 },
+          return withSecurityHeaders(
+            req,
+            json(
+              { error: "not_configured", message: "This deployment has not been set up yet. Visit /setup to create the first organization." },
+              { status: 503 },
+            ),
           );
         }
-        return redirect("/setup", 303);
+        return withSecurityHeaders(req, redirect("/setup", 303));
       }
 
       if (isMutating(req.method)) {
         const replay = await replayIfSeen(env, ctx.orgId, req);
-        if (replay) return replay;
+        if (replay) return withSecurityHeaders(req, replay);
       }
 
       // R30's admin console. It answers before the router because it shares
@@ -62,10 +66,10 @@ export default {
       // or an event that does not exist — declines it and falls through to the
       // page that has always answered.
       const consoleRes = await consoleDocument(req, ctx);
-      if (consoleRes) return consoleRes;
+      if (consoleRes) return withSecurityHeaders(req, consoleRes);
 
       const match = router.match(req.method, url.pathname);
-      if (!match) return notFound(req, ctx);
+      if (!match) return withSecurityHeaders(req, notFound(req, ctx));
 
       let res = await match.handler(req, ctx, match.params);
 
@@ -84,10 +88,15 @@ export default {
       }
 
       if (isMutating(req.method)) res = await remember(env, ctx.orgId, req, res);
-      return res;
+      return withSecurityHeaders(req, res);
     } catch (err) {
-      if (err instanceof DomainError && !wantsJson(req)) return recoverableRedirect(req, err) ?? errorPage(err);
-      return errorResponse(err);
+      // The error paths need the headers too — an error page is still a page,
+      // and `errorResponse` is what an injected payload would most like to
+      // reach unhardened.
+      if (err instanceof DomainError && !wantsJson(req)) {
+        return withSecurityHeaders(req, recoverableRedirect(req, err) ?? errorPage(err));
+      }
+      return withSecurityHeaders(req, errorResponse(err));
     }
   },
 

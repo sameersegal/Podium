@@ -1,0 +1,247 @@
+# Semgrep rules for Podium's own sinks.
+#
+# Six stock security packs — 363 rules — find nothing in this codebase, and that
+# is not a clean bill of health. Stock rules look for Express, React, `child_process`
+# and `mysql.query`. This app has none of them. Its dangerous operations are its own:
+#
+#   raw(x)           steps past `escapeHtml` in workers/api/src/ui/html.ts
+#   db.raw(sql)      steps past the org-scoping in packages/data/src/db.ts (INV-11-1)
+#   redirect(x)      sends a Location header
+#   input.str(k)     reads the request body
+#
+# A scanner that has never been told those four things cannot find a bug here. So
+# these rules tell it.
+#
+#   semgrep scan --metrics=off --config .claude/skills/security-audit/rules/
+#
+# Keep them in sync with attack_surface.py, which covers what taint analysis can't:
+# the *absence* of a guard, and the route inventory.
+
+rules:
+  # --------------------------------------------------------------------------
+  # XSS
+  # --------------------------------------------------------------------------
+
+  # Taint mode was the obvious choice here and it is the wrong one: this codebase
+  # threads view-model objects through several layers, so taint reaches almost
+  # every `raw()` and four route files time out before finishing. A rule that
+  # flags 72 call sites is a rule nobody runs twice. So this matches the narrow
+  # shape where injection can actually enter — an interpolated template literal
+  # handed straight to `raw()` — and leaves "list every escape hatch, let a human
+  # decide" to attack_surface.py, which is honest about being an inventory.
+  - id: podium-raw-html-interpolated
+    severity: ERROR
+    languages: [typescript]
+    message: >-
+      An interpolated template literal is passed to raw(), which is the documented
+      way past escapeHtml() in workers/api/src/ui/html.ts. Every ${} here lands in
+      the document as markup. Each one must be escapeHtml()'d at the interpolation,
+      already SafeHtml, or a constant fixed by this file — check all of them, not
+      just the first.
+    patterns:
+      - pattern: raw(`...${$X}...`)
+      - pattern-not: raw(`...${escapeHtml($X)}...`)
+    paths:
+      include: ["**/workers/**"]
+      exclude: ["**/workers/api/src/ui/html.ts"]
+
+  - id: podium-client-html-tainted
+    mode: taint
+    severity: ERROR
+    languages: [javascript]
+    message: >-
+      Server data reaches innerHTML in the console. The console renders organizer-
+      supplied and speaker-supplied strings; if any of them arrive here unescaped
+      this is stored XSS in the admin surface. Set .textContent, or escape first.
+    pattern-sources:
+      - pattern: await $R.json()
+      - pattern: JSON.parse(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $EL.innerHTML = $X
+              - pattern: $EL.outerHTML = $X
+              - pattern: $EL.insertAdjacentHTML($POS, $X)
+          - focus-metavariable: $X
+    paths:
+      include: ["**/public/**"]
+
+  # --------------------------------------------------------------------------
+  # Tenancy — INV-11-1 / INV-11-2
+  # --------------------------------------------------------------------------
+
+  - id: podium-raw-sql-unscoped
+    severity: WARNING
+    languages: [typescript]
+    message: >-
+      db.raw()/rawRun() bypasses buildWhere(), so INV-11-1 (every query org-scoped)
+      and INV-11-2 (soft-deleted rows excluded) are this caller's responsibility and
+      this query names neither org_id nor a scoping parent id. Either add the scope
+      or use the typed helpers.
+    patterns:
+      - pattern-either:
+          - pattern: $DB.raw("$SQL", ...)
+          - pattern: $DB.rawRun("$SQL", ...)
+          - pattern: $DB.raw("$SQL")
+          - pattern: $DB.rawRun("$SQL")
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?i).*\b(select|update|delete|insert)\b.*
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?i)^(?!.*\borg_id\b).*$
+    paths:
+      include: ["**/workers/**", "**/packages/**"]
+
+  - id: podium-sql-identifier-interpolated
+    severity: ERROR
+    languages: [typescript]
+    message: >-
+      SQL assembled by interpolation. Bound parameters cannot carry a table or
+      column name, so this is the one shape where a caller-chosen string becomes
+      SQL syntax. The interpolated value must come from a fixed allowlist in this
+      file — never from a request, a row, or a config value.
+    patterns:
+      - pattern-either:
+          - pattern: $DB.raw(`...${$X}...`, ...)
+          - pattern: $DB.rawRun(`...${$X}...`, ...)
+          - pattern: $DB.prepare(`...${$X}...`)
+      # Without this, `raw(`<script>...${key}...`)` in the HTML kit matches too —
+      # two unrelated functions in this repo are both called `raw`.
+      - metavariable-regex:
+          metavariable: $DB
+          regex: (?i).*\b(db|d1|sql)$
+      # `IN (${ids.map(() => "?").join(",")})` is the idiom for a variable-length
+      # bound-parameter list — it interpolates placeholders, never values, and it
+      # is the only way to write `IN` against a prepared statement. Excluding it
+      # is the difference between 8 hits worth reading and 2.
+      - metavariable-regex:
+          metavariable: $X
+          regex: ^(?!.*(?:"\?"|'\?'|inList|placeholder)).*$
+    paths:
+      include: ["**/workers/**"]
+      # packages/data/src/db.ts is the repository layer; assembling table and
+      # column names from its own frozen Sets is its entire job.
+      exclude: ["**/packages/data/src/db.ts"]
+
+  # --------------------------------------------------------------------------
+  # Redirects and outbound requests
+  # --------------------------------------------------------------------------
+
+  - id: podium-open-redirect
+    mode: taint
+    severity: WARNING
+    languages: [typescript]
+    message: >-
+      A redirect target comes from the request. An attacker sends
+      /login?next=https://evil.example, the person signs in on the real site and
+      lands on the attacker's — a phishing primitive on the page that just took
+      their password. Accept only same-origin paths: reject anything not matching
+      /^\/[^\/\\]/.
+    options:
+      symbolic_propagation: true
+    pattern-sources:
+      # Only request-controlled reads. A broader source set taints the whole
+      # request context and every redirect in the app lights up.
+      - pattern: $I.str("next", ...)
+      - pattern: $I.str("next")
+      - pattern: $I.optional("next")
+      - pattern: $CTX.url.searchParams.get("next")
+      - pattern: $CTX.url.searchParams.get("return_to")
+      - pattern: $CTX.url.searchParams.get("redirect")
+    pattern-sinks:
+      - patterns:
+          - pattern: redirect($X, ...)
+          - focus-metavariable: $X
+    pattern-sanitizers:
+      - pattern: safeNext(...)
+      - pattern: sameOriginPath(...)
+    paths:
+      include: ["**/workers/**"]
+
+  - id: podium-ssrf-candidate
+    mode: taint
+    severity: WARNING
+    languages: [typescript]
+    message: >-
+      A stored URL reaches fetch(). Webhook and integration targets are set by
+      organizers, so this fetch can be pointed at 127.0.0.1, at 169.254.169.254,
+      or at another tenant's service. Validate the scheme and resolve away private
+      address ranges before the request goes out.
+    pattern-sources:
+      - patterns:
+          - pattern: $ROW.$FIELD
+          - metavariable-regex:
+              metavariable: $FIELD
+              regex: ^(url|target_url|endpoint|webhook_url|callback_url|base_url)$
+    pattern-sinks:
+      - patterns:
+          - pattern: fetch($X, ...)
+          - focus-metavariable: $X
+    paths:
+      include: ["**/workers/**", "**/packages/**"]
+
+  # --------------------------------------------------------------------------
+  # Uploaded content
+  # --------------------------------------------------------------------------
+
+  - id: podium-stored-content-type-inline
+    severity: ERROR
+    languages: [typescript]
+    message: >-
+      A stored content_type is served without content-disposition, so the browser
+      renders uploaded bytes inline on this origin. Combined with EXTENSION_TYPES
+      mapping .svg to image/svg+xml, an uploaded headshot can execute script in an
+      organizer's session. Serve untrusted uploads from a separate origin, or force
+      attachment, or send Content-Security-Policy: sandbox.
+    patterns:
+      - pattern: |
+          new Response($BODY, { headers: { ..., "content-type": str($A.content_type), ... }, ... })
+      - pattern-not: |
+          new Response($BODY, { headers: { ..., "content-disposition": ..., ... }, ... })
+    paths:
+      include: ["**/workers/**"]
+
+  # --------------------------------------------------------------------------
+  # Session transport
+  # --------------------------------------------------------------------------
+
+  # Deliberately NOT a rule.
+  #
+  # The obvious version — `pattern-regex: '"SameSite=Lax"'` with
+  # `pattern-not-regex: '(?i)secure'` — is broken in a way worth recording,
+  # because it looks right and passes a casual read. Semgrep applies
+  # `pattern-not-regex` to the *matched text*, and the matched text is the four
+  # words `"SameSite=Lax"`, which never contains "secure" no matter what the
+  # surrounding line says. So it fires unconditionally and stays red after the
+  # flag is added, which is the specific failure that gets a security check
+  # switched off.
+  #
+  # Cookie attributes are a multi-line, absence-shaped question, which is
+  # `attack_surface.py`'s half of this split — see its `cookie-attributes`
+  # check, which reads a window of lines rather than one.
+
+  # --------------------------------------------------------------------------
+  # PII — INV-11-4
+  # --------------------------------------------------------------------------
+
+  - id: podium-pii-into-event-payload
+    severity: WARNING
+    languages: [typescript]
+    message: >-
+      A PII-classified field is being written into a domain event payload. Events
+      are durable, replayed, and delivered to webhooks — INV-11-4 keeps PII out of
+      them. Emit the person id and let the consumer resolve it under its own
+      authorization.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $APP.emit($NAME, { ..., email: $X, ... })
+          - pattern: |
+              $APP.emit($NAME, { ..., phone: $X, ... })
+          - pattern: |
+              $APP.emit($NAME, { ..., dietary_requirements: $X, ... })
+          - pattern: |
+              $APP.emit($NAME, { ..., accessibility_needs: $X, ... })
+    paths:
+      include: ["**/workers/**", "**/packages/**"]
