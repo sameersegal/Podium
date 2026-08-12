@@ -18,6 +18,14 @@ export const API_DOC_URL = `${GITHUB_URL}/blob/main/docs/domain/09-api-and-integ
 export const LICENSE_URL = `${GITHUB_URL}/blob/main/LICENSE`;
 export const ISSUES_URL = `${GITHUB_URL}/issues`;
 
+/**
+ * `podiumstack` is the one qualifier the product uses wherever the bare word is
+ * taken — this domain, the npm scope, and this handle. There is no second one,
+ * so if the handle ever moves, these two lines move with it and nothing else.
+ */
+export const SOCIAL_HANDLE = "@podiumstack";
+export const SOCIAL_URL = "https://x.com/podiumstack";
+
 export const SITE_TITLE = "Podium";
 export const SITE_DESCRIPTION =
   "Run your conference program without the spreadsheets. Podium handles the call for proposals, review, sponsor sessions, speaker onboarding and the schedule on your website. Open source, and it runs on infrastructure you own.";
@@ -53,7 +61,7 @@ export const NAV = [
  *                  workers/api/src | sort -u | wc -l   (method + path pairs)
  */
 export const STATS = {
-  tests: 714,
+  tests: 739,
   events: 136,
   invariants: 158,
   scopes: 22,

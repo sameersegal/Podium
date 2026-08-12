@@ -11,6 +11,8 @@ import {
   SIGN_IN_URL,
   SITE_DESCRIPTION,
   SITE_TITLE,
+  SOCIAL_HANDLE,
+  SOCIAL_URL,
 } from "../consts";
 
 interface Props {
@@ -61,12 +63,19 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
     <meta name="theme-color" content="#6366F1" />
 
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_TITLE} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     {!noindex && <meta property="og:url" content={canonical} />}
     <meta property="og:image" content={ogImage} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={ogImage} />
+
+    {/* Both tags carry the same handle: the account is the project, and there is
+        no separate author to credit. Unlike og:url these attribute the card
+        rather than address the page, so a noindex page still names its source. */}
+    <meta name="twitter:site" content={SOCIAL_HANDLE} />
+    <meta name="twitter:creator" content={SOCIAL_HANDLE} />
 
     {/* Arms the scroll reveal. This has to run before first paint, or the
         sections paint, then hide, then fade back in — a flicker worse than no
@@ -161,6 +170,7 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
           <div>
             <h2>Source</h2>
             <a href={GITHUB_URL}>GitHub</a>
+            <a href={SOCIAL_URL}>{SOCIAL_HANDLE} on X</a>
             <a href={DOMAIN_MODEL_URL}>Domain model</a>
             <a href={IMPLEMENTATION_URL}>Implementation notes</a>
             <a href={LICENSE_URL}>MIT licence</a>
