@@ -282,6 +282,30 @@ should not be changed without reading it first:
   payload's `can` / `can_write` maps decide whether a control is *drawn*; the server decides
   again on the write.
 
+**The event in context follows the route.** `boot.event` is the answer for the path the
+*document* was opened at, and a console that never reloads outlives it. Every client-side
+arrival that crosses out of that event re-reads the payload through
+`GET /v1/console/bootstrap?path=…`, which resolves the path with the same `matchConsolePath` /
+`eventForMatch` pair the boot document uses — so the two agree by construction rather than by
+review, including for the paths that reach their event indirectly (`/admin/cfps/:cfpId/form`
+through the call, `/admin/proposals/:proposalId` through the proposal). It carries the boot
+document's capability check with it. The rule, in `syncEventContext` in `app.js`: a route that
+names an event switches to it; a route that names none — `/admin`, `/admin/events` — keeps the
+one already in context, and a cold load of those has nothing to keep, which is the one place
+the two arrivals differ and they differ only by keeping *more* context. Permissions come back
+with the event, because `can` / `can_write` are computed against it; adopting an event without
+them is the stale authority R30 says the console must never hold.
+`tests/integration/foundation/console-context.test.ts` asserts each path's bootstrap answer
+against its own boot document, so a new console path that resolves differently in the two
+places fails the build.
+
+**The module graph is preloaded, not discovered.** `CONSOLE_MODULES` in `surfaces/console.ts`
+lists every file the console loads, and `shell()` emits a `modulepreload` for each. Preloading
+only `app.js` left the browser finding the views after parsing it and their shared imports
+after parsing those — two idle round trips, 84–177 ms of the cold load. A view added to
+`views/` belongs in that list; leaving it out costs a round trip and nothing else, so this
+decays quietly rather than breaking.
+
 Reads the console alone needs are `GET /v1/console/bootstrap`, `GET /v1/events/:eventId/dashboard`
 (`surfaces/dashboard.ts` — a cross-context read model, beside `admin-home.ts` for the same
 reason) and `GET /v1/cfps/:cfpId/builder`. Everything else it does goes through the ordinary

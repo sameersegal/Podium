@@ -14,9 +14,10 @@
  */
 
 import { h, mount, redraw } from "./kit.js";
-import { boot, drawer, closeDrawer, toasts, dismissToast } from "./store.js";
+import { api, unwrap } from "./api.js";
+import { boot, applyBoot, drawer, closeDrawer, toasts, dismissToast } from "./store.js";
 import { chrome } from "./chrome.js";
-import { route, match, location, navigate, start } from "./router.js";
+import { route, match, location, navigate, onNavigate, start } from "./router.js";
 import { connect } from "./live.js";
 import { icons, formatDate } from "./ui.js";
 
@@ -47,6 +48,81 @@ route("/admin/events/:eventId/publications", publications);
 route("/admin/cfps/:cfpId/form", formBuilder);
 
 /* -------------------------------------------------------------------------- */
+/* The event in context                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `boot.event` is what the *document* was opened on, and a console that never
+ * reloads outlives that answer.
+ *
+ * The bug this exists to close: opening `/admin/events` and clicking an event
+ * used to land on that event's dashboard with no event bar and no section nav —
+ * the screen was right and every way out of it was missing, because `boot.event`
+ * was `null` for the rest of the document's life. `/admin` had the visible
+ * version of the same fault, rendering "No event is in context yet" over an
+ * organization that has two.
+ *
+ * The rule, stated rather than inherited from which route happened to be
+ * loaded first:
+ *
+ * - **A route that names an event switches to it.** That includes the two that
+ *   name it indirectly, through a call or a proposal; the server resolves those
+ *   and this asks it to, rather than guessing from a payload that has not
+ *   arrived.
+ * - **A route that names none keeps the one already in context.** `/admin` and
+ *   `/admin/events` are organization-wide, and the event you were working on a
+ *   click ago is a better answer than nothing. A *cold* load of either has
+ *   nothing to keep, which is why `/admin` opens on the most recent event there
+ *   and this is the one place the two arrivals differ — deliberately, and only
+ *   ever by keeping more context, never less.
+ *
+ * Permissions come back with it. `can` and `can_write` are computed against the
+ * event in the payload, so adopting an event without re-reading them would leave
+ * the console drawing the previous event's buttons — the stale authority R30
+ * says the console must never accumulate.
+ */
+let contextToken = 0;
+
+function eventContextFor(pathname) {
+  const hit = match(pathname);
+  if (!hit) return null;
+  const current = boot.event ? boot.event.id : null;
+  // Named outright: switch when it is not the one we are on.
+  if (hit.params.eventId) return hit.params.eventId === current ? null : pathname;
+  // Named through an entity: only the server can say which event a call or a
+  // proposal belongs to, so ask, and let it answer "the one you are on".
+  if (hit.params.cfpId || hit.params.proposalId) return pathname;
+  // Organization-wide: adopt the server's choice only when there is nothing to
+  // keep. `/admin` on a fresh console is the case that matters.
+  if (!current && boot.events.length) return pathname;
+  return null;
+}
+
+function syncEventContext(pathname) {
+  const path = eventContextFor(pathname);
+  if (!path) return;
+  const token = ++contextToken;
+  api
+    .get("/v1/console/bootstrap?path=" + encodeURIComponent(path))
+    .then(unwrap)
+    .then((payload) => {
+      // A second navigation while this was in flight owns the context now.
+      if (token !== contextToken || !payload) return;
+      applyBoot(payload);
+      // The live room is per event, so following the route means following it
+      // here too — otherwise the console sits in the room of the event it was
+      // opened on and quietly misses every change to the one on screen.
+      if (boot.event) connect(boot.event.id);
+      redraw();
+    })
+    .catch(() => {
+      // A screen this reader may not open, or an event that has gone. The view
+      // itself will refuse the same request and say so properly; the chrome
+      // staying as it was is the right failure.
+    });
+}
+
+/* -------------------------------------------------------------------------- */
 /* Chrome                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -63,7 +139,14 @@ function topbar() {
   return h(
     "div",
     { class: "topbar" },
-    h("a", { class: "brand", href: "/admin" }, h("img", { src: "/podium-logo-horizontal-light.png", alt: "Podium" })),
+    h(
+      "a",
+      { class: "brand", href: "/admin" },
+      // Sized in the markup as well as in CSS: the console draws its chrome
+      // before the image has loaded, and a top bar that changes height once it
+      // does moves the screen under the reader's cursor.
+      h("img", { src: "/podium-logo-horizontal-light.png", alt: "Podium", width: "81", height: "24" }),
+    ),
     h(
       "nav",
       { class: "tabs", "aria-label": "Sections" },
@@ -241,6 +324,7 @@ document.addEventListener("keydown", (ev) => {
   }
 });
 
+onNavigate(syncEventContext);
 start();
 if (boot.event) connect(boot.event.id);
 

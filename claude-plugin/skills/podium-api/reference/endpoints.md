@@ -53,7 +53,7 @@ Paths shown with `:name` take an id in that position.
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/console/bootstrap` | `session` | `event` | — |  | workers/api/src/surfaces/console.ts:237 |
+| `GET /v1/console/bootstrap` | `session` | `path` `event` | — |  | workers/api/src/surfaces/console.ts:289 |
 
 ## content
 
@@ -90,7 +90,7 @@ Paths shown with `:name` take an id in that position.
 | `POST /v1/events/:eventId/archive` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2034 |
 | `POST /v1/events/:eventId/auto-place` | `schedule:publish` | — | `track_ids` `event_day_ids` `strategy` |  | workers/api/src/contexts/scheduling/api-routes.ts:229 |
 | `POST /v1/events/:eventId/clone` | `events:read` `events:write` | — | `name` `slug` `edition` `tagline` `description` `timezone` `starts_on` `ends_on` `mode` `website_url` |  | workers/api/src/contexts/event-config/routes.ts:1984 |
-| `GET /v1/events/:eventId/dashboard` | `events:read` | — | — |  | workers/api/src/surfaces/console.ts:247 |
+| `GET /v1/events/:eventId/dashboard` | `events:read` | — | — |  | workers/api/src/surfaces/console.ts:311 |
 | `GET /v1/events/:eventId/days` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2049 |
 | `POST /v1/events/:eventId/days` | `events:write` | — | `date` `label` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2055 |
 | `GET /v1/events/:eventId/formats` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2143 |

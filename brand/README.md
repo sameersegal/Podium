@@ -15,6 +15,20 @@ Scale down freely; scale up only past 1024px if you regenerate the source.
 The mark is the gradient **P** on a podium block. Keep clear space around it of at least the
 height of the podium base, and don't recolour the gradient.
 
+**The copy in `public/` is deliberately not this file.** Both the app's top bar
+(`workers/api/src/ui/layout.ts`) and the console's (`public/console/app.js`) draw
+`podium-logo-horizontal-light.png` at 24 px high, and the 650×192 original is 180 KB — on a
+cold admin screen that was 69% of everything the browser fetched, three times the console's
+whole JavaScript. `public/podium-logo-horizontal-light.png` is therefore a 325×96 palette PNG
+of 8.4 KB, four times the drawn height and visually identical at it. Re-copying the original
+over it undoes that. To regenerate after a brand change (`sharp` is not a dependency of this
+repository — this is a one-off, not a build step):
+
+```bash
+npx sharp-cli --input brand/podium-logo-horizontal-light.png \
+  --output public/podium-logo-horizontal-light.png resize 325 -- png --palette
+```
+
 Theme colour: `#6366F1`. Background: `#FFFFFF`.
 
 ## Web icon set — `brand/web/`

@@ -26,6 +26,7 @@
 
 import { str, type Row } from "@podiumstack/data/db.js";
 import type { Capability } from "@podiumstack/domain/shared/authorization.js";
+import { notFound } from "@podiumstack/domain/shared/errors.js";
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json } from "../http/responses.js";
 import type { Router } from "../http/router.js";
@@ -56,6 +57,40 @@ const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
   { segments: ["admin", "events", ":eventId", "publications"], capability: "schedule.read_published" },
   { segments: ["admin", "cfps", ":cfpId", "form"], capability: "cfp.configure" },
   { segments: ["admin", "proposals", ":proposalId"], capability: "proposal.read_any" },
+];
+
+/**
+ * The console's module graph, preloaded.
+ *
+ * Preloading only `app.js` — which is what this did — leaves the browser
+ * discovering the other fourteen modules after it has parsed that one, and
+ * their shared dependencies after it has parsed those: two idle round trips
+ * before the last module is even requested, measured at 84–177 ms of the cold
+ * load. Naming the graph here collapses the discovery rounds without a bundler,
+ * which is the trade R30 took when it chose ES modules and no build step.
+ *
+ * A view added to `public/console/views/` belongs in this list. Leaving it out
+ * costs a round trip and nothing else — the import still resolves — so this is
+ * an optimisation that decays quietly rather than a manifest that breaks. The
+ * order is the order the browser should start them in: the shell and its
+ * dependencies first, the screens after.
+ */
+const CONSOLE_MODULES = [
+  "/console/app.js",
+  "/console/kit.js",
+  "/console/store.js",
+  "/console/api.js",
+  "/console/router.js",
+  "/console/chrome.js",
+  "/console/ui.js",
+  "/console/live.js",
+  "/console/dnd.js",
+  "/console/views/dashboard.js",
+  "/console/views/tables.js",
+  "/console/views/details.js",
+  "/console/views/proposals.js",
+  "/console/views/agenda.js",
+  "/console/views/form-builder.js",
 ];
 
 interface ConsoleMatch {
@@ -215,7 +250,7 @@ function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL): st
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/console.css">
-  <link rel="modulepreload" href="/console/app.js">
+${CONSOLE_MODULES.map((m) => `  <link rel="modulepreload" href="${m}">`).join("\n")}
 </head>
 <body class="console">
   <div id="console"><div class="console-booting" role="status">Loading the console…</div></div>
@@ -233,10 +268,39 @@ function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL): st
 }
 
 export function registerConsoleRoutes(router: Router<RequestContext>): void {
-  /** Re-read the shell's payload without a reload — after switching event, or on a 401 recovery. */
+  /**
+   * Re-read the shell's payload without a reload — after switching event, on a
+   * 401 recovery, and on every client-side navigation that crosses out of the
+   * event the document booted in.
+   *
+   * `?path=` is the form that last case uses, and it takes a *path* rather than
+   * an event id on purpose. The event a screen opens in is not always in its
+   * URL — `/admin/cfps/:cfpId/form` reaches it through the call,
+   * `/admin/proposals/:proposalId` through the proposal, and `/admin` through
+   * "the most recent one" — so a client that resolved it itself would be
+   * reimplementing `eventForMatch`, and the two would drift. Handing the path
+   * back to the same function that answered it for the boot document makes the
+   * client and the document agree by construction rather than by review.
+   *
+   * It carries the boot document's capability check with it. A payload for a
+   * screen the reader may not open is a payload they should not have, whether
+   * they asked for it with a navigation or with a URL.
+   */
   router.get("/v1/console/bootstrap", async (_req, ctx) => {
     ctx.requirePerson();
     const url = new URL(ctx.req.url);
+    const path = url.searchParams.get("path");
+
+    if (path) {
+      const hit = matchConsolePath(new URL(path, url.origin).pathname);
+      if (!hit) throw notFound("Console screen");
+      const { event, missing } = await eventForMatch(ctx, hit);
+      if (missing) throw notFound("Console screen");
+      if (event) ctx.eventId = event.id;
+      ctx.requireRead(hit.capability, event ? { event_id: event.id } : undefined);
+      return json({ data: await bootPayload(ctx, event) });
+    }
+
     const eventId = url.searchParams.get("event");
     const row = eventId ? await ctx.app().db.byId<Row>("event", eventId) : null;
     const ev = row ? toEventRef(row) : null;

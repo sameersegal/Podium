@@ -155,7 +155,7 @@ function topbar(opts: PageOptions): SafeHtml {
   const nav = opts.nav ?? defaultNav(opts.surface ?? "public");
   const profile = opts.profile ?? { href: "/portal/profile", label: "Profile" };
   return html`<header class="topbar">
-    <a class="brand" href="${homeHref(opts)}"><img src="/podium-logo-horizontal-light.png" alt="Podium"></a>
+    <a class="brand" href="${homeHref(opts)}"><img src="/podium-logo-horizontal-light.png" alt="Podium" width="81" height="24"></a>
     ${nav.length ? primaryNav(nav) : raw("")}
     <span class="spacer"></span>
     ${opts.who
