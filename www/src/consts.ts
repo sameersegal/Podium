@@ -62,9 +62,9 @@ export const NAV = [
  *   routes       the route-inventory total from `npm run security`
  */
 export const STATS = {
-  tests: 750,
+  tests: 763,
   events: 136,
-  invariants: 161,
+  invariants: 163,
   scopes: 22,
   capabilities: 11,
   adapters: 9,
