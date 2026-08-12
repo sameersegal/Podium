@@ -287,6 +287,28 @@ Reads the console alone needs are `GET /v1/console/bootstrap`, `GET /v1/events/:
 reason) and `GET /v1/cfps/:cfpId/builder`. Everything else it does goes through the ordinary
 management surface.
 
+**Measuring it.** `node scripts/perf-console.mjs` walks all fourteen console routes in a real
+browser and reports three numbers per screen — a cold load with an empty cache, a warm reload,
+and a client-side navigation into the screen — plus the server time for every document and
+every `/v1` endpoint the console was *seen* to call, harvested from the run rather than listed
+by hand. It needs Playwright, which is deliberately not a dependency of this repository
+(`npm i -D playwright`); nothing else here drives a browser.
+
+"Ready" is not `load`: it is the first frame on which the screen's skeleton is gone and no
+`/v1` request is in flight, which works uniformly because every view in `views/` renders
+`.console-skeleton` while its resource loads. The three numbers exist because they answer
+different questions — the cold one is what a morning URL costs, the in-app one is what R30
+actually bought, and the gap between them is the module waterfall and the boot document. A
+screen marked `*` fetched nothing when navigated into although its cold load fetched: it is
+either reusing the previous screen's resource or rendering a different branch, and the two
+columns are not comparable until you know which.
+
+`node scripts/perf-seed-scale.mjs --proposals 800` inflates the local database to the size an
+open call actually reaches, because the seed is sized to make every screen true rather than to
+make a benchmark strain. It writes copied rows straight into D1, below the domain layer —
+allowed precisely because nothing about behaviour is being asserted — and `npm run db:reset`
+puts the seed back.
+
 ### Live updates
 
 One Durable Object per event (`ROOM_DO`, `durable/room.ts`), holding hibernatable WebSockets.
