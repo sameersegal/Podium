@@ -36,7 +36,7 @@ import {
 import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
 import { errorCodesBySession, listConflicts, recomputeConflicts } from "./conflicts.js";
-import { loadScheduleFacts, toEventFact, type EventFact } from "./facts.js";
+import { loadScheduleFacts, toEventFact, type EventFact, type ScheduleFacts } from "./facts.js";
 import { readinessOf } from "./program-link.js";
 
 /* -------------------------------------------------------------------------- */
@@ -76,11 +76,17 @@ function assetUrl(assetId: string | null): string | null {
 export async function buildSnapshot(
   app: AppContext,
   eventId: string,
-  opts: { scope?: PublishScope | null; overrideSessionIds?: Set<string> } = {},
+  // `facts` lets a caller that has already loaded them say so — the same
+  // `preloaded` affordance `recomputeConflicts` has, and for the same reason:
+  // the fact set is two rounds of queries and nothing about it changes between
+  // two reads in one request.
+  opts: { scope?: PublishScope | null; overrideSessionIds?: Set<string>; facts?: ScheduleFacts } = {},
 ): Promise<SnapshotBuild> {
-  const facts = await loadScheduleFacts(app, eventId);
+  const [facts, conflicts] = await Promise.all([
+    opts.facts ? Promise.resolve(opts.facts) : loadScheduleFacts(app, eventId),
+    listConflicts(app, eventId),
+  ]);
   const event = facts.event;
-  const conflicts = await listConflicts(app, eventId);
   const errorCodes = errorCodesBySession(conflicts);
   const overrides = opts.overrideSessionIds ?? new Set<string>();
 
@@ -89,24 +95,24 @@ export async function buildSnapshot(
   const dayRows = facts.dayRows.filter((d) => !opts.scope?.event_day_ids?.length || opts.scope.event_day_ids.includes(str(d.id)));
   const dayIds = new Set(dayRows.map((d) => str(d.id)));
 
-  const [trackRows, formatRows, venueRow, assetRows] = await Promise.all([
-    app.db.select<Row>("track", { event_id: eventId }, { orderBy: "sort_order, name" }),
-    app.db.select<Row>("session_format", { event_id: eventId }, { orderBy: "sort_order, name" }),
-    event.venue_id ? app.db.byId<Row>("venue", event.venue_id) : Promise.resolve(null),
-    app.db.select<Row>("asset", {}),
-  ]);
+  // One round, not two: `sessionIds` is the only thing the second half needed
+  // from the first, and it comes from the facts, which are already in hand.
+  const sessionIds = facts.sessionRows.map((s) => str(s.id));
+  const [trackRows, formatRows, venueRow, assetRows, speakerRows, sessionAssetRows, sponsorshipRows, tierRows, sponsorRows] =
+    await Promise.all([
+      app.db.select<Row>("track", { event_id: eventId }, { orderBy: "sort_order, name" }),
+      app.db.select<Row>("session_format", { event_id: eventId }, { orderBy: "sort_order, name" }),
+      event.venue_id ? app.db.byId<Row>("venue", event.venue_id) : Promise.resolve(null),
+      app.db.select<Row>("asset", {}),
+      sessionIds.length ? app.db.select<Row>("session_speaker", { session_id: sessionIds }, { orderBy: "sort_order" }) : Promise.resolve([] as Row[]),
+      sessionIds.length ? app.db.select<Row>("session_asset", { session_id: sessionIds }) : Promise.resolve([] as Row[]),
+      app.db.select<Row>("sponsorship", { event_id: eventId }),
+      app.db.select<Row>("sponsorship_tier", { event_id: eventId }),
+      app.db.select<Row>("sponsor", {}),
+    ]);
   const assetById = new Map(assetRows.map((a) => [str(a.id), a]));
   const trackById = new Map(trackRows.map((t) => [str(t.id), t]));
   const formatById = new Map(formatRows.map((f) => [str(f.id), f]));
-
-  const sessionIds = facts.sessionRows.map((s) => str(s.id));
-  const [speakerRows, sessionAssetRows, sponsorshipRows, tierRows, sponsorRows] = await Promise.all([
-    sessionIds.length ? app.db.select<Row>("session_speaker", { session_id: sessionIds }, { orderBy: "sort_order" }) : Promise.resolve([] as Row[]),
-    sessionIds.length ? app.db.select<Row>("session_asset", { session_id: sessionIds }) : Promise.resolve([] as Row[]),
-    app.db.select<Row>("sponsorship", { event_id: eventId }),
-    app.db.select<Row>("sponsorship_tier", { event_id: eventId }),
-    app.db.select<Row>("sponsor", {}),
-  ]);
   const sponsorById = new Map(sponsorRows.map((s) => [str(s.id), s]));
   const tierById = new Map(tierRows.map((t) => [str(t.id), t]));
   const sponsorshipBySponsor = new Map(sponsorshipRows.map((s) => [str(s.sponsor_id), s]));
@@ -714,12 +720,19 @@ export async function snapshotById(env: Env, orgId: string, publicationId: strin
  * publication so the staleness is impossible to miss.
  */
 export async function pendingChanges(app: AppContext, eventId: string): Promise<PendingPublicationChanges> {
-  const live = await liveRow(app, eventId);
-  const liveSessions = live ? await snapshotSessions(app, str(live.id)) : null;
-  const build = await buildSnapshot(app, eventId);
+  // The schedule facts are loaded once and handed to the snapshot build, rather
+  // than each of them loading their own. This function used to read the whole
+  // fact set twice — once here, once inside `buildSnapshot` — and wait for the
+  // live publication before starting either, which is four sequential rounds of
+  // queries for a diff of one event. It is on the event dashboard as a single
+  // count, where it was the slowest thing on the screen by a factor of three.
+  const [facts, live] = await Promise.all([loadScheduleFacts(app, eventId), liveRow(app, eventId)]);
+  const [liveSessions, build] = await Promise.all([
+    live ? snapshotSessions(app, str(live.id)) : Promise.resolve(null),
+    buildSnapshot(app, eventId, { facts }),
+  ]);
   const publishableIds = new Set(build.sessions.map((s) => s.session_id));
 
-  const facts = await loadScheduleFacts(app, eventId);
   const placementBySession = new Map(facts.placements.map((p) => [p.session_id, p]));
   const roomById = new Map(facts.roomRows.map((r) => [str(r.id), r]));
 

@@ -25,6 +25,14 @@ Design rules the model must support:
   response for 24h and replayed on repeat. Retries are a normal part of a Workers runtime.
 - **List endpoints are cursor-paginated.** Offsets over a growing proposal table produce
   duplicates and gaps during a review round.
+- **A list may be asked for fewer fields**, with `?fields=a,b,c`. The default is the whole
+  row and stays that way — `/v1` is a published contract and a caller reading a field today
+  must still read it tomorrow, the same rule that makes event payloads additive-only. A name
+  the endpoint does not return is a validation error, not a silently missing key. Projection
+  runs **after** redaction and visibility (INV-09-5), so it can only ever remove: naming a
+  field the reader may not see does not produce it. `GET /v1/proposals` implements this,
+  because its rows carry the abstract and its busiest reader — the console's proposal board —
+  has no column for it.
 - **Public reads are versioned by `content_etag`** and answer conditional requests.
 - **Errors are typed**, naming the invariant where one was violated
   (`entitlement_exhausted` beats `400 Bad Request`).

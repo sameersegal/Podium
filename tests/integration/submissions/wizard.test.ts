@@ -500,4 +500,57 @@ describe("admin proposal queue — PII redaction (INV-09-5 / INV-11-4)", () => {
     const ownerBody = (await asOwner.json()) as { data: { submitter_email: string | null }[] };
     expect(ownerBody.data.some((r) => r.submitter_email === OTHER_SPEAKER_EMAIL)).toBe(true);
   });
+
+  /**
+   * `?fields=` on the list (`http/projection.ts`). The board draws columns the
+   * reader picks and has no column for the abstract, so it asks for what it
+   * draws; the saving is most of the payload at a real event's volume.
+   */
+  describe("?fields= on /v1/proposals", () => {
+    const list = async (cookie: string, query: string) =>
+      SELF.fetch(`http://localhost/v1/proposals?event_id=${EVENT}${query}`, {
+        headers: { cookie, accept: "application/json" },
+      });
+
+    it("returns the whole row when no fields are named, which is what every existing caller asks for", async () => {
+      const owner = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
+      const body = (await (await list(owner, "")).json()) as { data: Record<string, unknown>[] };
+      expect(body.data[0]).toHaveProperty("abstract");
+      expect(body.data[0]).toHaveProperty("description");
+    });
+
+    it("returns only the named fields, plus the id, which addresses the row", async () => {
+      const owner = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
+      const res = await list(owner, "&fields=reference,title,status");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: Record<string, unknown>[]; total: number };
+      expect(body.data.length).toBeGreaterThan(0);
+      expect(Object.keys(body.data[0]).sort()).toEqual(["id", "reference", "status", "title"]);
+      // The envelope is not a field: pagination and the count survive projection.
+      expect(body).toHaveProperty("total");
+    });
+
+    /**
+     * The safety property the projection rests on: it runs *after* redaction,
+     * so it can only ever remove. A reader who may not see an address does not
+     * get one by naming it — INV-09-5 decided the row's contents before this
+     * parameter was read.
+     */
+    it("INV-09-5: naming a withheld field does not un-withhold it", async () => {
+      const reviewer = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
+      const res = await list(reviewer, "&fields=reference,submitter_email");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { submitter_email: string | null }[] };
+      expect(body.data.every((r) => r.submitter_email === null)).toBe(true);
+    });
+
+    it("refuses a field it does not return, rather than answering with rows missing it", async () => {
+      const owner = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
+      const res = await list(owner, "&fields=reference,abstrct");
+      expect(res.status).toBe(422);
+      const body = (await res.json()) as { error: string; field_errors: { field_key: string }[] };
+      expect(body.error).toBe("validation_failed");
+      expect(body.field_errors[0].field_key).toBe("fields");
+    });
+  });
 });

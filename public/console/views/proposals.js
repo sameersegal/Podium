@@ -81,6 +81,7 @@ const COLUMNS = [
     label: "Reviews in",
     group: "Review",
     type: "number",
+    needs: ["target_reviews"],
     render: (r) =>
       h(
         "span",
@@ -104,6 +105,23 @@ const COLUMNS = [
 ];
 
 const COLUMN_BY_KEY = new Map(COLUMNS.map((c) => [c.key, c]));
+
+/**
+ * What a set of columns needs on the wire.
+ *
+ * Usually the column key is the field, but two columns read a second one: the
+ * title is a link and needs the id, and "reviews in" renders `n / target` and
+ * so needs the target as well as the count. `needs` on a column says so, rather
+ * than this function knowing about particular columns.
+ */
+function fieldsFor(cols) {
+  const fields = new Set(["id"]);
+  for (const c of cols) {
+    fields.add(c.key);
+    for (const extra of c.needs ?? []) fields.add(extra);
+  }
+  return [...fields];
+}
 const GROUP_ORDER = ["Identity", "People", "Session details", "Review", "Dates"];
 const DEFAULT_COLUMNS = ["reference", "title", "status", "track_name", "format_name", "speaker_names", "review_count", "submitted_at"];
 
@@ -182,10 +200,16 @@ export function proposals(params) {
   }
   search.set("limit", "100");
 
+  const cols = selection(params.eventId).map((k) => COLUMN_BY_KEY.get(k)).filter(Boolean);
+  // Ask for the columns on screen and nothing else. The list answers with the
+  // whole entity by default — including `abstract` and `description`, which this
+  // table has no column for — and at a real event's volume that was 184 KB of
+  // prose per page for a table that renders none of it. The board already knows
+  // exactly which fields it draws, because the reader picked them.
+  search.set("fields", fieldsFor(cols).join(","));
+
   const key = "proposals:" + params.eventId + ":" + search.toString();
   const res = resource(key, () => api.get("/v1/proposals?" + search.toString()));
-
-  const cols = selection(params.eventId).map((k) => COLUMN_BY_KEY.get(k)).filter(Boolean);
 
   return h(
     "div",
