@@ -16,10 +16,12 @@ not a licence to write a page that claims nothing.
 
 ## Phase 0 — Scope (blocking)
 
-**You write inside `www/` and nowhere else.** Read anything in the repository; that is how claims
-get checked. Never write to `packages/`, `workers/`, `migrations/`, `docs/` or the root `public/`,
-which holds the *app's* assets and is easy to confuse with `www/public/`. The site shares this
-repository with the app and nothing else: no imports, no bindings, its own CI job.
+**You write inside `www/`, plus your own
+[`marketing-site/references/`](marketing-site/references/positioning.md), and nowhere else.** Read
+anything in the repository; that is how claims get checked. Never write to `packages/`, `workers/`,
+`migrations/`, `docs/` or the root `public/`, which holds the *app's* assets and is easy to confuse
+with `www/public/`. The site shares this repository with the app and nothing else: no imports, no
+bindings, its own CI job.
 
 **If a page needs a product change to be honest, say so and stop.** Do not make the change
 yourself. Do not rewrite the page down to what the broken thing can support, either. A page
@@ -112,10 +114,11 @@ page, because the repository is where they go to check you.
 
 ## C) Every claim is traceable
 
-[`www/POSITIONING.md`](../../www/POSITIONING.md) is the companion to this file: the positioning
-statement, the six capabilities, and the path that proves each one. Start there, then check the
-paths it names. It is a shortcut to the evidence, never a source of sentences, and you keep it
-current in the same commit as any page that finds it stale.
+[`marketing-site/references/positioning.md`](marketing-site/references/positioning.md) is the
+companion to this file: the positioning statement, the six capabilities, and the path that proves
+each one. Start there, then check the paths it names. It is a shortcut to the evidence and never a
+source of sentences, it is never published, and you keep it current in the same commit as any page
+that finds it stale.
 
 Name which of these backs each factual sentence, having looked at it during this task rather than
 remembered it:
@@ -433,8 +436,8 @@ npm --prefix www run screenshots
 
 ## Working rhythm
 
-1. **Read**: the brief, `www/POSITIONING.md`, `README.md`, the relevant `docs/domain/` file, and
-   the pages you are changing.
+1. **Read**: the brief, `marketing-site/references/positioning.md`, `README.md`, the relevant
+   `docs/domain/` file, and the pages you are changing.
 2. **Say in one sentence** who the page is for, what you want them to want, and which step of
    leaving the incumbent it removes. Track anything past a couple of pages with the task tools.
 3. **Draft the argument first**, then the proof under it.

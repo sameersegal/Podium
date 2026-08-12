@@ -1,15 +1,16 @@
 # Positioning and capabilities
 
-The companion to [`.claude/agents/marketing-site.md`](../.claude/agents/marketing-site.md). That
-file says how to write. This one says what is true, and where each thing is proved.
+The companion to [`marketing-site.md`](../../marketing-site.md). That file says how to write. This
+one says what is true, and where each thing is proved. It is never published: nothing here reaches
+`www/`, and it exists to shape the pages rather than to become one.
 
 **It is evidence, not copy.** Nothing here is a sentence to paste onto a page. Phrases in this
 document are the internal frame; the buyer's version is always shorter and more specific. Read it
 before drafting, then write for the reader in B.
 
 **It is checked, not remembered.** Every claim below names a path. When one goes stale that is a
-defect in this file, not a licence to keep saying it. The agent may write inside `www/`, so this
-file changes in the same commit as the page that discovered the drift.
+defect in this file, not a licence to keep saying it. This file is the one thing outside `www/`
+the marketing agent may edit, so it changes in the same commit as the page that found the drift.
 
 ---
 
@@ -33,10 +34,10 @@ marketing. Split it, and take one at a time.
 | Complete ownership | Export in `packages/domain/src/content/export.ts`: `csv`, `json`, `zip`. GDPR erasure as a distinct audited operation | `xlsx` and `ics` are enum members with no generator behind them. Do not list them as export formats |
 | Deep customization | The fork, plus the machinery that makes a fork survivable: spec before code, an implementer that stops outside the model, a drift check in CI | A change you make is a merge you own, and nobody has run that upgrade path in public |
 | Integration and extendability | `packages/plugins/src/registry.ts` and `contracts.ts`: capability contracts with adapters behind them; signed webhooks; the `/v1` surface | Smaller catalogue than the incumbents. Say so before they count |
-| Low costs | `LINE_ITEMS` in `src/pages/pricing.astro`: MIT software, Cloudflare Workers Paid from $5/month, metered storage, an email provider usually free at this volume | "Low cost" is not a claim, it is an invoice. Publish ours itemised and let the reader subtract |
+| Low costs | `LINE_ITEMS` in `www/src/pages/pricing.astro`: MIT software, Cloudflare Workers Paid from $5/month, metered storage, an email provider usually free at this volume | "Low cost" is not a claim, it is an invoice. Publish ours itemised and let the reader subtract |
 | Works for agents as well as humans | The property table in section D of the agent file, each row sourced to `docs/domain/09` or `11` | — |
 
-Counts are **not** repeated here. `STATS` in [`src/consts.ts`](src/consts.ts) holds every number
+Counts are **not** repeated here. `STATS` in [`www/src/consts.ts`](../../../../www/src/consts.ts) holds every number
 the site quotes, with the recipe for re-measuring each. A second copy is a number that will be
 wrong later.
 
@@ -44,7 +45,7 @@ wrong later.
 
 ## The six capabilities
 
-The product's own list, from [`README.md`](../README.md). Each entry below is what it is, the pain
+The product's own list, from [`README.md`](../../../../README.md). Each entry below is what it is, the pain
 it answers in the buyer's words, and where to check it.
 
 ### 1. Multi-step submission forms
@@ -56,8 +57,8 @@ the vendor shipped. Steps, conditional fields and per-field validation.
 
 *Proved by:* `form.steps` and `fieldsBefore` in `packages/domain/src/event-config/rules.ts`;
 validation in `packages/domain/src/submissions/validation.ts`;
-[`02`](../docs/domain/02-event-configuration.md) and [`04`](../docs/domain/04-submissions.md).
-Sponsor-origin submissions are [`03`](../docs/domain/03-sponsorship.md). Live at
+[`02`](../../../../docs/domain/02-event-configuration.md) and [`04`](../../../../docs/domain/04-submissions.md).
+Sponsor-origin submissions are [`03`](../../../../docs/domain/03-sponsorship.md). Live at
 `/e/devflow-conf-2027/cfp/main`.
 
 ### 2. Submitter portal
@@ -69,7 +70,7 @@ that the schedule renders directly.
 website.
 
 *Proved by:* `/portal`; `workers/api/src/contexts/identity/routes.ts`;
-[`04`](../docs/domain/04-submissions.md) and [`07`](../docs/domain/07-onboarding.md). Speakers
+[`04`](../../../../docs/domain/04-submissions.md) and [`07`](../../../../docs/domain/07-onboarding.md). Speakers
 arrive on an emailed link and set no password in a production deployment.
 
 ### 3. Proposal evaluation
@@ -81,7 +82,7 @@ own lifecycle.
 
 *Proved by:* `packages/domain/src/review/` — `rubric.ts`, `coi.ts`, `assignment.ts`, `scoring.ts`,
 `anonymity.ts`; `ReviewRound` in `review/types.ts`;
-[`05`](../docs/domain/05-review-and-selection.md). A conflicted reviewer's score is **refused**,
+[`05`](../../../../docs/domain/05-review-and-selection.md). A conflicted reviewer's score is **refused**,
 not flagged for someone to catch later.
 
 The AI first-pass review (`review/ai-evaluator.ts`) is a separate claim with its own sentence: it
@@ -96,7 +97,7 @@ assignees, review-before-publish on uploads.
 *The pain:* the week before the event, chasing eleven headshots and four slide decks by hand.
 
 *Proved by:* `packages/domain/src/onboarding/defaults.ts` and `types.ts`;
-[`07`](../docs/domain/07-onboarding.md). The default task set ships in the seed, because a blank
+[`07`](../../../../docs/domain/07-onboarding.md). The default task set ships in the seed, because a blank
 onboarding config is where organizers reopen the spreadsheet.
 
 ### 5. Public schedule
@@ -107,7 +108,7 @@ An embeddable, versioned, cacheable snapshot the marketing site points at.
 
 *Proved by:* `packages/domain/src/scheduling/publication.ts`, INV-08-11 (`content_etag` changes if
 and only if the content does); `/embed/:key`;
-[`08`](../docs/domain/08-scheduling-and-publication.md). Public reads never touch live program
+[`08`](../../../../docs/domain/08-scheduling-and-publication.md). Public reads never touch live program
 tables (INV-09-6), so rolling back is pointing at the previous snapshot.
 
 ### 6. APIs and webhooks
@@ -118,8 +119,8 @@ A versioned management surface and named domain events delivered on signed webho
 
 *Proved by:* the `/v1` routes across `workers/api/src/contexts/*/routes.ts`; `signPayload` with
 mid-rotation secret validity in `packages/domain/src/platform/webhooks.ts`;
-[`09`](../docs/domain/09-api-and-integrations.md) and
-[`10`](../docs/domain/10-domain-events.md).
+[`09`](../../../../docs/domain/09-api-and-integrations.md) and
+[`10`](../../../../docs/domain/10-domain-events.md).
 
 ---
 
@@ -128,7 +129,7 @@ mid-rotation secret validity in `packages/domain/src/platform/webhooks.ts`;
 On the page, not discovered after installing.
 
 - **No attendee registration, ticketing or badging.** Deliberate, per the ticketing decision in
-  [`09`](../docs/domain/09-api-and-integrations.md). The `ticketing` plugin is a stub.
+  [`09`](../../../../docs/domain/09-api-and-integrations.md). The `ticketing` plugin is a stub.
 - **No hosted tier.**
 - **No track record** in the way a ten-year-old SaaS has one. Nobody has publicly moved a live
   conference onto this.
