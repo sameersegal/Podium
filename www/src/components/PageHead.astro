@@ -1,6 +1,4 @@
 ---
-import Rail from "./Rail.astro";
-
 /**
  * The top of an interior page.
  *
@@ -10,21 +8,20 @@ import Rail from "./Rail.astro";
  * the ground colour is what keeps the header from looking like it belongs to a
  * different site once you leave the landing page.
  *
- * `rail` puts the five pillars under the lede. Every page is an entry point now,
- * so a reader who lands on /security from a search result should be able to see
- * what the product is without going back to the home page for it. It is off by
- * default because two pages do not want it: /demo, whose one job is the
- * credentials table, and /compare, which carries the pillars in full further
- * down and would otherwise state them twice within one screen.
+ * There was briefly a rail of five pillar labels under the lede here, on the
+ * theory that a reader landing on /security from a search result should see
+ * what the product is without going home for it. It was five noun phrases —
+ * "complete control", "the whole program" — and every one of them would have
+ * sat unchanged on a competitor's page, which is the test a line fails when it
+ * is not saying anything. The lede does that job, and it is specific.
  */
 interface Props {
   eyebrow: string;
   title: string;
   lede: string;
-  rail?: boolean;
 }
 
-const { eyebrow, title, lede, rail = false } = Astro.props;
+const { eyebrow, title, lede } = Astro.props;
 ---
 
 <div class="pagehead">
@@ -32,7 +29,6 @@ const { eyebrow, title, lede, rail = false } = Astro.props;
     <span class="eyebrow">{eyebrow}</span>
     <h1>{title}</h1>
     <p class="lede">{lede}</p>
-    {rail && <Rail />}
     <slot />
   </div>
 </div>

@@ -5,7 +5,7 @@ import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
 import Shot from "../components/Shot.astro";
 import { AGENT_PROPERTIES, ALWAYS_ON, CONTRACTED_NOT_BUILT, SHIPPED } from "../data/integrations";
-import { BUILT_WITH, CONNECTS_TO } from "../data/marks";
+import { CONNECTS_TO } from "../data/marks";
 import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
 
 /*
@@ -21,10 +21,19 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
  * lives here rather than on its own page for the same reason: an agent is a
  * consumer of this surface, and this is the page that describes the surface.
  * Each row of that table is a property of the shipped API — every one is in
- * docs/domain/09 or 11 and enforced in workers/api/src — and the callout under
- * it draws the boundary, because the agents in this repository build Podium and
- * do not run anybody's conference. Nothing here may imply otherwise: there is
- * no MCP server, no OpenAPI document and no organizer-facing skill.
+ * docs/domain/09 or 11 and enforced in workers/api/src.
+ *
+ * The provenance half of that argument — agents built it, and your agent can
+ * change it — used to be restated here at length. It has its own page now
+ * (/fork), and this one keeps a single sentence and a link, because the same
+ * argument in two wordings is how a reader comes away able to repeat neither.
+ *
+ * The boundary sentence is narrower than it was, and on purpose. It used to
+ * read "no bundled assistant, no server your agent connects to and no
+ * machine-readable schema file", which was three claims where one was checkable.
+ * What is checkable by grep, and true today, is that this repository contains no
+ * MCP server and no OpenAPI document — so anything driving a live instance is
+ * driving HTTP. That is the claim that ships.
  */
 ---
 
@@ -33,7 +42,6 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
   description="Podium sends mail through Resend or SendGrid, posts to Slack, mirrors your programme two ways into Airtable, stores assets in your own bucket, and publishes a signed webhook for every change. The core imports no vendor SDK."
 >
   <PageHead
-    rail
     eyebrow="Integrations"
     title="It connects to your stack without becoming part of it."
     lede="Podium's core imports no vendor SDK and names no provider. Every integration is an adapter behind a narrow contract, so swapping Resend for SendGrid is an install and a default flag."
@@ -167,7 +175,7 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
         among them, built for a caller that retries and cannot ask what a field meant.
       </p>
       <div class="table-wrap">
-        <table class="matrix">
+        <table class="matrix stack">
           <thead>
             <tr>
               <th scope="col">What the API does</th>
@@ -179,7 +187,7 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
               AGENT_PROPERTIES.map((p) => (
                 <tr>
                   <th scope="row">{p.property}</th>
-                  <td>{p.failure}</td>
+                  <td data-label="What that stops">{p.failure}</td>
                 </tr>
               ))
             }
@@ -188,22 +196,17 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
       </div>
       <div class="notice" style="margin-top: 1.75rem">
         <p>
-          <strong>The agents in this repository build Podium. They do not run your conference.</strong>{" "}
-          Podium is written by coding agents working to a specification that comes before the code.
-          One refuses a request the model does not cover. Another checks the code back against the
-          model, and fails the build in CI.
+          <strong>There is no MCP server here and no OpenAPI document.</strong> Anything driving a
+          running instance is driving HTTP, against the surface above and{" "}
+          <a href={DOMAIN_MODEL_URL}>the model it was built from</a> — a specification your own
+          agent can read before it calls anything.
         </p>
         <p>
-          What ships for you is the API above and{" "}
-          <a href={DOMAIN_MODEL_URL}>the model it was built from</a>: a document your own agent can
-          read. There is no bundled assistant, no server your agent connects to and no
-          machine-readable schema file. Anything driving Podium today is driving HTTP.
+          Podium is written by coding agents held to that specification, and the same machinery is
+          what makes your own changes to it survivable. <a href="/fork">That argument is its own
+          page.</a>
         </p>
       </div>
-
-      {/* Directly under the paragraph that makes the provenance claim, because
-          this is the checkable half of it. */}
-      <Logos items={BUILT_WITH} claim="What builds it, and what it runs on" />
     </div>
   </section>
 
@@ -223,8 +226,8 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
   </section>
 
   <Cta
-    heading="Install one against the demo and watch it work."
-    sub="The demo signs you in as the program chair, with the install screen and the outbox both open to you."
+    heading="Install one against the seed and watch it work."
+    sub="Run it locally and you are the program chair, with the install screen and the outbox both open to you."
     secondaryHref={API_DOC_URL}
     secondaryLabel="Read the API reference"
   />

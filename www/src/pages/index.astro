@@ -3,46 +3,38 @@ import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
 import Logos from "../components/Logos.astro";
 import Pillars from "../components/Pillars.astro";
-import Rail from "../components/Rail.astro";
 import Shot from "../components/Shot.astro";
 import { DOMAIN_MODEL_URL, GITHUB_URL, STATS } from "../consts";
-import { BUILT_WITH, CONNECTS_TO } from "../data/marks";
+import { CONNECTS_TO } from "../data/marks";
 
 /*
- * The order of this page is the order the pain arrives in.
+ * The order of this page is the order the reader's questions arrive in.
  *
- * The README's "six capabilities" list is how the product describes itself to
- * someone deciding whether to read the code. It is not how the problem arrives
- * for the person running the conference — they do not wake up needing "proposal
- * evaluation", they wake up to a reviewer who works with a submitter and a
- * sponsor asking where their second session went. So this page leads with the
- * job and shows the screen that does it; the capability names are still here,
- * one layer down, because that is the vocabulary of the docs they will read next.
+ * The reader is not shopping. They hold a renewal quote for the tool that runs
+ * their CFP and they have already decided to leave; what they are estimating is
+ * whether the move blows up in the week the call opens. So the page opens on
+ * the deployment and the bill — the two things they came to check — and only
+ * then argues that the product does the job. It used to open on "eleven
+ * spreadsheets and one person who knows where everything is", which is written
+ * for somebody drowning in tooling. This reader is not drowning. Their current
+ * tool works. It costs five figures and they own none of it.
+ *
+ * The renewal number itself is deliberately absent, here and everywhere. Most
+ * of this category quotes privately, so printing it would be hearsay, and one
+ * wrong figure hands the incumbent's sales team the whole page. Our own bill is
+ * on it instead, itemised, and the subtraction is left to the reader.
+ *
+ * Every claim below is either visible in the screenshot beside it or backed by
+ * a path in this repository. Nothing here is aspirational. The deploy block is
+ * `package.json` scripts and the bindings in `wrangler.jsonc`; the CSV column
+ * names are the aliases in `packages/domain/src/content/import.ts`; the four
+ * things a CSV can create are that file's `IMPORT_FIELDS` keys, which is also
+ * why last year's scores are named as not coming across.
  *
  * Since the site went multi-page this page carries the argument and three
  * proofs, not all six: a landing page that says everything is a landing page
- * nobody finishes. The rest is one click away at /features, and every section
- * below ends pointing somewhere specific.
- *
- * Every claim below is either visible in the screenshot beside it or backed by
- * the rule in docs/domain/ that enforces it. Nothing here is aspirational.
- *
- * The dark band carries the five pillars (src/data/pillars.ts), of which the
- * agents-first one leads and is deliberately the largest thing in the section.
- * Its shortest honest form: agents build this repository (CLAUDE.md,
- * .claude/agents/, .claude/skills/, `npm run drift` in CI) and the management
- * API is shaped for a machine caller (idempotency keys, typed refusals,
- * personal data behind its own scope). The boundary — the tooling in the box
- * builds the product, it does not run a conference — is stated on
- * /integrations, one click away, because that is where there is room to say it
- * properly. Nothing on this page may imply an organizer-facing agent exists.
- *
- * The rail under the hero and the two logo strips are emphasis, not new claims.
- * The rail is the five pillars as five noun phrases, so the argument is legible
- * before the first scroll. The strips make two claims the prose already made —
- * this is what it is built with, this is what has an adapter today — and both
- * are captioned, because an uncaptioned logo wall implies a relationship it has
- * not named and lets the reader supply the flattering one.
+ * nobody finishes. The rest is one click away, and every section below ends
+ * pointing somewhere specific.
  */
 
 const pains = [
@@ -80,22 +72,20 @@ const pains = [
       <div class="glow two"></div>
     </div>
     <div class="wrap">
-      <h1>Your conference program is <span class="hl">eleven spreadsheets</span> and one person who knows where everything is.</h1>
+      <h1>Run the whole program from <span class="hl">an account in your name</span>.</h1>
       <p class="lede">
-        Podium replaces all of it. The call for proposals, the review, the sponsor sessions, the
-        chase for bios and slides, the schedule on your website. Free, open source, and it runs on
-        infrastructure you own.
+        The call for proposals, the review, the sponsor sessions, the chase for bios and slides,
+        the schedule your website embeds. MIT-licensed. It deploys to your Cloudflare account, and
+        the only bill is Cloudflare's.
       </p>
       <div class="actions">
-        <a class="btn primary" href="/demo">Try the demo</a>
+        <a class="btn primary" href="/demo">Run the demo</a>
         <a class="btn secondary" href={GITHUB_URL}>Get the source</a>
       </div>
       <p class="reassure">
-        <strong>No per-speaker pricing.</strong> No sales call. No data you cannot export.
+        <strong>No per-speaker pricing.</strong> No seats, no quote, no sales call, and no data you
+        cannot export.
       </p>
-
-      {/* The whole argument in five noun phrases, before the first scroll. */}
-      <Rail />
 
       <div class="stage">
         <Shot
@@ -122,6 +112,59 @@ const pains = [
 
   <section>
     <div class="wrap">
+      <span class="eyebrow">The move</span>
+      <h2>Leave in three steps.</h2>
+      <p class="sub">
+        Deploying is two commands. What costs you is the part that does not come across.
+      </p>
+
+      <ol class="steps">
+        <li class="reveal">
+          <h3>Deploy it into your own account</h3>
+          <p>
+            A D1 database, a KV namespace, an R2 bucket and three queues, then two commands. The
+            hostname is yours, and the app only ever learns it at deploy time.
+          </p>
+          <pre class="term"><code>npm run deploy:migrate
+npm run deploy</code></pre>
+        </li>
+        <li class="reveal">
+          <h3>Bring last year's people in as a CSV</h3>
+          <p>
+            Columns headed <em>Speaker Name</em>, <em>E-mail</em> and <em>Employer</em> map
+            themselves, and you see what will be created, updated and rejected before a row is
+            written. People and the roster arrive that way. Last year's sessions, scores and
+            decisions do not arrive at all.
+          </p>
+        </li>
+        <li class="reveal">
+          <h3>Open the call</h3>
+          <p>
+            Build the form, publish it, invite the speakers you already know. There is no password
+            for a speaker to set: they arrive on a link the event emailed them.
+          </p>
+        </li>
+      </ol>
+
+      <div class="notice" style="margin-top: 2rem">
+        <p>
+          <strong>Nobody has publicly moved a live conference onto this yet.</strong> The import is
+          built and tested; the first migration off a commercial tool is still ahead of us. If it
+          is yours, the issue tracker is where it goes.
+        </p>
+      </div>
+
+      <div class="kpis" style="margin-top: 1.5rem">
+        <div class="kpi"><b>$0</b><span>to licence, for every event you will ever run</span></div>
+        <div class="kpi"><b>$5</b><span>a month, the one fixed line, on Cloudflare's price list</span></div>
+      </div>
+
+      <p class="nextstep"><a href="/compare">What a switch costs, and what has no equivalent here →</a></p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
       <span class="eyebrow">Sound familiar?</span>
       <h2>The six questions you cannot answer from a spreadsheet.</h2>
       <p class="sub">
@@ -141,10 +184,10 @@ const pains = [
     </div>
   </section>
 
-  <section class="band">
+  <section>
     <div class="wrap">
       <span class="eyebrow">What it looks like</span>
-      <h2>See three of them on the running product.</h2>
+      <h2>Three of them, on the running product.</h2>
       <p class="sub">
         Photographs of Podium against its own seeded conference. The other three are on the
         features page.
@@ -219,7 +262,7 @@ const pains = [
     </div>
   </section>
 
-  <section>
+  <section class="band">
     <div class="wrap">
       <span class="eyebrow">It talks to the rest of your stack</span>
       <h2>Keep your email provider, your spreadsheet and your site.</h2>
@@ -245,39 +288,9 @@ const pains = [
             losing edit is not discarded; it goes into a conflict queue showing both values.
           </p>
         </div>
-        <div class="card reveal">
-          <h3>An API you can hand out</h3>
-          <p>
-            A key for your marketing site reads the schedule and cannot read a review or a
-            speaker's email. Personal data is its own scope, off by default, on every endpoint.
-          </p>
-        </div>
       </div>
 
-      {/* The strip names the providers; the screenshot under it is them
-          installed and running, which is the part a logo wall cannot do. */}
       <Logos items={CONNECTS_TO} claim="Adapters you can install today" />
-
-      <div class="feature reveal" style="margin-top: 2.5rem">
-        <div class="copy">
-          <h3>One default per capability. The rest sit idle.</h3>
-          <p>
-            Each integration declares the settings it needs and one credential. You give Podium the
-            <em>name</em> of a secret and it resolves it at call time, so the credential never lands
-            in the settings screen, the audit log or an export.
-          </p>
-          <p>
-            A misconfigured provider says so here, with the provider's own error. It does not fail
-            quietly as four hundred acceptance emails go out.
-          </p>
-        </div>
-        <Shot
-          name="integrations"
-          height={900}
-          url="app.podiumstack.com/admin/integrations"
-          alt="The integrations screen listing five installed adapters — Resend and SendGrid for email, Slack for chat, and two sync providers including Airtable — each active, with Resend and Airtable flagged as the default for their capability."
-        />
-      </div>
 
       <p class="nextstep"><a href="/integrations">Every integration, and the contract behind it →</a></p>
     </div>
@@ -285,17 +298,16 @@ const pains = [
 
   <Pillars
     eyebrow="Yours, actually"
-    heading="Five things that are true before you look at a single screen."
+    heading="Six things that are true before you look at a single screen."
     sub="None of these is a feature. They are consequences of how it is built."
   >
-    <div class="kpis" style="margin-top: 2.75rem">
+    {/* The event count moved into the sixth pillar above, so it is not repeated
+        here — the same number twice in one band reads as padding. */}
+    <div class="kpis three" style="margin-top: 2.75rem">
       <div class="kpi"><b>{STATS.tests}</b><span>tests, unit and integration</span></div>
-      <div class="kpi"><b>{STATS.invariants}</b><span>written rules the code enforces</span></div>
-      <div class="kpi"><b>{STATS.events}</b><span>events you can subscribe to</span></div>
-      <div class="kpi"><b>{STATS.scopes}</b><span>API scopes, personal data its own</span></div>
+      <div class="kpi"><b>{STATS.endpoints}</b><span>endpoints on one versioned API</span></div>
+      <div class="kpi"><b>{STATS.routes}</b><span>routes, each inventoried with its guard</span></div>
     </div>
-
-    <Logos dark items={BUILT_WITH} claim="What builds it, and what it runs on" />
 
     <p class="nextstep">
       <a href={DOMAIN_MODEL_URL}>The rules, written down before the code →</a>
@@ -308,8 +320,8 @@ const pains = [
       <h2>It is not the right tool for every conference.</h2>
       <p class="sub">
         Podium does no attendee registration, no badging and no ticketing, and there is no hosted
-        tier, so somebody has to deploy it once. If that rules it out, the comparison page names
-        what to buy instead.
+        tier, so somebody deploys it. If that rules it out, the switching page names what to buy
+        instead.
       </p>
       <p class="nextstep"><a href="/compare">Podium against Sessionize and Sessionboard →</a></p>
     </div>

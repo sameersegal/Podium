@@ -1,0 +1,291 @@
+---
+import Base from "../layouts/Base.astro";
+import Cta from "../components/Cta.astro";
+import Logos from "../components/Logos.astro";
+import PageHead from "../components/PageHead.astro";
+import { API_DOC_URL, DOMAIN_MODEL_URL, GITHUB_URL, LICENSE_URL, STATS } from "../consts";
+import { BUILT_WITH } from "../data/marks";
+
+/* The marketplace command needs the owner/repo, and there is already exactly
+   one place that knows where the source lives. Deriving it means a repository
+   move is still one line in `consts.ts` and nothing else. */
+const REPO_SLUG = GITHUB_URL.replace("https://github.com/", "");
+
+/*
+ * For the organizer whose answer to "it does not do that" is their agent, not a
+ * feature request. There was nowhere on this site for that reader until this
+ * page, which is odd, because it is the difference the incumbents cannot copy.
+ *
+ * Three claims, and each is backed separately — never as "AI-powered", which is
+ * a phrase and not a property:
+ *
+ *   built by agents      docs/domain/ is normative and predates the code
+ *                        (CLAUDE.md); .claude/agents/implementer.md carries the
+ *                        stop conditions quoted below almost verbatim
+ *   checked by machine   `npm run drift` and `npm run security` are steps in
+ *                        the `check` job of .github/workflows/ci.yml, and that
+ *                        job gates the deploy
+ *   changed by yours     MIT (LICENSE), no CLA (README), and the capability
+ *                        contract in packages/plugins/src/registry.ts, which is
+ *                        the one extension point that is not a fork
+ *
+ * The boundary is load-bearing and is stated on the page rather than left for a
+ * reader to discover: there is no MCP server and no OpenAPI document in this
+ * repository — checked by grep, not memory — so anything driving a live
+ * instance is driving HTTP. Nothing here may imply otherwise, and nothing here
+ * may imply the upgrade path is smoother than "you own the merge", because
+ * nobody has run that in public yet.
+ *
+ * The plugin section is deliberately structural, and every sentence in it is
+ * checkable by reading `claude-plugin/` without running anything:
+ *
+ *   it exists           claude-plugin/.claude-plugin/plugin.json names it
+ *                       `podium-ops`; the root .claude-plugin/marketplace.json
+ *                       is what makes this repository installable, and the
+ *                       marketplace it declares is called `podium`
+ *   eight skills        counted from claude-plugin/skills/*\/SKILL.md, not
+ *                       taken from any prose that claims a number; the areas
+ *                       named are each skill's own `description` frontmatter
+ *   the CLI             claude-plugin/scripts/podium.mjs imports node: builtins
+ *                       and nothing else; PODIUM_URL and PODIUM_API_TOKEN come
+ *                       from a .env it resolves
+ *   the catalogue       claude-plugin/scripts/build-endpoints.mjs reads
+ *                       workers/api/src and writes the reference the podium-api
+ *                       skill ships; `--check` exits 1 when it is stale
+ *
+ * What that section must never say is what any of it *does* when run. Nothing
+ * here has been executed against a live instance in the writing of this page,
+ * and the only hosted instance is not answering, so there is no worked example,
+ * no outcome and no "your agent runs your CFP" — the plugin hands an agent the
+ * map, and the page says exactly that much.
+ *
+ * `npm run plugin:check` is a script in the root package.json and is *not* a
+ * step in .github/workflows/ci.yml, unlike `npm run drift`. The page says the
+ * command exits non-zero and stops there. If it is ever added to that workflow,
+ * this paragraph and the sentence it governs both change.
+ */
+
+const GUARDRAILS = [
+  {
+    title: "The rules were written down first",
+    body: "Entity names, every state a proposal can be in and which transitions are legal, who may read what, which fields are personal data. Prose with tables, not generated documentation, and it is what the code answers to.",
+    href: DOMAIN_MODEL_URL,
+    hrefLabel: "Read the specification",
+  },
+  {
+    title: "An agent that goes outside it stops",
+    body: "The building agent ships in the repository. Its first move is to map the request onto the model, and it halts rather than inventing: a field the model lacks, a transition the diagram never drew, an event nobody catalogued. It asks for the model to change instead, which is a conversation you can have.",
+    href: `${GITHUB_URL}/blob/main/.claude/agents/implementer.md`,
+    hrefLabel: "The agent, as it ships",
+  },
+  {
+    title: "A machine checks the code back against the document",
+    body: "One command extracts every entity, field, enum, invariant, event and state machine from the specification and compares it with the code. Non-zero on a disagreement, and it runs on every push in the same job as the tests. Drift is a failed build.",
+    href: `${GITHUB_URL}/blob/main/.github/workflows/ci.yml`,
+    hrefLabel: "The job that runs it",
+  },
+];
+
+const COMMANDS = [
+  { cmd: "npm test", what: `${STATS.tests} unit and integration tests, the integration half against real local D1, KV, R2, queues and durable objects` },
+  { cmd: "npm run typecheck", what: "the whole repository at once" },
+  { cmd: "npm run drift", what: "the model against the code; non-zero on a disagreement" },
+  { cmd: "npm run security", what: `${STATS.routes} routes re-inventoried; a new one with no guard in front of it fails` },
+  { cmd: "node scripts/smoke.mjs", what: "walks every screen as each persona against a local server" },
+];
+---
+
+<Base
+  title="Fork it"
+  description="Podium is MIT-licensed and built by agents working to a written specification, with a check in CI that fails when the code and the specification disagree. It ships a Claude Code plugin for operating an instance you run. What all that means when you change it, and what it does not mean."
+>
+  <PageHead
+    eyebrow="Fork it"
+    title="The answer to “it doesn’t do that” is a branch."
+    lede="Podium is MIT-licensed, so the copy you deploy is yours to change. What keeps that from being a one-way door is the machinery it was built with, and you get all of it in the clone."
+  >
+    <div class="actions">
+      <a class="btn primary" href={GITHUB_URL}>Get the source</a>
+      <a class="btn secondary" href={DOMAIN_MODEL_URL}>Read the model first</a>
+    </div>
+  </PageHead>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Why a change here survives</span>
+      <h2>Three things you inherit with the checkout.</h2>
+      <p class="sub">
+        Each one stops an agent, ours or yours, quietly inventing behaviour nobody asked for.
+      </p>
+      <div class="cards">
+        {
+          GUARDRAILS.map((g) => (
+            <div class="card reveal">
+              <h3>{g.title}</h3>
+              <p>{g.body}</p>
+              <p class="jump"><a href={g.href}>{g.hrefLabel} →</a></p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">Before you ship your change</span>
+      <h2>Five commands say whether you broke it.</h2>
+      <p class="sub">
+        None of them needs a Cloudflare account. The first four also gate the deploy, so a change
+        that fails one on your laptop would have failed ours.
+      </p>
+      <div class="table-wrap">
+        <table class="matrix stack">
+          <thead>
+            <tr>
+              <th scope="col">Command</th>
+              <th scope="col">What it holds you to</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              COMMANDS.map((c) => (
+                <tr>
+                  <th scope="row"><code>{c.cmd}</code></th>
+                  <td data-label="What it holds you to">{c.what}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="nextstep"><a href="/demo">Or run the whole seeded conference locally first →</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">What you are taking on</span>
+      <h2>A change you make is a merge you own.</h2>
+      <p class="sub">
+        This is the part that decides whether you regret the fork in eighteen months.
+      </p>
+      <div class="two-col">
+        <div>
+          <h3>The unflattering half</h3>
+          <ul class="crosses">
+            <li>
+              Nobody has upgraded a forked deployment in public. The migrations are append-only and
+              the releases are ordinary git, and that is all anyone can honestly promise.
+            </li>
+            <li>
+              There is no plugin API for domain behaviour. Changing how review quorum works means
+              editing the code that does it, in a file you now maintain.
+            </li>
+            <li>
+              The specification is the contract, so a change that contradicts it fails the drift
+              check on your own machine. Change the document in the same commit, or the build says
+              no — to you, exactly as it does to us.
+            </li>
+          </ul>
+        </div>
+        <div>
+          <h3>What you do not have to fork for</h3>
+          <ul class="ticks">
+            <li>
+              A provider nobody has written yet. Email, chat, storage, sync, first-pass review and
+              workshop capacity are capability contracts; an adapter is a new file and a line in
+              the registry.
+            </li>
+            <li>
+              Anything the management API already does. It covers {STATS.endpoints} endpoints,
+              scheduling included, and it takes an idempotency key on every write.
+            </li>
+            <li>
+              Your own fields. Custom fields on people, sessions and sponsors are configuration on
+              a screen, not a schema change and not a migration.
+            </li>
+          </ul>
+        </div>
+      </div>
+      <p class="nextstep"><a href={API_DOC_URL}>The API and webhook reference →</a></p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">Operating an instance</span>
+      <h2>The repository is also a Claude Code plugin.</h2>
+      <p class="sub">
+        Eight skills over the management API, and a CLI with no dependencies. Add the repository as
+        a marketplace, then install it.
+      </p>
+      <div class="prose">
+        <pre class="term"><code>/plugin marketplace add {REPO_SLUG}
+/plugin install podium-ops@podium</code></pre>
+        {/* Seven nouns for seven skills, and it has to stay that way: the
+            sentence says "one skill per part of the job", so a reader who
+            counts them lands on seven, and eight with the API one. It briefly
+            read "…campaigns, exports and webhooks" — eight nouns over seven
+            skills, because `podium-reports` carries the exports and the
+            integration health together. Splitting them made the better list
+            and implied a skill that is not in the directory. */}
+        <p>
+          One skill per part of the job: the event and its call, the review pile, the schedule
+          grid, speaker onboarding, sponsors, outreach campaigns, and exports with the health of
+          your integrations. The eighth is the one an agent reads first, and it covers scopes,
+          redaction, pagination, idempotency keys and what each typed error means.
+        </p>
+        <p>
+          The endpoint reference those skills ship is generated from the routes, all {STATS.endpoints} of
+          them. <code>npm run plugin:check</code> exits non-zero when a route has changed and the
+          catalogue has not.
+        </p>
+        <p>
+          It points at an instance you are already running. You give it the URL and a key you
+          minted, in a <code>.env</code> rather than an argument your shell history keeps.
+        </p>
+      </div>
+      <p class="nextstep"><a href={`${GITHUB_URL}/tree/main/claude-plugin`}>The plugin, as it ships →</a></p>
+    </div>
+  </section>
+
+  <section class="band-dark">
+    <div class="wrap">
+      <span class="eyebrow">The boundary</span>
+      <h2>What an agent still cannot do here.</h2>
+      <p class="sub">
+        The plugin above hands an agent the map to a running instance. It is not an assistant that
+        runs your call for proposals.
+      </p>
+      <div class="notice">
+        <p>
+          There is no MCP server in this repository and no OpenAPI document. Anything driving a
+          running instance is driving HTTP against {STATS.endpoints} endpoints, with typed refusals
+          that name the rule they broke.
+        </p>
+        <p>
+          No key submits a proposal and no key writes a review. Both calls refuse and say why: a
+          first-person statement is made by the person, signed in as themselves. A key can still
+          open a draft, and the submitter finishes it in their portal.
+        </p>
+        <p>
+          The first-pass review is a separate thing again: off unless you switch it on, its scores
+          sit beside your reviewers' rather than inside them, and the evaluator in the box calls no
+          external model.
+        </p>
+      </div>
+
+      <Logos dark items={BUILT_WITH} claim="What builds it, and what it runs on" />
+
+      <p class="nextstep"><a href="/integrations">What an agent needs to drive it →</a></p>
+    </div>
+  </section>
+
+  <Cta
+    heading="Read the model before you decide it cannot do that."
+    sub="Sixteen files and a glossary: one per part of the product, plus every decision and the argument behind it. Each rule is cited in the code that enforces it. The licence on the copy you take cannot be revoked."
+    secondaryHref={LICENSE_URL}
+    secondaryLabel="Read the licence"
+  />
+</Base>
