@@ -394,7 +394,8 @@ function emit(result, flags) {
 
 function hintFor(status, code) {
   if (status === 401) return "The token is missing, revoked or expired. Check PODIUM_API_TOKEN, or mint a new key at /admin/api-keys.";
-  if (status === 403) return "The token authenticated but its scopes do not cover this. `podium whoami` lists them.";
+  if (status === 403)
+    return "The token authenticated but its scopes do not name this. `podium whoami` lists them. Campaigns need `speakers:*`; webhooks, integrations and the audit log need `webhooks:manage`.";
   if (status === 404) return "Wrong id, or an id belonging to another event this key cannot see (event_ids on the key restricts it).";
   if (status === 409 && code === "version_conflict") return "Someone else wrote first. Re-read the record, merge, and retry with the current row_version.";
   if (status === 422) return "The request reached the domain and was refused by a rule. `invariant` names it; docs/domain/ explains it.";
@@ -521,26 +522,26 @@ async function cmdWhoami(config, flags) {
   }
   out.reachable = reachable;
 
-  // The trap worth naming out loud. An API key's scopes are mapped onto a role
-  // — `admin` if it holds any `:write` scope, `viewer` otherwise — and `viewer`
-  // carries no read in the authorization matrix. So a key granted only `:read`
-  // scopes authenticates fine and is then refused every management read, which
-  // reads like a broken token and is not one.
-  const scopes = out.key?.scopes ?? null;
-  const readOnly = scopes ? !scopes.some((s) => s.endsWith(":write") || s === "schedule:publish") : null;
+  // A key reaches exactly what its scopes name (INV-09-25), so "authenticated
+  // but nothing works" means the scopes are wrong, not the token. Say which,
+  // because the three non-obvious groupings account for most of it.
+  //
   // "no probe succeeded" rather than "every probe said no": a 422 for a missing
   // argument is not evidence of permission either way, and treating it as one
-  // is how the diagnosis below silently stops firing.
+  // is how a diagnosis silently stops firing.
   const nothingReachable = !Object.values(reachable).some((v) => v === "yes");
-  if (nothingReachable && (readOnly === true || readOnly === null)) {
+  if (nothingReachable) {
     out.diagnosis =
-      "Authenticated, but every management read is refused. An API key with only `:read` scopes " +
-      "authenticates as a `viewer`, and `viewer` has no read permission in the authorization matrix — " +
-      "so a read-only key is refused everywhere except /v1/public/…. Give the key at least one `:write` " +
-      "scope (it then authenticates as `admin`), or read the public surface instead.";
+      "Authenticated, but nothing probed is reachable — the key's scopes do not name any of it. " +
+      "A key reaches exactly what its scopes say and nothing else. Three groupings are not " +
+      "guessable from the names: campaigns and sent-mail history need `speakers:*`, entitlements " +
+      "need `sponsors:*` or `entitlements:*`, and webhooks, integrations, templates and the audit " +
+      "log need `webhooks:manage`. Mint a key with the right scopes at /admin/api-keys — no key " +
+      "can mint one for you (INV-09-26).";
   }
   if (!out.key) {
-    out.note = "This key cannot read its own record (that needs org.configure), so `reachable` was probed rather than listed from `scopes`.";
+    out.note =
+      "This key cannot read its own record (that needs `webhooks:manage`), so `reachable` was probed rather than listed from `scopes`.";
   }
 
   process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);

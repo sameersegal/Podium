@@ -85,10 +85,13 @@ podium list /v1/assignments round_id=rnd_… --fields id,proposal_id,reviewer_pe
 podium post /v1/assignments round_id=rnd_… proposal_id=prp_… reviewer_person_id=per_…
 
 podium get  /v1/reviews round_id=rnd_…        # round_id or proposal_id is required
-podium post /v1/reviews assignment_id=asg_… recommendation=accept confidence=high \
-    comments_for_committee="…" comments_for_speaker="…"
 podium post /v1/reviews/rvw_…/override reason="…"
 ```
+
+**An API key cannot post a review.** `POST /v1/reviews` demands a signed-in person and answers
+`401 unauthorized` to any key, whatever its scopes — a review is attributed to the reviewer
+whose assignment it answers, and a key is nobody. Reviews are written by reviewers at
+`/review`. An agent reads them, scores them and decides on them; it does not author them.
 
 Finding what still needs reviewers: list proposals with `--fields id,title,review_count,target_reviews`
 and filter locally for `review_count < target_reviews`. There is no server-side "unreviewed"

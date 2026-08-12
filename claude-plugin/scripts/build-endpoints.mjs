@@ -43,7 +43,10 @@ function capabilityScopes() {
   const source = readFileSync(join(ROUTES_DIR, "http", "context.ts"), "utf8");
   const block = source.slice(source.indexOf("const CAPABILITY_SCOPES"), source.indexOf("function hasScopeFor"));
   const map = {};
-  const re = /"([\w.]+)":\s*\{\s*read:\s*\[([^\]]*)\],\s*write:\s*\[([^\]]*)\]\s*\}/g;
+  // The trailing comma is optional because the entry may be one line or four;
+  // requiring `]}` silently dropped `sponsor.manage` when it grew a second
+  // scope and Prettier broke it across lines.
+  const re = /"([\w.]+)":\s*\{\s*read:\s*\[([^\]]*)\],\s*write:\s*\[([^\]]*)\],?\s*\}/g;
   let m;
   while ((m = re.exec(block))) {
     const list = (s) => s.split(",").map((x) => x.trim().replace(/^"|"$/g, "")).filter(Boolean);
@@ -136,6 +139,10 @@ function extract(rawBody, source, corpus) {
     body: uniq([...grab(/input\.(?:str|optional|int|bool|list|json|get|has)(?:<[^>]*>)?\(\s*"([\w.-]+)"/g), ...looped]),
     pii: /includePii|redact/.test(body),
     idempotent: /replayIfSeen|remember/.test(body),
+    // `requirePerson()` means a signed-in human, so no API key of any scope
+    // reaches this route. That is the single most useful thing the catalogue
+    // can say about it, and it is invisible from the path.
+    sessionOnly: /ctx\.requirePerson\(\)/.test(rawBody),
   };
 }
 
@@ -207,6 +214,7 @@ for (const [index, file] of files.entries()) {
       query: info.query,
       fields: info.body,
       pii: info.pii,
+      sessionOnly: info.sessionOnly,
       area: areaOf(slice.path),
     });
   }
@@ -224,9 +232,13 @@ Every endpoint on the management surface, generated from the routes themselves b
 
 ${routes.length} endpoints. Columns:
 
-- **Scope** — the API-key scope that reaches it. Blank means the handler's capability is not
-  scope-mapped, so any authenticated key passes the scope check (it still passes the role
-  check: a key with no \`:write\` scope authenticates as a viewer).
+- **Scope** — the API-key scope that reaches it. A key reaches exactly what its scopes name
+  and nothing else (INV-09-25). **\`session\`** means the handler demands a signed-in person,
+  so no API key of any scope reaches it — posting a review is the one that surprises people.
+  Blank means the guard is neither a capability nor a person: a public route, one scoped by a
+  relationship the caller has, or one gated on being staff at all — the CRM routes
+  (\`/v1/segments\`, \`/v1/pipelines\`, \`/v1/prospects\`) check that and nothing finer, so any
+  authenticated key reaches them.
 - **Query** — query-string parameters the handler reads. Every list endpoint also takes
   \`limit\` and \`cursor\`.
 - **Body** — fields the handler reads from a JSON body. Presence here is not proof a field is
@@ -243,7 +255,8 @@ for (const area of areas) {
   const inArea = routes.filter((r) => r.area === area);
   out += `## ${area}\n\n| Endpoint | Scope | Query | Body | PII | Source |\n|---|---|---|---|---|---|\n`;
   for (const r of inArea) {
-    out += `| \`${r.method} ${r.path}\` | ${cell(r.scopes)} | ${cell(r.query.filter((q) => q !== "limit" && q !== "cursor"))} | ${cell(r.fields)} | ${r.pii ? "·" : ""} | ${r.file}:${r.line} |\n`;
+    const scope = r.sessionOnly ? `\`session\`${r.scopes.length ? ` ${cell(r.scopes)}` : ""}` : cell(r.scopes);
+    out += `| \`${r.method} ${r.path}\` | ${scope} | ${cell(r.query.filter((q) => q !== "limit" && q !== "cursor"))} | ${cell(r.fields)} | ${r.pii ? "·" : ""} | ${r.file}:${r.line} |\n`;
   }
   out += "\n";
 }

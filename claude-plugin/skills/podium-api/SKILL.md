@@ -83,19 +83,28 @@ It is generated from the routes, so it is right. Grep it before guessing a path.
 
 ## Six conventions that will otherwise cost you a turn
 
-### 1. Scopes, and the read-only trap
+### 1. Scopes are the whole permission
 
 A key carries scopes: `events:*`, `proposals:*`, `reviews:*`, `decisions:*`, `sessions:*`,
 `speakers:*`, `sponsors:*`, `entitlements:*`, `tasks:*`, `schedule:read`/`schedule:publish`,
-`webhooks:manage`, `pii:read`. A key may also be pinned to specific events, in which case
-every other event is a 404, not a 403.
+`webhooks:manage`, `pii:read`. A key reaches exactly what its scopes name and nothing else
+(INV-09-25) — there is no role behind them widening or narrowing the answer. A key may also
+be pinned to specific events, in which case every other event is a 404, not a 403.
 
-> **A key holding only `:read` scopes is refused every management read.**
-> Scopes are mapped onto a role — `admin` if the key holds any `:write` scope, `viewer`
-> otherwise — and `viewer` carries no read permission in the authorization matrix. Such a key
-> authenticates fine and then 403s on `/v1/events`, `/v1/proposals`, everything. It is not a
-> broken token. Give the key at least one `:write` scope, or read `/v1/public/…` instead.
-> `podium whoami` detects this and says so.
+Three groupings are not guessable from the names, and getting them wrong is the usual cause of
+an unexpected 403:
+
+- **Outreach is governed by the speaker scopes.** Campaigns and the sent-mail history need
+  `speakers:read` / `speakers:write`, not an events scope — they write to people rather than
+  to the programme.
+- **`entitlements:*` sit alongside `sponsors:*`**, since entitlement routes are guarded by the
+  sponsorship they belong to.
+- **`webhooks:manage` is the platform-administration scope** — webhooks, integrations,
+  templates, the outbox, the audit log, and the only scope reaching org configuration.
+
+**No key can create, rotate or revoke an API key**, whatever it holds (INV-09-26); that is a
+person's job at `/admin/api-keys`. Listing keys works, which is how `whoami` reports a key's
+own scopes.
 
 `pii:read` is separate and additive. Without it every response redacts email addresses, phone
 numbers, dietary and accessibility notes, travel details and any form answer marked as PII —
@@ -136,7 +145,8 @@ strip the version to force the write through.
 ```
 
 - **401** — token missing, revoked or expired.
-- **403** — authenticated, not permitted. Check scopes, and re-read the read-only trap above.
+- **403** — authenticated, but the key's scopes do not name this. `podium whoami` lists them;
+  check the three non-obvious groupings above before concluding the endpoint is broken.
 - **404** — wrong id, or an id in an event this key is not pinned to.
 - **409 `version_conflict`** — someone else wrote first.
 - **422** — the request reached the domain and a rule refused it. `invariant` names the rule.
@@ -169,8 +179,11 @@ Say so rather than working around it:
   `POST /v1/proposals/:id/submit` on an API-created draft answers `422 validation_failed`
   listing every required field. An agent can triage, edit, review, decide and schedule
   proposals; it cannot author one end to end.
-- **Write review answers as another reviewer.** `POST /v1/reviews` posts a review; who it is
-  attributed to follows the assignment.
+- **Post a review.** `POST /v1/reviews` demands a signed-in person and answers
+  `401 unauthorized` to any key, whatever its scopes: a review is attributed to the reviewer
+  whose assignment it answers, and a key is nobody. The same is true of uploading a file
+  (`POST /v1/assets`, `/v1/assets/presign`) and of commenting on one. The catalogue marks
+  these `session`.
 - **Read reviewer identity** unless the round's anonymity is `open`. `reviewer_person_id`
   comes back `null` and that is the rule working, not a redaction you can unlock.
 

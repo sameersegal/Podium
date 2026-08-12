@@ -79,17 +79,19 @@ One structural change came with them: `CfpFormatOption` and `CfpTrackOption` sha
 table with a `session_format_id | track_id` cell. They are now two tables, because one row
 cannot describe two entities.
 
-## Open defects found while making the API agent-operable
+## Defects found while making the API agent-operable
 
 Building the [`podium-ops`](../../claude-plugin) plugin meant exercising every management
 endpoint against a running instance rather than reading the routes, which is a different kind
 of scrutiny from the ones above: it asks not "does the model contradict itself" but "can
-somebody who only has the API actually do the job". Two answers came back no. Both are
-recorded here rather than fixed, because each fix is a decision about the authorization
-matrix or the submission contract, not a typo.
+somebody who only has the API actually do the job". Three answers came back no.
 
-| # | Defect | Where it bites |
+D1 and D3 turned out to be the same three lines, and are fixed. D2 is a boundary rather than a
+bug, and is left open on purpose.
+
+| # | Defect | Status |
 |---|---|---|
-| D1 | **A read-only API key is refused every management read.** `apiKeyGrants` in [`http/context.ts`](../../workers/api/src/http/context.ts) maps a key's scopes onto a role — `admin` if it holds any `:write` scope, `viewer` otherwise — and `viewer` appears in no capability row of `AUTHZ_MATRIX` in [`shared/authorization.ts`](../../packages/domain/src/shared/authorization.ts). So a key granted exactly `events:read` + `proposals:read` authenticates, and then 403s on `/v1/events`, `/v1/proposals` and everything else. [`09`](09-api-and-integrations.md) presents read scopes as first-class and gives "a marketing-site key cannot accidentally be handed the review data" as the reason they are split, which is a promise the matrix does not keep. The fix is a decision: give `viewer` read across the capabilities the read scopes name, or map a read-only key onto `organizer` instead — both widen a role that currently means "staff, but nothing specific" |
-| D2 | **The management API cannot author a submission.** `POST /v1/proposals` creates a draft and `PATCH /v1/proposals/:id` performs an organizer edit of the proposal's own columns, but `ProposalAnswer` rows are written only by the portal wizard (`POST /portal/proposals/:id/step/:stepKey`), which needs the submitter's own session. `submitProposal` validates the answers, so a draft created over the API can never be submitted over the API: it answers `422` listing every required field. Every other stage of the lifecycle — triage, edit, review, decide, schedule — is fully reachable, so this is a hole in one place rather than a missing surface. It is also a defensible boundary, since a submission is a person's own statement; but it is currently an accident of which routes exist, not a rule the model states either way |
+| D1 | **A read-only API key was refused every management read.** `apiKeyGrants` graded a key's scopes into a role — `admin` for any `:write` scope, `viewer` otherwise — and `viewer` appeared in no capability row of the matrix in [`11`](11-cross-cutting.md), even though [`01`](01-identity-and-access.md) has always defined it as "read-only across the event, no scores". So a key granted `events:read` + `proposals:read` authenticated and then 403'd on everything, and so did any *person* holding a `viewer` grant | **Fixed.** The matrix gained the `viewer` column that its own definition required, and grading is gone: every key stands on the same grant and the scopes decide (INV-09-25) |
+| D3 | **Any write scope was an org admin.** `CAPABILITY_SCOPES` covered eighteen of the thirty-six capabilities and `hasScopeFor` answered `true` for the rest, deferring them to the role — which the previous row made `admin` for any key holding a `:write` scope. A key created for `tasks:write` could therefore reach `org.configure` and mint a second key carrying `pii:read` and `decisions:write`, verified against a running instance | **Fixed.** The scope table is total and default-deny, so a capability with no mapping is refused rather than inherited; and no key mints, rotates or revokes a key at all, since that escalation is not expressible in a scope table (INV-09-26) |
+| D2 | **The management API cannot author a submission.** `POST /v1/proposals` creates a draft and `PATCH /v1/proposals/:id` performs an organizer edit of the proposal's own columns, but `ProposalAnswer` rows are written only by the portal wizard (`POST /portal/proposals/:id/step/:stepKey`), which needs the submitter's own session. `submitProposal` validates the answers, so a draft created over the API can never be submitted over it: it answers `422` listing every required field. `POST /v1/reviews` is the same shape — it requires a signed-in person, so no key posts a review | **Open, and arguably correct.** Every other stage — triage, edit, review, decide, schedule — is reachable. A submission and a review are each a particular person's statement, which is a defensible thing to refuse an integration; but it is currently an accident of which routes exist rather than a rule stated either way |
 

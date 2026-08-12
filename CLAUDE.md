@@ -116,9 +116,11 @@ applied to what we tell agents about the product. The prose in each `SKILL.md` i
 `marketing-site` standard: no behaviour is described that was not executed against a running
 instance first.
 
-Two findings the plugin's own verification surfaced are recorded in
-[`13-open-questions.md`](docs/domain/13-open-questions.md) as **D1** and **D2**; the skills
-document the behaviour as it is, and both are still open in the code.
+Driving the API from outside found three defects reading it had not, recorded as **D1–D3** in
+[`13-open-questions.md`](docs/domain/13-open-questions.md). Two were the same three lines of
+scope-to-role grading and are fixed (INV-09-25, INV-09-26); D2 — that neither a submission nor
+a review can be authored over the API — is open on purpose. The skills document the surface as
+it actually behaves, which is the point of building them against a running instance.
 
 ## Current state
 

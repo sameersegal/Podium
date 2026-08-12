@@ -46,9 +46,12 @@ Then check the connection:
 node scripts/podium.mjs whoami
 ```
 
-**Give the key at least one `:write` scope.** A key holding only `:read` scopes authenticates
-as a `viewer`, which has no read permission in the authorization matrix, and is then refused
-every management read. `whoami` detects this and says so.
+**Give the key the scopes the job needs and no more.** A key reaches exactly what its scopes
+name; read-only keys read. Three groupings are not guessable from the names: campaigns and
+sent-mail history need `speakers:*`, entitlements need `sponsors:*` or `entitlements:*`, and
+webhooks, integrations, templates and the audit log need `webhooks:manage`. No key can mint
+another key — that is a person's job at `/admin/api-keys`, which now lists what each scope
+reaches next to it.
 
 ## What's in it
 
