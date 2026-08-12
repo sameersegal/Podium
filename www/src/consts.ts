@@ -16,7 +16,6 @@ export const DOMAIN_MODEL_URL = `${GITHUB_URL}/blob/main/docs/domain/README.md`;
 export const IMPLEMENTATION_URL = `${GITHUB_URL}/blob/main/docs/implementation.md`;
 export const API_DOC_URL = `${GITHUB_URL}/blob/main/docs/domain/09-api-and-integrations.md`;
 export const LICENSE_URL = `${GITHUB_URL}/blob/main/LICENSE`;
-export const DISCUSSIONS_URL = `${GITHUB_URL}/discussions`;
 export const ISSUES_URL = `${GITHUB_URL}/issues`;
 
 export const SITE_TITLE = "Podium";
@@ -52,7 +51,7 @@ export const NAV = [
  *   adapters     entries in PLUGINS in packages/plugins/src/registry.ts
  */
 export const STATS = {
-  tests: 708,
+  tests: 714,
   events: 136,
   invariants: 158,
   scopes: 22,

@@ -2,7 +2,6 @@
 import "../styles/global.css";
 import {
   APP_URL,
-  DISCUSSIONS_URL,
   DOMAIN_MODEL_URL,
   GITHUB_URL,
   IMPLEMENTATION_URL,
@@ -94,6 +93,10 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
         in, and it is all still there with scripts blocked. */}
     <header class="topbar">
       <div class="wrap">
+        {/* Deliberately not the copy in the repository root `brand/`, which is
+            650×192 and 183 KB. This is the same artwork at the size the markup
+            actually renders — every byte of the difference was being paid on
+            every page load of every page. If the logo is redrawn, both move. */}
         <a class="brand" href="/">
           <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" />
         </a>
@@ -164,8 +167,8 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
           </div>
           <div>
             <h2>Help</h2>
-            <a href={DISCUSSIONS_URL}>Discussions</a>
             <a href={ISSUES_URL}>Issue tracker</a>
+            <a href={`${GITHUB_URL}/issues/new`}>Report a problem</a>
             <a href={APP_URL}>app.podiumstack.com</a>
           </div>
         </div>
