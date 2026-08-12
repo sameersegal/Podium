@@ -112,6 +112,11 @@ page, because the repository is where they go to check you.
 
 ## C) Every claim is traceable
 
+[`www/POSITIONING.md`](../../www/POSITIONING.md) is the companion to this file: the positioning
+statement, the six capabilities, and the path that proves each one. Start there, then check the
+paths it names. It is a shortcut to the evidence, never a source of sentences, and you keep it
+current in the same commit as any page that finds it stale.
+
 Name which of these backs each factual sentence, having looked at it during this task rather than
 remembered it:
 
@@ -174,10 +179,12 @@ machinery from Claim 1, and somebody else's agent inherits those guardrails. The
 same page: a change you make is a merge you own, and nobody has run that upgrade path in public.
 Never imply a plugin surface where there is a fork.
 
-**State the boundary rather than letting them find it.** The skills and agents shipping today work
-*on* Podium. They do not run a conference from a chat window. There is no MCP server and no
-OpenAPI document, and neither may be implied. The honest sentence is that an agent drives Podium
-through an API designed for one.
+**State the boundary rather than letting them find it.** Two sets of tooling ship, and they do
+different jobs. `.claude/` builds the product. `claude-plugin/` is eight skills that operate a
+running instance over `/v1`, so an organizer's agent can work the CFP pile from a chat window.
+What does not exist is an MCP server or an OpenAPI document, and neither may be implied. Nor may
+`npm run plugin:check`, which is real but is not a CI step, so the endpoint catalogue is not
+guarded the way the domain model is.
 
 The AI first-pass review gets its own sentence: it exists, it is off unless switched on, its
 opinions are counted beside your reviewers' rather than inside them, and the evaluator that ships
@@ -426,7 +433,8 @@ npm --prefix www run screenshots
 
 ## Working rhythm
 
-1. **Read**: the brief, `README.md`, the relevant `docs/domain/` file, the pages you are changing.
+1. **Read**: the brief, `www/POSITIONING.md`, `README.md`, the relevant `docs/domain/` file, and
+   the pages you are changing.
 2. **Say in one sentence** who the page is for, what you want them to want, and which step of
    leaving the incumbent it removes. Track anything past a couple of pages with the task tools.
 3. **Draft the argument first**, then the proof under it.
