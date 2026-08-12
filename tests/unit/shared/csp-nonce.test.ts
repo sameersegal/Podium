@@ -52,6 +52,21 @@ describe("CSP nonce substitution", () => {
     expect(/script-src[^;]*'unsafe-inline'/.test(csp)).toBe(false);
   });
 
+  it("sets exactly one Content-Security-Policy header", async () => {
+    // `Headers.append` adds a second header rather than extending the first,
+    // and two CSP headers are two policies enforced together. It shipped that
+    // way, behaved correctly by luck, and made `headers.get()` return two
+    // comma-joined policies that parse as neither.
+    const res = await withSecurityHeaders(req(), html("<body></body>"));
+    const csp = res.headers.get("content-security-policy") ?? "";
+    // `get()` joins duplicate headers with ", ", and no single valid policy
+    // contains that sequence — so its absence is the assertion that there is
+    // only one header, without depending on how `Headers` iterates duplicates.
+    expect(csp).not.toContain(", ");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp.startsWith("default-src")).toBe(true);
+  });
+
   it("issues a different nonce every response", async () => {
     // A predictable nonce is `'unsafe-inline'` with extra steps.
     const a = nonceFromHeader(await withSecurityHeaders(req(), html("<body></body>")));

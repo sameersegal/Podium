@@ -118,13 +118,23 @@ export async function withSecurityHeaders(req: Request, res: Response): Promise<
     out.headers.set("referrer-policy", "strict-origin-when-cross-origin");
   }
 
+  // One policy, assembled before it is set. `Headers.append` does not extend a
+  // header's value — it adds a second header, and two `Content-Security-Policy`
+  // headers are two policies that a resource must satisfy both of. That happens
+  // to behave correctly here, and it still went out wrong: the second policy
+  // read `; frame-ancestors 'none'`, with a leading empty directive, and
+  // `headers.get()` returns the two comma-joined into something that is not a
+  // valid policy at all. Anyone reading it back would draw the wrong conclusion.
+  const framed = isEmbed(url.pathname);
   if (!out.headers.has("content-security-policy")) {
-    out.headers.set("content-security-policy", isUpload(url.pathname) ? UPLOAD_CSP : cspFor(nonce));
+    const base = isUpload(url.pathname) ? UPLOAD_CSP : cspFor(nonce);
+    out.headers.set("content-security-policy", framed ? base : `${base}; frame-ancestors 'none'`);
   }
 
-  if (!out.headers.has("x-frame-options") && !isEmbed(url.pathname)) {
+  // `X-Frame-Options` for the browsers that predate `frame-ancestors`. The two
+  // say the same thing, and the embed is exempt from both.
+  if (!out.headers.has("x-frame-options") && !framed) {
     out.headers.set("x-frame-options", "DENY");
-    out.headers.append("content-security-policy", "; frame-ancestors 'none'");
   }
 
   // Only over https, and only for a real hostname: a `Strict-Transport-Security`
