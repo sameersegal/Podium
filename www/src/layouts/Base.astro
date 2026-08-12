@@ -111,7 +111,11 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
       </div>
     </header>
 
-    <main id="main">
+    {/* `tabindex="-1"` is what makes the skip link finish its job. Without it the
+        jump scrolls the page but leaves focus on <body>, so the next Tab starts
+        again from the top of the header — the reader skips the nav and lands
+        right back in it. */}
+    <main id="main" tabindex="-1">
       <slot />
     </main>
 
