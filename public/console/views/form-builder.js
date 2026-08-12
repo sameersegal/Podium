@@ -396,6 +396,9 @@ function fieldRow(ctx, step, f, index, total) {
           f.maps_to && f.maps_to !== "none" ? [" · ", h("span", { class: "badge" }, "→ " + humanise(f.maps_to))] : null,
           f.audience !== "public" ? [" · ", h("span", { class: "badge warn" }, humanise(f.audience))] : null,
           f.pii ? [" · ", h("span", { class: "badge err", title: "Personal data" }, "PII")] : null,
+          f.identifies_speaker
+            ? [" · ", h("span", { class: "badge warn", title: "Hidden from reviewers in a blind round" }, "identifies")]
+            : null,
           f.visible_when ? [" · ", h("span", { class: "badge" }, "conditional")] : null,
         ),
       ),
@@ -612,6 +615,19 @@ function inspector(ctx) {
         disabled: !ctx.draft,
         help: "Redaction is default-on: a field marked here is withheld from every surface that is not entitled to it.",
         onchange: (e) => save({ pii: e.target.checked }),
+      }),
+      // Independent of `pii`, and deliberately beside it so the two are not
+      // confused: a speaker bio is published next to the talk, so it is not
+      // personal data to redact — it is simply fatal to anonymity, and a blind
+      // round must not show it (05, "Fairness rules made explicit").
+      field({
+        name: "identifies_speaker",
+        label: "This answer names its speaker",
+        type: "checkbox",
+        value: f.identifies_speaker,
+        disabled: !ctx.draft,
+        help: "Hidden from reviewers in a double-blind round. Set this on a bio or an employer question, which are published but would give the speaker away.",
+        onchange: (e) => save({ identifies_speaker: e.target.checked }),
       }),
       f.visible_when
         ? h(

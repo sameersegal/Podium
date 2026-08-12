@@ -25,7 +25,6 @@ import { answerDisplay } from "@podiumconf/domain/submissions/answer-display.js"
 import { isBlank, type AnswerMap } from "@podiumconf/domain/submissions/answers.js";
 import { nextAction, type EditAffordance, type NextAction } from "@podiumconf/domain/submissions/types.js";
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
-import { formatInZone } from "@podiumconf/domain/shared/time.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";

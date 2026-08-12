@@ -179,6 +179,45 @@ describe("form reorder", () => {
     expect(await orderOf()).toEqual(before);
   });
 
+  /**
+   * The console's builder reads this one endpoint and draws its inspector from
+   * it, so a field attribute the payload omits is one no organizer can set. It
+   * has already happened once: `identifies_speaker` exists because a blind
+   * round was showing speaker bios, and a builder that cannot set the flag
+   * cannot fix that.
+   */
+  it("the builder payload carries every attribute the inspector edits", async () => {
+    const res = await SELF.fetch(`http://localhost/v1/cfps/${CFP}/builder`, { headers: { cookie, accept: "application/json" } });
+    expect(res.status).toBe(200);
+    const { data } = (await res.json()) as {
+      data: { form: { steps: { fields: Record<string, unknown>[] }[] }; field_types: unknown[]; maps_to: unknown[]; audiences: unknown[] };
+    };
+    const field = data.form.steps.flatMap((s) => s.fields)[0];
+    for (const attribute of [
+      "id",
+      "key",
+      "label",
+      "help_text",
+      "placeholder",
+      "type",
+      "options",
+      "is_required",
+      "visible_when",
+      "maps_to",
+      "audience",
+      "pii",
+      "identifies_speaker",
+      "sort_order",
+    ]) {
+      expect(field, `the builder cannot edit what it is not sent: ${attribute}`).toHaveProperty(attribute);
+    }
+    // And the catalogues the pickers are drawn from, so neither can drift from
+    // the enums the model owns.
+    expect(data.field_types.length).toBeGreaterThan(0);
+    expect(data.maps_to.length).toBeGreaterThan(0);
+    expect(data.audiences.length).toBeGreaterThan(0);
+  });
+
   it("INV-02-9 rearranges a published form in place but refuses to move a field to another step", async () => {
     await run("UPDATE submission_form SET status = 'published', published_at = ? WHERE id = ?", [new Date().toISOString(), FORM]);
 

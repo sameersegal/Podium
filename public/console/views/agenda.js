@@ -347,6 +347,9 @@ function placementBlock(ctx, p, win) {
     {
       key: p.id,
       class: cx("agenda-block", conflicted && "is-conflicted", dragging && "is-dragging"),
+      // Named on the element so a conflict, a live frame or a test can find the
+      // block that belongs to a placement without matching on its title.
+      "data-placement": p.id,
       style: { top: (p.start_minutes - win.start) * PPM + "px", height: Math.max(20, minutes * PPM) + "px" },
       title: p.session.title + " — " + clockOf(p.start_minutes) + "–" + clockOf(p.end_minutes),
       onpointerdown: ctx.writable ? (ev) => startDrag(ctx, ev, { placement: p }) : null,
