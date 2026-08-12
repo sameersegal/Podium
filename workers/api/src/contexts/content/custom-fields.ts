@@ -47,9 +47,12 @@ export interface CreateFieldInput extends DefinitionInput {
  * `assertDeclaredClassification` checks presence, not truthiness.
  */
 export async function createDefinition(app: AppContext, input: CreateFieldInput): Promise<Row> {
-  assertDefinitionShape(input);
-  const { pii, audience } = assertDeclaredClassification(input);
+  // "Leave blank to derive from the label" (the form's own help text) has to
+  // be true before shape-checking runs, or leaving it blank is punished with
+  // "a key is lowercase letters, digits and hyphens" instead of honoured.
   const key = input.key ? slugify(input.key) : slugify(input.label);
+  assertDefinitionShape({ ...input, key });
+  const { pii, audience } = assertDeclaredClassification(input);
 
   const existing = await app.db.first<Row>("custom_field_definition", { subject_type: input.subject_type, key });
   if (existing) {

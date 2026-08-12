@@ -156,8 +156,15 @@ export async function resolveAudience(app: AppContext, audience: AudienceCriteri
       break;
     case "segment": {
       if (audience.segment_id) {
-        const seg = await app.db.byId<Row>("contact_segment", audience.segment_id);
-        personIds = seg ? parseJson<string[]>(seg.member_person_ids, []) : [];
+        // A dynamic segment stores its filter in `criteria`, not a frozen
+        // `member_person_ids` list — reading the column directly here (as
+        // this used to) resolved every dynamic segment to zero recipients,
+        // silently, at the one moment it mattered: actually sending. The
+        // segment detail page already gets this right (`segmentMembers`);
+        // this has to agree with it.
+        const { getSegment, segmentMembers } = await import("../crm/service.js");
+        const seg = await getSegment(app, audience.segment_id);
+        personIds = (await segmentMembers(app, seg)).map((m) => str(m.id));
       }
       break;
     }

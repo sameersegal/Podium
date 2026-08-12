@@ -3,7 +3,8 @@
  *
  * Admin (server-rendered): /admin/settings, /admin/api-keys, /admin/webhooks(/:id/deliveries),
  *   /admin/integrations, /admin/templates, /admin/events/:eventId/campaigns (+ compose),
- *   /admin/campaigns/:id, /admin/outbox, /admin/audit, /admin/event-log(/:id).
+ *   /admin/campaigns/new (org-level, from a CRM contact selection or segment — no event on
+ *   the audience), /admin/campaigns/:id, /admin/outbox, /admin/audit, /admin/event-log(/:id).
  * Management API: /v1/api-keys, /v1/webhooks, /v1/integrations, /v1/campaigns, /v1/notifications.
  */
 
@@ -980,6 +981,66 @@ function registerCampaignRoutes(router: Router<RequestContext>): void {
       body_markdown: input.str("body_markdown"),
       audience,
       event_id: params.eventId,
+    });
+    await app.flush();
+    return redirect(`/admin/campaigns/${str(campaign.id)}`, 303, OK("Campaign saved as a draft."));
+  });
+
+  /**
+   * The org-level composer — for an audience that predates any one event, or
+   * spans several. `Campaign.event_id` is nullable and `resolveAudience`
+   * already handles the `people`/`segment` kinds without an event on the
+   * criteria; only the route was missing. Two entry points reach it before
+   * this existed and 404'd every time: the contacts directory's bulk
+   * "Start a campaign with these contacts" and a segment's "Send a campaign
+   * to this segment".
+   */
+  router.get("/admin/campaigns/new", async (_req, ctx) => {
+    ctx.requireWrite("campaign.send", { event_id: null });
+    const app = ctx.app();
+    const personIds = (ctx.url.searchParams.get("person_ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    const segmentId = ctx.url.searchParams.get("segment_id");
+    if (!personIds.length && !segmentId) {
+      throw notFound("A campaign needs a starting audience — from the contacts directory or a segment");
+    }
+    const audience: AudienceCriteria = segmentId ? { kind: "segment", segment_id: segmentId } : { kind: "people", person_ids: personIds };
+    const [templates, preview] = await Promise.all([listTemplates(app, null), previewAudience(app, audience)]);
+    return htmlResponse(
+      adminPage(
+        ctx,
+        { title: "Compose a campaign", active: "contacts", width: "narrow" },
+        html`${pageHead("Compose a campaign", `${preview.total} recipient${preview.total === 1 ? "" : "s"} — ${segmentId ? "this segment" : "the contacts you selected"}.`)}
+          ${card(
+            html`${preview.sample.map((m) => html`<p class="small muted">${str(m.name)} — ${str(m.email)}</p>`)}${preview.total > preview.sample.length ? html`<p class="small muted">… and ${preview.total - preview.sample.length} more.</p>` : raw("")}`,
+            "Who this reaches",
+          )}
+          ${card(html`<form method="post" action="/admin/campaigns/new" class="stack">
+            <input type="hidden" name="audience_kind" value="${segmentId ? "segment" : "people"}">
+            ${segmentId ? html`<input type="hidden" name="segment_id" value="${segmentId}">` : html`<input type="hidden" name="person_ids" value="${personIds.join(",")}">`}
+            ${field({ name: "name", label: "Internal name", required: true, placeholder: "Speak at DevFlow Conf 2027?" })}
+            ${field({ name: "channel", label: "Channel", type: "select", required: true, value: "email", options: [{ value: "email", label: "Email" }, { value: "chat", label: "Chat" }] })}
+            ${field({ name: "template_id", label: "Based on template (optional)", type: "select", options: templates.map((t) => ({ value: str(t.id), label: str(t.key) })) })}
+            ${field({ name: "subject", label: "Subject", placeholder: "Speak at DevFlow Conf 2027?" })}
+            ${field({ name: "body_markdown", label: "Body (markdown)", type: "textarea", rows: 8, required: true, help: "{{recipient.first_name}}, {{event.name}} and the rest of the common set resolve per recipient." })}
+            <button type="submit">Save as draft</button>
+          </form>`)}`,
+      ),
+    );
+  });
+
+  router.post("/admin/campaigns/new", async (req, ctx) => {
+    ctx.requireWrite("campaign.send", { event_id: null });
+    const input = await readInput(req);
+    const app = ctx.app();
+    const audience = readAudience(input);
+    const campaign = await createCampaign(app, {
+      name: input.str("name"),
+      channel: input.str("channel", "email") as "email" | "chat",
+      template_id: input.optional("template_id"),
+      subject: input.optional("subject"),
+      body_markdown: input.str("body_markdown"),
+      audience,
+      event_id: null,
     });
     await app.flush();
     return redirect(`/admin/campaigns/${str(campaign.id)}`, 303, OK("Campaign saved as a draft."));
