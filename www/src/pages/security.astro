@@ -1,8 +1,10 @@
 ---
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
+import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
 import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL, STATS } from "../consts";
+import { BUILT_WITH } from "../data/marks";
 
 /*
  * For the person who has to answer "where does our speakers' personal data go"
@@ -104,10 +106,20 @@ const ACCESS = [
   description="Where your speakers' personal data lives, what is redacted by default, how export and erasure work, what an August 2026 security review found and fixed, and the one weakness still open."
 >
   <PageHead
+    rail
     eyebrow="Security & data"
     title="It is your database, in your account, under your policy."
     lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. Below is what the software does with it, and at the bottom, what a review found and what is still wrong."
-  />
+  >
+    {/* The same claim string as every other page's copy of this strip, and
+        deliberately so. It was briefly "everything in the deployment, and
+        nothing else", which is a better sentence for this page and false:
+        GitHub, Vitest and Claude Code are where the source lives, what tests it
+        and what wrote it. None of them is in the running deployment or ever
+        sees your data. The lede above already makes the page's own argument,
+        and it is the one that has to be exactly true. */}
+    <Logos dark items={BUILT_WITH} claim="What builds it, and what it runs on" />
+  </PageHead>
 
   <section>
     <div class="wrap">

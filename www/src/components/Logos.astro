@@ -1,0 +1,55 @@
+---
+import { MARKS } from "../data/marks";
+
+/**
+ * A row of brand marks under a sentence that says what the row is claiming.
+ *
+ * The sentence is not decoration. A logo strip with no caption is the oldest
+ * unfalsifiable claim on the internet — it implies a relationship without
+ * naming one, and the reader supplies the flattering interpretation. So every
+ * strip states what the logos mean: these are what it is built with, or these
+ * are what has an adapter you can install today. Two different claims, and the
+ * reader is told which one they are looking at.
+ *
+ * Marks come from `src/data/marks.ts`, which carries the rule about where the
+ * artwork is allowed to come from. An entry with no mark renders as its name
+ * alone, which is why the layout puts the name beside the glyph rather than
+ * under it: the row survives a missing mark without a hole in it.
+ */
+interface Props {
+  /** Keys into MARKS, in the order they should read. */
+  items: readonly string[];
+  /** What the row is claiming. Required — see the note above. */
+  claim: string;
+  /** Sits on a dark ground; the strip goes light rather than dark. */
+  dark?: boolean;
+}
+
+const { items, claim, dark = false } = Astro.props;
+const marks = items.map((key) => {
+  const mark = MARKS[key];
+  if (!mark) throw new Error(`Logos: no mark named "${key}" in src/data/marks.ts`);
+  return mark;
+});
+---
+
+<div class={`logos${dark ? " on-dark" : ""}`}>
+  <p class="logos-claim">{claim}</p>
+  {/* A list, because it is one: five peers with no order that matters. The
+      glyph is aria-hidden and the name is real text, so a screen reader gets
+      "Cloudflare Workers" once rather than an unlabelled path. */}
+  <ul class="logos-row">
+    {
+      marks.map((mark) => (
+        <li>
+          {mark.path && (
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+              <path d={mark.path} fill="currentColor" />
+            </svg>
+          )}
+          <span>{mark.name}</span>
+        </li>
+      ))
+    }
+  </ul>
+</div>

@@ -587,6 +587,166 @@ table.matrix.creds td:last-child { min-width: 15rem; }
 .band-dark .kpi b { color: #fff; }
 .band-dark .kpi span { color: var(--on-dark-dim); }
 
+/* ---------- the five pillars ----------
+   The claims the whole site rests on, at the size they are worth. The first one
+   takes a full row and the biggest picture and the other four share a grid
+   under it, because a reader who takes one thing from the section should take
+   the first one — five equal cards give them no way to know which that is.
+
+   All of it sits on `.band-dark`, so the card surface, the muted paragraph
+   colour and the link colour are already correct and nothing here restates
+   them. What is new is the picture, the number and the ranking. */
+.pillars-band { padding-block: 5rem; }
+.pillar {
+  background: rgb(255 255 255 / 5%);
+  border: 1px solid rgb(199 210 254 / 20%);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 1.6rem;
+  display: grid;
+  gap: 1.5rem;
+}
+.pillar.lead {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: center;
+  gap: 2.5rem;
+  padding: 2.25rem 2rem;
+  margin-bottom: 1rem;
+  /* The lead pillar is the one thing here that should look promoted, so it gets
+     a tint the other four do not have. One step, not a second style. */
+  background: linear-gradient(135deg, rgb(124 108 245 / 14%), rgb(255 255 255 / 4%) 60%);
+  border-color: rgb(199 210 254 / 30%);
+}
+/* Two columns, stated rather than fitted. `auto-fit` gave three at 1440px and
+   left the fourth card alone on a row of its own — four items want 2×2, and no
+   viewport width makes an orphan of them. */
+.pillar-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 52rem) {
+  .pillar-grid { grid-template-columns: minmax(0, 1fr); }
+}
+/* The four in the grid put the picture above the copy; the lead puts it beside.
+   `align-content: start` so a short card does not stretch its picture. */
+.pillar-grid .pillar { align-content: start; }
+
+/* The abstract art. Every other image on this site is a photograph of the
+   running product and these are the only ones that are not, so they are shaped
+   like nothing the product contains: square, wordless, and without the frame
+   that marks a screenshot.
+
+   Two properties together are what stop it reading as a pasted-on tile.
+   `mix-blend-mode: screen` drops the render's near-black ground into the band
+   behind it, and the radial mask fades the four corners to nothing. Screen
+   alone was not enough: over the card's translucent white surface it lifted the
+   square just enough to draw a visible lighter box, which is the one thing an
+   image with no edges is supposed to avoid. */
+.pillar-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
+  mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
+}
+.pillar-grid .pillar-art { max-width: 13rem; margin-inline: auto; }
+
+.pillar-n {
+  display: block;
+  font: 700 .78rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .12em;
+  color: #a5b4fc;
+  margin-bottom: .6rem;
+}
+.pillar h3 { font-size: 1.25rem; margin-bottom: .6rem; }
+.pillar.lead h3 { font-size: clamp(1.35rem, 2.8vw, 1.85rem); }
+.band-dark .pillar p { color: var(--on-dark-dim); font-size: .97rem; }
+.pillar.lead p { font-size: 1.02rem; }
+
+/* The number, sized like the claim it is. `baseline` so a two-character value
+   ("22") and a three-word unit sit on one line without the unit floating. */
+.pillar-stat {
+  display: flex;
+  align-items: baseline;
+  gap: .6rem;
+  margin: 1.1rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid rgb(199 210 254 / 18%);
+}
+.pillar-stat b { font-size: 1.75rem; line-height: 1; letter-spacing: -.03em; color: #fff; }
+.band-dark .pillar-stat span { color: var(--on-dark-dim); font-size: .85rem; }
+.pillar .jump { margin: .9rem 0 0; font-weight: 600; font-size: .95rem; }
+
+@media (max-width: 60rem) {
+  /* The lead loses its second column before the copy gets too narrow to read,
+     and its picture goes under the copy rather than beside it. */
+  .pillar.lead { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding: 1.75rem 1.6rem; }
+  .pillar.lead .pillar-art { max-width: 20rem; margin-inline: auto; }
+  .pillars-band { padding-block: 3.5rem; }
+}
+
+/* ---------- the pillar rail ----------
+   Five short labels directly under the hero's call to action: the whole
+   argument in five noun phrases, before the reader has scrolled once. It is a
+   summary and not navigation — no links, because every one of them is a section
+   further down, and a rail of five competing links beside two buttons is how a
+   hero ends up with seven primary actions and therefore none. */
+.rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem .6rem;
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+.rail li {
+  font-size: .84rem;
+  font-weight: 600;
+  color: #e0e7ff;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(199 210 254 / 22%);
+  border-radius: 999px;
+  padding: .35rem .85rem;
+  white-space: nowrap;
+}
+
+/* ---------- logo strips ----------
+   A row of brand marks under a sentence saying what the row is claiming.
+   Monochrome and one size, so no brand's own colour is reproduced and none of
+   them can be wrong; `currentColor` on the path is what makes the light and
+   dark variants one rule rather than two.
+
+   `flex` and not a grid: the entries are different widths because the names
+   are, and a grid would either clip "Cloudflare Workers" or leave a hole after
+   "Slack". */
+.logos { margin: 2rem 0 0; }
+.logos-claim {
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: .9rem;
+}
+.logos-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.logos-row li { display: flex; align-items: center; gap: .5rem; font-size: .95rem; font-weight: 600; color: var(--navy); }
+.logos-row svg { flex: none; }
+/* On a dark ground the marks go to the dim tint and the names to the bright
+   one, which keeps the glyphs from out-shouting the words they label. */
+.logos.on-dark .logos-claim { color: #a5b4fc; }
+.logos.on-dark .logos-row li { color: #e0e7ff; }
+.logos.on-dark .logos-row svg { color: var(--on-dark-dim); }
+.hero .logos { margin-top: 2.25rem; }
+
 /* ---------- credentials ----------
    `word-break: break-all` fitted these into the column and broke them
    mid-address — "sbek-organ / izer@examp / le.com" — which is unreadable and
@@ -685,6 +845,13 @@ main p.nextstep > a, main p.jump > a { display: inline-flex; align-items: center
      then overflows the viewport. The desktop tracks above are already written
      this way for the same reason. */
   .feature { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; padding: 2.5rem 0; }
+  /* `.feature.flip` and not `.feature`: two classes outrank one whatever the
+     source order, so collapsing `.feature` alone left every flipped row still
+     in two columns on a phone — the copy in a 55% track and the screenshot
+     shrunk into the 45% beside it, at about a third of the width the rows above
+     and below it use. The rule that collapses a row has to be as specific as
+     the rule that widened it. */
+  .feature, .feature.flip { grid-template-columns: minmax(0, 1fr); }
   /* `order` is what flips alternate rows on desktop; on one column it would put
      half the screenshots above their own heading. */
   .feature.flip .copy { order: 0; }

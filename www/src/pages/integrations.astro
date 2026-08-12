@@ -1,9 +1,11 @@
 ---
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
+import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
 import Shot from "../components/Shot.astro";
 import { AGENT_PROPERTIES, ALWAYS_ON, CONTRACTED_NOT_BUILT, SHIPPED } from "../data/integrations";
+import { BUILT_WITH, CONNECTS_TO } from "../data/marks";
 import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
 
 /*
@@ -31,10 +33,13 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
   description="Podium sends mail through Resend or SendGrid, posts to Slack, mirrors your programme two ways into Airtable, stores assets in your own bucket, and publishes a signed webhook for every change. The core imports no vendor SDK."
 >
   <PageHead
+    rail
     eyebrow="Integrations"
     title="It connects to your stack without becoming part of it."
     lede="Podium's core imports no vendor SDK and names no provider. Every integration is an adapter behind a narrow contract, so swapping Resend for SendGrid is an install and a default flag."
-  />
+  >
+    <Logos dark items={CONNECTS_TO} claim="Adapters you can install today" />
+  </PageHead>
 
   <section>
     <div class="wrap">
@@ -195,6 +200,10 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
           machine-readable schema file. Anything driving Podium today is driving HTTP.
         </p>
       </div>
+
+      {/* Directly under the paragraph that makes the provenance claim, because
+          this is the checkable half of it. */}
+      <Logos items={BUILT_WITH} claim="What builds it, and what it runs on" />
     </div>
   </section>
 

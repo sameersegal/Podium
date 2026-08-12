@@ -1,0 +1,17 @@
+---
+import { PILLARS } from "../data/pillars";
+
+/**
+ * The five pillars as five noun phrases, on the dark ground at the top of a
+ * page. The whole argument before the reader has scrolled once.
+ *
+ * Deliberately not links. Every label here is a section further down or a page
+ * in the nav, and a rail of five competing links sitting beside the page's two
+ * buttons is how a header ends up with seven primary actions and therefore
+ * none. It is a summary; the nav is the navigation.
+ */
+---
+
+<ul class="rail">
+  {PILLARS.map((p) => <li>{p.label}</li>)}
+</ul>

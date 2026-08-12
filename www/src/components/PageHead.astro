@@ -1,4 +1,6 @@
 ---
+import Rail from "./Rail.astro";
+
 /**
  * The top of an interior page.
  *
@@ -7,14 +9,22 @@
  * glow, no image, and room for one sentence saying who the page is for. Sharing
  * the ground colour is what keeps the header from looking like it belongs to a
  * different site once you leave the landing page.
+ *
+ * `rail` puts the five pillars under the lede. Every page is an entry point now,
+ * so a reader who lands on /security from a search result should be able to see
+ * what the product is without going back to the home page for it. It is off by
+ * default because two pages do not want it: /demo, whose one job is the
+ * credentials table, and /compare, which carries the pillars in full further
+ * down and would otherwise state them twice within one screen.
  */
 interface Props {
   eyebrow: string;
   title: string;
   lede: string;
+  rail?: boolean;
 }
 
-const { eyebrow, title, lede } = Astro.props;
+const { eyebrow, title, lede, rail = false } = Astro.props;
 ---
 
 <div class="pagehead">
@@ -22,6 +32,7 @@ const { eyebrow, title, lede } = Astro.props;
     <span class="eyebrow">{eyebrow}</span>
     <h1>{title}</h1>
     <p class="lede">{lede}</p>
+    {rail && <Rail />}
     <slot />
   </div>
 </div>

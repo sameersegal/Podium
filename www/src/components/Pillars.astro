@@ -1,0 +1,108 @@
+---
+import { PILLARS } from "../data/pillars";
+
+/**
+ * The five pillars, at the size they are worth.
+ *
+ * The first one gets a full row and the largest picture; the other four share a
+ * grid under it. That is a deliberate ranking, not a layout convenience — a
+ * reader who takes one thing from this section should take the first one, and
+ * five equal cards give them no way to know which that is.
+ *
+ * The art is abstract on purpose. Every other image on this site is a
+ * photograph of the running product, and these are the only ones that are not,
+ * so they must never be mistakable for one: no screens, no charts, no interface
+ * and no text inside the frame. They carry no information, which is why every
+ * fact in this section is in the words beside them and none of it is in the
+ * picture.
+ */
+interface Props {
+  eyebrow?: string;
+  heading?: string;
+  sub?: string;
+  /** Above the fold on the home page; the lead image must not be lazy. */
+  eager?: boolean;
+}
+
+const {
+  eyebrow = "Why this one",
+  heading = "Five things that are true before you look at a single screen.",
+  sub,
+  eager = false,
+} = Astro.props;
+
+const [lead, ...rest] = PILLARS;
+---
+
+<section class="band-dark pillars-band">
+  <div class="wrap">
+    <span class="eyebrow">{eyebrow}</span>
+    <h2>{heading}</h2>
+    {sub && <p class="sub">{sub}</p>}
+
+    <div class="pillar lead reveal">
+      <div class="pillar-copy">
+        <span class="pillar-n" aria-hidden="true">01</span>
+        <h3>{lead.heading}</h3>
+        <p>{lead.body}</p>
+        {
+          lead.stat && (
+            <p class="pillar-stat">
+              <b>{lead.stat.value}</b>
+              <span>{lead.stat.unit}</span>
+            </p>
+          )
+        }
+        <p class="jump"><a href={lead.href}>{lead.hrefLabel} →</a></p>
+      </div>
+      <img
+        class="pillar-art"
+        src={`/art/${lead.art}.webp`}
+        width={720}
+        height={720}
+        alt={lead.alt}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+      />
+    </div>
+
+    <div class="pillar-grid">
+      {
+        rest.map((p, i) => (
+          <div class="pillar reveal">
+            <img
+              class="pillar-art"
+              src={`/art/${p.art}.webp`}
+              width={420}
+              height={420}
+              alt={p.alt}
+              loading="lazy"
+              decoding="async"
+            />
+            <div class="pillar-copy">
+              <span class="pillar-n" aria-hidden="true">
+                0{i + 2}
+              </span>
+              <h3>{p.heading}</h3>
+              <p>{p.body}</p>
+              {p.stat && (
+                <p class="pillar-stat">
+                  <b>{p.stat.value}</b>
+                  <span>{p.stat.unit}</span>
+                </p>
+              )}
+              <p class="jump">
+                <a href={p.href}>{p.hrefLabel} →</a>
+              </p>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+
+    {/* Whatever the page wants to close the band with — the counts, a logo
+        strip, the link into the model. Kept as a slot so the five pillars read
+        identically on every page and only the footer of the band changes. */}
+    <slot />
+  </div>
+</section>

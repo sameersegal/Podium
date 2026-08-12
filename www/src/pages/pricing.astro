@@ -1,8 +1,10 @@
 ---
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
+import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
 import { GITHUB_URL, LICENSE_URL } from "../consts";
+import { BUILT_WITH } from "../data/marks";
 
 /*
  * For whoever holds the budget, and for the chair who has to explain to them
@@ -89,6 +91,7 @@ const FAQ = [
   description="Podium is free and MIT-licensed. The only bill is your own Cloudflare account — here is what it is made of, and what the model costs you in things that are not money."
 >
   <PageHead
+    rail
     eyebrow="Pricing"
     title="The software is free. The hosting is yours. That is the whole model."
     lede="No licence, no seats, no per-speaker charge, no sales call and no quote. Below is what you will actually pay, and what this model costs you in things that are not money."
@@ -134,6 +137,14 @@ const FAQ = [
           the only source that binds.
         </p>
       </div>
+
+      {/* Under the bill, so a reader can see how short the stack is against how
+          short the table is. The claim stays the neutral one used on every
+          other page: "one vendor on the bill, the rest of the stack is free"
+          reads better here and is not something this row can carry — Claude
+          Code is a paid product, and it is on the strip. What is free is stated
+          in the table above, line by line, where it is exact. */}
+      <Logos items={BUILT_WITH} claim="What builds it, and what it runs on" />
     </div>
   </section>
 

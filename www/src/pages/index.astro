@@ -1,8 +1,12 @@
 ---
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
+import Logos from "../components/Logos.astro";
+import Pillars from "../components/Pillars.astro";
+import Rail from "../components/Rail.astro";
 import Shot from "../components/Shot.astro";
 import { DOMAIN_MODEL_URL, GITHUB_URL, STATS } from "../consts";
+import { BUILT_WITH, CONNECTS_TO } from "../data/marks";
 
 /*
  * The order of this page is the order the pain arrives in.
@@ -23,14 +27,22 @@ import { DOMAIN_MODEL_URL, GITHUB_URL, STATS } from "../consts";
  * Every claim below is either visible in the screenshot beside it or backed by
  * the rule in docs/domain/ that enforces it. Nothing here is aspirational.
  *
- * The dark band carries three structural claims, the third of which is the
- * agents-first pillar in its shortest honest form: agents build this repository
- * (CLAUDE.md, .claude/agents/, .claude/skills/, `npm run drift` in CI) and the
- * management API is shaped for a machine caller (idempotency keys, typed
- * refusals, personal data behind its own scope). The boundary — the tooling in
- * the box builds the product, it does not run a conference — is stated on
+ * The dark band carries the five pillars (src/data/pillars.ts), of which the
+ * agents-first one leads and is deliberately the largest thing in the section.
+ * Its shortest honest form: agents build this repository (CLAUDE.md,
+ * .claude/agents/, .claude/skills/, `npm run drift` in CI) and the management
+ * API is shaped for a machine caller (idempotency keys, typed refusals,
+ * personal data behind its own scope). The boundary — the tooling in the box
+ * builds the product, it does not run a conference — is stated on
  * /integrations, one click away, because that is where there is room to say it
  * properly. Nothing on this page may imply an organizer-facing agent exists.
+ *
+ * The rail under the hero and the two logo strips are emphasis, not new claims.
+ * The rail is the five pillars as five noun phrases, so the argument is legible
+ * before the first scroll. The strips make two claims the prose already made —
+ * this is what it is built with, this is what has an adapter today — and both
+ * are captioned, because an uncaptioned logo wall implies a relationship it has
+ * not named and lets the reader supply the flattering one.
  */
 
 const pains = [
@@ -81,6 +93,9 @@ const pains = [
       <p class="reassure">
         <strong>No per-speaker pricing.</strong> No sales call. No data you cannot export.
       </p>
+
+      {/* The whole argument in five noun phrases, before the first scroll. */}
+      <Rail />
 
       <div class="stage">
         <Shot
@@ -238,58 +253,54 @@ const pains = [
           </p>
         </div>
       </div>
+
+      {/* The strip names the providers; the screenshot under it is them
+          installed and running, which is the part a logo wall cannot do. */}
+      <Logos items={CONNECTS_TO} claim="Adapters you can install today" />
+
+      <div class="feature reveal" style="margin-top: 2.5rem">
+        <div class="copy">
+          <h3>One default per capability. The rest sit idle.</h3>
+          <p>
+            Each integration declares the settings it needs and one credential. You give Podium the
+            <em>name</em> of a secret and it resolves it at call time, so the credential never lands
+            in the settings screen, the audit log or an export.
+          </p>
+          <p>
+            A misconfigured provider says so here, with the provider's own error. It does not fail
+            quietly as four hundred acceptance emails go out.
+          </p>
+        </div>
+        <Shot
+          name="integrations"
+          height={900}
+          url="app.podiumstack.com/admin/integrations"
+          alt="The integrations screen listing five installed adapters — Resend and SendGrid for email, Slack for chat, and two sync providers including Airtable — each active, with Resend and Airtable flagged as the default for their capability."
+        />
+      </div>
+
       <p class="nextstep"><a href="/integrations">Every integration, and the contract behind it →</a></p>
     </div>
   </section>
 
-  <section class="band-dark">
-    <div class="wrap">
-      <span class="eyebrow">Yours, actually</span>
-      <h2>Run it, read it, hand it to an agent.</h2>
-      <p class="sub">None of these is a feature. They are consequences of how it is built.</p>
-      <div class="two-col">
-        <div>
-          <h3>It deploys to infrastructure you own</h3>
-          <p>
-            MIT-licensed, built for Cloudflare. It goes to an account in your name, with your
-            speakers' data in your database. No hosted tier, and no price that changes when your
-            conference grows.
-          </p>
-          <p class="jump"><a href="/pricing">What it actually costs to run →</a></p>
-        </div>
-
-        <div>
-          <h3>The rules were written down before the code</h3>
-          <p>
-            Who may see a reviewer's score, what happens to an unused sponsor slot, what a deadline
-            does when it passes. All specified in a normative model, and a check in CI fails the
-            build when code and model disagree.
-          </p>
-          <p class="jump"><a href={DOMAIN_MODEL_URL}>Read the domain model →</a></p>
-        </div>
-
-        <div>
-          <h3>Agents built it, and can drive it</h3>
-          <p>
-            Podium is built by coding agents held to that specification. One stops when the model
-            does not cover the request. Another checks the code back against the model, in CI.
-          </p>
-          <p>
-            The API is shaped for the same caller. Every write takes an idempotency key, a refusal
-            names the rule it broke, and personal data needs a scope of its own.
-          </p>
-          <p class="jump"><a href="/integrations">What an agent needs to drive it →</a></p>
-        </div>
-      </div>
-
-      <div class="kpis" style="margin-top: 2.75rem">
-        <div class="kpi"><b>{STATS.tests}</b><span>tests, unit and integration</span></div>
-        <div class="kpi"><b>{STATS.invariants}</b><span>written rules the code enforces</span></div>
-        <div class="kpi"><b>{STATS.events}</b><span>events you can subscribe to</span></div>
-        <div class="kpi"><b>{STATS.scopes}</b><span>API scopes, personal data its own</span></div>
-      </div>
+  <Pillars
+    eyebrow="Yours, actually"
+    heading="Five things that are true before you look at a single screen."
+    sub="None of these is a feature. They are consequences of how it is built."
+  >
+    <div class="kpis" style="margin-top: 2.75rem">
+      <div class="kpi"><b>{STATS.tests}</b><span>tests, unit and integration</span></div>
+      <div class="kpi"><b>{STATS.invariants}</b><span>written rules the code enforces</span></div>
+      <div class="kpi"><b>{STATS.events}</b><span>events you can subscribe to</span></div>
+      <div class="kpi"><b>{STATS.scopes}</b><span>API scopes, personal data its own</span></div>
     </div>
-  </section>
+
+    <Logos dark items={BUILT_WITH} claim="What builds it, and what it runs on" />
+
+    <p class="nextstep">
+      <a href={DOMAIN_MODEL_URL}>The rules, written down before the code →</a>
+    </p>
+  </Pillars>
 
   <section>
     <div class="wrap">

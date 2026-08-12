@@ -2,6 +2,7 @@
 import Base from "../layouts/Base.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
+import Pillars from "../components/Pillars.astro";
 import {
   AUDIENCES,
   CHECKED,
@@ -116,48 +117,38 @@ import {
     </div>
   </section>
 
-  <section class="band-dark">
-    <div class="wrap">
-      <span class="eyebrow">Where Podium wins</span>
-      <h2>Five differences worth switching for.</h2>
-      <div class="two-col">
-        <div>
-          <h3>Sponsor sessions are modelled, not bolted on</h3>
-          <p>
-            A package is a countable set of entitlements — two session slots, a logo placement — and
-            a sponsor session consumes one. Used against bought, on the same screen as the deal.
-            Most tools in this category leave the paid half in email.
-          </p>
-          <h3>Review integrity is enforced, not requested</h3>
-          <p>
-            A reviewer who submitted, is credited on, or has declared a conflict with a proposal
-            cannot score it. The write is refused, with no convention to rely on and no flag for
-            someone to catch afterwards.
-          </p>
-          <h3>An agent can drive it without breaking it</h3>
-          <p>
-            Every write takes an idempotency key, so a retried call cannot book the room twice. A
-            refusal names the rule it broke instead of returning a bare 400. Read, write and
-            personal data are separate scopes.
-          </p>
-        </div>
-        <div>
-          <h3>The rules were written down before the code</h3>
-          <p>
-            What happens to an unused sponsor slot, who may see a reviewer's score, what a deadline
-            does when it passes. All specified in a normative model, with a check in CI that fails
-            the build when code and model disagree.
-          </p>
-          <h3>No per-speaker pricing, ever</h3>
-          <p>
-            Nothing costs more because your CFP went well. You pay your own hosting bill, and nobody
-            can change the price between editions.
-          </p>
-        </div>
+  {/* This band used to carry five hand-written differences that were the five
+      pillars in different words. Two wordings of one argument is how a reader
+      comes away unable to repeat either, so it is now the pillars themselves —
+      the same sentences the home page uses, on the page where the reader is
+      deciding between three products. The two claims that were only ever here,
+      because they are only interesting next to a competitor, are the cards
+      below it. */}
+  <Pillars
+    eyebrow="Where Podium wins"
+    heading="Five differences worth switching for."
+    sub="Not a feature list. These are the ones that hold whatever either product ships next."
+  >
+    <div class="cards two" style="margin-top: 2.5rem">
+      <div class="card reveal">
+        <h3>Sponsor sessions are modelled, not bolted on</h3>
+        <p>
+          A package is a countable set of entitlements — two session slots, a logo placement — and
+          a sponsor session consumes one. Used against bought, on the same screen as the deal. Most
+          tools in this category leave the paid half in email.
+        </p>
       </div>
-      <p class="nextstep"><a href="/pricing">The actual bill, itemised →</a></p>
+      <div class="card reveal">
+        <h3>Review integrity is enforced, not requested</h3>
+        <p>
+          A reviewer who submitted, is credited on, or has declared a conflict with a proposal
+          cannot score it. The write is refused, with no convention to rely on and no flag for
+          someone to catch afterwards.
+        </p>
+      </div>
     </div>
-  </section>
+    <p class="nextstep"><a href="/pricing">The actual bill, itemised →</a></p>
+  </Pillars>
 
   <section>
     <div class="wrap">
