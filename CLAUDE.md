@@ -96,6 +96,27 @@ describe, so it happens the same way every time:
 The first two close a loop around the `implementer` agent: it validates against the model
 before building, `domain-drift` checks the model against what was actually built afterwards.
 
+## The agent-facing plugin
+
+[`claude-plugin/`](claude-plugin) is a Claude Code plugin — `podium-ops` — that lets an agent
+*operate* a hosted instance rather than build one: eight skills over the management API, and a
+zero-dependency CLI ([`podium.mjs`](claude-plugin/scripts/podium.mjs)) taking an instance URL
+and a `.env` holding an API token. It is the consumption half of "AI Agent first"; the
+`implementer` agent is the production half. Root [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)
+makes this repository installable with `/plugin marketplace add`.
+
+The plugin ships nothing hand-written about the API surface. Its endpoint catalogue is
+generated from the routes by
+[`build-endpoints.mjs`](claude-plugin/scripts/build-endpoints.mjs), and `npm run plugin:check`
+fails when a route changes without it being regenerated — the same rule as `npm run drift`,
+applied to what we tell agents about the product. The prose in each `SKILL.md` is held to the
+`marketing-site` standard: no behaviour is described that was not executed against a running
+instance first.
+
+Two findings the plugin's own verification surfaced are recorded in
+[`13-open-questions.md`](docs/domain/13-open-questions.md) as **D1** and **D2**; the skills
+document the behaviour as it is, and both are still open in the code.
+
 ## Current state
 
 **The product is built.** Every bounded context in `docs/domain/` is implemented end to end

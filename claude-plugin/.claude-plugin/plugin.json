@@ -1,0 +1,13 @@
+{
+  "name": "podium-ops",
+  "description": "Operate a hosted Podium conference instance over its management API — run a CFP, review and decide, build the schedule, chase speaker tasks, manage sponsors and export the programme.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Podium",
+    "url": "https://podiumstack.com"
+  },
+  "homepage": "https://podiumstack.com",
+  "repository": "https://github.com/podiumconf/podium",
+  "license": "MIT",
+  "keywords": ["podium", "conference", "cfp", "speakers", "sponsors", "scheduling", "api"]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "podium",
+  "owner": {
+    "name": "Podium",
+    "url": "https://podiumstack.com"
+  },
+  "plugins": [
+    {
+      "name": "podium-ops",
+      "source": "./claude-plugin",
+      "description": "Operate a hosted Podium instance over its management API: run a CFP, review and decide, build the schedule, chase speaker tasks, manage sponsors, export the programme.",
+      "category": "productivity"
+    }
+  ]
+}
