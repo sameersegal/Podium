@@ -19,11 +19,11 @@
  * call.
  */
 
-import { D1Db, type Row } from "@podiumconf/data/db.js";
-import type { Env } from "@podiumconf/data/context.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
-import { rowToEvent } from "@podiumconf/web/consumers/replay.js";
+import { D1Db, type Row } from "@podiumstack/data/db.js";
+import type { Env } from "@podiumstack/data/context.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
+import { rowToEvent } from "@podiumstack/web/consumers/replay.js";
 
 /** One event delivered during a drain, and what ran for it. */
 export interface DrainStep {

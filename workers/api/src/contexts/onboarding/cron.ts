@@ -6,10 +6,10 @@
  * click end up in exactly the same log.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { D1Db, num, str, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { daysOverdue } from "@podiumconf/domain/onboarding/types.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { D1Db, num, str, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { daysOverdue } from "@podiumstack/domain/onboarding/types.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { deliverReminders, scheduledReminderCandidates } from "./service.js";
 

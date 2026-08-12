@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
+import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
 
 /**
  * `POST /v1/forms/:formId/reorder` — the write the drag-and-drop form builder

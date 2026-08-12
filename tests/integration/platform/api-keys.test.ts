@@ -1,9 +1,9 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { createApiKey } from "@podiumconf/web/contexts/platform/service.js";
-import { queueNotification } from "@podiumconf/web/contexts/platform/notifications.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { createApiKey } from "@podiumstack/web/contexts/platform/service.js";
+import { queueNotification } from "@podiumstack/web/contexts/platform/notifications.js";
 
 /**
  * INV-09-5 — without `pii:read`, every response redacts personal fields;

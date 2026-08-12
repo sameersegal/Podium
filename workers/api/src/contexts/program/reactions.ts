@@ -11,8 +11,8 @@
  * `decision.published` creates exactly one session.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { createSessionFromProposal, evaluateConfirmation } from "./service.js";
 

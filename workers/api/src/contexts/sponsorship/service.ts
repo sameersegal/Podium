@@ -10,11 +10,11 @@
  * read goes through `entitlementUsage`.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId, slugify } from "@podiumconf/domain/shared/ids.js";
-import { addDays } from "@podiumconf/domain/shared/time.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId, slugify } from "@podiumstack/domain/shared/ids.js";
+import { addDays } from "@podiumstack/domain/shared/time.js";
 import {
   checkMaySubmitForSponsor,
   checkQuantityReduction,
@@ -32,8 +32,8 @@ import {
   type EntitlementUsage,
   type RuleFailure,
   type SponsorStatus,
-} from "@podiumconf/domain/sponsorship/types.js";
-import { RELEASED_STATUSES } from "@podiumconf/domain/submissions/types.js";
+} from "@podiumstack/domain/sponsorship/types.js";
+import { RELEASED_STATUSES } from "@podiumstack/domain/submissions/types.js";
 
 /* -------------------------------------------------------------------------- */
 /* Rule failures become typed errors                                           */

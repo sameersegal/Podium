@@ -8,7 +8,7 @@ import {
   profileCompleteness,
   PARTICIPANT_STATUS,
   PORTAL_ACCESS,
-} from "@podiumconf/domain/identity/types.js";
+} from "@podiumstack/domain/identity/types.js";
 
 describe("Person and profile (01)", () => {
   it("canonicalises email, since INV-01-1 makes it unique per org", () => {

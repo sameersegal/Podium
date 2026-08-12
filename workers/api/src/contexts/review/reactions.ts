@@ -13,9 +13,9 @@
  * invariant real.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { str } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { str } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { sweepStaleReviews } from "./service.js";
 

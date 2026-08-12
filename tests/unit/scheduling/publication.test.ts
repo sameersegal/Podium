@@ -9,7 +9,7 @@ import {
   type PublishedSessionSnapshot,
   type PublishedSpeakerSnapshot,
   type SnapshotEventRef,
-} from "@podiumconf/domain/scheduling/publication.js";
+} from "@podiumstack/domain/scheduling/publication.js";
 
 /**
  * 08, "Publication" — the pure rules a `SchedulePublication` snapshot obeys:

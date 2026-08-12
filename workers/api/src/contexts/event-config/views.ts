@@ -6,9 +6,9 @@
  * so its signature is part of this context's published surface.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { publicFormSpec } from "@podiumconf/domain/event-config/rules.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { publicFormSpec } from "@podiumstack/domain/event-config/rules.js";
 import {
   cfpStatus,
   evaluateCondition,
@@ -21,8 +21,8 @@ import {
   type FormSpec,
   type FormStepSpec,
   type MapsTo,
-} from "@podiumconf/domain/event-config/types.js";
-import { notFound } from "@podiumconf/domain/shared/errors.js";
+} from "@podiumstack/domain/event-config/types.js";
+import { notFound } from "@podiumstack/domain/shared/errors.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 
 export interface SelectOption {

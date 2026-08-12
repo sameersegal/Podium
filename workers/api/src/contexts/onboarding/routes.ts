@@ -13,7 +13,7 @@
  * Management API: /v1/task-definitions…, /v1/tasks…
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   ASSIGNEE_RULE,
   DUE_RULE,
@@ -26,11 +26,11 @@ import {
   type TaskInstanceStatus,
   type TaskSubjectType,
   type TaskViewer,
-} from "@podiumconf/domain/onboarding/types.js";
-import { ATTENDANCE_MODE, SPEAKER_ROLE } from "@podiumconf/domain/program/types.js";
-import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
-import { ORIGIN } from "@podiumconf/domain/event-config/types.js";
-import { notFound } from "@podiumconf/domain/shared/errors.js";
+} from "@podiumstack/domain/onboarding/types.js";
+import { ATTENDANCE_MODE, SPEAKER_ROLE } from "@podiumstack/domain/program/types.js";
+import { formatDateInZone, formatInZone } from "@podiumstack/domain/shared/time.js";
+import { ORIGIN } from "@podiumstack/domain/event-config/types.js";
+import { notFound } from "@podiumstack/domain/shared/errors.js";
 import { eventRow } from "../event-config/views.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
@@ -371,7 +371,7 @@ function registerAdminDefinitionRoutes(router: Router<RequestContext>): void {
     ctx.requireWrite("task.define", { event_id: params.eventId });
     const input = await readInput(req);
     const app = ctx.app(params.eventId);
-    const { newId } = await import("@podiumconf/domain/shared/ids.js");
+    const { newId } = await import("@podiumstack/domain/shared/ids.js");
     await app.db.insert("task_reminder_rule", {
       id: newId("TaskReminderRule"),
       definition_id: params.defId,

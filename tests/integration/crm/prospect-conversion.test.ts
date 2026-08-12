@@ -1,15 +1,15 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import {
   createPipeline,
   enrol,
   getCard,
   moveCard,
   pushToEvent,
-} from "@podiumconf/web/contexts/crm/service.js";
+} from "@podiumstack/web/contexts/crm/service.js";
 
 /**
  * 14-speaker-crm.md, "Conversion — from database to event" — INV-14-5.
@@ -264,7 +264,7 @@ describe("CRM HTTP surface", () => {
     expect(preview.status).toBe(200);
     expect(await preview.text()).toContain("Priya Prospect");
 
-    const { resolveAudience } = await import("@podiumconf/web/contexts/platform/campaigns.js");
+    const { resolveAudience } = await import("@podiumstack/web/contexts/platform/campaigns.js");
     const app = new AppContext({ env, orgId: ORG, actor: SYSTEM_ACTOR });
     const members = await resolveAudience(app, { kind: "segment", segment_id: segment!.id });
     expect(members).toHaveLength(1);

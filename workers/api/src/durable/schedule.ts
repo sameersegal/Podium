@@ -10,9 +10,9 @@
  * section and returned in the write's response (INV-08-14).
  */
 
-import type { Env } from "@podiumconf/data/context.js";
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
-import type { Actor } from "@podiumconf/domain/events/envelope.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
+import type { Actor } from "@podiumstack/domain/events/envelope.js";
 import { executePlacementCommand, type PlacementCommand, type PlacementResult } from "../contexts/scheduling/commands.js";
 
 export interface SerialisedCall {

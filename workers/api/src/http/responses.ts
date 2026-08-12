@@ -1,4 +1,4 @@
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
 import type { SafeHtml } from "../ui/html.js";
 
 export function htmlResponse(body: SafeHtml | string, init: ResponseInit = {}): Response {

@@ -8,10 +8,10 @@
  * renders as `UNRESOLVED_REFERENCE`, which is the honest answer.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import type { FieldType } from "@podiumconf/domain/event-config/types.js";
-import { referenceIdsIn, type ReferenceLabels } from "@podiumconf/domain/submissions/answer-display.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import type { FieldType } from "@podiumstack/domain/event-config/types.js";
+import { referenceIdsIn, type ReferenceLabels } from "@podiumstack/domain/submissions/answer-display.js";
 
 export interface LabelledAnswer {
   type: FieldType;

@@ -9,7 +9,7 @@ import {
   newId,
   slugify,
   ulid,
-} from "@podiumconf/domain/shared/ids.js";
+} from "@podiumstack/domain/shared/ids.js";
 
 describe("typed identifiers (11-cross-cutting.md, Identifiers)", () => {
   it("mints a ULID with the prefix the model documents for the entity", () => {

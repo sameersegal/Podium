@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { criteriaIsEmpty, describeCriteria, normaliseCriteria } from "@podiumconf/domain/crm/index.js";
-import { directoryFiltersFrom, directoryLink } from "@podiumconf/web/contexts/crm/views.js";
+import { criteriaIsEmpty, describeCriteria, normaliseCriteria } from "@podiumstack/domain/crm/index.js";
+import { directoryFiltersFrom, directoryLink } from "@podiumstack/web/contexts/crm/views.js";
 
 /**
  * 14-speaker-crm.md, "The directory" — "Filters compose with AND ... rebuilding

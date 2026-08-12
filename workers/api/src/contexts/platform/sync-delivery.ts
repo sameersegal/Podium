@@ -13,9 +13,9 @@
  * when it was scheduled.
  */
 
-import type { Env } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import type { SyncRunTrigger } from "@podiumconf/domain/platform/sync.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import type { SyncRunTrigger } from "@podiumstack/domain/platform/sync.js";
 
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { erasePersonEverywhere, getMapping, runPull, runPush, syncContext } from "./sync.js";

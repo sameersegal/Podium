@@ -44,7 +44,7 @@ document it later", do not pick a reasonable default — when:
   question added since. The resolutions you lean on most: **R16** (D1 behind a repository
   layer), **R13** (`Proposal`/`Session` separate, presented as one record), **R22** (14-day
   draft abandonment), **R23** (password login defaults), **R29** (the product is *Podium*; npm
-  scope `@podiumconf/*`, never `@podium`).
+  scope `@podiumstack/*`, never `@podium`).
 - It requires writing a `D` (derived) field, or storing a counter the model computes.
 - It conflicts with an invariant. An invariant is not a guideline; if the feature is genuinely
   wanted, the invariant changes in the model first.

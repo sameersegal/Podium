@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
+import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
 
 /**
  * INV-05-18 — "A reviewer may read only the proposals assigned to them in a

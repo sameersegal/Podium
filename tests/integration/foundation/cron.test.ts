@@ -1,8 +1,8 @@
 import { env as testEnv } from "cloudflare:test";
-import type { Env } from "@podiumconf/data/context.js";
+import type { Env } from "@podiumstack/data/context.js";
 import { describe, expect, it } from "vitest";
-import { CRON_JOBS, runAllCron } from "@podiumconf/web/consumers/cron.js";
-import { EVENT_TYPES } from "@podiumconf/domain/events/catalogue.js";
+import { CRON_JOBS, runAllCron } from "@podiumstack/web/consumers/cron.js";
+import { EVENT_TYPES } from "@podiumstack/domain/events/catalogue.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;
 

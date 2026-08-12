@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
+import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
 
 /**
  * The response-hardening headers, the session cookie's attributes, the `next=`

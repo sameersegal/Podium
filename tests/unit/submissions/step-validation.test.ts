@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { FormFieldSpec, FormSpec, FormStepSpec } from "@podiumconf/domain/event-config/types.js";
-import { validateStep } from "@podiumconf/domain/submissions/validation.js";
+import type { FormFieldSpec, FormSpec, FormStepSpec } from "@podiumstack/domain/event-config/types.js";
+import { validateStep } from "@podiumstack/domain/submissions/validation.js";
 
 /**
  * 04, "Submission-time validation" rule 2, applied a step at a time — what

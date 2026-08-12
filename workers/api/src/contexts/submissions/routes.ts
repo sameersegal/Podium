@@ -9,14 +9,14 @@
  * Management API: /v1/proposals…
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import type { FormSpec } from "@podiumconf/domain/event-config/types.js";
-import { DomainError, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { fieldByKey, mappedKeys } from "@podiumconf/domain/submissions/answers.js";
-import { validateStep } from "@podiumconf/domain/submissions/validation.js";
-import type { Origin } from "@podiumconf/domain/event-config/types.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import type { FormSpec } from "@podiumstack/domain/event-config/types.js";
+import { DomainError, notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { fieldByKey, mappedKeys } from "@podiumstack/domain/submissions/answers.js";
+import { validateStep } from "@podiumstack/domain/submissions/validation.js";
+import type { Origin } from "@podiumstack/domain/event-config/types.js";
 import { flashCookie, type PersonView, type RequestContext } from "../../http/context.js";
 import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";

@@ -4,13 +4,13 @@
  * 24h, then `exhausted`), never a hand-rolled loop in the request path.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { WEBHOOK_FAILURE_LIMIT, backoffSecondsFor } from "@podiumconf/domain/platform/types.js";
-import { checkWebhookUrl, signPayload } from "@podiumconf/domain/platform/webhooks.js";
-import { excerpt, webhookBody } from "@podiumconf/domain/platform/payload.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { WEBHOOK_FAILURE_LIMIT, backoffSecondsFor } from "@podiumstack/domain/platform/types.js";
+import { checkWebhookUrl, signPayload } from "@podiumstack/domain/platform/webhooks.js";
+import { excerpt, webhookBody } from "@podiumstack/domain/platform/payload.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { attemptSend, queueNotification } from "./notifications.js";
 import { runCampaignSend } from "./campaigns.js";

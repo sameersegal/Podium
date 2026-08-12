@@ -3,10 +3,10 @@
  * the PII-aware projections the model requires.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { markLatest } from "@podiumconf/domain/content/assets.js";
-import { redactRecord } from "@podiumconf/domain/shared/pii.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { markLatest } from "@podiumstack/domain/content/assets.js";
+import { redactRecord } from "@podiumstack/domain/shared/pii.js";
 
 /* -------------------------------------------------------------------------- */
 /* FilesLibrary — 11, "The files library"                                     */

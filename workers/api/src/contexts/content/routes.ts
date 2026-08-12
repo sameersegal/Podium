@@ -8,8 +8,8 @@
  * Plus `GET /v1/me/export`.
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, forbidden, notFound } from "@podiumconf/domain/shared/errors.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, forbidden, notFound } from "@podiumstack/domain/shared/errors.js";
 import {
   ASSET_PURPOSES,
   CUSTOM_FIELD_AUDIENCES,
@@ -18,10 +18,10 @@ import {
   EXPORT_FORMATS,
   EXPORT_SUBJECTS,
   IMPORT_SUBJECTS,
-} from "@podiumconf/domain/content/types.js";
-import { markLatest, safeServeContentType, slotKey as buildSlotKey } from "@podiumconf/domain/content/assets.js";
-import { verifyStorageUrl } from "@podiumconf/plugins/storage/r2.js";
-import { formatInZone } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/content/types.js";
+import { markLatest, safeServeContentType, slotKey as buildSlotKey } from "@podiumstack/domain/content/assets.js";
+import { verifyStorageUrl } from "@podiumstack/plugins/storage/r2.js";
+import { formatInZone } from "@podiumstack/domain/shared/time.js";
 import { resolvePlugin } from "../platform/service.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput } from "../../http/input.js";
@@ -307,7 +307,7 @@ function registerAssetRoutes(router: Router<RequestContext>): void {
     await ctx.env.ASSETS_BUCKET.put(key, body, { httpMetadata: { contentType: req.headers.get("content-type") ?? undefined } });
     const assetRow = await app.db.first<Row>("asset", { storage_key: key });
     if (assetRow && str(assetRow.checksum) === "") {
-      const { sha256Hex } = await import("@podiumconf/domain/identity/credentials.js");
+      const { sha256Hex } = await import("@podiumstack/domain/identity/credentials.js");
       await app.db.update("asset", str(assetRow.id), { size_bytes: body.byteLength, checksum: await sha256Hex(body) });
     }
     return noContent();

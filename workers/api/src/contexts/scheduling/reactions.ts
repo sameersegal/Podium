@@ -5,9 +5,9 @@
  * twice, which "recompute and, maybe, write" already is.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { recomputeConflicts } from "./conflicts.js";
 import { autoPublishEnabled, toEventFact } from "./facts.js";

@@ -15,10 +15,10 @@
  * spreadsheet would become the one way to edit a session without leaving a trace.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import type { SyncSubject } from "@podiumconf/domain/platform/sync.js";
-import { subjectSpec } from "@podiumconf/domain/platform/sync.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import type { SyncSubject } from "@podiumstack/domain/platform/sync.js";
+import { subjectSpec } from "@podiumstack/domain/platform/sync.js";
 
 import { organizerEdit } from "../submissions/service.js";
 import { updateSessionContent } from "../program/service.js";

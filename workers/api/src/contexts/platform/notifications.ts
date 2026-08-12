@@ -9,23 +9,23 @@
  * reason and stays readable in the outbox.
  */
 
-import type { AppContext, Env } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { hmacSha256Hex } from "@podiumconf/domain/identity/credentials.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
+import type { AppContext, Env } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { hmacSha256Hex } from "@podiumstack/domain/identity/credentials.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
 import { markdown } from "../../ui/html.js";
 import {
   categoryOf,
   decideSuppression,
   type SuppressionEntry,
-} from "@podiumconf/domain/platform/suppression.js";
-import { assertTemplateBody, renderTemplate, toPlainText, flattenVariables } from "@podiumconf/domain/platform/rendering.js";
-import { DEFAULT_TEMPLATES, declaredVariables, isTransactionalTemplate, templateSpec } from "@podiumconf/domain/platform/templates.js";
-import { DELIVERY_STATUS_RANK, NOTIFICATION_CHANNELS, quietHoursDecision, type NotificationChannel } from "@podiumconf/domain/platform/types.js";
+} from "@podiumstack/domain/platform/suppression.js";
+import { assertTemplateBody, renderTemplate, toPlainText, flattenVariables } from "@podiumstack/domain/platform/rendering.js";
+import { DEFAULT_TEMPLATES, declaredVariables, isTransactionalTemplate, templateSpec } from "@podiumstack/domain/platform/templates.js";
+import { DELIVERY_STATUS_RANK, NOTIFICATION_CHANNELS, quietHoursDecision, type NotificationChannel } from "@podiumstack/domain/platform/types.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { hasActiveEmailIntegration, resolvePlugin } from "./service.js";
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
 
 /* -------------------------------------------------------------------------- */
 /* Template resolution                                                        */

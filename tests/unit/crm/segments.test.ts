@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { segmentShapeProblems, stageSetProblems, canMoveCard, isStalled, DEFAULT_PIPELINE_STAGES } from "@podiumconf/domain/crm/index.js";
+import { segmentShapeProblems, stageSetProblems, canMoveCard, isStalled, DEFAULT_PIPELINE_STAGES } from "@podiumstack/domain/crm/index.js";
 
 /**
  * INV-14-1 — "a `ContactSegment` is `dynamic` (criteria, resolved at read) or

@@ -15,9 +15,9 @@
  * sign-out closes it immediately.
  */
 
-import { kickFromRoom, roomKey } from "@podiumconf/data/live.js";
-import { forbidden, unauthorized } from "@podiumconf/domain/shared/errors.js";
-import type { Env } from "@podiumconf/data/context.js";
+import { kickFromRoom, roomKey } from "@podiumstack/data/live.js";
+import { forbidden, unauthorized } from "@podiumstack/domain/shared/errors.js";
+import type { Env } from "@podiumstack/data/context.js";
 import type { RequestContext } from "../http/context.js";
 import { json } from "../http/responses.js";
 import type { Router } from "../http/router.js";

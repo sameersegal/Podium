@@ -14,8 +14,8 @@
  * (INV-05-18), not by a capability row.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import type {
   AssignedBy,
   AssignmentStatus,
@@ -28,11 +28,11 @@ import type {
   Recommendation,
   ReviewFlag,
   RoundAnonymity,
-} from "@podiumconf/domain/review/types.js";
-import { isTerminalAssignment, type OverallScale, type RoundScope } from "@podiumconf/domain/review/types.js";
-import { reviewerIdentityVisible } from "@podiumconf/domain/review/anonymity.js";
-import { notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { zonedDateTimeToInstant } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/review/types.js";
+import { isTerminalAssignment, type OverallScale, type RoundScope } from "@podiumstack/domain/review/types.js";
+import { reviewerIdentityVisible } from "@podiumstack/domain/review/anonymity.js";
+import { notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
 import { expectedVersion, staleWriteRedirect } from "../../http/concurrency.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";

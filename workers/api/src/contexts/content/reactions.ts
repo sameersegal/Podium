@@ -8,8 +8,8 @@
  * (INV-11-3).
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { markScanned } from "./assets.js";
 

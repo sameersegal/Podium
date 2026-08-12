@@ -9,7 +9,7 @@
  * an organizer should not be able to build a mapping that cannot work.
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   SUBJECT_SPECS,
   SYNC_SUBJECTS,
@@ -19,8 +19,8 @@ import {
   writableFields,
   type SyncFieldMap,
   type SyncSubject,
-} from "@podiumconf/domain/platform/sync.js";
-import type { SyncPlugin, SyncTable } from "@podiumconf/plugins/registry.js";
+} from "@podiumstack/domain/platform/sync.js";
+import type { SyncPlugin, SyncTable } from "@podiumstack/plugins/registry.js";
 
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput } from "../../http/input.js";

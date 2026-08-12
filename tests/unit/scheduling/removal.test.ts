@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertRemovable, sessionStatusOnPlace, sessionStatusOnRemove } from "@podiumconf/domain/scheduling/placement.js";
+import { assertRemovable, sessionStatusOnPlace, sessionStatusOnRemove } from "@podiumstack/domain/scheduling/placement.js";
 
 /**
  * INV-08-3 and INV-06-7 pull in opposite directions on one case, and the

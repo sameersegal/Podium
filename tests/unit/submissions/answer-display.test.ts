@@ -4,7 +4,7 @@ import {
   isReferenceField,
   referenceIdsIn,
   UNRESOLVED_REFERENCE,
-} from "@podiumconf/domain/submissions/answer-display.js";
+} from "@podiumstack/domain/submissions/answer-display.js";
 
 /**
  * 04, "An answer's value is not what a reader sees" — `ProposalAnswer.value`

@@ -10,7 +10,7 @@
  * surfaces are org-level views over `Person` and use the same envelope.
  */
 
-import { str } from "@podiumconf/data/db.js";
+import { str } from "@podiumstack/data/db.js";
 
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;

@@ -1,12 +1,12 @@
 import { env as testEnv } from "cloudflare:test";
-import type { Env } from "@podiumconf/data/context.js";
+import type { Env } from "@podiumstack/data/context.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;
 import { beforeAll, describe, expect, it } from "vitest";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
-import { reactionsFor } from "@podiumconf/web/consumers/dispatch.js";
-import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { EVENT_TYPES } from "@podiumconf/domain/events/catalogue.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
+import { reactionsFor } from "@podiumstack/web/consumers/dispatch.js";
+import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { EVENT_TYPES } from "@podiumstack/domain/events/catalogue.js";
 
 /**
  * 10-domain-events.md: "Every reaction must be idempotent on `DomainEvent.id` —

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flattenVariables, renderTemplate } from "@podiumconf/domain/platform/rendering.js";
+import { flattenVariables, renderTemplate } from "@podiumstack/domain/platform/rendering.js";
 
 /**
  * INV-09-13 rejects an *unknown* variable at save time. This covers the other

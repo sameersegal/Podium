@@ -8,9 +8,9 @@
  * no way to express."
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { redactList, redactRecord } from "@podiumconf/domain/shared/pii.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { redactList, redactRecord } from "@podiumstack/domain/shared/pii.js";
 import {
   ENTITLEMENT_TYPE,
   CONTACT_ROLE,
@@ -18,7 +18,7 @@ import {
   type ContactRole,
   type EntitlementType,
   type SponsorStatus,
-} from "@podiumconf/domain/sponsorship/types.js";
+} from "@podiumstack/domain/sponsorship/types.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";

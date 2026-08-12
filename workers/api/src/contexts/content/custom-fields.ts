@@ -2,10 +2,10 @@
  * `CustomFieldDefinition` — 11-cross-cutting.md, "Custom fields".
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId, slugify } from "@podiumconf/domain/shared/ids.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId, slugify } from "@podiumstack/domain/shared/ids.js";
 import {
   assertDeclaredClassification,
   assertDefinitionShape,
@@ -13,8 +13,8 @@ import {
   usageOf,
   type CustomFieldDefinitionView,
   type DefinitionInput,
-} from "@podiumconf/domain/content/custom-fields.js";
-import { CUSTOM_FIELD_SOFT_LIMIT, type CustomFieldSubject } from "@podiumconf/domain/content/types.js";
+} from "@podiumstack/domain/content/custom-fields.js";
+import { CUSTOM_FIELD_SOFT_LIMIT, type CustomFieldSubject } from "@podiumstack/domain/content/types.js";
 
 export function toView(row: Row): CustomFieldDefinitionView {
   return {

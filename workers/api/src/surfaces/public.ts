@@ -13,12 +13,12 @@
  * `publicCfpView` already does.
  */
 
-import { str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { derivedCfpStatus, publicCfpView, renderPublicForm, withDuration } from "../contexts/event-config/views.js";
 import { buildIcs } from "../contexts/scheduling/ics.js";
 import { embedByKey, type EmbedConfigRow } from "../contexts/scheduling/views.js";
 import { buildSnapshot, liveSnapshot, snapshotById } from "../contexts/scheduling/publication.js";
-import type { ScheduleSnapshot } from "@podiumconf/domain/scheduling/publication.js";
+import type { ScheduleSnapshot } from "@podiumstack/domain/scheduling/publication.js";
 import {
   applyFieldAllowlist,
   applyFilters,
@@ -36,7 +36,7 @@ import {
   widgetXml,
   type RenderOptions,
 } from "../contexts/scheduling/widgets.js";
-import { calendarDateInZone, formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
+import { calendarDateInZone, formatDateInZone, formatInZone } from "@podiumstack/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json, text } from "../http/responses.js";
 import type { Router } from "../http/router.js";

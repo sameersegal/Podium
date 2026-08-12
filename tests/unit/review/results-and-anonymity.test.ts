@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { applyResultFilters, type ResultRow, type ScopedProposal } from "@podiumconf/web/contexts/review/scoring.js";
-import { resultsCsvRow, toCsv } from "@podiumconf/web/contexts/review/views.js";
-import { reviewerAssignmentView } from "@podiumconf/web/contexts/review/reviewer-views.js";
+import { applyResultFilters, type ResultRow, type ScopedProposal } from "@podiumstack/web/contexts/review/scoring.js";
+import { resultsCsvRow, toCsv } from "@podiumstack/web/contexts/review/views.js";
+import { reviewerAssignmentView } from "@podiumstack/web/contexts/review/reviewer-views.js";
 import {
   reviewableContentHash,
   reviewableProjection,
   type ReviewableProposal,
-} from "@podiumconf/domain/review/anonymity.js";
-import type { CriterionView } from "@podiumconf/domain/review/types.js";
-import type { ProposalScore } from "@podiumconf/domain/review/scoring.js";
+} from "@podiumstack/domain/review/anonymity.js";
+import type { CriterionView } from "@podiumstack/domain/review/types.js";
+import type { ProposalScore } from "@podiumstack/domain/review/scoring.js";
 
 /* -------------------------------------------------------------------------- */
 /* Fixtures                                                                    */

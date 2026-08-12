@@ -13,9 +13,9 @@
  * built from the same `DirectoryCriteria` the filter form uses.
  */
 
-import { str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { PARTICIPANT_STATUS } from "@podiumconf/domain/identity/types.js";
-import type { DirectoryCriteria, StageSpec } from "@podiumconf/domain/crm/index.js";
+import { str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { PARTICIPANT_STATUS } from "@podiumstack/domain/identity/types.js";
+import type { DirectoryCriteria, StageSpec } from "@podiumstack/domain/crm/index.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { badge, card, empty, field, humanise, pageHead, stat, table } from "../../ui/layout.js";
 import type { CardView, CrmDashboard, DirectoryRow, PipelineView, SegmentView } from "./service.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentDiverged, contentSnapshot } from "@podiumconf/domain/program/types.js";
+import { contentDiverged, contentSnapshot } from "@podiumstack/domain/program/types.js";
 
 /**
  * 06, `content_diverged` — "the session has been edited since it was

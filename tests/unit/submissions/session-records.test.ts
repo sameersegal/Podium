@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { sessionRecords } from "@podiumconf/web/contexts/submissions/views.js";
+import { sessionRecords } from "@podiumstack/web/contexts/submissions/views.js";
 import type {
   DashboardProposal,
   DashboardSession,
   DashboardTask,
   SubmitterDashboard,
-} from "@podiumconf/web/contexts/submissions/views.js";
+} from "@podiumstack/web/contexts/submissions/views.js";
 
 /**
  * R13 — `Proposal` and `Session` stay separate in the model **and are presented

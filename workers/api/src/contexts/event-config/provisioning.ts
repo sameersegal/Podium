@@ -18,16 +18,16 @@
  * reaction sees a complete event.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   blueprintDays,
   calendarDaysBetween,
   rebaseInstant,
   starterCfpWindow,
   STARTER_BLUEPRINT,
-} from "@podiumconf/domain/event-config/blueprint.js";
-import { formSpecAsTemplate } from "@podiumconf/domain/event-config/rules.js";
+} from "@podiumstack/domain/event-config/blueprint.js";
+import { formSpecAsTemplate } from "@podiumstack/domain/event-config/rules.js";
 import type {
   CapacityPolicy,
   CfpAudience,
@@ -36,8 +36,8 @@ import type {
   Origin,
   ProvisioningSource,
   WithdrawAllowedUntil,
-} from "@podiumconf/domain/event-config/types.js";
-import { DomainError, notFound } from "@podiumconf/domain/shared/errors.js";
+} from "@podiumstack/domain/event-config/types.js";
+import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
 import { copyTemplatesToEvent } from "../platform/notifications.js";
 import { copyTaskDefinitionsToEvent, createDefaultTaskDefinitions } from "../onboarding/service.js";
 import { copyRubricToEvent, createProgrammeScorecardRubric, createSponsorComplianceRubric } from "../review/service.js";

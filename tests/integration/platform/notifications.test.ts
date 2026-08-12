@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { attemptSend, queueNotification } from "@podiumconf/web/contexts/platform/notifications.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { attemptSend, queueNotification } from "@podiumstack/web/contexts/platform/notifications.js";
 
 /**
  * INV-09-12 — every message the platform intends to send writes a

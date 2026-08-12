@@ -14,9 +14,9 @@
  * message right back into a retry loop with no further queue to catch it.
  */
 
-import { D1Db } from "@podiumconf/data/db.js";
-import type { Env } from "@podiumconf/data/context.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { D1Db } from "@podiumstack/data/db.js";
+import type { Env } from "@podiumstack/data/context.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import type { DeliveryMessage } from "./delivery.js";
 
 const DELIVERY_KINDS = new Set(["webhook", "notification", "campaign"]);

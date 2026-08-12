@@ -12,8 +12,8 @@
  *     not drawn is rejected, not quietly allowed.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   acceptsSubmission,
   cfpStatus,
@@ -22,9 +22,9 @@ import {
   type EventStatus,
   type FormSpec,
   type Origin,
-} from "@podiumconf/domain/event-config/types.js";
-import { DomainError, illegalTransition, invariantError, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { eventCodeFromSlug, formatReference, newId } from "@podiumconf/domain/shared/ids.js";
+} from "@podiumstack/domain/event-config/types.js";
+import { DomainError, illegalTransition, invariantError, notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { eventCodeFromSlug, formatReference, newId } from "@podiumstack/domain/shared/ids.js";
 import {
   allFields,
   coerceAnswer,
@@ -35,7 +35,7 @@ import {
   visibleAnswers,
   assetIdsIn,
   type AnswerMap,
-} from "@podiumconf/domain/submissions/answers.js";
+} from "@podiumstack/domain/submissions/answers.js";
 import {
   canTransitionProposal,
   canWithdraw,
@@ -47,8 +47,8 @@ import {
   type ProposalStatus,
   type SpeakerRole,
   type SpeakerView,
-} from "@podiumconf/domain/submissions/types.js";
-import { validateSubmission, type FormatView } from "@podiumconf/domain/submissions/validation.js";
+} from "@podiumstack/domain/submissions/types.js";
+import { validateSubmission, type FormatView } from "@podiumstack/domain/submissions/validation.js";
 import { createInvitation, findOrCreatePerson } from "../identity/service.js";
 import {
   assertEntitlementUsable,

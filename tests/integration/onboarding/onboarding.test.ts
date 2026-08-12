@@ -1,10 +1,10 @@
 import { env as testEnv, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { hashToken } from "@podiumconf/domain/identity/credentials.js";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
-import { createDefaultTaskDefinitions, waiveTask } from "@podiumconf/web/contexts/onboarding/service.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { hashToken } from "@podiumstack/domain/identity/credentials.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
+import { createDefaultTaskDefinitions, waiveTask } from "@podiumstack/web/contexts/onboarding/service.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;
 

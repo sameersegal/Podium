@@ -5,22 +5,22 @@
  * (the last lives in notifications.ts, next to the delivery it drives).
  */
 
-import type { AppContext, Env } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { hashToken, newToken } from "@podiumconf/domain/identity/credentials.js";
-import type { ApiScope } from "@podiumconf/domain/shared/authorization.js";
-import { DomainError, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+import type { AppContext, Env } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { hashToken, newToken } from "@podiumstack/domain/identity/credentials.js";
+import type { ApiScope } from "@podiumstack/domain/shared/authorization.js";
+import { DomainError, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import {
   CAPABILITIES,
   MAX_WEBHOOK_ATTEMPTS,
   WEBHOOK_FAILURE_LIMIT,
   backoffSecondsFor,
   type Capability as PluginCapability,
-} from "@podiumconf/domain/platform/types.js";
-import { assertDeliverableUrl } from "@podiumconf/domain/platform/webhooks.js";
-import { eventTypeMatches } from "@podiumconf/domain/events/catalogue.js";
-import { FALLBACK_PLUGINS, pluginFor, pluginsForCapability, type AnyPlugin, type PluginContext } from "@podiumconf/plugins/registry.js";
+} from "@podiumstack/domain/platform/types.js";
+import { assertDeliverableUrl } from "@podiumstack/domain/platform/webhooks.js";
+import { eventTypeMatches } from "@podiumstack/domain/events/catalogue.js";
+import { FALLBACK_PLUGINS, pluginFor, pluginsForCapability, type AnyPlugin, type PluginContext } from "@podiumstack/plugins/registry.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 
 export { MAX_WEBHOOK_ATTEMPTS, WEBHOOK_FAILURE_LIMIT, backoffSecondsFor, CAPABILITIES };

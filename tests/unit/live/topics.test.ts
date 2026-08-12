@@ -7,7 +7,7 @@ import {
   isLiveEventType,
   liveAudience,
   liveEventTypes,
-} from "@podiumconf/domain/events/catalogue.js";
+} from "@podiumstack/domain/events/catalogue.js";
 
 /**
  * `LIVE_EVENT_TYPES` is the allowlist a room broadcasts on. Its failure mode is

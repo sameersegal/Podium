@@ -1,10 +1,10 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { AppContext } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import { editExternally, externalRecords, insertExternally, resetExternalTables, type SyncPlugin } from "@podiumconf/plugins/registry.js";
-import { resolvePluginForIntegration } from "@podiumconf/web/contexts/platform/service.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import { editExternally, externalRecords, insertExternally, resetExternalTables, type SyncPlugin } from "@podiumstack/plugins/registry.js";
+import { resolvePluginForIntegration } from "@podiumstack/web/contexts/platform/service.js";
 import {
   backfillMapping,
   createMapping,
@@ -13,8 +13,8 @@ import {
   runPull,
   runPush,
   scaffoldMapping,
-} from "@podiumconf/web/contexts/platform/sync.js";
-import { erasePersonEverywhere } from "@podiumconf/web/contexts/platform/sync.js";
+} from "@podiumstack/web/contexts/platform/sync.js";
+import { erasePersonEverywhere } from "@podiumstack/web/contexts/platform/sync.js";
 
 /**
  * The two-way sync, end to end against real D1 — 09, "Two-way sync"; R31.

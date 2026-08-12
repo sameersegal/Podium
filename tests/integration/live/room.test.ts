@@ -1,9 +1,9 @@
 import { env as testEnv, runInDurableObject } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { Env } from "@podiumconf/data/context.js";
-import { pokeRooms, roomKey } from "@podiumconf/data/live.js";
-import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import type { RoomBatch, RoomDurableObject } from "@podiumconf/web/durable/room.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { pokeRooms, roomKey } from "@podiumstack/data/live.js";
+import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import type { RoomBatch, RoomDurableObject } from "@podiumstack/web/durable/room.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;
 

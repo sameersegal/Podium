@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { emailResendPlugin } from "@podiumconf/plugins/email/resend.js";
-import { emailSendgridPlugin } from "@podiumconf/plugins/email/sendgrid.js";
-import type { PluginContext } from "@podiumconf/plugins/contracts.js";
+import { emailResendPlugin } from "@podiumstack/plugins/email/resend.js";
+import { emailSendgridPlugin } from "@podiumstack/plugins/email/sendgrid.js";
+import type { PluginContext } from "@podiumstack/plugins/contracts.js";
 
 /**
  * 09, `email` — the adapter's whole job is "put this rendered message on the

@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { str, type Row } from "@podiumconf/data/db.js";
+import { str, type Row } from "@podiumstack/data/db.js";
 
 /**
  * First-run setup on a genuinely empty deployment — 01, "First-run setup".

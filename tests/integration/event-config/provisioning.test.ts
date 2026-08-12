@@ -1,11 +1,11 @@
 import { env as testEnv } from "cloudflare:test";
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
 import { beforeAll, describe, expect, it } from "vitest";
-import { activationCheck, publishCfp, activateEvent } from "@podiumconf/web/contexts/event-config/service.js";
-import { cloneEventConfiguration, provisionEvent } from "@podiumconf/web/contexts/event-config/provisioning.js";
-import { loadPublishedForm } from "@podiumconf/web/contexts/event-config/views.js";
+import { activationCheck, publishCfp, activateEvent } from "@podiumstack/web/contexts/event-config/service.js";
+import { cloneEventConfiguration, provisionEvent } from "@podiumstack/web/contexts/event-config/provisioning.js";
+import { loadPublishedForm } from "@podiumstack/web/contexts/event-config/views.js";
 
 /**
  * 02 — "Starting an event: the starter blueprint and cloning".

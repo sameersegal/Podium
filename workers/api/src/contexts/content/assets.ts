@@ -7,11 +7,11 @@
  * platform's request body already holds.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { sha256Hex } from "@podiumconf/domain/identity/credentials.js";
-import { DomainError, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { sha256Hex } from "@podiumstack/domain/identity/credentials.js";
+import { DomainError, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import {
   assertAttachable,
   buildThreads,
@@ -21,8 +21,8 @@ import {
   sanitiseFilename,
   supersededBy,
   type SlotMember,
-} from "@podiumconf/domain/content/assets.js";
-import type { AssetPurpose, AssetVisibility, ScanStatus } from "@podiumconf/domain/content/types.js";
+} from "@podiumstack/domain/content/assets.js";
+import type { AssetPurpose, AssetVisibility, ScanStatus } from "@podiumstack/domain/content/types.js";
 import { resolvePlugin } from "../platform/service.js";
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB — slide decks and task attachments, not video.

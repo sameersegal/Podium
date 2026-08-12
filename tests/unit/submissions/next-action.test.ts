@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextAction } from "@podiumconf/domain/submissions/types.js";
+import { nextAction } from "@podiumstack/domain/submissions/types.js";
 
 /**
  * 04, "Submitter portal read model" — "a plain-language next action ('Awaiting

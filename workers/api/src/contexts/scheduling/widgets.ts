@@ -16,9 +16,9 @@ import type {
   PublishedSpeakerSnapshot,
   PublishedTrackRef,
   ScheduleSnapshot,
-} from "@podiumconf/domain/scheduling/publication.js";
-import { isSpeakerWidget, WIDGET_LABELS, type EmbedFormat, type WidgetType } from "@podiumconf/domain/scheduling/types.js";
-import { calendarDateInZone, formatInZone, formatTimeInZone } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/scheduling/publication.js";
+import { isSpeakerWidget, WIDGET_LABELS, type EmbedFormat, type WidgetType } from "@podiumstack/domain/scheduling/types.js";
+import { calendarDateInZone, formatInZone, formatTimeInZone } from "@podiumstack/domain/shared/time.js";
 import { escapeHtml, html, joinHtml, raw, type SafeHtml } from "../../ui/html.js";
 import { avatar, badge } from "../../ui/layout.js";
 

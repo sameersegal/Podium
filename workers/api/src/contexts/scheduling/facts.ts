@@ -6,11 +6,11 @@
  * Durable Object's critical section stays short.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import type { ConflictInputs, DayFact, RoomFact, SeriesFact, SessionFact, SlotFact } from "@podiumconf/domain/scheduling/conflicts.js";
-import type { PlacementFact } from "@podiumconf/domain/scheduling/placement.js";
-import { SCHEDULING_DEFAULTS, type PlacementStatus } from "@podiumconf/domain/scheduling/types.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import type { ConflictInputs, DayFact, RoomFact, SeriesFact, SessionFact, SlotFact } from "@podiumstack/domain/scheduling/conflicts.js";
+import type { PlacementFact } from "@podiumstack/domain/scheduling/placement.js";
+import { SCHEDULING_DEFAULTS, type PlacementStatus } from "@podiumstack/domain/scheduling/types.js";
 
 export interface EventFact {
   id: string;

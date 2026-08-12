@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
+import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
 
 /**
  * 11-cross-cutting.md, "Custom fields" — the admin flow end to end, against

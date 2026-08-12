@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
+import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
 
 /**
  * 08, "The embed (J10)" and INV-08-13 — the public surface end to end:

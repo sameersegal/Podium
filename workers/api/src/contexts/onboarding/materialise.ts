@@ -14,8 +14,8 @@
  * retried events (INV-07-2).
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   appliesTo,
   isTerminalTask,
@@ -27,9 +27,9 @@ import {
   type TaskInstanceStatus,
   type TaskSubjectType,
   type TaskTrigger,
-} from "@podiumconf/domain/onboarding/types.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import type { Instant } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/onboarding/types.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import type { Instant } from "@podiumstack/domain/shared/time.js";
 import { getSession, liveSpeakers, type SessionRow } from "../program/service.js";
 
 export interface AssigneeCandidate {

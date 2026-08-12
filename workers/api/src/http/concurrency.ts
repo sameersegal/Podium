@@ -15,9 +15,9 @@
  * path in the repo that already got this right, down to the copy.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, type Row } from "@podiumconf/data/db.js";
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, type Row } from "@podiumstack/data/db.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
 import { flashCookie } from "./context.js";
 import type { Input } from "./input.js";
 import { redirect } from "./responses.js";

@@ -7,12 +7,12 @@
  * or this sweep.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { sendCampaignNow } from "./campaigns.js";
-import { writableFields } from "@podiumconf/domain/platform/sync.js";
+import { writableFields } from "@podiumstack/domain/platform/sync.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { replayUnprocessedEvents } from "../../consumers/replay.js";
 import { schedulePull, schedulePush } from "./sync-delivery.js";

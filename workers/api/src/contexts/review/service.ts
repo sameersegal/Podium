@@ -9,8 +9,8 @@
  * mutate) and INV-05-8 (`reviewed_content_hash`) are that constraint in code.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   autoDistribute,
   effectiveCap,
@@ -19,21 +19,21 @@ import {
   type DistributionResult,
   type PoolCandidate,
   type ProposedAssignment,
-} from "@podiumconf/domain/review/assignment.js";
-import { matchConflicts, autoDetectConflicts, type ConflictRecord } from "@podiumconf/domain/review/coi.js";
+} from "@podiumstack/domain/review/assignment.js";
+import { matchConflicts, autoDetectConflicts, type ConflictRecord } from "@podiumstack/domain/review/coi.js";
 import {
   reviewableContentHash,
   reviewableProjection,
   type ReviewableProjection,
-} from "@podiumconf/domain/review/anonymity.js";
+} from "@podiumstack/domain/review/anonymity.js";
 import {
   PROGRAMME_SCORECARD_RUBRIC,
   SPONSOR_COMPLIANCE_RUBRIC,
   validateCriterion,
   validateReviewForSubmit,
   type CriterionDraft,
-} from "@podiumconf/domain/review/rubric.js";
-import { reviewOverallScore } from "@podiumconf/domain/review/scoring.js";
+} from "@podiumstack/domain/review/rubric.js";
+import { reviewOverallScore } from "@podiumstack/domain/review/scoring.js";
 import {
   assertDecisionTransition,
   assertRoundTransition,
@@ -57,11 +57,11 @@ import {
   type RoundStatus,
   type RubricView,
   type ScoreView,
-} from "@podiumconf/domain/review/types.js";
-import { localHeuristicEvaluator, type AiEvaluator } from "@podiumconf/domain/review/ai-evaluator.js";
-import { DomainError, forbidden, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { normaliseEmail } from "@podiumconf/domain/identity/types.js";
+} from "@podiumstack/domain/review/types.js";
+import { localHeuristicEvaluator, type AiEvaluator } from "@podiumstack/domain/review/ai-evaluator.js";
+import { DomainError, forbidden, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { normaliseEmail } from "@podiumstack/domain/identity/types.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { createInvitation, findOrCreatePerson, type CreatedInvitation } from "../identity/service.js";
 import { applyDecisionToProposal, requestChanges, setProposalStatus } from "../submissions/service.js";

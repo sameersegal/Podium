@@ -7,7 +7,7 @@
  * lines, escaped text, UTC instants. Pure string building — no I/O.
  */
 
-import type { PublishedSessionSnapshot, PublishedSpeakerSnapshot, SnapshotEventRef } from "@podiumconf/domain/scheduling/publication.js";
+import type { PublishedSessionSnapshot, PublishedSpeakerSnapshot, SnapshotEventRef } from "@podiumstack/domain/scheduling/publication.js";
 
 /** RFC 5545 §3.1 — logical lines are folded at 75 octets. */
 function foldLine(line: string): string {

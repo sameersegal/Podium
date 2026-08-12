@@ -9,8 +9,8 @@
  * the dashboard.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   evaluateCondition,
   type ConditionRule,
@@ -18,12 +18,12 @@ import {
   type FormFieldSpec,
   type FormSpec,
   type FormStepSpec,
-} from "@podiumconf/domain/event-config/types.js";
-import type { FieldError } from "@podiumconf/domain/shared/errors.js";
-import { formatInZone } from "@podiumconf/domain/shared/time.js";
-import { answerDisplay } from "@podiumconf/domain/submissions/answer-display.js";
-import { isBlank, type AnswerMap } from "@podiumconf/domain/submissions/answers.js";
-import { nextAction, type EditAffordance, type NextAction } from "@podiumconf/domain/submissions/types.js";
+} from "@podiumstack/domain/event-config/types.js";
+import type { FieldError } from "@podiumstack/domain/shared/errors.js";
+import { formatInZone } from "@podiumstack/domain/shared/time.js";
+import { answerDisplay } from "@podiumstack/domain/submissions/answer-display.js";
+import { isBlank, type AnswerMap } from "@podiumstack/domain/submissions/answers.js";
+import { nextAction, type EditAffordance, type NextAction } from "@podiumstack/domain/submissions/types.js";
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";

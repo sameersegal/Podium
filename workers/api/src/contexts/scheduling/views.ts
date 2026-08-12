@@ -7,19 +7,19 @@
  * per-event serialisation `Placement` mutations require.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { autoPlace, proposalAsPlacements, type AutoPlaceInputs, type ProposedPlacement, type UnplaceableSession } from "@podiumconf/domain/scheduling/auto-place.js";
-import { detectConflicts, type ConflictFinding } from "@podiumconf/domain/scheduling/conflicts.js";
-import { isPlaceableStatus } from "@podiumconf/domain/scheduling/placement.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { autoPlace, proposalAsPlacements, type AutoPlaceInputs, type ProposedPlacement, type UnplaceableSession } from "@podiumstack/domain/scheduling/auto-place.js";
+import { detectConflicts, type ConflictFinding } from "@podiumstack/domain/scheduling/conflicts.js";
+import { isPlaceableStatus } from "@podiumstack/domain/scheduling/placement.js";
 import {
   widgetSupportsFormat,
   type AutoPlaceStrategy,
   type EmbedFormat,
   type WidgetType,
-} from "@podiumconf/domain/scheduling/types.js";
-import { invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+} from "@podiumstack/domain/scheduling/types.js";
+import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import { listConflicts, type ConflictView } from "./conflicts.js";
 import { loadScheduleFacts, type ScheduleFacts } from "./facts.js";
 import { pendingChanges, type PublishScope } from "./publication.js";

@@ -6,8 +6,8 @@
  * at-least-once redelivery is a no-op.
  */
 
-import type { Env } from "@podiumconf/data/context.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import type { Env } from "@podiumstack/data/context.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
 
 export interface Reaction {
   name: string;

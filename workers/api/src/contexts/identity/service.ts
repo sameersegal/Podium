@@ -4,9 +4,9 @@
  * Aggregate roots: `Organization`, `Person`, `Invitation`.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { bool, buildInsert, buildUpdate, num, parseJson, str, strOrNull, type Row, type Statement } from "@podiumconf/data/db.js";
-import { beyondCpuBudget, hashToken, needsRehash, newToken, hashPassword, verifyPassword } from "@podiumconf/domain/identity/credentials.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { bool, buildInsert, buildUpdate, num, parseJson, str, strOrNull, type Row, type Statement } from "@podiumstack/data/db.js";
+import { beyondCpuBudget, hashToken, needsRehash, newToken, hashPassword, verifyPassword } from "@podiumstack/domain/identity/credentials.js";
 import {
   canTransitionParticipant,
   DEFAULT_PROFILE_VISIBILITY,
@@ -18,12 +18,12 @@ import {
   type ParticipantKind,
   type ParticipantSource,
   type ParticipantStatus,
-} from "@podiumconf/domain/identity/types.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { DomainError, forbidden, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId, slugify } from "@podiumconf/domain/shared/ids.js";
-import { addDays, isValidTimezone, nowIso } from "@podiumconf/domain/shared/time.js";
-import type { Role, ScopeType } from "@podiumconf/domain/shared/authorization.js";
+} from "@podiumstack/domain/identity/types.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { DomainError, forbidden, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId, slugify } from "@podiumstack/domain/shared/ids.js";
+import { addDays, isValidTimezone, nowIso } from "@podiumstack/domain/shared/time.js";
+import type { Role, ScopeType } from "@podiumstack/domain/shared/authorization.js";
 
 export interface PersonRow extends Row {
   id: string;

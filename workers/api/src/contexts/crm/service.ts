@@ -11,8 +11,8 @@
  * access to any event's proposals, reviews or decisions.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   canMoveCard,
   criteriaIsEmpty,
@@ -29,9 +29,9 @@ import {
   type SegmentKind,
   type StageKind,
   type StageSpec,
-} from "@podiumconf/domain/crm/index.js";
-import { DomainError, invariantError, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+} from "@podiumstack/domain/crm/index.js";
+import { DomainError, invariantError, notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import { addParticipant } from "../identity/service.js";
 
 /* -------------------------------------------------------------------------- */

@@ -11,9 +11,9 @@
  * `consumed_count` is derived and re-deriving it is idempotent by construction.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { emitHold, emitRelease, spendEntitlement } from "./service.js";
 

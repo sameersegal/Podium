@@ -11,8 +11,8 @@ import {
   submissionPayloadIsPii,
   taskVisibility,
   type ProgressInput,
-} from "@podiumconf/domain/onboarding/types.js";
-import { assertNamedPeople } from "@podiumconf/web/contexts/onboarding/service.js";
+} from "@podiumstack/domain/onboarding/types.js";
+import { assertNamedPeople } from "@podiumstack/web/contexts/onboarding/service.js";
 
 /** Typed errors carry their invariant id (11-cross-cutting.md); assert on that, not on prose. */
 function expectInvariant(fn: () => unknown, invariant: string): void {

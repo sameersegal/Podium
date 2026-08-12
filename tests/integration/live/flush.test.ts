@@ -1,10 +1,10 @@
 import { env as testEnv, runInDurableObject } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { roomKey } from "@podiumconf/data/live.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
-import type { RoomBatch, RoomDurableObject } from "@podiumconf/web/durable/room.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { roomKey } from "@podiumstack/data/live.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
+import type { RoomBatch, RoomDurableObject } from "@podiumstack/web/durable/room.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;
 
@@ -92,7 +92,7 @@ describe("the two paths into a room", () => {
   });
 
   it("registers the broadcast reaction against the event type", async () => {
-    const { reactionsFor } = await import("@podiumconf/web/consumers/dispatch.js");
+    const { reactionsFor } = await import("@podiumstack/web/consumers/dispatch.js");
     const names = reactionsFor("session.updated").map((r) => r.name);
     expect(names).toContain("platform.room_broadcast");
 

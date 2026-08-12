@@ -9,9 +9,9 @@
  *     `accepted --> expired` edge. Emits `proposal.expired`.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { D1Db, num, str, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { D1Db, num, str, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { abandonmentPolicy } from "../sponsorship/service.js";
 import { emitDraftAbandoned, expireProposal } from "./service.js";

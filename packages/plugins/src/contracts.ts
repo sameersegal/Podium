@@ -11,8 +11,8 @@
  * message on the wire.
  */
 
-import type { Capability } from "@podiumconf/domain/platform/types.js";
-import type { SyncFieldKind } from "@podiumconf/domain/platform/sync.js";
+import type { Capability } from "@podiumstack/domain/platform/types.js";
+import type { SyncFieldKind } from "@podiumstack/domain/platform/sync.js";
 
 export type { Capability };
 

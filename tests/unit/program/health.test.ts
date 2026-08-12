@@ -7,7 +7,7 @@ import {
   trackBalanceOf,
   unconfirmedSpeakerCount,
   unplacedConfirmedCount,
-} from "@podiumconf/web/contexts/program/views.js";
+} from "@podiumstack/web/contexts/program/views.js";
 
 /**
  * 06-program.md, "Program health read model" — pure aggregators only. The D1

@@ -1,8 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
-import { REDACTED } from "@podiumconf/domain/shared/pii.js";
-import { domainEventPayload } from "@podiumconf/web/contexts/platform/views.js";
+import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
+import { REDACTED } from "@podiumstack/domain/shared/pii.js";
+import { domainEventPayload } from "@podiumstack/web/contexts/platform/views.js";
 
 /**
  * `/admin/event-log` — 10-domain-events.md's promise that the log answers

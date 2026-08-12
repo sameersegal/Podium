@@ -6,9 +6,9 @@
  * invitation's `accept_url` is shown on screen when it is created.
  */
 
-import { str } from "@podiumconf/data/db.js";
-import { normaliseEmail } from "@podiumconf/domain/identity/types.js";
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
+import { str } from "@podiumstack/data/db.js";
+import { normaliseEmail } from "@podiumstack/domain/identity/types.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
 import { cookiesOf, flashCookie, safeNext, SESSION_COOKIE, setCookie, clearCookie, type RequestContext } from "../../http/context.js";
 import { closeSocketsFor } from "../../surfaces/live.js";
 import { readInput } from "../../http/input.js";
@@ -266,7 +266,7 @@ function describeInvitation(kind: string): string {
 }
 
 async function hashOf(token: string): Promise<string> {
-  const { hashToken } = await import("@podiumconf/domain/identity/credentials.js");
+  const { hashToken } = await import("@podiumstack/domain/identity/credentials.js");
   return hashToken(token);
 }
 

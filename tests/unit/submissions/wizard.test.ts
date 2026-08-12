@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { FormFieldSpec, FormSpec, FormStepSpec } from "@podiumconf/domain/event-config/types.js";
-import { resolveStepKey, wizardSteps } from "@podiumconf/web/contexts/submissions/wizard.js";
+import type { FormFieldSpec, FormSpec, FormStepSpec } from "@podiumstack/domain/event-config/types.js";
+import { resolveStepKey, wizardSteps } from "@podiumstack/web/contexts/submissions/wizard.js";
 
 /**
  * 04, "one control per FieldType ... a final review-and-submit step listing

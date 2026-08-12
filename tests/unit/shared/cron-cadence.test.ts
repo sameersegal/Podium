@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CRON_JOBS, TRIGGER_MINUTES, isDue } from "@podiumconf/web/consumers/cron.js";
+import { CRON_JOBS, TRIGGER_MINUTES, isDue } from "@podiumstack/web/consumers/cron.js";
 
 /**
  * The Cron Trigger fires every 15 minutes on the clock (wrangler.jsonc).

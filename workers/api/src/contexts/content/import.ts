@@ -5,12 +5,12 @@
  * around it.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { normaliseEmail } from "@podiumconf/domain/identity/types.js";
-import { newId as mintId } from "@podiumconf/domain/shared/ids.js";
-import { parseCsv } from "@podiumconf/domain/content/csv.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { normaliseEmail } from "@podiumstack/domain/identity/types.js";
+import { newId as mintId } from "@podiumstack/domain/shared/ids.js";
+import { parseCsv } from "@podiumstack/domain/content/csv.js";
 import {
   applyMapping,
   autoMapColumns,
@@ -19,8 +19,8 @@ import {
   splitList,
   summarise,
   type PreviewRow,
-} from "@podiumconf/domain/content/import.js";
-import type { DedupeKey, ImportSubject, OnDuplicate } from "@podiumconf/domain/content/types.js";
+} from "@podiumstack/domain/content/import.js";
+import type { DedupeKey, ImportSubject, OnDuplicate } from "@podiumstack/domain/content/types.js";
 import { uploadAssetDirect } from "./assets.js";
 import { addParticipant } from "../identity/service.js";
 

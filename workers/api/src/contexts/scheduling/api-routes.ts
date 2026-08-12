@@ -14,10 +14,10 @@
  * grid to find out what it broke.
  */
 
-import { num, str, type Row } from "@podiumconf/data/db.js";
-import type { AutoPlaceStrategy } from "@podiumconf/domain/scheduling/types.js";
-import { notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { addMinutes, zonedDateTimeToInstant } from "@podiumconf/domain/shared/time.js";
+import { num, str, type Row } from "@podiumstack/data/db.js";
+import type { AutoPlaceStrategy } from "@podiumstack/domain/scheduling/types.js";
+import { notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { addMinutes, zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
 import { runSerialised } from "../../durable/schedule.js";
 import type { RequestContext } from "../../http/context.js";
 import { readInput } from "../../http/input.js";

@@ -51,5 +51,11 @@ Head markup:
 ## Naming
 
 Podium is unrelated to podium.com (lead management) and to
-[podium-lib](https://podium-lib.io) (micro-frontends), which hold the obvious namespaces. The
-npm scope is `@podiumconf/*` (R29); the repository is still named `kms`.
+[podium-lib](https://podium-lib.io) (micro-frontends), which hold the obvious namespaces.
+
+The product is **Podium**. Wherever the bare word is unavailable the qualifier is
+**`podiumstack`**, and it is always the same one: the site at `podiumstack.com`, the app at
+`app.podiumstack.com`, `@podiumstack` on social, and the npm scope `@podiumstack/*` (R29).
+The repository is [`sameersegal/Podium`](https://github.com/sameersegal/Podium). Anything new
+that needs a namespace takes `podiumstack` too — a second qualifier is how a reader ends up
+holding three names for one product.

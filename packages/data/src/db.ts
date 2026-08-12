@@ -10,7 +10,7 @@
  *   * INV-11-2 — soft-deleted rows are excluded from every read.
  */
 
-import { versionConflict } from "@podiumconf/domain/shared/errors.js";
+import { versionConflict } from "@podiumstack/domain/shared/errors.js";
 
 export type Row = Record<string, unknown>;
 

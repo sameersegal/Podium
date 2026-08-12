@@ -12,7 +12,7 @@ import {
   expiringSoon,
   isPubliclyVisible,
   usageOf,
-} from "@podiumconf/domain/sponsorship/types.js";
+} from "@podiumstack/domain/sponsorship/types.js";
 
 const NOW = "2027-03-01T00:00:00.000Z";
 const ENTITLEMENT = {

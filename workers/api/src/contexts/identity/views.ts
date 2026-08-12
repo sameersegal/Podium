@@ -6,7 +6,7 @@
  * `/portal/profile`.
  */
 
-import { bool, num, parseJson, str, type Row } from "@podiumconf/data/db.js";
+import { bool, num, parseJson, str, type Row } from "@podiumstack/data/db.js";
 import {
   INVITATION_KIND,
   PARTICIPANT_KIND,
@@ -14,8 +14,8 @@ import {
   PARTICIPANT_TRANSITIONS,
   PROFILE_LINK_KIND,
   type ParticipantStatus,
-} from "@podiumconf/domain/identity/types.js";
-import { ROLES } from "@podiumconf/domain/shared/authorization.js";
+} from "@podiumstack/domain/identity/types.js";
+import { ROLES } from "@podiumstack/domain/shared/authorization.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";

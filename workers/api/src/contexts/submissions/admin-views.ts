@@ -4,11 +4,11 @@
  * sponsor proposals.
  */
 
-import { num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { AUDIENCE_LEVEL, ORIGIN, RECORDING_CONSENT } from "@podiumconf/domain/event-config/types.js";
-import type { FieldError } from "@podiumconf/domain/shared/errors.js";
-import { formatDateInZone, formatInZone } from "@podiumconf/domain/shared/time.js";
-import { PROPOSAL_STATUS } from "@podiumconf/domain/submissions/types.js";
+import { num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { AUDIENCE_LEVEL, ORIGIN, RECORDING_CONSENT } from "@podiumstack/domain/event-config/types.js";
+import type { FieldError } from "@podiumstack/domain/shared/errors.js";
+import { formatDateInZone, formatInZone } from "@podiumstack/domain/shared/time.js";
+import { PROPOSAL_STATUS } from "@podiumstack/domain/submissions/types.js";
 import { html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, sortBar, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";

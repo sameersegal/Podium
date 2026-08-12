@@ -7,7 +7,7 @@ import {
   parseSlotKey,
   slotKey,
   supersededBy,
-} from "@podiumconf/domain/content/assets.js";
+} from "@podiumstack/domain/content/assets.js";
 
 describe("asset slot versioning (INV-11-9)", () => {
   it("INV-11-9: the first upload into a slot is version 1", () => {

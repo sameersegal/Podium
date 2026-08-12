@@ -9,11 +9,11 @@
  * platform mapping).
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { D1Db, num, str, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { isTerminalAssignment, type AssignmentStatus, type ReminderChannel } from "@podiumconf/domain/review/types.js";
-import { addDays, calendarDateInZone } from "@podiumconf/domain/shared/time.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { D1Db, num, str, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { isTerminalAssignment, type AssignmentStatus, type ReminderChannel } from "@podiumstack/domain/review/types.js";
+import { addDays, calendarDateInZone } from "@podiumstack/domain/shared/time.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { remindReviewer } from "./service.js";
 

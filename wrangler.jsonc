@@ -132,9 +132,9 @@
   "observability": { "enabled": true },
 
   "alias": {
-    "@podiumconf/domain": "./packages/domain/src",
-    "@podiumconf/data": "./packages/data/src",
-    "@podiumconf/plugins": "./packages/plugins/src",
-    "@podiumconf/web": "./workers/api/src"
+    "@podiumstack/domain": "./packages/domain/src",
+    "@podiumstack/data": "./packages/data/src",
+    "@podiumstack/plugins": "./packages/plugins/src",
+    "@podiumstack/web": "./workers/api/src"
   }
 }

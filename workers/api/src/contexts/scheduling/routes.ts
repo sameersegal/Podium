@@ -13,7 +13,7 @@
  * admin screen here) re-reads that same, now-persisted, list.
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   AUTO_PLACE_STRATEGY,
   CONFLICT_LABELS,
@@ -24,10 +24,10 @@ import {
   type AutoPlaceStrategy,
   type EmbedFormat,
   type WidgetType,
-} from "@podiumconf/domain/scheduling/types.js";
-import { notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { addMinutes, formatInZone, formatTimeInZone, zonedDateTimeToInstant } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/scheduling/types.js";
+import { notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { addMinutes, formatInZone, formatTimeInZone, zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
 import { runSerialised } from "../../durable/schedule.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";

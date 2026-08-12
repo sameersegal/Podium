@@ -10,10 +10,10 @@
  * upserts, because at-least-once delivery is assumed everywhere.
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { addParticipant, detectMergeCandidates } from "./service.js";
 

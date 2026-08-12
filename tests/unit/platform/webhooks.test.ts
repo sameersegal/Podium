@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkWebhookUrl, parseSignature, signPayload, verifySignature } from "@podiumconf/domain/platform/webhooks.js";
-import { backoffSecondsFor, MAX_WEBHOOK_ATTEMPTS, WEBHOOK_BACKOFF_SECONDS } from "@podiumconf/domain/platform/types.js";
+import { checkWebhookUrl, parseSignature, signPayload, verifySignature } from "@podiumstack/domain/platform/webhooks.js";
+import { backoffSecondsFor, MAX_WEBHOOK_ATTEMPTS, WEBHOOK_BACKOFF_SECONDS } from "@podiumstack/domain/platform/types.js";
 
 describe("SSRF refusal (INV-09-2)", () => {
   it("INV-09-2: accepts an absolute https URL to a public host", () => {

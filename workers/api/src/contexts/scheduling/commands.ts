@@ -9,18 +9,18 @@
  * (INV-08-14).
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import {
   assertPlaceable,
   assertPlacementTimes,
   assertRemovable,
   sessionStatusOnPlace,
   sessionStatusOnRemove,
-} from "@podiumconf/domain/scheduling/placement.js";
-import type { ProposedPlacement } from "@podiumconf/domain/scheduling/auto-place.js";
+} from "@podiumstack/domain/scheduling/placement.js";
+import type { ProposedPlacement } from "@podiumstack/domain/scheduling/auto-place.js";
 import type { SerialisedCall } from "../../durable/schedule.js";
 import { recomputeConflicts } from "./conflicts.js";
 import { loadScheduleFacts } from "./facts.js";

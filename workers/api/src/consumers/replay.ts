@@ -17,9 +17,9 @@
  * (`reactionsFor`), not against "any log row exists".
  */
 
-import { D1Db, num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import type { Env } from "@podiumconf/data/context.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { D1Db, num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import type { Env } from "@podiumstack/data/context.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import { deliverEvent, reactionsFor } from "./dispatch.js";
 
 /**

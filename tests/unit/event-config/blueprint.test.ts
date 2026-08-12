@@ -7,9 +7,9 @@ import {
   rebaseInstant,
   starterCfpWindow,
   STARTER_BLUEPRINT,
-} from "@podiumconf/domain/event-config/blueprint.js";
-import { cfpWindowProblems, DEFAULT_FORM_TEMPLATE, formSpecAsTemplate, publishBlockers } from "@podiumconf/domain/event-config/rules.js";
-import type { FormSpec } from "@podiumconf/domain/event-config/types.js";
+} from "@podiumstack/domain/event-config/blueprint.js";
+import { cfpWindowProblems, DEFAULT_FORM_TEMPLATE, formSpecAsTemplate, publishBlockers } from "@podiumstack/domain/event-config/rules.js";
+import type { FormSpec } from "@podiumstack/domain/event-config/types.js";
 
 /**
  * 02 — "Starting an event: the starter blueprint and cloning". The pure half:

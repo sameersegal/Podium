@@ -6,7 +6,7 @@ import {
   redactCustomValues,
   usageOf,
   type CustomFieldDefinitionView,
-} from "@podiumconf/domain/content/custom-fields.js";
+} from "@podiumstack/domain/content/custom-fields.js";
 
 const SHIRT_SIZE: CustomFieldDefinitionView = {
   id: "cfd_1",

@@ -8,13 +8,13 @@
  * Management API: /v1/api-keys, /v1/webhooks, /v1/integrations, /v1/campaigns, /v1/notifications.
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { PII_EVENT_TYPES, type DomainEventType } from "@podiumconf/domain/events/catalogue.js";
-import { API_SCOPES, type ApiScope } from "@podiumconf/domain/shared/authorization.js";
-import { notFound } from "@podiumconf/domain/shared/errors.js";
-import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumconf/domain/platform/types.js";
-import type { AudienceCriteria } from "@podiumconf/domain/platform/types.js";
-import { writableFields } from "@podiumconf/domain/platform/sync.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { PII_EVENT_TYPES, type DomainEventType } from "@podiumstack/domain/events/catalogue.js";
+import { API_SCOPES, type ApiScope } from "@podiumstack/domain/shared/authorization.js";
+import { notFound } from "@podiumstack/domain/shared/errors.js";
+import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumstack/domain/platform/types.js";
+import type { AudienceCriteria } from "@podiumstack/domain/platform/types.js";
+import { writableFields } from "@podiumstack/domain/platform/sync.js";
 import { activeMappings } from "./sync.js";
 import { schedulePull } from "./sync-delivery.js";
 import { registerSyncRoutes } from "./sync-routes.js";
@@ -25,7 +25,7 @@ import {
   verifyInboundWebhookSignature,
   verifyUnsubscribeSignature,
 } from "./notifications.js";
-import { formatInZone } from "@podiumconf/domain/shared/time.js";
+import { formatInZone } from "@podiumstack/domain/shared/time.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";

@@ -26,10 +26,10 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
-      { find: /^@podiumconf\/domain(\/.*)?$/, replacement: r("./packages/domain/src$1") },
-      { find: /^@podiumconf\/data(\/.*)?$/, replacement: r("./packages/data/src$1") },
-      { find: /^@podiumconf\/plugins(\/.*)?$/, replacement: r("./packages/plugins/src$1") },
-      { find: /^@podiumconf\/web(\/.*)?$/, replacement: r("./workers/api/src$1") },
+      { find: /^@podiumstack\/domain(\/.*)?$/, replacement: r("./packages/domain/src$1") },
+      { find: /^@podiumstack\/data(\/.*)?$/, replacement: r("./packages/data/src$1") },
+      { find: /^@podiumstack\/plugins(\/.*)?$/, replacement: r("./packages/plugins/src$1") },
+      { find: /^@podiumstack\/web(\/.*)?$/, replacement: r("./workers/api/src$1") },
     ],
   },
   test: {

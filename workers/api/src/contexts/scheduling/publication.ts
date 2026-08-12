@@ -10,9 +10,9 @@
  * the embed never touches the database (INV-09-6).
  */
 
-import type { AppContext, Env } from "@podiumconf/data/context.js";
-import { D1Db, bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DEFAULT_PROFILE_VISIBILITY } from "@podiumconf/domain/identity/types.js";
+import type { AppContext, Env } from "@podiumstack/data/context.js";
+import { D1Db, bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DEFAULT_PROFILE_VISIBILITY } from "@podiumstack/domain/identity/types.js";
 import {
   assertNoPrivateFields,
   computeDiff,
@@ -32,9 +32,9 @@ import {
   type ScheduleSnapshot,
   type SnapshotEventRef,
   type WorkingSession,
-} from "@podiumconf/domain/scheduling/publication.js";
-import { invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+} from "@podiumstack/domain/scheduling/publication.js";
+import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import { errorCodesBySession, listConflicts, recomputeConflicts } from "./conflicts.js";
 import { loadScheduleFacts, toEventFact, type EventFact } from "./facts.js";
 import { readinessOf } from "./program-link.js";

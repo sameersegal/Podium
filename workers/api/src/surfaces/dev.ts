@@ -9,8 +9,8 @@
 
 import { runAllCron } from "../consumers/cron.js";
 import { replayUnprocessedEvents } from "../consumers/replay.js";
-import { str, type Row } from "@podiumconf/data/db.js";
-import { forbidden } from "@podiumconf/domain/shared/errors.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import { forbidden } from "@podiumstack/domain/shared/errors.js";
 import type { RequestContext } from "../http/context.js";
 import { json } from "../http/responses.js";
 import type { Router } from "../http/router.js";

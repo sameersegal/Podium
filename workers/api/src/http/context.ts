@@ -6,10 +6,10 @@
  * management UI), an API key (management API), or nothing (public surfaces).
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { bool, D1Db, parseJson, str, type Row } from "@podiumconf/data/db.js";
-import { hashToken } from "@podiumconf/domain/identity/credentials.js";
-import type { Actor } from "@podiumconf/domain/events/envelope.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { bool, D1Db, parseJson, str, type Row } from "@podiumstack/data/db.js";
+import { hashToken } from "@podiumstack/domain/identity/credentials.js";
+import type { Actor } from "@podiumstack/domain/events/envelope.js";
 import {
   accessFor,
   canAct,
@@ -23,10 +23,10 @@ import {
   type Relationships,
   type RoleGrantView,
   type Target,
-} from "@podiumconf/domain/shared/authorization.js";
-import { forbidden, unauthorized } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { nowIso } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/shared/authorization.js";
+import { forbidden, unauthorized } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { nowIso } from "@podiumstack/domain/shared/time.js";
 
 export const SESSION_COOKIE = "podium_session";
 export const FLASH_COOKIE = "podium_flash";

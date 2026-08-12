@@ -1,9 +1,9 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { hashPassword } from "@podiumconf/domain/identity/credentials.js";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
-import { buildEvent, SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { templateSpec } from "@podiumconf/domain/platform/templates.js";
+import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
+import { buildEvent, SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { templateSpec } from "@podiumstack/domain/platform/templates.js";
 
 /**
  * INV-05-11 — "`outcome = accept` requires `has_quorum`, unless … the chair

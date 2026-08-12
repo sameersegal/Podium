@@ -10,7 +10,7 @@
  * Public API:     /v1/public/events/:eventSlug/cfps/:cfpSlug (INV-02-12)
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   buildConditionRule,
   CONDITION_OP_LABELS,
@@ -21,7 +21,7 @@ import {
   optionLines,
   parseOptionLines,
   type SelectOption,
-} from "@podiumconf/domain/event-config/rules.js";
+} from "@podiumstack/domain/event-config/rules.js";
 import {
   AV_CAPABILITY,
   CAPACITY_POLICY,
@@ -48,10 +48,10 @@ import {
   type Origin,
   type ProvisioningSource,
   type WithdrawAllowedUntil,
-} from "@podiumconf/domain/event-config/types.js";
-import { notFound } from "@podiumconf/domain/shared/errors.js";
-import { slugify } from "@podiumconf/domain/shared/ids.js";
-import { calendarDateInZone, formatInZone, formatTimeInZone, zonedDateTimeToInstant } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/event-config/types.js";
+import { notFound } from "@podiumstack/domain/shared/errors.js";
+import { slugify } from "@podiumstack/domain/shared/ids.js";
+import { calendarDateInZone, formatInZone, formatTimeInZone, zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
 import { expectedVersion, staleWriteRedirect, versionField } from "../../http/concurrency.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";

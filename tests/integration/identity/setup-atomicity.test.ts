@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { setupOrganization } from "@podiumconf/web/contexts/identity/service.js";
-import type { Env } from "@podiumconf/data/context.js";
+import { setupOrganization } from "@podiumstack/web/contexts/identity/service.js";
+import type { Env } from "@podiumstack/data/context.js";
 
 /**
  * Defect 1 — `setupOrganization` used to commit `bootstrap_state`,

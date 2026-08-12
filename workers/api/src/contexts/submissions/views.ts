@@ -8,8 +8,8 @@
  * `percent_complete`, which has no column).
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   acceptsSubmission,
   cfpStatus,
@@ -17,17 +17,17 @@ import {
   visibleSteps,
   type EventStatus,
   type FormSpec,
-} from "@podiumconf/domain/event-config/types.js";
-import { REDACTED, redactRecord } from "@podiumconf/domain/shared/pii.js";
-import { answerDisplay } from "@podiumconf/domain/submissions/answer-display.js";
-import { visibleAnswers, type AnswerMap } from "@podiumconf/domain/submissions/answers.js";
+} from "@podiumstack/domain/event-config/types.js";
+import { REDACTED, redactRecord } from "@podiumstack/domain/shared/pii.js";
+import { answerDisplay } from "@podiumstack/domain/submissions/answer-display.js";
+import { visibleAnswers, type AnswerMap } from "@podiumstack/domain/submissions/answers.js";
 import {
   canWithdraw,
   editAffordance,
   nextAction,
   type EditAffordance,
   type NextAction,
-} from "@podiumconf/domain/submissions/types.js";
+} from "@podiumstack/domain/submissions/types.js";
 import { loadFormSpec } from "../event-config/views.js";
 import { referenceLabels } from "./answer-labels.js";
 import { answersOf, contentHashOf, revisionsOf, speakersOf } from "./service.js";

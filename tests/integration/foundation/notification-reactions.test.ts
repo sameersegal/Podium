@@ -1,8 +1,8 @@
 import { env as testEnv } from "cloudflare:test";
-import type { Env } from "@podiumconf/data/context.js";
+import type { Env } from "@podiumstack/data/context.js";
 import { beforeAll, describe, expect, it } from "vitest";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
-import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
+import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;
 

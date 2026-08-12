@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { detectConflicts, type ConflictInputs, type DayFact, type RoomFact, type SessionFact } from "@podiumconf/domain/scheduling/conflicts.js";
-import type { PlacementFact } from "@podiumconf/domain/scheduling/placement.js";
-import { CONFLICT_CODE, type ConflictCode } from "@podiumconf/domain/scheduling/types.js";
+import { detectConflicts, type ConflictInputs, type DayFact, type RoomFact, type SessionFact } from "@podiumstack/domain/scheduling/conflicts.js";
+import type { PlacementFact } from "@podiumstack/domain/scheduling/placement.js";
+import { CONFLICT_CODE, type ConflictCode } from "@podiumstack/domain/scheduling/types.js";
 
 /**
  * 08, "Conflict detection" — every code in the table, detected on a

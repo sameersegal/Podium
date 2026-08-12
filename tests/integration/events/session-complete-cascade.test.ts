@@ -1,10 +1,10 @@
 import { env as testEnv } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { Env } from "@podiumconf/data/context.js";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { autoCompleteInstance } from "@podiumconf/web/contexts/onboarding/service.js";
-import { publishSchedule } from "@podiumconf/web/contexts/scheduling/publication.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { autoCompleteInstance } from "@podiumstack/web/contexts/onboarding/service.js";
+import { publishSchedule } from "@podiumstack/web/contexts/scheduling/publication.js";
 import { drain, handlerRan, stepsOfType } from "../helpers/events.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;

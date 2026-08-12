@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { setupOrganization } from "@podiumconf/web/contexts/identity/service.js";
+import { setupOrganization } from "@podiumstack/web/contexts/identity/service.js";
 
 /**
  * INV-01-16 — the actual backstop. The route's "refuse once `ctx.orgId` is

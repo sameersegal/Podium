@@ -8,7 +8,7 @@ import {
   validateMappings,
   visibleSteps,
   type FormSpec,
-} from "@podiumconf/domain/event-config/types.js";
+} from "@podiumstack/domain/event-config/types.js";
 import {
   activationBlockers,
   canTransitionEvent,
@@ -16,7 +16,7 @@ import {
   durationProblems,
   isCosmeticFieldPatch,
   publishBlockers,
-} from "@podiumconf/domain/event-config/rules.js";
+} from "@podiumstack/domain/event-config/rules.js";
 
 const OPEN = { opens_at: "2026-01-01T00:00:00.000Z", closes_at: "2026-06-01T00:00:00.000Z", published_at: "2025-12-01T00:00:00.000Z" };
 const DURING = "2026-03-01T00:00:00.000Z";

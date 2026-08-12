@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { autoMapColumns, dedupeValueOf, previewRows, summarise, validateRow } from "@podiumconf/domain/content/import.js";
-import { parseCsv } from "@podiumconf/domain/content/csv.js";
+import { autoMapColumns, dedupeValueOf, previewRows, summarise, validateRow } from "@podiumstack/domain/content/import.js";
+import { parseCsv } from "@podiumstack/domain/content/csv.js";
 
 const CSV = `name,email,title,company,bio
 Ada Lovelace,ada@example.com,Engineer,Analytical Engines,Pioneer.

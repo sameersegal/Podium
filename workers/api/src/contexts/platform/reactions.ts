@@ -6,12 +6,12 @@
  * (`consumers/reactions.ts` orders `PLATFORM_REACTIONS` after the rest).
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { eventTypeMatches, liveEventTypes } from "@podiumconf/domain/events/catalogue.js";
-import { kickFromRoom, pokeRooms } from "@podiumconf/data/live.js";
-import { SYNC_DIRTY_EVENT_TYPES, SYNC_DIRTY_RULES } from "@podiumconf/domain/platform/sync.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { eventTypeMatches, liveEventTypes } from "@podiumstack/domain/events/catalogue.js";
+import { kickFromRoom, pokeRooms } from "@podiumstack/data/live.js";
+import { SYNC_DIRTY_EVENT_TYPES, SYNC_DIRTY_RULES } from "@podiumstack/domain/platform/sync.js";
 import type { Reaction } from "../../consumers/reactions.js";
 import { queueNotification } from "./notifications.js";
 import { scheduleWebhookDelivery } from "./service.js";

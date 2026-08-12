@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveContentType, safeServeContentType } from "@podiumconf/domain/content/assets.js";
+import { resolveContentType, safeServeContentType } from "@podiumstack/domain/content/assets.js";
 
 /**
  * Stored XSS via an uploaded SVG.

@@ -13,10 +13,10 @@
  *     if (num(row.row_version) !== link.last_pushed_version) → conflict          // INV-09-18
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
 import {
   EMPTY_COUNTS,
   assertSyncLinkTransition,
@@ -39,8 +39,8 @@ import {
   type SyncRunDirection,
   type SyncRunTrigger,
   type SyncSubject,
-} from "@podiumconf/domain/platform/sync.js";
-import type { SyncColumnSpec, SyncPlugin, SyncRecordInput } from "@podiumconf/plugins/registry.js";
+} from "@podiumstack/domain/platform/sync.js";
+import type { SyncColumnSpec, SyncPlugin, SyncRecordInput } from "@podiumstack/plugins/registry.js";
 
 import { resolvePlugin, resolvePluginForIntegration, type ResolvedPlugin } from "./service.js";
 import { adapterFor, personLinkedSubjects, type MappingScope } from "./sync-subjects.js";

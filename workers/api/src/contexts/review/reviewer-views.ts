@@ -4,10 +4,10 @@
  * these functions turn it into `SafeHtml`.
  */
 
-import { str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import type { ReviewableProjection } from "@podiumconf/domain/review/anonymity.js";
-import type { ReviewerProgress } from "@podiumconf/domain/review/scoring.js";
-import { formatInZone, relativeDays } from "@podiumconf/domain/shared/time.js";
+import { str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import type { ReviewableProjection } from "@podiumstack/domain/review/anonymity.js";
+import type { ReviewerProgress } from "@podiumstack/domain/review/scoring.js";
+import { formatInZone, relativeDays } from "@podiumstack/domain/shared/time.js";
 import {
   CONFIDENCE,
   DECLINE_REASON,
@@ -18,8 +18,8 @@ import {
   type ReviewView,
   type RubricView,
   type ScoreView,
-} from "@podiumconf/domain/review/types.js";
-import type { ProposalScore } from "@podiumconf/domain/review/scoring.js";
+} from "@podiumstack/domain/review/types.js";
+import type { ProposalScore } from "@podiumstack/domain/review/scoring.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { badge, card, empty, field, humanise, pageHead, progressBar } from "../../ui/layout.js";
 import { opts } from "./views.js";

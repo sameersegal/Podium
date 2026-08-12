@@ -27,8 +27,8 @@
 
 import { DurableObject } from "cloudflare:workers";
 
-import type { Env } from "@podiumconf/data/context.js";
-import { isLiveEventType, liveAudience, type LiveAudience } from "@podiumconf/domain/events/catalogue.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { isLiveEventType, liveAudience, type LiveAudience } from "@podiumstack/domain/events/catalogue.js";
 
 /** What actually crosses the wire, one element of a `RoomBatch`. */
 export interface RoomFrame {

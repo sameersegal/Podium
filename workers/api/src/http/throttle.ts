@@ -23,9 +23,9 @@
  * is the right trade against a D1 write on every sign-in attempt.
  */
 
-import type { Env } from "@podiumconf/data/context.js";
-import { hashToken } from "@podiumconf/domain/identity/credentials.js";
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { hashToken } from "@podiumstack/domain/identity/credentials.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
 
 /** How long a run of failures is remembered. */
 const WINDOW_SECONDS = 15 * 60;

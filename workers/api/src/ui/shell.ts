@@ -3,8 +3,8 @@
  * navigation is identical everywhere and an event's context never disappears.
  */
 
-import { str, type Row } from "@podiumconf/data/db.js";
-import { formatDateInZone } from "@podiumconf/domain/shared/time.js";
+import { str, type Row } from "@podiumstack/data/db.js";
+import { formatDateInZone } from "@podiumstack/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { html, raw, type SafeHtml } from "./html.js";
 import { badge, externalLink, page, type NavItem } from "./layout.js";

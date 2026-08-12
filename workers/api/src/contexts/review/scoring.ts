@@ -12,8 +12,8 @@
  * `requireRound` and `requireRubric` are the only doors in.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   aggregateProposalScore,
   allReviewerProgress,
@@ -23,13 +23,13 @@ import {
   type AssignmentProgressView,
   type ProposalScore,
   type ReviewerProgress,
-} from "@podiumconf/domain/review/scoring.js";
-import type { ConflictRecord, ProposalConflictSubject } from "@podiumconf/domain/review/coi.js";
+} from "@podiumstack/domain/review/scoring.js";
+import type { ConflictRecord, ProposalConflictSubject } from "@podiumstack/domain/review/coi.js";
 import type {
   ProposalAnswerView,
   ProposalSpeakerView,
   ReviewableProposal,
-} from "@podiumconf/domain/review/anonymity.js";
+} from "@podiumstack/domain/review/anonymity.js";
 import type {
   AssignmentStatus,
   AuthorKind,
@@ -46,9 +46,9 @@ import type {
   RoundStatus,
   RubricView,
   ScoreView,
-} from "@podiumconf/domain/review/types.js";
-import { notFound } from "@podiumconf/domain/shared/errors.js";
-import type { FieldType } from "@podiumconf/domain/event-config/types.js";
+} from "@podiumstack/domain/review/types.js";
+import { notFound } from "@podiumstack/domain/shared/errors.js";
+import type { FieldType } from "@podiumstack/domain/event-config/types.js";
 import { referenceLabels } from "../submissions/answer-labels.js";
 
 /* -------------------------------------------------------------------------- */

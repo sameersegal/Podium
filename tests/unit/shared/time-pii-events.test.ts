@@ -6,11 +6,11 @@ import {
   formatTimeInZone,
   overlaps,
   zonedDateTimeToInstant,
-} from "@podiumconf/domain/shared/time.js";
-import { redactRecord, stripNeverPublic, NEVER_PUBLIC_PROFILE_FIELDS } from "@podiumconf/domain/shared/pii.js";
-import { EVENT_TYPES, eventTypeMatches, isKnownEventType } from "@podiumconf/domain/events/catalogue.js";
-import { buildEvent, SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { beyondCpuBudget, contentHash, hashPassword, hashToken, needsRehash, verifyPassword, newToken } from "@podiumconf/domain/identity/credentials.js";
+} from "@podiumstack/domain/shared/time.js";
+import { redactRecord, stripNeverPublic, NEVER_PUBLIC_PROFILE_FIELDS } from "@podiumstack/domain/shared/pii.js";
+import { EVENT_TYPES, eventTypeMatches, isKnownEventType } from "@podiumstack/domain/events/catalogue.js";
+import { buildEvent, SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { beyondCpuBudget, contentHash, hashPassword, hashToken, needsRehash, verifyPassword, newToken } from "@podiumstack/domain/identity/credentials.js";
 
 describe("time (11-cross-cutting.md, Time)", () => {
   it("INV-02-1: renders an instant in the event timezone, not the viewer's", () => {

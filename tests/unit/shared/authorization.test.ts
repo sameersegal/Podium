@@ -7,7 +7,7 @@ import {
   isOwnProposal,
   NO_RELATIONSHIPS,
   type Principals,
-} from "@podiumconf/domain/shared/authorization.js";
+} from "@podiumstack/domain/shared/authorization.js";
 
 const ORG = "org_01";
 const EVENT_A = "evt_A";

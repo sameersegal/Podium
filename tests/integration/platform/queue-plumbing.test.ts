@@ -1,10 +1,10 @@
 import { createExecutionContext, createMessageBatch, env as testEnv, getQueueResult } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { Env } from "@podiumconf/data/context.js";
-import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { deliverEvent, runQueueBatch } from "@podiumconf/web/consumers/dispatch.js";
-import { replayUnprocessedEvents } from "@podiumconf/web/consumers/replay.js";
-import type { DeliveryMessage } from "@podiumconf/web/consumers/delivery.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { buildEvent, SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { deliverEvent, runQueueBatch } from "@podiumstack/web/consumers/dispatch.js";
+import { replayUnprocessedEvents } from "@podiumstack/web/consumers/replay.js";
+import type { DeliveryMessage } from "@podiumstack/web/consumers/delivery.js";
 
 const env = testEnv as unknown as Env & typeof testEnv;
 

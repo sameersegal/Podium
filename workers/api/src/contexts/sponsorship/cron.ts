@@ -8,10 +8,10 @@
  * subscription, not a spreadsheet."
  */
 
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { D1Db, num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { expiringSoon } from "@podiumconf/domain/sponsorship/types.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { D1Db, num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { expiringSoon } from "@podiumstack/domain/sponsorship/types.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { entitlementUsageFor } from "./service.js";
 

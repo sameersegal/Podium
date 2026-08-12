@@ -7,8 +7,8 @@
  * opening.
  */
 
-import { num, str, type Row } from "@podiumconf/data/db.js";
-import { formatDateInZone } from "@podiumconf/domain/shared/time.js";
+import { num, str, type Row } from "@podiumstack/data/db.js";
+import { formatDateInZone } from "@podiumstack/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, redirect } from "../http/responses.js";
 import type { Router } from "../http/router.js";

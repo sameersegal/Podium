@@ -1,11 +1,11 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR, buildEvent } from "@podiumconf/domain/events/envelope.js";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
-import { createWebhook } from "@podiumconf/web/contexts/platform/service.js";
-import { deliverWebhook } from "@podiumconf/web/contexts/platform/delivery.js";
-import { verifySignature } from "@podiumconf/domain/platform/webhooks.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR, buildEvent } from "@podiumstack/domain/events/envelope.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
+import { createWebhook } from "@podiumstack/web/contexts/platform/service.js";
+import { deliverWebhook } from "@podiumstack/web/contexts/platform/delivery.js";
+import { verifySignature } from "@podiumstack/domain/platform/webhooks.js";
 
 /**
  * "`PLATFORM_REACTIONS` includes a `*` reaction fanning every domain event out

@@ -11,11 +11,11 @@
  * another context's tables.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import type { Instant } from "@podiumconf/domain/shared/time.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import type { Instant } from "@podiumstack/domain/shared/time.js";
 import {
   APPROVAL_GATED_FIELDS,
   assertContentTransition,
@@ -40,7 +40,7 @@ import {
   type SpeakerConfirmationStatus,
   type SpeakerRole,
   type SpeakerView,
-} from "@podiumconf/domain/program/types.js";
+} from "@podiumstack/domain/program/types.js";
 import { findOrCreatePerson } from "../identity/service.js";
 
 export interface SessionRow extends Row {
@@ -297,7 +297,7 @@ export async function allocateReference(app: AppContext, eventId: string): Promi
   const counter = await app.db.raw<Row>("SELECT * FROM event_reference_counter WHERE event_id = ?", [eventId]);
   if (counter.length === 0) {
     const ev = await app.db.byId<Row>("event", eventId);
-    const { eventCodeFromSlug, formatReference } = await import("@podiumconf/domain/shared/ids.js");
+    const { eventCodeFromSlug, formatReference } = await import("@podiumstack/domain/shared/ids.js");
     const code = eventCodeFromSlug(str(ev?.slug, "event"));
     await app.db.rawRun(
       "INSERT INTO event_reference_counter (event_id, event_code, next_value) VALUES (?, ?, ?)",
@@ -308,7 +308,7 @@ export async function allocateReference(app: AppContext, eventId: string): Promi
   const code = str(counter[0].event_code, "EV");
   const next = num(counter[0].next_value, 1);
   await app.db.rawRun("UPDATE event_reference_counter SET next_value = next_value + 1 WHERE event_id = ?", [eventId]);
-  const { formatReference } = await import("@podiumconf/domain/shared/ids.js");
+  const { formatReference } = await import("@podiumstack/domain/shared/ids.js");
   return formatReference(code, next);
 }
 

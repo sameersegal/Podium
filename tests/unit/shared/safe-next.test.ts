@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeNext } from "@podiumconf/web/http/context.js";
+import { safeNext } from "@podiumstack/web/http/context.js";
 
 /**
  * Open redirect on the post-sign-in `?next=`.

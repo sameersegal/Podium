@@ -1,15 +1,15 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR, type DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { deliverEvent } from "@podiumconf/web/consumers/dispatch.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { deliverEvent } from "@podiumstack/web/consumers/dispatch.js";
 import {
   createSessionFromProposal,
   getSession,
   restoreRevision,
   updateSessionContent,
-} from "@podiumconf/web/contexts/program/service.js";
+} from "@podiumstack/web/contexts/program/service.js";
 
 /**
  * `Session` (06-program.md) end to end, against real D1 — INV-06-1, INV-06-12
@@ -238,7 +238,7 @@ async function signUpStaff(email: string): Promise<{ cookie: string; personId: s
 }
 
 async function apiKeyWithScopes(scopes: string[]): Promise<string> {
-  const { hashToken, newToken } = await import("@podiumconf/domain/identity/credentials.js");
+  const { hashToken, newToken } = await import("@podiumstack/domain/identity/credentials.js");
   const secret = newToken();
   await env.DB.prepare(
     "INSERT INTO api_key (id, org_id, name, prefix, secret_hash, scopes, created_by_person_id, created_at) VALUES (?,?,?,?,?,?,?,?)",

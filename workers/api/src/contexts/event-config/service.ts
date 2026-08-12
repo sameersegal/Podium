@@ -9,8 +9,8 @@
  * drafts is not.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   activationBlockers,
   canTransitionEvent,
@@ -26,7 +26,7 @@ import {
   COSMETIC_STEP_ATTRS,
   type FormTemplateStep,
   type SelectOption,
-} from "@podiumconf/domain/event-config/rules.js";
+} from "@podiumstack/domain/event-config/rules.js";
 import {
   cfpStatus,
   validateConditionOrdering,
@@ -43,9 +43,9 @@ import {
   type MapsTo,
   type Origin,
   type WithdrawAllowedUntil,
-} from "@podiumconf/domain/event-config/types.js";
-import { DomainError, illegalTransition, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId, slugify } from "@podiumconf/domain/shared/ids.js";
+} from "@podiumstack/domain/event-config/types.js";
+import { DomainError, illegalTransition, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId, slugify } from "@podiumstack/domain/shared/ids.js";
 import { builderForm, cfpFormatOptions, cfpRow, derivedCfpStatus, eventRow, loadFormSpec, loadPublishedForm, proposalCount } from "./views.js";
 
 /* -------------------------------------------------------------------------- */

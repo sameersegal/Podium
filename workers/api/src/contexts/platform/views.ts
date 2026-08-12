@@ -2,11 +2,11 @@
  * Read models and JSON/redaction shaping shared by the platform routes.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { redactEventPayload } from "@podiumconf/domain/platform/payload.js";
-import { redactRecord } from "@podiumconf/domain/shared/pii.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { redactEventPayload } from "@podiumstack/domain/platform/payload.js";
+import { redactRecord } from "@podiumstack/domain/shared/pii.js";
 import { reactionsFor } from "../../consumers/dispatch.js";
 import { rowToEvent } from "../../consumers/replay.js";
 import { availablePlugins } from "./service.js";

@@ -5,11 +5,11 @@
  * and returns `SafeHtml`; nothing in this file touches `AppContext`.
  */
 
-import { str, type Row } from "@podiumconf/data/db.js";
+import { str, type Row } from "@podiumstack/data/db.js";
 import type { PoolMemberView } from "./service.js";
-import type { DistributionResult, UnassignableProposal } from "@podiumconf/domain/review/assignment.js";
-import type { ConflictRecord } from "@podiumconf/domain/review/coi.js";
-import type { ReviewerProgress } from "@podiumconf/domain/review/scoring.js";
+import type { DistributionResult, UnassignableProposal } from "@podiumstack/domain/review/assignment.js";
+import type { ConflictRecord } from "@podiumstack/domain/review/coi.js";
+import type { ReviewerProgress } from "@podiumstack/domain/review/scoring.js";
 import {
   COI_REASON,
   COI_SUBJECT_TYPE,
@@ -27,10 +27,10 @@ import {
   type RoundAnonymity,
   type RoundStatus,
   type RubricView,
-} from "@podiumconf/domain/review/types.js";
+} from "@podiumstack/domain/review/types.js";
 import type { ResultFilters, ResultRow, RoundView } from "./scoring.js";
 import type { PublishPreviewRow } from "./service.js";
-import { calendarDateInZone, formatTimeInZone } from "@podiumconf/domain/shared/time.js";
+import { calendarDateInZone, formatTimeInZone } from "@podiumstack/domain/shared/time.js";
 import { versionField } from "../../http/concurrency.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";

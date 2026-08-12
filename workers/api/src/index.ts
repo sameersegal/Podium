@@ -9,8 +9,8 @@
  *             abandonment, confirmation-deadline expiry, `delivered`.
  */
 
-import type { Env } from "@podiumconf/data/context.js";
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
 import { STALE_WRITE_MESSAGE } from "./http/concurrency.js";
 import { buildContext, FLASH_COOKIE, clearCookie, flashCookie, type RequestContext } from "./http/context.js";
 import { withSecurityHeaders } from "./http/headers.js";

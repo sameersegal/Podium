@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { isVersioned } from "@podiumconf/data/db.js";
+import { isVersioned } from "@podiumstack/data/db.js";
 
 /**
  * `VERSIONED_TABLES` in `packages/data/src/db.ts` decides which writes bump

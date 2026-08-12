@@ -11,7 +11,7 @@ import {
   nextStatusOnSubmit,
   TASK_TRANSITIONS,
   type TaskInstanceStatus,
-} from "@podiumconf/domain/onboarding/types.js";
+} from "@podiumstack/domain/onboarding/types.js";
 
 /** Typed errors carry their invariant id (11-cross-cutting.md); assert on that, not on prose. */
 function expectInvariant(fn: () => unknown, invariant: string): void {

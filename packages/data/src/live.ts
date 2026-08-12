@@ -17,8 +17,8 @@
  * third route someone adds.
  */
 
-import { isLiveEventType } from "@podiumconf/domain/events/catalogue.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
+import { isLiveEventType } from "@podiumstack/domain/events/catalogue.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import type { Env } from "./context.js";
 
 /** One event, flattened to what a room is allowed to know. */

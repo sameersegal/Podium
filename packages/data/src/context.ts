@@ -7,10 +7,10 @@
  * (10-domain-events.md, "Reaction map").
  */
 
-import { buildEvent, type Actor, type DomainEvent, type NewEvent } from "@podiumconf/domain/events/envelope.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import type { AuditEntry, AuditSink, Clock, EventSink } from "@podiumconf/domain/shared/ports.js";
-import { nowIso, type Instant } from "@podiumconf/domain/shared/time.js";
+import { buildEvent, type Actor, type DomainEvent, type NewEvent } from "@podiumstack/domain/events/envelope.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import type { AuditEntry, AuditSink, Clock, EventSink } from "@podiumstack/domain/shared/ports.js";
+import { nowIso, type Instant } from "@podiumstack/domain/shared/time.js";
 import { D1Db, type Db } from "./db.js";
 import { pokeRooms } from "./live.js";
 

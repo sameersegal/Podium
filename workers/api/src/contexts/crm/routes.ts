@@ -14,10 +14,10 @@
  * so it is gated on `roster.manage` at that event's scope (INV-14-5).
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import type { DirectoryCriteria, SegmentKind } from "@podiumconf/domain/crm/index.js";
-import { forbidden, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import type { DirectoryCriteria, SegmentKind } from "@podiumstack/domain/crm/index.js";
+import { forbidden, notFound, validationError } from "@podiumstack/domain/shared/errors.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";

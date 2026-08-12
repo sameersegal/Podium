@@ -6,8 +6,8 @@
  * "what happened" in the event log rather than inside a timer.
  */
 
-import type { Env } from "@podiumconf/data/context.js";
-import { D1Db } from "@podiumconf/data/db.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { D1Db } from "@podiumstack/data/db.js";
 
 export interface CronJob {
   name: string;

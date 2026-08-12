@@ -10,11 +10,11 @@
  * a generic counter.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { isNonTerminalTask, onboardingProgress, type TaskInstanceStatus } from "@podiumconf/domain/onboarding/types.js";
-import { contentDiverged, type ContentSnapshot } from "@podiumconf/domain/program/types.js";
-import { addDays } from "@podiumconf/domain/shared/time.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { isNonTerminalTask, onboardingProgress, type TaskInstanceStatus } from "@podiumstack/domain/onboarding/types.js";
+import { contentDiverged, type ContentSnapshot } from "@podiumstack/domain/program/types.js";
+import { addDays } from "@podiumstack/domain/shared/time.js";
 import { versionField } from "../../http/concurrency.js";
 import { badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";

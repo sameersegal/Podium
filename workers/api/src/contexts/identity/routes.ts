@@ -9,12 +9,12 @@
  * Sign-in lives in `auth-routes.ts`.
  */
 
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DEFAULT_PROFILE_VISIBILITY, isAbsoluteHttps, normaliseEmail } from "@podiumconf/domain/identity/types.js";
-import type { ParticipantKind, ParticipantSource, ParticipantStatus } from "@podiumconf/domain/identity/types.js";
-import { DomainError, forbidden, invariantError, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { redactList, redactRecord } from "@podiumconf/domain/shared/pii.js";
-import type { Role, ScopeType } from "@podiumconf/domain/shared/authorization.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DEFAULT_PROFILE_VISIBILITY, isAbsoluteHttps, normaliseEmail } from "@podiumstack/domain/identity/types.js";
+import type { ParticipantKind, ParticipantSource, ParticipantStatus } from "@podiumstack/domain/identity/types.js";
+import { DomainError, forbidden, invariantError, notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { redactList, redactRecord } from "@podiumstack/domain/shared/pii.js";
+import type { Role, ScopeType } from "@podiumstack/domain/shared/authorization.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";

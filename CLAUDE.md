@@ -1,8 +1,11 @@
 # Working in this repository
 
 **Podium** — an open-source SessionBoard alternative for AI Engineer–style conferences.
-See [`README.md`](README.md) for what it does. The npm scope is **not** `@podium`, which an
-unrelated micro-frontend framework holds; use `@podiumconf/*` (R29).
+See [`README.md`](README.md) for what it does. The product is **Podium**; the namespace is
+**`podiumstack`**, everywhere the bare word is taken — `podiumstack.com`, `@podiumstack` on
+social, and the npm scope `@podiumstack/*`, never `@podium`, which an unrelated
+micro-frontend framework holds. One qualifier, not one per medium: a new namespace takes
+`podiumstack` rather than inventing a second suffix (R29).
 
 ## The domain model is the specification
 

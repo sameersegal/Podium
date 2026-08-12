@@ -7,12 +7,12 @@
  * the request, checks authorization, and renders.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { onboardingProgress, type TaskInstanceStatus } from "@podiumconf/domain/onboarding/types.js";
-import type { SpeakerRole } from "@podiumconf/domain/program/types.js";
-import { forbidden, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
-import { redactList } from "@podiumconf/domain/shared/pii.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { onboardingProgress, type TaskInstanceStatus } from "@podiumstack/domain/onboarding/types.js";
+import type { SpeakerRole } from "@podiumstack/domain/program/types.js";
+import { forbidden, notFound, validationError } from "@podiumstack/domain/shared/errors.js";
+import { redactList } from "@podiumstack/domain/shared/pii.js";
 import { expectedVersion, staleWriteRedirect } from "../../http/concurrency.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";

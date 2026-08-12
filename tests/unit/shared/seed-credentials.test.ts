@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { beyondCpuBudget, hashPassword, needsRehash, verifyPassword } from "@podiumconf/domain/identity/credentials.js";
+import { beyondCpuBudget, hashPassword, needsRehash, verifyPassword } from "@podiumstack/domain/identity/credentials.js";
 
 /**
  * `scripts/seed.mjs` writes `auth_identity.credential_hash` itself, with its

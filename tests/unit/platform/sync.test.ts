@@ -20,8 +20,8 @@ import {
   validateFieldMap,
   writableFields,
   type SyncFieldMap,
-} from "@podiumconf/domain/platform/sync.js";
-import { DomainError } from "@podiumconf/domain/shared/errors.js";
+} from "@podiumstack/domain/platform/sync.js";
+import { DomainError } from "@podiumstack/domain/shared/errors.js";
 
 /** The error an invariant raised, so a test can name the invariant rather than the message. */
 function invariantOf(fn: () => unknown): string {

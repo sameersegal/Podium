@@ -6,8 +6,8 @@
  * `TaskCompletionStats` the per-definition rollup.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   completionStats,
   isOverdue,
@@ -18,9 +18,9 @@ import {
   type TaskInstanceStatus,
   type TaskViewer,
   type TaskVisibility,
-} from "@podiumconf/domain/onboarding/types.js";
-import { REDACTED } from "@podiumconf/domain/shared/pii.js";
-import type { Instant } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/onboarding/types.js";
+import { REDACTED } from "@podiumstack/domain/shared/pii.js";
+import type { Instant } from "@podiumstack/domain/shared/time.js";
 import { personDisplayName } from "../identity/service.js";
 
 /* -------------------------------------------------------------------------- */

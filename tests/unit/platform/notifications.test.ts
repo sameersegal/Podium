@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Env } from "@podiumconf/data/context.js";
-import { assertTemplateBody, validateTemplateBody, extractVariables } from "@podiumconf/domain/platform/rendering.js";
-import { declaredVariables, isTransactionalTemplate } from "@podiumconf/domain/platform/templates.js";
-import { decideSuppression } from "@podiumconf/domain/platform/suppression.js";
-import { unsubscribeUrl, verifyUnsubscribeSignature } from "@podiumconf/web/contexts/platform/notifications.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { assertTemplateBody, validateTemplateBody, extractVariables } from "@podiumstack/domain/platform/rendering.js";
+import { declaredVariables, isTransactionalTemplate } from "@podiumstack/domain/platform/templates.js";
+import { decideSuppression } from "@podiumstack/domain/platform/suppression.js";
+import { unsubscribeUrl, verifyUnsubscribeSignature } from "@podiumstack/web/contexts/platform/notifications.js";
 
 function fakeEnv(overrides: Partial<Env> & { ENVIRONMENT: string }): Env {
   // A reserved example domain, not the real deployment's. Nothing here asserts
@@ -119,7 +119,7 @@ describe("the unsubscribe link signing key (INV-09-15)", () => {
     // string "production". A signature built that way must not verify against
     // the fixed implementation.
     const env = fakeEnv({ ENVIRONMENT: "production", UNSUBSCRIBE_SECRET: "a-real-deployment-secret" });
-    const { hmacSha256Hex } = await import("@podiumconf/domain/identity/credentials.js");
+    const { hmacSha256Hex } = await import("@podiumstack/domain/identity/credentials.js");
     const forgedSig = await hmacSha256Hex("production", "speaker@example.com.campaign");
     expect(await verifyUnsubscribeSignature(env, "speaker@example.com", "campaign", forgedSig)).toBe(false);
   });

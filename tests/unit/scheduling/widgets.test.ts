@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ScheduleSnapshot } from "@podiumconf/domain/scheduling/publication.js";
-import { applyFilters, corsHeaders, frameAncestorsHeader, layoutGrid, renderSessionDetail, renderSessionsList, renderSpeakerGallery, sessionSnippet } from "@podiumconf/web/contexts/scheduling/widgets.js";
+import type { ScheduleSnapshot } from "@podiumstack/domain/scheduling/publication.js";
+import { applyFilters, corsHeaders, frameAncestorsHeader, layoutGrid, renderSessionDetail, renderSessionsList, renderSpeakerGallery, sessionSnippet } from "@podiumstack/web/contexts/scheduling/widgets.js";
 
 /**
  * The pure helpers behind every `widget_type` × `format` pair: INV-08-6

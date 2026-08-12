@@ -10,11 +10,11 @@
  * acknowledgement written before a recomputation is still attached after it.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { detectConflicts, type ConflictFinding } from "@podiumconf/domain/scheduling/conflicts.js";
-import { invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import type { ConflictCode, ConflictSeverity } from "@podiumconf/domain/scheduling/types.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { detectConflicts, type ConflictFinding } from "@podiumstack/domain/scheduling/conflicts.js";
+import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import type { ConflictCode, ConflictSeverity } from "@podiumstack/domain/scheduling/types.js";
 import { loadScheduleFacts, type ScheduleFacts } from "./facts.js";
 
 export interface ConflictView {

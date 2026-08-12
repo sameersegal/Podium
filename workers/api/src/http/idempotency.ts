@@ -5,7 +5,7 @@
  * KV is the replay cache (09, platform mapping).
  */
 
-import type { Env } from "@podiumconf/data/context.js";
+import type { Env } from "@podiumstack/data/context.js";
 
 const TTL_SECONDS = 24 * 60 * 60;
 

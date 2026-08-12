@@ -7,16 +7,16 @@
  * context's tables to guess.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, str, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, str, type Row } from "@podiumstack/data/db.js";
 import {
   publicationReadinessOf,
   type ContentStatus,
   type PublicationReadiness,
   type SessionStatus,
   type SessionVisibility,
-} from "@podiumconf/domain/program/types.js";
-import { notFound } from "@podiumconf/domain/shared/errors.js";
+} from "@podiumstack/domain/program/types.js";
+import { notFound } from "@podiumstack/domain/shared/errors.js";
 
 /** `blocking_tasks_outstanding` is derived (INV-11-6): counted, never stored. */
 export async function blockingTasksOutstanding(app: AppContext, sessionId: string): Promise<number> {

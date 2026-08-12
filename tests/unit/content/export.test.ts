@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { narrowExport, project, EXPORT_COLUMNS, PII_COLUMNS } from "@podiumconf/domain/content/export.js";
-import type { Principals } from "@podiumconf/domain/shared/authorization.js";
+import { narrowExport, project, EXPORT_COLUMNS, PII_COLUMNS } from "@podiumstack/domain/content/export.js";
+import type { Principals } from "@podiumstack/domain/shared/authorization.js";
 
 const NOW = "2027-03-01T00:00:00.000Z";
 

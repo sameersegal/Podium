@@ -8,13 +8,13 @@
  * fires rather than correct when it was written."
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
-import { DomainError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { assertTemplateBody } from "@podiumconf/domain/platform/rendering.js";
-import { renderTemplate } from "@podiumconf/domain/platform/rendering.js";
-import { assertCampaignTransition, type AudienceCriteria, type CampaignStatus } from "@podiumconf/domain/platform/types.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { assertTemplateBody } from "@podiumstack/domain/platform/rendering.js";
+import { renderTemplate } from "@podiumstack/domain/platform/rendering.js";
+import { assertCampaignTransition, type AudienceCriteria, type CampaignStatus } from "@podiumstack/domain/platform/types.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { attemptSend, baseVariables, writeNotification } from "./notifications.js";
 

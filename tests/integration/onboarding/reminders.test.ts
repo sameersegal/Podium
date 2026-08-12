@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { attemptSend } from "@podiumconf/web/contexts/platform/notifications.js";
-import { deliverReminders, sendManualReminder } from "@podiumconf/web/contexts/onboarding/service.js";
+import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { attemptSend } from "@podiumstack/web/contexts/platform/notifications.js";
+import { deliverReminders, sendManualReminder } from "@podiumstack/web/contexts/onboarding/service.js";
 
 /**
  * 07-onboarding.md, "Reminders" — `deliverReminders` is what both the

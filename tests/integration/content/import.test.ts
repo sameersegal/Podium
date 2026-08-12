@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { createImport, previewImport, runImport } from "@podiumconf/web/contexts/content/import.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { createImport, previewImport, runImport } from "@podiumstack/web/contexts/content/import.js";
 
 /**
  * INV-11-13 — a `BulkImport` writes nothing before the operator confirms its

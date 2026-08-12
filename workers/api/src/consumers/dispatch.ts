@@ -9,11 +9,11 @@
  * only if `(event_id, handler)` is not already in `event_reaction_log`.
  */
 
-import type { Env } from "@podiumconf/data/context.js";
-import { D1Db } from "@podiumconf/data/db.js";
-import type { DomainEvent } from "@podiumconf/domain/events/envelope.js";
-import { eventTypeMatches } from "@podiumconf/domain/events/catalogue.js";
-import { nowIso } from "@podiumconf/domain/shared/time.js";
+import type { Env } from "@podiumstack/data/context.js";
+import { D1Db } from "@podiumstack/data/db.js";
+import type { DomainEvent } from "@podiumstack/domain/events/envelope.js";
+import { eventTypeMatches } from "@podiumstack/domain/events/catalogue.js";
+import { nowIso } from "@podiumstack/domain/shared/time.js";
 import { REACTIONS, type Reaction } from "./reactions.js";
 import { runDelivery, type DeliveryMessage } from "./delivery.js";
 import { recordDeadLetter } from "./dead-letter.js";

@@ -16,7 +16,7 @@
  * there.
  */
 
-import { DomainError, invariantError } from "@podiumconf/domain/shared/errors.js";
+import { DomainError, invariantError } from "@podiumstack/domain/shared/errors.js";
 import { setCookie, SESSION_COOKIE, type RequestContext } from "../../http/context.js";
 import { readInput } from "../../http/input.js";
 import { htmlResponse, redirect } from "../../http/responses.js";

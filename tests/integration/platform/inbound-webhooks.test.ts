@@ -1,9 +1,9 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { installIntegration } from "@podiumconf/web/contexts/platform/service.js";
-import { inboundWebhookUrl, writeNotification } from "@podiumconf/web/contexts/platform/notifications.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { installIntegration } from "@podiumstack/web/contexts/platform/service.js";
+import { inboundWebhookUrl, writeNotification } from "@podiumstack/web/contexts/platform/notifications.js";
 
 /**
  * 09, `email`: `handle_inbound_webhook(payload) -> DeliveryStatusUpdate[]`.

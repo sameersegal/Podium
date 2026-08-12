@@ -5,7 +5,7 @@
  * not in a hand-rolled loop in the request path.
  */
 
-import type { Env } from "@podiumconf/data/context.js";
+import type { Env } from "@podiumstack/data/context.js";
 
 export type DeliveryMessage =
   | { kind: "webhook"; delivery_id: string; webhook_id: string; org_id: string; event_id: string }
@@ -17,7 +17,7 @@ export type DeliveryMessage =
   | { kind: "sync_pull"; mapping_id: string; org_id: string; trigger: SyncRunTrigger }
   | { kind: "sync_erase"; person_id: string; org_id: string };
 
-import type { SyncRunTrigger } from "@podiumconf/domain/platform/sync.js";
+import type { SyncRunTrigger } from "@podiumstack/domain/platform/sync.js";
 import { deliverWebhook, deliverNotification, sendCampaign } from "../contexts/platform/delivery.js";
 import { deliverSyncErase, deliverSyncPull, deliverSyncPush } from "../contexts/platform/sync-delivery.js";
 

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { setupOrganization } from "@podiumconf/web/contexts/identity/service.js";
+import { setupOrganization } from "@podiumstack/web/contexts/identity/service.js";
 
 /**
  * Defect 2 — the `try/catch` around claiming `bootstrap_state` used to catch

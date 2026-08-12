@@ -6,9 +6,9 @@
  * sation lives in `materialise.ts` because it spans many instances at once.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { slotKey as buildSlotKey } from "@podiumconf/domain/content/assets.js";
-import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { slotKey as buildSlotKey } from "@podiumstack/domain/content/assets.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import {
   assertAcyclic,
   assertMayComplete,
@@ -25,11 +25,11 @@ import {
   type TaskCategory,
   type TaskInstanceStatus,
   type TaskSubjectType,
-} from "@podiumconf/domain/onboarding/types.js";
-import { DEFAULT_TASK_DEFINITIONS, type DefaultTaskDefinition } from "@podiumconf/domain/onboarding/defaults.js";
-import { DomainError, illegalTransition, invariantError, notFound } from "@podiumconf/domain/shared/errors.js";
-import { newId } from "@podiumconf/domain/shared/ids.js";
-import { addDays, calendarDateInZone, type Instant } from "@podiumconf/domain/shared/time.js";
+} from "@podiumstack/domain/onboarding/types.js";
+import { DEFAULT_TASK_DEFINITIONS, type DefaultTaskDefinition } from "@podiumstack/domain/onboarding/defaults.js";
+import { DomainError, illegalTransition, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
+import { newId } from "@podiumstack/domain/shared/ids.js";
+import { addDays, calendarDateInZone, type Instant } from "@podiumstack/domain/shared/time.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import {
   eventStartOf,

@@ -1,8 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { AppContext } from "@podiumconf/data/context.js";
-import { SYSTEM_ACTOR } from "@podiumconf/domain/events/envelope.js";
-import { uploadAssetDirect } from "@podiumconf/web/contexts/content/assets.js";
+import { AppContext } from "@podiumstack/data/context.js";
+import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
+import { uploadAssetDirect } from "@podiumstack/web/contexts/content/assets.js";
 
 /**
  * INV-11-9 — uploading into an occupied `slot_key` creates a new `Asset` with
@@ -70,7 +70,7 @@ describe("INV-11-9: asset slot versioning end to end", () => {
   });
 
   it("asset.uploaded triggers the scan reaction, which clears scan_status to clean (INV-11-3)", async () => {
-    const { deliverEvent } = await import("@podiumconf/web/consumers/dispatch.js");
+    const { deliverEvent } = await import("@podiumstack/web/consumers/dispatch.js");
     const app = new AppContext({ env, orgId: ORG, actor: { type: "person", id: PERSON, display_name: "Ann Uploader" } });
     const { asset } = await uploadAssetDirect(app, {
       file: new File(["headshot bytes"], "me.png", { type: "image/png" }),

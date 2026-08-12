@@ -16,8 +16,8 @@
  * configuration rows above a settings form.
  */
 
-import type { AppContext } from "@podiumconf/data/context.js";
-import { num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import type { AppContext } from "@podiumstack/data/context.js";
+import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { activationCheck } from "../contexts/event-config/service.js";
 import { derivedCfpStatus } from "../contexts/event-config/views.js";
 import { pendingChanges } from "../contexts/scheduling/publication.js";
