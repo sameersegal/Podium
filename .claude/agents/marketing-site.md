@@ -185,9 +185,7 @@ Never imply a plugin surface where there is a fork.
 **State the boundary rather than letting them find it.** Two sets of tooling ship, and they do
 different jobs. `.claude/` builds the product. `claude-plugin/` is eight skills that operate a
 running instance over `/v1`, so an organizer's agent can work the CFP pile from a chat window.
-What does not exist is an MCP server or an OpenAPI document, and neither may be implied. Nor may
-`npm run plugin:check`, which is real but is not a CI step, so the endpoint catalogue is not
-guarded the way the domain model is.
+What does not exist is an MCP server or an OpenAPI document, and neither may be implied.
 
 The AI first-pass review gets its own sentence: it exists, it is off unless switched on, its
 opinions are counted beside your reviewers' rather than inside them, and the evaluator that ships

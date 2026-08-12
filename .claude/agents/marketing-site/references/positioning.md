@@ -28,7 +28,7 @@ marketing. Split it, and take one at a time.
 
 | The claim | What backs it | The limit that ships with it |
 |---|---|---|
-| AI native | `docs/domain/` is normative and predates the code; `.claude/agents/`, `.claude/skills/`; `npm run drift` is a step in the `check` job of `.github/workflows/ci.yml`; `claude-plugin/` is eight skills that operate a running instance over `/v1` | No MCP server and no OpenAPI document. `npm run plugin:check` exists but is **not** a CI step, so "CI fails when the endpoint catalogue drifts" is not yet true |
+| AI native | `docs/domain/` is normative and predates the code; `.claude/agents/`, `.claude/skills/`; `npm run drift` and `npm run plugin:check` are both steps in the `check` job of `.github/workflows/ci.yml`, so the build fails when the code drifts from the model or the endpoint catalogue drifts from the routes; `claude-plugin/` is eight skills that operate a running instance over `/v1` | No MCP server and no OpenAPI document |
 | Self-hosted | `scripts/deploy-config.mjs` generates production config against the operator's own D1, KV and hostname; the app takes `PUBLIC_BASE_URL` at deploy time and never learns its hostname otherwise | No hosted tier. Somebody deploys it |
 | Open source | `LICENSE`, MIT | — |
 | Complete ownership | Export in `packages/domain/src/content/export.ts`: `csv`, `json`, `zip`. GDPR erasure as a distinct audited operation | `xlsx` and `ics` are enum members with no generator behind them. Do not list them as export formats |
@@ -135,12 +135,18 @@ On the page, not discovered after installing.
   conference onto this.
 - **A smaller integration catalogue** than the incumbents.
 
-Migration traps, each one already found the hard way and each one a row that must say No:
+### What the importer actually does
 
-- The importer writes **people and roster only**. Sessions and sponsors preview, then refuse.
-- **No route authors a proposal**, so last year's programme cannot come across by any path.
-- **No bulk file import.** Accepted speakers upload headshots and slides again.
-- Last year's **scores, comments and decisions** stay in whatever the old tool exports.
+This bounds what you may claim about migration. It is not the shape of a page, and it is not a
+checklist of rows to publish. The importer writes people and the roster; sessions and sponsors
+preview and then refuse, no route authors a proposal, there is no bulk file import, and last
+year's scores and decisions stay in whatever the old tool exports.
+
+So: never promise that last year's programme comes across, and do not list sessions or proposals
+as importable. Beyond that, judgement. What moves a switch is that the people and the roster come
+over in one CSV, which is the part that would otherwise be a week of typing. Lead there. The
+concession-proportion rule in the agent's C applies with force here, because these four facts will
+happily fill a page on their own and a page of refusals argues against switching.
 
 ---
 
