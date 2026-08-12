@@ -3,6 +3,7 @@ import {
   accessFor,
   assertMayReadReviewData,
   canAct,
+  canRead,
   canWrite,
   isOwnProposal,
   NO_RELATIONSHIPS,
@@ -100,5 +101,30 @@ describe("authorization matrix (11-cross-cutting.md)", () => {
     const p = principals({ grants: [{ role: "track_lead", scope_type: "track", scope_id: "trk_1" }] });
     expect(accessFor(p, "decision.manage", { event_id: EVENT_A, track_id: "trk_1" }, NOW)).toBe("recommend");
     expect(canWrite(p, "decision.manage", { event_id: EVENT_A, track_id: "trk_1" }, NOW)).toBe(false);
+  });
+
+  // 01: "read-only across the event, no scores". The role had no column in the
+  // 11 matrix at all until this was fixed, so it granted nothing and every
+  // `viewer` grant — and every read-only API key, which maps onto one — was
+  // refused everything it asked for.
+  it("a viewer reads the event and writes nothing", () => {
+    const p = principals({ grants: [{ role: "viewer", scope_type: "event", scope_id: EVENT_A }] });
+    for (const capability of ["proposal.read_any", "session.manage", "config.manage", "sponsor.manage", "schedule.place", "task.complete"] as const) {
+      expect(canRead(p, capability, { event_id: EVENT_A }, NOW), `read ${capability}`).toBe(true);
+      expect(canWrite(p, capability, { event_id: EVENT_A }, NOW), `write ${capability}`).toBe(false);
+    }
+  });
+
+  it("a viewer sees no scores, no PII and no audit log", () => {
+    const p = principals({ grants: [{ role: "viewer", scope_type: "event", scope_id: EVENT_A }] });
+    for (const capability of ["review.read", "pii.read", "audit.read", "org.configure", "contact_directory.read"] as const) {
+      expect(canRead(p, capability, { event_id: EVENT_A }, NOW), capability).toBe(false);
+    }
+  });
+
+  it("confines a viewer to the event they were granted", () => {
+    const p = principals({ grants: [{ role: "viewer", scope_type: "event", scope_id: EVENT_A }] });
+    expect(canRead(p, "proposal.read_any", { event_id: EVENT_A }, NOW)).toBe(true);
+    expect(canRead(p, "proposal.read_any", { event_id: EVENT_B }, NOW)).toBe(false);
   });
 });

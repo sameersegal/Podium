@@ -40,6 +40,17 @@ export interface CreateApiKeyInput {
 /** INV-09-1: the secret is displayed once, in the response to this call, and never again. */
 export async function createApiKey(app: AppContext, input: CreateApiKeyInput): Promise<{ row: Row; secret: string }> {
   if (!input.name.trim()) throw new DomainError({ code: "invalid_name", message: "Name the key so it can be told apart later.", status: 422 });
+  // INV-09-25 makes scopes the whole permission, which makes a key with none a
+  // credential that authenticates and can then do nothing — indistinguishable,
+  // from the caller's side, from a revoked one.
+  if (!input.scopes?.length) {
+    throw new DomainError({
+      code: "no_scopes",
+      message: "Give the key at least one scope; a key with none can reach nothing.",
+      invariant: "INV-09-25",
+      status: 422,
+    });
+  }
   const secret = newToken();
   const id = newId("ApiKey");
   const row: Row = {

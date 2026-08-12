@@ -50,8 +50,14 @@ describe("INV-09-5: PII redaction by API key scope", () => {
     });
     await app.flush();
 
-    const a = await createApiKey(app, { name: "no-pii", scopes: ["events:write"] });
-    const b = await createApiKey(app, { name: "with-pii", scopes: ["events:write", "pii:read"] });
+    // The scopes are the ones these endpoints actually name (INV-09-25):
+    // the communications history is governed by the speaker scopes, and the
+    // key listing by `webhooks:manage`. Both keys held `events:write` until
+    // that invariant existed, and reached both anyway — an unmapped capability
+    // used to fall through to the role, and any `:write` scope made a key an
+    // admin.
+    const a = await createApiKey(app, { name: "no-pii", scopes: ["speakers:read"] });
+    const b = await createApiKey(app, { name: "with-pii", scopes: ["speakers:read", "webhooks:manage", "pii:read"] });
     await app.flush();
     withoutPii = a.secret;
     withPii = b.secret;

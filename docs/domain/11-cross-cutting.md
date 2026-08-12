@@ -341,45 +341,45 @@ PII export and erasure, and any organizer edit of submitter-owned content.
 
 `O` = own / related records only. `—` = no access. Read implies list where sensible.
 
-| Capability | owner | admin | program_chair | track_lead | reviewer | organizer | sponsor_manager | sponsor_contact | speaker | public |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Configure org, integrations, API keys | ✎ | ✎ | — | — | — | — | — | — | — | — |
-| Create/configure event | ✎ | ✎ | ✎ | — | — | — | — | — | — | — |
-| Manage tracks, formats, rooms | ✎ | ✎ | ✎ | — | — | 👁 | — | — | — | — |
-| Configure CFP and forms | ✎ | ✎ | ✎ | — | — | 👁 | — | — | — | — |
-| Submit a proposal | ✎ | ✎ | ✎ | ✎ | ✎ | ✎ | ✎ | ✎ (sponsor) | ✎ | — |
-| Read any proposal | 👁 | 👁 | 👁 | 👁 (track) | 👁 (assigned) | 👁 | 👁 (sponsor) | O | O | — |
-| Edit a proposal | ✎ | ✎ | ✎ | — | — | — | ✎ (sponsor) | O | O (draft) | — |
-| Read reviews and scores | 👁 | 👁 | 👁 | 👁 (track) | O + post-submit | — | — | — | — | — |
-| Submit a review | — | — | ✎ | ✎ | ✎ | — | — | — | — | — |
-| Record and publish decisions | ✎ | ✎ | ✎ | recommend | — | — | — | — | — | — |
-| Manage sponsors, tiers, entitlements | ✎ | ✎ | 👁 | — | — | 👁 | ✎ | 👁 (own) | — | — |
-| Create and edit sessions | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | 👁 | — |
-| Approve session content | ✎ | ✎ | ✎ | 👁 | — | ✎ | — | — | — | — |
-| Restore a session revision | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
-| Manage the event roster (`EventParticipant`) | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
-| Edit a speaker profile | ✎ | ✎ | ✎ | — | — | ✎ | — | — | O | — |
-| Set profile `visibility` / `is_listed` | — | — | — | — | — | — | — | — | O | — |
-| Read and write `PersonNote` | ✎ | ✎ | ✎ | 👁 | — | ✎ | ✎ (sponsor) | — | — | — |
-| Read the speaker directory ([`14`](14-speaker-crm.md)) | 👁 | 👁 | 👁 | — | — | 👁 | 👁 | — | — | — |
-| Manage `ContactSegment`s | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
-| Run a `SourcingPipeline` | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
-| Comment on an uploaded file | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | O | O | — |
-| Compose and send a campaign | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
-| Read the communications history | 👁 | 👁 | 👁 | — | — | 👁 | 👁 (sponsor) | — | O | — |
-| Import records in bulk | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
-| Request an export | ✎ | ✎ | ✎ | ✎ (track) | O | ✎ | ✎ (sponsor) | — | — | — |
-| Manage custom field definitions | ✎ | ✎ | ✎ | — | — | — | — | — | — | — |
-| Configure a `SyncMapping` ([`09`](09-api-and-integrations.md)) | ✎ | ✎ | — | — | — | — | — | — | — | — |
-| Resolve a sync conflict | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
-| Define onboarding tasks | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
-| Complete a task | ✎ | ✎ | ✎ | — | — | ✎ | ✎ | O | O | — |
-| Approve a task submission | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
-| Place sessions on the schedule | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
-| Publish the schedule | ✎ | ✎ | ✎ | — | — | — | — | — | — | — |
-| Read the published schedule | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 |
-| Read PII | 👁 | 👁 | 👁 | — | — | 👁 | 👁 (sponsor) | — | O | — |
-| Read the audit log | 👁 | 👁 | 👁 (event) | — | — | — | — | — | — | — |
+| Capability | owner | admin | program_chair | track_lead | reviewer | organizer | sponsor_manager | sponsor_contact | speaker | public | viewer |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Configure org, integrations, API keys | ✎ | ✎ | — | — | — | — | — | — | — | — | — |
+| Create/configure event | ✎ | ✎ | ✎ | — | — | — | — | — | — | — | — |
+| Manage tracks, formats, rooms | ✎ | ✎ | ✎ | — | — | 👁 | — | — | — | — | 👁 |
+| Configure CFP and forms | ✎ | ✎ | ✎ | — | — | 👁 | — | — | — | — | 👁 |
+| Submit a proposal | ✎ | ✎ | ✎ | ✎ | ✎ | ✎ | ✎ | ✎ (sponsor) | ✎ | — | — |
+| Read any proposal | 👁 | 👁 | 👁 | 👁 (track) | 👁 (assigned) | 👁 | 👁 (sponsor) | O | O | — | 👁 |
+| Edit a proposal | ✎ | ✎ | ✎ | — | — | — | ✎ (sponsor) | O | O (draft) | — | — |
+| Read reviews and scores | 👁 | 👁 | 👁 | 👁 (track) | O + post-submit | — | — | — | — | — | — |
+| Submit a review | — | — | ✎ | ✎ | ✎ | — | — | — | — | — | — |
+| Record and publish decisions | ✎ | ✎ | ✎ | recommend | — | — | — | — | — | — | — |
+| Manage sponsors, tiers, entitlements | ✎ | ✎ | 👁 | — | — | 👁 | ✎ | 👁 (own) | — | — | 👁 |
+| Create and edit sessions | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | 👁 | — | 👁 |
+| Approve session content | ✎ | ✎ | ✎ | 👁 | — | ✎ | — | — | — | — | — |
+| Restore a session revision | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — | — |
+| Manage the event roster (`EventParticipant`) | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — | — |
+| Edit a speaker profile | ✎ | ✎ | ✎ | — | — | ✎ | — | — | O | — | — |
+| Set profile `visibility` / `is_listed` | — | — | — | — | — | — | — | — | O | — | — |
+| Read and write `PersonNote` | ✎ | ✎ | ✎ | 👁 | — | ✎ | ✎ (sponsor) | — | — | — | — |
+| Read the speaker directory ([`14`](14-speaker-crm.md)) | 👁 | 👁 | 👁 | — | — | 👁 | 👁 | — | — | — | — |
+| Manage `ContactSegment`s | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — | — |
+| Run a `SourcingPipeline` | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — | — |
+| Comment on an uploaded file | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | O | O | — | — |
+| Compose and send a campaign | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — | — |
+| Read the communications history | 👁 | 👁 | 👁 | — | — | 👁 | 👁 (sponsor) | — | O | — | — |
+| Import records in bulk | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — | — |
+| Request an export | ✎ | ✎ | ✎ | ✎ (track) | O | ✎ | ✎ (sponsor) | — | — | — | — |
+| Manage custom field definitions | ✎ | ✎ | ✎ | — | — | — | — | — | — | — | — |
+| Configure a `SyncMapping` ([`09`](09-api-and-integrations.md)) | ✎ | ✎ | — | — | — | — | — | — | — | — | — |
+| Resolve a sync conflict | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — | — |
+| Define onboarding tasks | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — | 👁 |
+| Complete a task | ✎ | ✎ | ✎ | — | — | ✎ | ✎ | O | O | — | 👁 |
+| Approve a task submission | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — | — |
+| Place sessions on the schedule | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — | 👁 |
+| Publish the schedule | ✎ | ✎ | ✎ | — | — | — | — | — | — | — | — |
+| Read the published schedule | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 | 👁 |
+| Read PII | 👁 | 👁 | 👁 | — | — | 👁 | 👁 (sponsor) | — | O | — | — |
+| Read the audit log | 👁 | 👁 | 👁 (event) | — | — | — | — | — | — | — | — |
 
 The three Speaker CRM rows arrived with [`14`](14-speaker-crm.md), which is org-scoped
 rather than event-scoped: the directory is `Person` at org scope, and INV-14-7 says this
@@ -387,6 +387,13 @@ context grants no access to any event's proposals, reviews or decisions. `track_
 `reviewer` are absent from all three because their grants are event- or track-scoped and
 this data is neither. Pushing a contact into an event is *not* a fourth row — it creates an
 `EventParticipant`, so it is the existing "Manage the event roster" row (INV-14-5).
+
+`viewer` is the last column rather than sitting with the other roles because it was added
+late: [`01`](01-identity-and-access.md) has always defined it as "read-only across the event,
+no scores", and this table had no column for it at all, so the role granted nothing. The nine
+👁 are that definition made checkable. The blanks are the definition too — no reviews or
+scores, no PII, no audit log, no org configuration, and nothing org-scoped like the speaker
+directory, because the grant itself is event-scoped.
 
 Two rules override the table:
 

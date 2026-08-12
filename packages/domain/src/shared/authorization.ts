@@ -98,8 +98,16 @@ export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>
   "sync.resolve_conflict": { owner: W, admin: W, program_chair: W, organizer: W },
   "org.configure": { owner: W, admin: W },
   "event.configure": { owner: W, admin: W, program_chair: W },
-  "config.manage": { owner: W, admin: W, program_chair: W, organizer: R },
-  "cfp.configure": { owner: W, admin: W, program_chair: W, organizer: R },
+  // `viewer` reads, and only reads. 01 defines the role as "read-only across
+  // the event, no scores", and until this row and the eight below it, the role
+  // appeared in no capability at all — so a person granted `viewer`, and every
+  // API key holding only `:read` scopes, authenticated successfully and was
+  // then refused everything. The exclusions are the definition: no `review.*`
+  // (that is the "no scores" clause), no `pii.read`, no `audit.read`, no org
+  // configuration, and nothing org-scoped like the speaker directory, because
+  // the grant itself is event-scoped.
+  "config.manage": { owner: W, admin: W, program_chair: W, organizer: R, viewer: R },
+  "cfp.configure": { owner: W, admin: W, program_chair: W, organizer: R, viewer: R },
   "proposal.submit": {
     owner: W,
     admin: W,
@@ -121,6 +129,7 @@ export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>
     sponsor_manager: R,
     sponsor_contact: O,
     speaker: O,
+    viewer: R,
   },
   "proposal.edit": {
     owner: W,
@@ -133,7 +142,7 @@ export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>
   "review.read": { owner: R, admin: R, program_chair: R, track_lead: R, reviewer: O },
   "review.submit": { program_chair: W, track_lead: W, reviewer: W },
   "decision.manage": { owner: W, admin: W, program_chair: W, track_lead: "recommend" },
-  "sponsor.manage": { owner: W, admin: W, program_chair: R, organizer: R, sponsor_manager: W, sponsor_contact: O },
+  "sponsor.manage": { owner: W, admin: W, program_chair: R, organizer: R, sponsor_manager: W, sponsor_contact: O, viewer: R },
   "session.manage": {
     owner: W,
     admin: W,
@@ -141,6 +150,7 @@ export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>
     organizer: W,
     sponsor_manager: W,
     speaker: R,
+    viewer: R,
   },
   "session.approve_content": { owner: W, admin: W, program_chair: W, track_lead: R, organizer: W },
   "session.restore_revision": { owner: W, admin: W, program_chair: W, organizer: W },
@@ -176,7 +186,7 @@ export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>
     sponsor_manager: W,
   },
   "custom_field.manage": { owner: W, admin: W, program_chair: W },
-  "task.define": { owner: W, admin: W, program_chair: W, organizer: W },
+  "task.define": { owner: W, admin: W, program_chair: W, organizer: W, viewer: R },
   "task.complete": {
     owner: W,
     admin: W,
@@ -185,9 +195,10 @@ export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>
     sponsor_manager: W,
     sponsor_contact: O,
     speaker: O,
+    viewer: R,
   },
   "task.approve": { owner: W, admin: W, program_chair: W, organizer: W, sponsor_manager: W },
-  "schedule.place": { owner: W, admin: W, program_chair: W, organizer: W },
+  "schedule.place": { owner: W, admin: W, program_chair: W, organizer: W, viewer: R },
   "schedule.publish": { owner: W, admin: W, program_chair: W },
   "schedule.read_published": {
     owner: R,
@@ -200,6 +211,7 @@ export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>
     sponsor_contact: R,
     speaker: R,
     public: R,
+    viewer: R,
   },
   "pii.read": { owner: R, admin: R, program_chair: R, organizer: R, sponsor_manager: R, speaker: O },
   "audit.read": { owner: R, admin: R, program_chair: R },

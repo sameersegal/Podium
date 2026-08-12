@@ -679,6 +679,29 @@ model depends on these choices.
   in either direction: its visibility differs per reader (INV-11-7, and reviewer identity
   under the round's `anonymity`), and an external table has one visibility for everyone who
   can open it.
+- **INV-09-25** A key reaches exactly what its scopes name and nothing else. Every capability
+  in the authorization matrix maps to the scopes that reach it, and a capability with no
+  mapping is refused rather than deferred to a role — an API key never inherits a permission
+  it did not ask for. A key with no scopes is refused at creation, since it could only ever
+  authenticate and then do nothing.
+- **INV-09-26** No API key may create, rotate or revoke an API key, whatever its scopes. A key
+  that can mint a key can grant itself scopes it was never given, and a key that can rotate one
+  can take another key's secret; neither escalation is expressible in the scope table, because
+  the thing being administered *is* the scope table. Listing keys stays available — the list
+  carries prefixes and scopes, never a secret.
+
+### What each scope reaches
+
+Read and write are separate per subject, and three groupings are not guessable from the names:
+
+- **Outreach is governed by the speaker scopes.** `campaign.send` and the communications
+  history sit under `speakers:read` / `speakers:write`: they write to and read about people,
+  not the programme. A key that may not write to speakers may not email them either.
+- **`entitlements:*` sit alongside `sponsors:*`,** because every entitlement route is guarded
+  by the same capability as the sponsorship it belongs to.
+- **`webhooks:manage` is the platform-administration scope** — webhooks, integrations,
+  templates, the outbox and the audit log — and is the only scope that reaches org
+  configuration. It does not reach API-key administration, which INV-09-26 denies outright.
 
 ## Emitted events
 

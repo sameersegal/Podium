@@ -11,7 +11,7 @@
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { PII_EVENT_TYPES, type DomainEventType } from "@podiumstack/domain/events/catalogue.js";
 import { API_SCOPES, type ApiScope } from "@podiumstack/domain/shared/authorization.js";
-import { notFound } from "@podiumstack/domain/shared/errors.js";
+import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
 import { CAMPAIGN_STATUSES, CAPABILITIES } from "@podiumstack/domain/platform/types.js";
 import type { AudienceCriteria } from "@podiumstack/domain/platform/types.js";
 import { writableFields } from "@podiumstack/domain/platform/sync.js";
@@ -213,6 +213,59 @@ function registerSettingsRoutes(router: Router<RequestContext>): void {
 /* ApiKey                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * INV-09-26 — a key may not mint, rotate or revoke a key.
+ *
+ * Scopes bound what a key can reach (INV-09-25), but a key that can create
+ * another key can hand itself scopes it was never granted, and a key that can
+ * rotate another key can take that key's secret. Both are escalations that no
+ * scope table can express, because the object being administered is the scope
+ * system itself. So the rule is about the caller, not the permission: key
+ * administration is a person's job. Reads are deliberately still allowed — the
+ * list carries prefixes and scopes, never a secret, and it is how a client
+ * answers "what am I allowed to do".
+ */
+function refuseApiKeyActor(ctx: RequestContext): void {
+  if (!ctx.apiKeyId) return;
+  throw new DomainError({
+    code: "api_key_cannot_administer_keys",
+    message: "An API key cannot create, rotate or revoke API keys. Sign in and do it at /admin/api-keys.",
+    invariant: "INV-09-26",
+    status: 403,
+  });
+}
+
+/**
+ * What each scope actually reaches, next to the scope itself on the form.
+ * `events:read` does not obviously mean "and the tracks, rooms, formats and
+ * CFP configuration", and picking scopes from names alone is how a key ends up
+ * either useless or far wider than the job needed.
+ */
+const SCOPE_HELP: Record<ApiScope, string> = {
+  "events:read": "events, days, rooms, tracks, formats, CFPs and forms",
+  "events:write": "configure all of the above; run imports and exports; resolve sync conflicts",
+  "proposals:read": "the submission pile",
+  "proposals:write": "edit, submit and withdraw proposals",
+  "reviews:read": "reviews and scores",
+  "reviews:write": "post reviews and assignments",
+  "decisions:read": "accept/reject/waitlist decisions",
+  "decisions:write": "record decisions and open review rounds",
+  "sessions:read": "the programme, its speakers and uploaded files",
+  "sessions:write": "edit sessions, approve content, add speakers",
+  "speakers:read": "the speaker directory, segments, pipelines and sent mail",
+  "speakers:write": "rosters, profiles, notes, segments — and sending campaigns",
+  "sponsors:read": "sponsors and sponsorships",
+  "sponsors:write": "create and confirm sponsorships",
+  "entitlements:read": "sponsor entitlements and what has been consumed",
+  "entitlements:write": "grant and adjust entitlements",
+  "tasks:read": "onboarding task definitions and instances",
+  "tasks:write": "define, remind, approve and waive tasks",
+  "schedule:read": "the agenda grid, conflicts and publication history",
+  "schedule:publish": "place sessions and publish the schedule",
+  "webhooks:manage": "platform administration — webhooks, integrations, templates, audit log",
+  "pii:read": "additive: unredact email, phone, dietary, accessibility and travel data",
+};
+
 function registerApiKeyRoutes(router: Router<RequestContext>): void {
   router.get("/admin/api-keys", async (_req, ctx) => {
     ctx.requireRead("org.configure");
@@ -256,10 +309,17 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
       adminPage(
         ctx,
         { title: "New API key", active: "api-keys", width: "narrow" },
-        html`${pageHead("New API key")}
+        html`${pageHead("New API key", "A key reaches exactly what its scopes name and nothing else, so the scopes chosen here are the whole permission.")}
           ${card(html`<form method="post" action="/admin/api-keys/new" class="stack">
             ${field({ name: "name", label: "Name", required: true, placeholder: "Marketing site" })}
-            ${field({ name: "scopes", label: "Scopes", type: "multi_select", options: API_SCOPES.map((s) => ({ value: s, label: s })), help: "pii:read is additive — without it, personal data is redacted everywhere, including inside proposals:read." })}
+            ${field({
+              name: "scopes",
+              label: "Scopes",
+              type: "multi_select",
+              required: true,
+              options: API_SCOPES.map((s) => ({ value: s, label: `${s} — ${SCOPE_HELP[s]}` })),
+              help: "Pick at least one; a key with none can do nothing. Read scopes work on their own — a read-only key reads the event but never reviews, scores or personal data. pii:read is additive: without it, personal data is redacted everywhere, including inside proposals:read. webhooks:manage is the platform-administration scope, and no key of any kind may create or rotate API keys.",
+            })}
             ${field({ name: "event_ids", label: "Restrict to event ids (comma-separated)", help: "Leave blank for every event." })}
             <button type="submit">Create key</button>
           </form>`)}`,
@@ -269,6 +329,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
 
   router.post("/admin/api-keys/new", async (req, ctx) => {
     ctx.requireWrite("org.configure");
+    refuseApiKeyActor(ctx);
     const input = await readInput(req);
     const app = ctx.app();
     const { secret } = await createApiKey(app, {
@@ -282,6 +343,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
 
   router.post("/admin/api-keys/:id/revoke", async (_req, ctx, params) => {
     ctx.requireWrite("org.configure");
+    refuseApiKeyActor(ctx);
     const app = ctx.app();
     await revokeApiKey(app, params.id, "Revoked from the admin API keys screen.");
     await app.flush();
@@ -290,6 +352,7 @@ function registerApiKeyRoutes(router: Router<RequestContext>): void {
 
   router.post("/admin/api-keys/:id/rotate", async (_req, ctx, params) => {
     ctx.requireWrite("org.configure");
+    refuseApiKeyActor(ctx);
     const app = ctx.app();
     const { secret } = await rotateApiKey(app, params.id);
     await app.flush();
@@ -1479,6 +1542,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
   });
   router.post("/v1/api-keys", async (req, ctx) => {
     ctx.requireWrite("org.configure");
+    refuseApiKeyActor(ctx);
     const input = await readInput(req);
     const app = ctx.app();
     const { row, secret } = await createApiKey(app, {
@@ -1492,6 +1556,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
   });
   router.post("/v1/api-keys/:id/revoke", async (_req, ctx, params) => {
     ctx.requireWrite("org.configure");
+    refuseApiKeyActor(ctx);
     const app = ctx.app();
     await revokeApiKey(app, params.id);
     await app.flush();
@@ -1499,6 +1564,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
   });
   router.post("/v1/api-keys/:id/rotate", async (_req, ctx, params) => {
     ctx.requireWrite("org.configure");
+    refuseApiKeyActor(ctx);
     const app = ctx.app();
     const { row, secret } = await rotateApiKey(app, params.id);
     await app.flush();

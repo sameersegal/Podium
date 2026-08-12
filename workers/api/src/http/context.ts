@@ -382,14 +382,26 @@ function denial(ctx: RequestContext, capability: Capability) {
 }
 
 /**
- * An API key presents scopes, not roles. Map its scopes onto the equivalent
- * org-scoped grant so one matrix governs both callers.
+ * An API key presents scopes, not roles. It still needs a grant, because one
+ * matrix governs both callers — but the grant is a floor to stand on, not the
+ * permission. `CAPABILITY_SCOPES` is the permission, and since it now covers
+ * every capability and defaults to deny (INV-09-25), the pair is exact: a key
+ * holding `proposals:read` passes the `admin` row for `proposal.read_any` and
+ * fails the scope check on every other capability, including `proposal.edit`,
+ * whose write needs `proposals:write`.
+ *
+ * This used to grade the role instead — `admin` for a key with any `:write`
+ * scope, `viewer` otherwise — and both halves were wrong. `viewer` appeared in
+ * no capability at all, so a read-only key could read nothing; and `admin`
+ * carried every capability the scope table did not yet mention, so a key made
+ * for `tasks:write` could mint a second key with `pii:read`. Grading a role by
+ * scope is a lossy translation in both directions; the fix is to stop doing it
+ * and let the scopes speak for themselves.
  */
-function apiKeyGrants(scopes: ApiScope[], orgId: string): RoleGrantView[] {
-  const writes = scopes.some((s) => s.endsWith(":write") || s === "schedule:publish");
+function apiKeyGrants(_scopes: ApiScope[], orgId: string): RoleGrantView[] {
   return [
     {
-      role: writes ? "admin" : "viewer",
+      role: "admin",
       scope_type: "org",
       scope_id: orgId,
       expires_at: null,
@@ -398,35 +410,95 @@ function apiKeyGrants(scopes: ApiScope[], orgId: string): RoleGrantView[] {
   ];
 }
 
-const CAPABILITY_SCOPES: Partial<Record<Capability, { read: ApiScope[]; write: ApiScope[] }>> = {
-  "proposal.read_any": { read: ["proposals:read"], write: ["proposals:write"] },
-  "proposal.edit": { read: ["proposals:read"], write: ["proposals:write"] },
-  "review.read": { read: ["reviews:read"], write: ["reviews:write"] },
-  "review.submit": { read: ["reviews:read"], write: ["reviews:write"] },
-  "decision.manage": { read: ["decisions:read"], write: ["decisions:write"] },
-  "session.manage": { read: ["sessions:read"], write: ["sessions:write"] },
-  "sponsor.manage": { read: ["sponsors:read"], write: ["sponsors:write"] },
-  "task.complete": { read: ["tasks:read"], write: ["tasks:write"] },
-  "task.approve": { read: ["tasks:read"], write: ["tasks:write"] },
-  "task.define": { read: ["tasks:read"], write: ["tasks:write"] },
-  "schedule.place": { read: ["schedule:read"], write: ["schedule:publish"] },
-  "schedule.publish": { read: ["schedule:read"], write: ["schedule:publish"] },
-  "speaker_profile.edit": { read: ["speakers:read"], write: ["speakers:write"] },
-  "roster.manage": { read: ["speakers:read"], write: ["speakers:write"] },
+/**
+ * Every capability, and the scopes that reach it — INV-09-25.
+ *
+ * `Record`, not `Partial<Record>`, on purpose: the type is the enforcement.
+ * This table used to cover eighteen of the thirty-six capabilities and
+ * `hasScopeFor` answered `true` for the rest, which meant the role decided
+ * them — and the role a key gets is `admin` the moment it holds any `:write`
+ * scope. A key created for `tasks:write` could therefore reach `org.configure`
+ * and mint a second key holding `pii:read` and `decisions:write`. Adding a
+ * capability now fails to compile until somebody decides which scope it
+ * belongs to, which is the only way a table like this stays complete.
+ *
+ * Three groupings are worth stating rather than leaving to be inferred:
+ *
+ * - **Outreach is governed by the speaker scopes.** `campaign.send` and
+ *   `communications.read` write to and read about people, not the programme,
+ *   and 09 has no campaign scope. A key that may not write to speakers may not
+ *   email them either.
+ * - **`entitlements:*` sit alongside `sponsors:*` on `sponsor.manage`,** which
+ *   is the capability every entitlement route is guarded by. Without this the
+ *   two entitlement scopes 09 defines reach nothing at all.
+ * - **`webhooks:manage` is the platform-administration scope.** It is what
+ *   `org.configure` and `audit.read` require, so integrations, templates and
+ *   the audit log stay reachable by a key that explicitly asked for them —
+ *   and by no other. Minting API keys is excluded from it separately, at the
+ *   route: see INV-09-26.
+ */
+const CAPABILITY_SCOPES: Record<Capability, { read: ApiScope[]; write: ApiScope[] }> = {
+  "org.configure": { read: ["webhooks:manage"], write: ["webhooks:manage"] },
+  "audit.read": { read: ["webhooks:manage"], write: ["webhooks:manage"] },
+
   "event.configure": { read: ["events:read"], write: ["events:write"] },
   "config.manage": { read: ["events:read"], write: ["events:write"] },
   "cfp.configure": { read: ["events:read"], write: ["events:write"] },
+  "custom_field.manage": { read: ["events:read"], write: ["events:write"] },
+  "bulk.import": { read: ["events:read"], write: ["events:write"] },
+  "export.request": { read: ["events:read"], write: ["events:write"] },
   // A key driving the sync must hold `events:write`; without it, reading a
-  // conflict queue is all it can do. `hasScopeFor` defaults an unmapped
-  // capability to `true`, so leaving this out would let a `tasks:write` key
-  // resolve conflicts on the programme.
+  // conflict queue is all it can do.
   "sync.resolve_conflict": { read: ["events:read"], write: ["events:write"] },
+
+  "proposal.submit": { read: ["proposals:read"], write: ["proposals:write"] },
+  "proposal.read_any": { read: ["proposals:read"], write: ["proposals:write"] },
+  "proposal.edit": { read: ["proposals:read"], write: ["proposals:write"] },
+
+  "review.read": { read: ["reviews:read"], write: ["reviews:write"] },
+  "review.submit": { read: ["reviews:read"], write: ["reviews:write"] },
+  "decision.manage": { read: ["decisions:read"], write: ["decisions:write"] },
+
+  "session.manage": { read: ["sessions:read"], write: ["sessions:write"] },
+  "session.approve_content": { read: ["sessions:read"], write: ["sessions:write"] },
+  "session.restore_revision": { read: ["sessions:read"], write: ["sessions:write"] },
+  "asset.comment": { read: ["sessions:read"], write: ["sessions:write"] },
+
+  "sponsor.manage": {
+    read: ["sponsors:read", "entitlements:read"],
+    write: ["sponsors:write", "entitlements:write"],
+  },
+
+  "speaker_profile.edit": { read: ["speakers:read"], write: ["speakers:write"] },
+  "speaker_profile.set_visibility": { read: ["speakers:read"], write: ["speakers:write"] },
+  "roster.manage": { read: ["speakers:read"], write: ["speakers:write"] },
+  "person_note.manage": { read: ["speakers:read"], write: ["speakers:write"] },
+  "contact_directory.read": { read: ["speakers:read"], write: ["speakers:write"] },
+  "segment.manage": { read: ["speakers:read"], write: ["speakers:write"] },
+  "pipeline.manage": { read: ["speakers:read"], write: ["speakers:write"] },
+  "campaign.send": { read: ["speakers:read"], write: ["speakers:write"] },
+  "communications.read": { read: ["speakers:read"], write: ["speakers:write"] },
+
+  "task.complete": { read: ["tasks:read"], write: ["tasks:write"] },
+  "task.approve": { read: ["tasks:read"], write: ["tasks:write"] },
+  "task.define": { read: ["tasks:read"], write: ["tasks:write"] },
+
+  "schedule.place": { read: ["schedule:read"], write: ["schedule:publish"] },
+  "schedule.publish": { read: ["schedule:read"], write: ["schedule:publish"] },
+  "schedule.read_published": { read: ["schedule:read"], write: ["schedule:publish"] },
+
+  "pii.read": { read: ["pii:read"], write: ["pii:read"] },
 };
 
+/**
+ * INV-09-25 — a key reaches exactly what its scopes name, and nothing else.
+ * Default-deny: an unmapped capability is refused rather than deferred to the
+ * role, because deferring is what let a narrow key act as an org admin.
+ */
 function hasScopeFor(scopes: ApiScope[] | null, capability: Capability, write: boolean): boolean {
   if (!scopes) return true; // a person, not a key
   const need = CAPABILITY_SCOPES[capability];
-  if (!need) return true;
+  if (!need) return false;
   return (write ? need.write : [...need.read, ...need.write]).some((s) => scopes.includes(s));
 }
 
