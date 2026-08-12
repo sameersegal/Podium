@@ -5,13 +5,17 @@ import { SIGN_IN_URL } from "../consts";
 
 <Base title="Not found" description="That page does not exist on podiumstack.com." noindex>
   <div class="wrap notfound">
-    <h1>Not found</h1>
+    <span class="eyebrow">404</span>
+    <h1>Nothing lives at this address.</h1>
     <p>
       {/* The explicit space is load-bearing: Astro drops the whitespace around
           this line break, so without it the sentence reads "lives atapp.". */}
-      There is no page at this address. If you were looking for the app, it lives at{" "}
+      Every page on this site is linked from the footer below. If you were looking for the app
+      itself, it is at{" "}
       <a href={SIGN_IN_URL}>app.podiumstack.com</a>.
     </p>
-    <p><a class="btn secondary" href="/">Back to the home page</a></p>
+    {/* One action. The page is short enough that the footer's site map is the
+        only other thing on it, which is the map a lost reader wants. */}
+    <p class="actions"><a class="btn primary" href="/">Back to the home page</a></p>
   </div>
 </Base>

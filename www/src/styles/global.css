@@ -130,8 +130,10 @@
 
   /* Fluid only where a headline would otherwise break the layout before it
      breaks the line. Everything else in the scale is a fixed step.
-     `--display-2` is declared and unused: it is the step between the hero and
-     a section heading, and the interior pages have not been drawn yet. */
+     `--display-2` is the step between the hero and a section heading, and it
+     sets the title of every interior page: those pages used to open at
+     `--heading-1`, which is exactly the size of each of their own section
+     headings, so nothing on the page out-ranked anything else. */
   --display-1: clamp(44px, 6.4vw, 76px);
   --display-2: clamp(38px, 5vw, 56px);
   --heading-1: clamp(32px, 4.4vw, 48px);
@@ -384,10 +386,6 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
    and two adjacent bands with different grounds would read as a seam. */
 section { padding: var(--section-y) 0; }
 .band { background: var(--sunken); border-block: 1px solid var(--line); }
-/* `.band-dark` was a second, darker band when the site was light. The surface
-   is dark now, so it means nothing and it is an alias until the interior pages
-   are rebuilt and it can go. */
-.band-dark { background: var(--sunken); border-block: 1px solid var(--line); }
 
 .eyebrow {
   display: block;
@@ -510,7 +508,10 @@ section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; 
 .card h3, .pillar h3 { margin-bottom: var(--s-2); }
 .card p, .pillar p { color: var(--text-2); font-size: 15px; margin-bottom: 0; }
 .card p + p, .pillar p + p { margin-top: var(--s-3); }
-.card .key {
+/* The mono chip: a capability key, an endpoint, anything a reader would paste
+   into a config file. Not scoped to `.card` any more — the spec rows below use
+   it for the same job and a second copy of it would be a second truth. */
+.key {
   display: inline-block;
   font: 400 13px/1.6 var(--font-mono);
   letter-spacing: 0.01em;
@@ -521,15 +522,16 @@ section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; 
   margin-bottom: var(--s-3);
 }
 
-/* `minmax(min(100%, 17.5rem), 1fr)` rather than `minmax(17.5rem, 1fr)`, here
-   and in every `auto-fit` grid below. A bare rem floor is a floor the track
-   keeps even when the container is narrower than it, so the row silently
-   overhangs the screen: `.cards.two` at 24rem was 384px wide inside a 350px
-   column on a 390px phone and had its headings cut off. `min(100%, …)` lets
-   the floor collapse to the container on the narrow end and changes nothing
-   above it. */
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr)); gap: var(--s-4); }
-.cards.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
+/* `minmax(min(100%, 19rem), 1fr)` rather than `minmax(19rem, 1fr)`, here and in
+   every `auto-fit` grid below. A bare rem floor is a floor the track keeps even
+   when the container is narrower than it, so the row silently overhangs the
+   screen: a 24rem floor was 384px wide inside a 350px column on a 390px phone
+   and had its headings cut off. `min(100%, …)` lets the floor collapse to the
+   container on the narrow end and changes nothing above it.
+
+   `.cards` — a grid of surfaces each drawing its own box, with a gap — is
+   gone. Every grid of surfaces on the site is a shared-hairline grid now,
+   which is the rule the design system states and the shape it draws. */
 .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: var(--s-6); }
 .two-col h3 { font-size: 18px; }
 .two-col p { color: var(--text-2); font-size: 15px; }
@@ -554,6 +556,27 @@ section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; 
 @media (max-width: 40rem) {
   .grid-hair.three,
   .grid-hair.two { grid-template-columns: minmax(0, 1fr); }
+}
+/* A last row that does not fill leaves a `--line`-coloured rectangle where a
+   card would be: in this grid the gap *is* the parent showing through, so a
+   hole is a solid block the size of a card. Five cards over three columns drew
+   one on /compare. The last card takes the slack instead.
+
+   Each rule is stated as the `min-width` complement of the breakpoint above
+   it, one pixel up, rather than as a reset inside it. A reset has to out-weigh
+   `.grid-hair.three > :last-child:nth-child(2n + 1)`, and `.grid-hair.three >
+   :last-child` does not: the extra `:nth-child` wins. The first version of
+   this left a two-column span on a one-column grid at 390px, which grew an
+   implicit second track and 1,000px of empty card under "Sessionboard". */
+@media (min-width: 62.0625rem) {
+  .grid-hair.three > :last-child:nth-child(3n + 1) { grid-column: span 3; }
+  .grid-hair.three > :last-child:nth-child(3n + 2) { grid-column: span 2; }
+}
+@media (min-width: 40.0625rem) and (max-width: 62rem) {
+  .grid-hair.three > :last-child:nth-child(2n + 1) { grid-column: span 2; }
+}
+@media (min-width: 40.0625rem) {
+  .grid-hair.two > :last-child:nth-child(2n + 1) { grid-column: span 2; }
 }
 
 /* ---------- the pains ----------
@@ -667,11 +690,16 @@ section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; 
    Rules top and bottom, a mono status word in the left column, the copy in the
    right. It replaced a tinted box with a rounded accent bar, which looked like
    an alert on a page that has nothing to alert anybody about. */
-/* Two grid items: the generated status word and *one* element holding the copy.
-   A bare text node inside a grid container becomes an anonymous grid item of
-   its own, so a `.notice` whose copy is not wrapped puts every stray word into
-   the 56px label column, one word per line. The `> *` floor is the other half
-   of that: without it the copy column takes its width from the longest word. */
+/* A generated status word in a 56px column and the copy beside it — and every
+   child after the first has to be told so. Auto-placement fills row two from
+   column one, so a notice with three paragraphs put its second into the 56px
+   column and set it one word per line, down 700px of page. It did exactly that
+   on /security and /fork. `grid-column: 2` on every child is the fix and it
+   holds at any number of them.
+   A bare text node is the case it cannot cover: an anonymous grid item has
+   nothing to select, so copy inside a notice always gets an element around it.
+   The `min-width` floor is the other half — without it the copy column takes
+   its width from the longest word. */
 .notice {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
@@ -681,7 +709,7 @@ section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; 
   font-size: 15px;
   color: var(--text-2);
 }
-.notice > * { min-width: 0; }
+.notice > * { grid-column: 2; min-width: 0; }
 /* `attr()` with a fallback is not everywhere yet, so the default label is a
    second rule. Every notice on the site says "note"; the attribute is there for
    the day one of them says something else. */
@@ -695,11 +723,32 @@ section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; 
 }
 .notice > :last-child { margin-bottom: 0; }
 
+/* ---------- flow spacing ----------
+   A note under a table, a second block of argument under a list, a screenshot
+   under a set of steps. Nine of these were inline `margin-top` declarations
+   spread over six pages at 1.75rem and 2.5rem — 28px and 40px, neither of them
+   a step on the scale this site is built on, and none of them greppable.
+   The numbers keep `--s-6`: they read as part of the block above them rather
+   than as a new one, and that is the gap the landing page shipped with. */
+:is(.table-wrap, .bill, .grid-hair, .faq, .steps, .ticks, .crosses, .two-col, .notice, .spec, .prose, .agent, .shot-fig)
+  + :is(.notice, .prose, .two-col, .shot-fig, .logos, .grid-hair, .table-wrap, .bill) {
+  margin-top: var(--s-7);
+}
+:is(.notice, .grid-hair, .table-wrap) + .kpis { margin-top: var(--s-6); }
+.ticks + p, .crosses + p { margin-top: var(--s-6); }
+
 /* ---------- steps ----------
    Mono ordinals in a 36px column. No circles, no counters, nothing that reads
-   as a badge — the number is a label, not a status. */
+   as a badge — the number is a label, not a status.
+
+   `grid-column: 2` for the same reason `.notice` needs it. A step whose
+   heading and paragraph are siblings rather than wrapped in one element put
+   the paragraph under the ordinal, in a 36px column, one word per line: the
+   five-step tour on /demo was 2,000px of single-word column. Wrapping is no
+   longer the caller's problem. */
 .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-6); }
 .steps li { counter-increment: step; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--s-4); }
+.steps li > * { grid-column: 2; min-width: 0; }
 .steps li::before {
   content: counter(step, decimal-leading-zero);
   font: 400 13px/1.6 var(--font-mono);
@@ -751,9 +800,10 @@ pre.term .line::before { content: "$ "; color: var(--text-4); }
 /* ---------- the six pillars ----------
    Six equal cards in a shared-hairline grid. They used to be one lead card
    with a big picture and five under it, and the picture was an abstract webp
-   composited with `mix-blend-mode: screen`. The art is gone: every other image
-   on this site is a photograph of the running product, and a wordless render
-   beside a claim carried no part of the claim. The words and the number do. */
+   composited with `mix-blend-mode: screen`. The art is gone and so are the
+   files: every other image on this site is a photograph of the running
+   product, and a wordless render beside a claim carried no part of the claim.
+   The words and the number do. */
 .pillars-band { padding-block: var(--section-y); }
 .pillar { display: grid; align-content: start; }
 .pillar-n { display: block; font: 400 13px/1 var(--font-mono); letter-spacing: 0.01em; color: var(--text-3); margin-bottom: var(--s-3); }
@@ -791,6 +841,16 @@ table.matrix thead th {
 }
 table.matrix tbody th { font-weight: 600; color: var(--text-1); }
 table.matrix tr:last-child th, table.matrix tr:last-child td { border-bottom: 0; }
+/* A cell holding a sentence is body copy and wants the body measure. A table
+   track takes whatever the layout gives it and knows nothing about reading, so
+   the explanatory column on /compare ran to about ninety characters a line at
+   1440; capped, it is sixty-four.
+   `max-width` on a cell is a hint in auto table layout, not a rule: it binds
+   only when a sibling column can absorb the slack. That is true of the
+   three-column table this is on and it is why it is not on the two-column
+   tables, where the browser would ignore it and the comment would be a lie.
+   Their cells are short phrases and do not need it. */
+table.matrix td.wide { max-width: 46ch; }
 table.matrix .mine { box-shadow: inset 2px 0 0 var(--violet-fill); color: var(--text-1); }
 table.matrix thead .mine { color: var(--violet-text); }
 /* The demo's sign-ins. Two columns that must not wrap (see `.cred`) will take
@@ -798,14 +858,14 @@ table.matrix thead .mine { color: var(--violet-text); }
    that column gets a floor and the table scrolls a little further instead. */
 table.matrix.creds td:last-child { min-width: 15rem; }
 
-/* `.stack` — a table that becomes a list of records on a phone.
-   The default is fine for a comparison grid, where the row heading and one or
-   two short cells carry the meaning and a sideways scroll costs nothing. It is
-   not fine when the payload is in the last column: at 390px that column is off
-   the screen behind a scrollbar nobody sees, and the switching table on
-   /compare is the one place on this site where the reader came for exactly that
-   column. Cells carry `data-label` so the column heading travels with them;
-   `<thead>` goes, because it has nothing left to head. */
+/* `.stack` — a table that becomes a list of records on a phone. Every table on
+   the site now carries it.
+   The payload of these tables is never in the first column: it is the sentence
+   in the last one, or the two products beyond the fold. At 390px a four-column
+   table inside the 40rem floor gives the row heading 120px and hides the rest
+   behind a scrollbar nobody sees. Cells carry `data-label` so the column
+   heading travels with them; `<thead>` goes, because it has nothing left to
+   head. */
 @media (max-width: 40rem) {
   table.matrix.stack { min-width: 0; display: block; }
   table.matrix.stack thead { display: none; }
@@ -836,11 +896,41 @@ table.matrix.creds td:last-child { min-width: 15rem; }
 .ticks li::before { content: "✓"; color: var(--success); }
 .crosses li::before { content: "✕"; color: var(--danger); }
 
-/* ---------- capability rows ---------- */
-.capability { border-top: 1px solid var(--line); padding: var(--s-7) 0; }
-.capability:first-of-type { border-top: 0; padding-top: var(--s-2); }
-.capability > h3 { font-family: var(--font-display); font-size: 26px; font-weight: 400; letter-spacing: -0.015em; }
-.capability > .contract { color: var(--text-2); max-width: 68ch; }
+/* ---------- spec rows — new in phase 2 ----------
+   A thing named in a narrow left column, its payload in the wide one, a
+   hairline between rows. The design system's own reference screen is laid out
+   this way — "Surface", "Agent surface", "Table" down the left, the examples
+   beside them — and /integrations wants exactly that: the capability and the
+   contract under it on the left, the adapters that satisfy it on the right.
+
+   It replaced `.capability`, which stacked a display-face `h3` over a grid of
+   `.card`s. That put a heading above boxes whose own headings were also `h3`,
+   and a capability with one adapter drew a single full-width box around one
+   sentence. Naming a thing does not need a box; it needs a column.
+
+   The left column is a fixed 15rem rather than a fraction: these labels are
+   two or three words and a fractional track made the column swing with
+   whatever was beside it, so no two rows lined up. */
+.spec { border-top: 1px solid var(--line); }
+.spec-row {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: var(--s-5) var(--s-7);
+  padding: var(--s-6) 0;
+  border-bottom: 1px solid var(--line);
+}
+.spec-row > * { min-width: 0; }
+.spec-label h3 { font-size: 18px; margin-bottom: var(--s-2); }
+.spec-label p { color: var(--text-3); font-size: 14px; line-height: 1.6; margin: 0; max-width: 40ch; }
+/* The payload: entries with air between them and no boxes, because the row is
+   already the box. The mono key is what a self-hoster puts in their config. */
+.spec-items { display: grid; gap: var(--s-5); }
+.spec-item h4 { margin-bottom: var(--s-1); }
+.spec-item p { color: var(--text-2); font-size: 15px; margin: 0; max-width: 68ch; }
+.spec-item .key { margin-bottom: var(--s-2); }
+@media (max-width: 60rem) {
+  .spec-row { grid-template-columns: minmax(0, 1fr); gap: var(--s-4); }
+}
 
 /* ---------- questions ----------
    Native disclosure, so it opens with scripts blocked and announces its own
@@ -901,6 +991,55 @@ table.matrix.creds td:last-child { min-width: 15rem; }
 }
 .logos-row svg { flex: none; color: var(--text-3); }
 
+/* ---------- the bill — new in phase 2 ----------
+   /pricing's five lines. It was a three-column comparison table with the money
+   column wearing `.mine`, which is the mark that means "this column is ours"
+   in a table comparing us with somebody else. There is nobody else in this
+   table. It is a receipt, so it is set like one: what the line is, what it
+   costs in mono on the right, and the sentence explaining it underneath.
+
+   A `<dl>`, because that is what this is. The `<div>` per line is what groups
+   a term with its two descriptions, and is the only thing allowed between a
+   `<dl>` and its children.
+
+   The amount is `--text-1` even when it is "You already have one": the reader
+   is scanning that column for numbers and a greyed row would read as a line
+   that does not apply. */
+.bill {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-surface);
+  background: var(--surface);
+  overflow: hidden;
+}
+.bill > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-1) var(--s-5);
+  align-items: baseline;
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1px solid var(--line-soft);
+}
+.bill > div:last-child { border-bottom: 0; }
+.bill dt { font-size: 17px; font-weight: 600; color: var(--text-1); }
+.bill .amount {
+  margin: 0;
+  grid-column: 2;
+  text-align: right;
+  font: 400 15px/1.4 var(--font-mono);
+  letter-spacing: 0.01em;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+.bill .note { grid-column: 1 / -1; margin: 0; color: var(--text-2); font-size: 15px; max-width: 68ch; }
+/* Below 40rem "From $5 / month" and a four-word line name cannot share a row
+   without one of them wrapping to three lines. The amount goes under the name
+   and keeps its mono setting, which is the part that makes it scannable. */
+@media (max-width: 40rem) {
+  .bill > div { grid-template-columns: minmax(0, 1fr); padding: var(--s-5); }
+  .bill .amount { grid-column: 1; text-align: left; }
+}
+
 /* ---------- credentials ----------
    `word-break: break-all` fitted these into the column and broke them
    mid-address — "sbek-organ / izer@examp / le.com" — which is unreadable and
@@ -917,11 +1056,25 @@ table.matrix.creds td:last-child { min-width: 15rem; }
 
 /* ---------- interior page header ----------
    The same ground as everything else now that the page is dark, so what marks
-   it is the hairline under it and the space, not a second colour. */
+   it is the hairline under it and the space, not a second colour.
+
+   The title is `--display-2`, one step under the hero and one step over every
+   section heading below it. At `--heading-1` it was the same size as the
+   section headings, and a page whose title does not out-rank its own sections
+   reads as a section that lost its page. */
 .pagehead { padding: var(--s-8) 0 var(--s-7); border-bottom: 1px solid var(--line); }
-.pagehead h1 { font-size: var(--heading-1); max-width: 18ch; margin-bottom: var(--s-4); }
+.pagehead h1 {
+  font-size: var(--display-2);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  max-width: 18ch;
+  margin-bottom: var(--s-4);
+}
 .pagehead .lede { margin: 0; }
 .pagehead .actions { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-6); }
+/* A logo strip is the payload on /integrations rather than a footnote under
+   copy, so it gets the section's own spacing above it. */
+.pagehead .logos { margin-top: var(--s-7); }
 
 /* ---------- the next question ----------
    This is navigation dressed as a sentence, so it is sized like navigation: the
@@ -965,10 +1118,21 @@ footer .brand-col img { height: 24px; width: auto; display: block; }
 footer .brand-col p { color: var(--text-3); margin: 0; max-width: 28ch; }
 footer .legal { margin: var(--s-7) 0 0; padding-top: var(--s-5); border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; max-width: 78ch; }
 
-/* ---------- 404 ---------- */
-.notfound { padding: var(--s-9) 0; text-align: center; }
-.notfound h1 { margin-inline: auto; }
-.notfound p { color: var(--text-2); }
+/* ---------- 404 ----------
+   The one page on the site whose reader arrived by accident. It gets the
+   interior title size, one sentence, one button, and the footer's site map
+   under it, which is the map somebody lost actually wants. */
+.notfound { padding: var(--s-9) 0 var(--s-8); text-align: center; }
+.notfound h1 {
+  font-size: var(--display-2);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  max-width: 18ch;
+  margin-inline: auto;
+  margin-bottom: var(--s-4);
+}
+.notfound p { color: var(--text-2); max-width: 52ch; margin-inline: auto; }
+.notfound .actions { margin-top: var(--s-6); }
 
 /* ---------- responsive ----------
    Three breakpoints: 640, 900, 1200. Everything above is written mobile-safe
@@ -999,8 +1163,14 @@ footer .legal { margin: var(--s-7) 0 0; padding-top: var(--s-5); border-top: 1px
   .cta .actions .btn,
   .pagehead .actions .btn { flex: 1 1 auto; }
   .card, .pain, .kpi, .pillar { padding: var(--s-5); }
-  .capability { padding: var(--s-6) 0; }
+  .spec-row { padding: var(--s-5) 0; }
+  /* One column here, so the copy stacks under the status word instead of
+     sitting beside it — and `grid-column: 2` has to come off with the second
+     column, or every child is placed into a track that no longer exists and
+     lands on top of the label. Same specificity, later in the file, which is
+     the only kind of reset that is safe to write. */
   .notice { grid-template-columns: minmax(0, 1fr); gap: var(--s-2); }
+  .notice > * { grid-column: auto; }
   .topbar .brand img { height: 24px; }
 }
 

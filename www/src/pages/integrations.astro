@@ -85,23 +85,32 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
         could satisfy, so the widest set of providers can.
       </p>
 
-      {
-        SHIPPED.map((group) => (
-          <div class="capability">
-            <h3>{group.capability}</h3>
-            <p class="contract">{group.contract}</p>
-            <div class="cards">
-              {group.adapters.map((a) => (
-                <div class="card">
-                  <span class="key">{a.key}</span>
-                  <h3>{a.display}</h3>
-                  <p>{a.blurb}</p>
-                </div>
-              ))}
+      {/* Spec rows, not cards. The capability and its contract name the row
+          from the left; the adapters that satisfy it are the payload. As a
+          card grid this drew a box round every adapter under a heading that
+          was itself a heading over headings, and Chat — which has one adapter
+          — got a full-width box round one sentence. */}
+      <div class="spec">
+        {
+          SHIPPED.map((group) => (
+            <div class="spec-row">
+              <div class="spec-label">
+                <h3>{group.capability}</h3>
+                <p>{group.contract}</p>
+              </div>
+              <div class="spec-items">
+                {group.adapters.map((a) => (
+                  <div class="spec-item">
+                    <span class="key">{a.key}</span>
+                    <h4>{a.display}</h4>
+                    <p>{a.blurb}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))
-      }
+          ))
+        }
+      </div>
     </div>
   </section>
 
@@ -143,7 +152,7 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
     </div>
   </section>
 
-  <section class="band-dark">
+  <section>
     <div class="wrap">
       <span class="eyebrow">Always on</span>
       <h2>You get this without installing anything.</h2>
@@ -151,7 +160,7 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
         {STATS.events} named events, {STATS.scopes} API scopes, and a public schedule your CDN can
         cache. This part is not a plugin.
       </p>
-      <div class="cards two">
+      <div class="grid-hair two">
         {
           ALWAYS_ON.map((item) => (
             <div class="card">
@@ -194,7 +203,7 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
           </tbody>
         </table>
       </div>
-      <div class="notice" style="margin-top: 1.75rem">
+      <div class="notice">
         <p>
           <strong>There is no MCP server here and no OpenAPI document.</strong> Anything driving a
           running instance is driving HTTP, against the surface above and{" "}
