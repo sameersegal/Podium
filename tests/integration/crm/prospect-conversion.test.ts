@@ -197,4 +197,77 @@ describe("CRM HTTP surface", () => {
     const { results } = await env.DB.prepare("SELECT COUNT(*) AS n FROM event_participant WHERE person_id = ? AND event_id = ?").bind(fixtures.personId, fixtures.eventId).all<{ n: number }>();
     expect(results[0].n).toBe(1);
   });
+
+  /**
+   * The contacts directory's "Start a campaign with these contacts" and a
+   * segment's "Send a campaign to this segment" both redirect to
+   * `/admin/campaigns/new?person_ids=…`/`?segment_id=…` — a route that never
+   * existed. `Campaign.event_id` is nullable and `resolveAudience` already
+   * handled `people`/`segment` kinds with no event on the criteria; only the
+   * route was missing, so every org-level bulk-email entry point 404'd.
+   */
+  it("GET /admin/campaigns/new resolves an audience from person_ids with no event in scope", async () => {
+    const res = await SELF.fetch(`http://localhost/admin/campaigns/new?person_ids=${fixtures.personId}`, { headers: { cookie: staffCookie } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("Priya Prospect");
+  });
+
+  it("POST /admin/campaigns/new creates a draft with no event_id, addressed to the given contacts", async () => {
+    const res = await SELF.fetch("http://localhost/admin/campaigns/new", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie: staffCookie },
+      body: new URLSearchParams({
+        audience_kind: "people",
+        person_ids: fixtures.personId,
+        name: "Speak at CRM Test Conf?",
+        channel: "email",
+        subject: "Speak at CRM Test Conf?",
+        body_markdown: "Hi {{recipient.first_name}}, would you speak at our conference?",
+      }),
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+    const row = await env.DB.prepare("SELECT event_id, audience FROM campaign WHERE org_id = ? AND name = ?").bind(ORG, "Speak at CRM Test Conf?").first<{
+      event_id: string | null;
+      audience: string;
+    }>();
+    expect(row?.event_id).toBeNull();
+    expect(JSON.parse(row!.audience)).toMatchObject({ kind: "people", person_ids: [fixtures.personId] });
+  });
+
+  /**
+   * `resolveAudience`'s segment branch read `contact_segment.member_person_ids`
+   * directly — the frozen list a *static* segment keeps. A *dynamic* segment
+   * stores its filter in `criteria` instead and never populates that column
+   * (`segmentMembers`, the function the segment detail page already uses,
+   * re-runs the criteria live). Sending a campaign to a dynamic segment
+   * therefore resolved to zero recipients, silently, every time.
+   */
+  it("a campaign to a dynamic segment resolves its live members, not an empty frozen list", async () => {
+    const segRes = await SELF.fetch("http://localhost/admin/segments", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie: staffCookie },
+      body: new URLSearchParams({ name: "Northwind people", kind: "dynamic", company: "Northwind" }),
+      redirect: "manual",
+    });
+    expect(segRes.status).toBe(303);
+    const segment = await env.DB.prepare("SELECT id, member_person_ids FROM contact_segment WHERE org_id = ? AND name = ?")
+      .bind(ORG, "Northwind people")
+      .first<{ id: string; member_person_ids: string | null }>();
+    // The bug's exact shape: the dynamic segment's frozen-list column is empty.
+    expect(segment?.member_person_ids).toBeNull();
+
+    // The preview and the compose page both read through the same function
+    // the send path uses (`resolveAudience`) — this is the direct check on
+    // it, rather than racing the async delivery queue a real send enqueues.
+    const preview = await SELF.fetch(`http://localhost/admin/campaigns/new?segment_id=${segment!.id}`, { headers: { cookie: staffCookie } });
+    expect(preview.status).toBe(200);
+    expect(await preview.text()).toContain("Priya Prospect");
+
+    const { resolveAudience } = await import("@podiumconf/web/contexts/platform/campaigns.js");
+    const app = new AppContext({ env, orgId: ORG, actor: SYSTEM_ACTOR });
+    const members = await resolveAudience(app, { kind: "segment", segment_id: segment!.id });
+    expect(members).toHaveLength(1);
+    expect(members[0].person_id).toBe(fixtures.personId);
+  });
 });
