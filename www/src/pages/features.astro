@@ -18,7 +18,7 @@ import { GITHUB_URL } from "../consts";
 const alsoInTheBox = [
   {
     title: "Submission forms that survive a deadline",
-    body: "Multi-step, with your own custom fields, saved drafts a submitter can come back to, and a deadline that actually closes the form rather than trusting people not to notice.",
+    body: "Multi-step, with your own fields and saved drafts. The deadline closes the form; it does not trust people not to notice.",
   },
   {
     title: "Content approval with a history",
@@ -26,19 +26,19 @@ const alsoInTheBox = [
   },
   {
     title: "Campaigns with an auditable outbox",
-    body: "Compose to a segment — everyone rejected, everyone with a task overdue, every sponsor contact — and every message sent is recorded against the person who got it.",
+    body: "Compose to a segment — everyone rejected, everyone with a task overdue, every sponsor contact. Every message sent is recorded against the person who got it.",
   },
   {
     title: "Bulk import and export",
-    body: "Bring last year's speakers in from the tool you are leaving, take everything out again as CSV. There is no export ticket to raise.",
+    body: "Bring last year's speakers in from the tool you are leaving, take everything out again as CSV. No export ticket to raise.",
   },
   {
     title: "An event roster",
-    body: "Who is staff, who is a reviewer, who is a speaker, per event — because someone who chaired review last year is a submitter this year, and the tool should not need telling twice.",
+    body: "Who is staff, who is a reviewer, who is a speaker, per event. Someone who chaired review last year is a submitter this year, and the tool should not need telling twice.",
   },
   {
     title: "A cross-event speaker directory",
-    body: "Every edition you have run, in one searchable directory with tags, companies and history. The compounding asset a conference builds is not its schedule; it is the people it knows.",
+    body: "Every edition you have run, in one searchable directory with tags, companies and history. What a conference compounds is the people it knows.",
   },
 ];
 ---
@@ -50,7 +50,7 @@ const alsoInTheBox = [
   <PageHead
     eyebrow="The tour"
     title="Six screens, doing the six jobs."
-    lede="Every image on this page is a photograph of Podium running against its own seeded conference: proposals in every state, a review round with real scores, sponsors part-way through their entitlements, and an agenda with genuine conflicts in it. Nothing here is a mockup."
+    lede="Every image here is a photograph of Podium running against its own seeded conference: proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with conflicts. Nothing is a mockup."
   >
     <div class="actions">
       <a class="btn primary" href="/demo">Sign in and try it</a>
@@ -64,14 +64,11 @@ const alsoInTheBox = [
         <div class="copy">
           <h3>A call for proposals people can finish.</h3>
           <p>
-            Multi-step forms with your own fields, drafts a submitter can leave and come back to,
-            and one board where every proposal, its state and its reviews are visible at once —
-            filterable, bulk-actionable, and current for everyone looking at it.
+            Multi-step forms with your own fields, and drafts a submitter can leave and come back
+            to. One board shows every proposal, its state and its reviews at once, filterable and
+            bulk-actionable.
           </p>
-          <p>
-            Two organizers working the board at the same time see each other's changes as they
-            land, rather than overwriting them and finding out later.
-          </p>
+          <p>Two organizers working that board see each other's changes as they land.</p>
         </div>
         <Shot
           name="proposals"
@@ -85,22 +82,24 @@ const alsoInTheBox = [
         <div class="copy">
           <h3>Review that holds up when someone asks.</h3>
           <p>
-            Reviewers get a queue, a rubric and a progress bar — not a shared sheet with a hundred
+            Reviewers get a queue, a rubric and a progress bar. Not a shared sheet with a hundred
             rows. A reviewer who submitted, is credited on, or has declared a conflict with a
-            proposal cannot score it: the write is refused, not logged for someone to notice.
+            proposal cannot score it — the write is refused, not logged for someone to notice.
           </p>
           <p>
             Run it open, single-blind or double-blind. Every score, comment and decision is
-            recorded, so "why was this rejected" has an answer a year later. An optional first-pass
-            triage can sort the pile before humans see it — off unless you turn it on, and its
-            opinions never count toward quorum.
+            recorded, so "why was this rejected" has an answer a year later.
+          </p>
+          <p>
+            An optional first-pass triage sorts the pile before humans see it. It is off unless you
+            turn it on, and its opinions never count toward quorum.
           </p>
         </div>
         <Shot
           name="review"
-          height={1050}
+          height={840}
           url="app.podiumstack.com/review"
-          alt="A reviewer's queue: a screening round showing 7 of 7 done, with a card per assigned proposal."
+          alt="A reviewer's queue: a progress bar reading 7 of 7 done, over a card per assigned proposal with its reference, title, track, format, status and due date."
         />
       </div>
 
@@ -108,13 +107,12 @@ const alsoInTheBox = [
         <div class="copy">
           <h3>Decide as a batch. Tell everyone at once.</h3>
           <p>
-            Outcomes stay provisional until you publish them. Nothing reaches a speaker early,
-            nobody finds out from a friend, and the awkward middle where half the program knows is
-            gone.
+            Outcomes stay provisional until you publish them. Nothing reaches a speaker early, and
+            nobody finds out from a friend.
           </p>
           <p>
-            Podium shows you which proposals have reached quorum and which are short of it before
-            you commit — and records who waived it, and why, when you decide anyway.
+            Before you commit, Podium shows which proposals reached quorum and which are short of
+            it. Decide anyway and it records who waived it, and why.
           </p>
         </div>
         <Shot
@@ -129,20 +127,22 @@ const alsoInTheBox = [
         <div class="copy">
           <h3>Stop chasing people for bios.</h3>
           <p>
-            Say once what an accepted speaker owes you — headshot, bio, slides, code of conduct,
-            AV requirements — and Podium tracks every one of them, for every session and every
-            sponsor, and sends the reminders itself.
+            Say once what an accepted speaker owes you: headshot, bio, slides, code of conduct, AV
+            requirements. Podium tracks every one, for every session and every sponsor, and sends
+            the reminders itself.
           </p>
           <p>
-            Mark a task <em>blocking</em> and an unfinished one keeps that session off the public
-            schedule until it is done. You find out now, not on the morning of the event.
+            Mark a task <em>blocking</em> and it keeps that session off the public schedule until
+            it is done. You find out now, not on the morning of the event.
           </p>
         </div>
         <Shot
           name="onboarding"
           height={1140}
+          phoneName="onboarding-phone"
+          phoneHeight={975}
           url="app.podiumstack.com/admin/events/…/onboarding"
-          alt="The onboarding board listing each session against each required task, with an assignee, a status and a due date per row."
+          alt="The onboarding board: counts of open, blocking, overdue and completed tasks, over a row for each session and each required task with an assignee, a status and a due date."
         />
       </div>
 
@@ -150,16 +150,15 @@ const alsoInTheBox = [
         <div class="copy">
           <h3>Sponsor sessions are not an afterthought.</h3>
           <p>
-            A sponsor session is paid for, not selected — but it still needs content review, the
-            same onboarding and the same slot on the schedule. Most CFP tools model only the call
-            for proposals and leave this in email.
+            A sponsor session is paid for, not selected. It still needs content review, the same
+            onboarding and the same slot on the schedule. Most CFP tools model the call for
+            proposals and leave this half in email.
           </p>
           <p>
-            Here a package is a countable set of entitlements. Two session slots and a logo
-            placement; one slot spent, two rights still open — visible to you and to them, so nobody discovers a
-            missing slot the week before. An unused slot is never quietly lost, and one cannot be
-            spent twice.
+            A package is a countable set of entitlements. Two session slots and a logo placement;
+            one spent, two still open. The sponsor sees the same count you do.
           </p>
+          <p>An unused slot is never quietly lost, and one cannot be spent twice.</p>
         </div>
         <Shot
           name="sponsorships"
@@ -173,21 +172,22 @@ const alsoInTheBox = [
         <div class="copy">
           <h3>A schedule that cannot quietly break.</h3>
           <p>
-            Place sessions into rooms and times and Podium recomputes conflicts on every change —
-            a double-booked room, a speaker in two places, a session whose onboarding is not done.
-            It will let you save a broken schedule. It will not let you publish one.
+            Place sessions into rooms and times and Podium recomputes conflicts on every change: a
+            double-booked room, a speaker in two places, a session whose onboarding is not done. It
+            will let you save a broken schedule. It will not let you publish one.
           </p>
           <p>
-            What the public sees is an immutable, versioned snapshot your marketing site embeds
-            and a CDN can cache. Publishing an hour before doors open is survivable, because
-            rolling back is just pointing at the previous version.
+            The public sees an immutable, versioned snapshot. Your site embeds it, a CDN caches it,
+            and rolling back is pointing at the previous version.
           </p>
         </div>
         <Shot
           name="schedule"
           height={1170}
+          phoneName="schedule-phone"
+          phoneHeight={1800}
           url="podiumstack.com/e/your-event/schedule"
-          alt="The public schedule: an itinerary of sessions with times, rooms and speakers beside a room-by-time grid, with search and add-to-calendar."
+          alt="The public schedule: search, track and room filters and an add-to-calendar button, over an itinerary of sessions with their times, rooms and tracks."
         />
       </div>
     </div>
@@ -196,25 +196,23 @@ const alsoInTheBox = [
   <section class="band">
     <div class="wrap">
       <span class="eyebrow">The other side of it</span>
-      <h2>One place for speakers to look — on the phone they are holding.</h2>
+      <h2>Speakers get one place to look.</h2>
       <p class="sub">
-        Where their proposal stands, what they have been accepted for, when and where it is, what
-        they still owe you and by when, across every event you have ever run. They keep their own
-        profile, and it is what appears on the public schedule. You stop being the copy-editor of
-        sixty biographies.
+        Where their proposal stands, what they were accepted for, when and where it is, and what
+        they still owe you. They keep their own profile, and it is what appears on the public
+        schedule, so you stop copy-editing sixty biographies.
       </p>
       <div class="feature reveal">
         <div class="copy">
-          <h3>Built for the screen it is actually read on</h3>
+          <h3>Built for the screen it is read on</h3>
           <p>
             Speakers accept from an emailed link, upload a headshot from the camera roll and tick
-            off onboarding tasks standing in a queue somewhere. The portal is not a desktop layout
-            that survives a phone; the narrow layout is the one it is designed at.
+            off tasks standing in a queue somewhere. The portal is designed at the narrow width,
+            not shrunk to fit it.
           </p>
           <p>
-            Attendees get the same treatment: the public schedule renders as an itinerary on a
-            phone and a room-by-time grid on a laptop, and both work with scripts blocked on
-            conference wifi.
+            The public schedule gets the same treatment: an itinerary on a phone, a room-by-time
+            grid on a laptop, and both work with scripts blocked on conference wifi.
           </p>
         </div>
         <Shot
@@ -234,7 +232,7 @@ const alsoInTheBox = [
       <h2>And the parts nobody demos.</h2>
       <p class="sub">
         None of these wins a bake-off. Between them they are most of what makes the last three
-        weeks before a conference survivable.
+        weeks survivable.
       </p>
       <div class="cards">
         {

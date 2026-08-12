@@ -21,65 +21,65 @@ const LINE_ITEMS = [
   {
     item: "The software",
     cost: "£0 / $0 / €0",
-    note: "Apache-2.0. No licence, no seat, no per-speaker charge, no per-event activation, and no edition of it that costs more.",
+    note: "Apache-2.0. No licence, no seat, no per-speaker charge, no per-event activation, and no edition that costs more.",
   },
   {
     item: "Cloudflare Workers Paid",
     cost: "From $5 / month",
-    note: "The one fixed line. It carries the application, the database, the queues and the scheduled jobs. Published on Cloudflare's own pricing page and correct in August 2026 — check it, it is not our price to promise.",
+    note: "The one fixed line. It carries the application, the database, the queues and the scheduled jobs. Published on Cloudflare's own pricing page and correct in August 2026. Check it; it is not our price to promise.",
   },
   {
     item: "Storage and messages",
     cost: "Metered, small",
-    note: "Headshots, slides and recordings in your own bucket; database reads and writes; queue messages. A conference is a small workload next to the included allowances, but your event is not our event — put your numbers into Cloudflare's calculator rather than trusting a figure from us.",
+    note: "Headshots and slides in your own bucket, database reads and writes, queue messages. A conference is a small workload next to the included allowances, but your event is not our event. Put your numbers into Cloudflare's calculator.",
   },
   {
     item: "An email provider",
     cost: "Often free at this volume",
-    note: "Resend and SendGrid both have a free tier that a single conference's mail usually fits inside. Install nothing and mail is composed and recorded but never sent, which is a legitimate way to run a rehearsal.",
+    note: "Resend and SendGrid both have a free tier that one conference's mail usually fits inside. Install nothing and mail is composed and recorded but never sent, which is a legitimate way to rehearse.",
   },
   {
     item: "A domain",
     cost: "You already have one",
-    note: "It runs on a subdomain of the conference site you are already paying for.",
+    note: "It runs on a subdomain of the conference site you already pay for.",
   },
 ];
 
 const NOT_MONEY = [
   {
     title: "Somebody has to deploy it once",
-    body: "Clone, set two secrets, run one command. It is an afternoon for an engineer who has met Cloudflare before, and a real blocker if there is no such person on the team. This is the honest cost of the whole model, and it is not measured in dollars.",
+    body: "Clone, set two secrets, run one command. An afternoon for an engineer who has met Cloudflare before, and a real blocker if there is no such person. This is the honest cost of the model, and it is not in dollars.",
   },
   {
     title: "Somebody has to upgrade it",
-    body: "Pulling a release and redeploying is a five-minute job, but it is a job, and nobody will do it for you. Migrations are additive and checked in; the tests run against a database built from scratch and against one holding representative rows.",
+    body: "Pulling a release and redeploying is a five-minute job, but it is a job, and nobody will do it for you. Migrations are additive and checked in.",
   },
   {
     title: "Support is an issue tracker",
-    body: "Open an issue and the people who wrote it answer it. There is no ticket queue, no response-time commitment and nobody contractually on the hook the week of your event. If you need that, buy something hosted — we mean it.",
+    body: "Open an issue and the people who wrote it answer it. No ticket queue, no response-time commitment, nobody contractually on the hook the week of your event. If you need that, buy something hosted.",
   },
 ];
 
 const FAQ = [
   {
     q: "What is the catch? Where does the money come from?",
-    a: "There is none, because there is no company. Podium is an Apache-2.0 project, not a free tier with a sales team attached to it. Nothing is gated, there is no enterprise edition, and no feature is held back to make one.",
+    a: "There is none, because there is no company. Nothing is gated, there is no enterprise edition, and no feature is held back to make one.",
   },
   {
     q: "Will the price change once we depend on it?",
-    a: "There is no price to change. The licence is irrevocable for the version you have, so the worst case for you is that development stops and you keep running the copy you deployed — with the source, the tests and the specification in your own repository.",
+    a: "There is no price to change. The licence is irrevocable for the version you have, so the worst case is that development stops and you keep running the copy you deployed.",
   },
   {
     q: "Do we pay more as the CFP grows?",
-    a: "Not to us, and barely to Cloudflare. The metered lines scale with traffic and storage, not with speakers, proposals, reviewers, events or team members. A CFP that gets four hundred submissions instead of forty does not move the bill.",
+    a: "Not to us, and barely to Cloudflare. The metered lines scale with traffic and storage, not with speakers, proposals, reviewers, events or team members. Four hundred submissions instead of forty does not move the bill.",
   },
   {
     q: "Can we get our data out?",
-    a: "CSV export of everything, and a REST API with your own keys. There is no export ticket to raise, no format only we can read, and the database is in your account — you can also just query it.",
+    a: "CSV export of everything, and a REST API with your own keys. No export ticket to raise, no format only we can read, and the database is in your account.",
   },
   {
     q: "Can we pay someone to run it for us?",
-    a: "Nobody offers that today. It is an ordinary Cloudflare deployment, so an agency or a contractor who works with Workers can operate it, and nothing in the project stands in the way of a hosted offering existing.",
+    a: "Nobody offers that today. It is an ordinary Cloudflare deployment, so an agency or contractor who works with Workers can operate it.",
   },
 ];
 ---
@@ -91,7 +91,7 @@ const FAQ = [
   <PageHead
     eyebrow="Pricing"
     title="The software is free. The hosting is yours. That is the whole model."
-    lede="No licence, no seats, no per-speaker charge, no sales call and no quote. What follows is what you will actually pay and, more usefully, what this model costs you in things that are not money."
+    lede="No licence, no seats, no per-speaker charge, no sales call and no quote. Below is what you will actually pay, and what this model costs you in things that are not money."
   >
     <div class="actions">
       <a class="btn primary" href="/demo">Try the demo</a>
@@ -128,10 +128,10 @@ const FAQ = [
       <div class="notice" style="margin-top: 1.5rem">
         <p>
           <strong>We are not going to invent a monthly total for you.</strong> Every "typical bill"
-          figure on a page like this is a guess dressed up as a measurement, and you would find out
-          it was wrong on your own invoice. The fixed line is published; the metered lines depend on
-          your traffic. <a href={CLOUDFLARE_PRICING} rel="nofollow noopener">Cloudflare's pricing</a>
-          is the source, and it is the only one that binds.
+          figure on a page like this is a guess dressed up as a measurement, and you find out it was
+          wrong on your own invoice. The fixed line is published; the metered lines depend on your
+          traffic. <a href={CLOUDFLARE_PRICING} rel="nofollow noopener">Cloudflare's pricing</a> is
+          the only source that binds.
         </p>
       </div>
     </div>
@@ -142,8 +142,8 @@ const FAQ = [
       <span class="eyebrow">The other half of the price</span>
       <h2>What it costs you that is not money.</h2>
       <p class="sub">
-        This is where an open-source tool is genuinely more expensive than a hosted one, and
-        pretending otherwise would waste your afternoon and ours.
+        This is where an open-source tool is genuinely more expensive than a hosted one. Pretending
+        otherwise wastes your afternoon and ours.
       </p>
       <div class="cards">
         {

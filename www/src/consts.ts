@@ -49,6 +49,8 @@ export const NAV = [
  *   scopes       length of API_SCOPES in packages/domain/src/shared/authorization.ts
  *   capabilities members of the capability enum in docs/domain/09
  *   adapters     entries in PLUGINS in packages/plugins/src/registry.ts
+ *   endpoints    grep -rhoE '\b(get|post|put|patch|del|delete)\(\s*"/v1[^"]*"' \
+ *                  workers/api/src | sort -u | wc -l   (method + path pairs)
  */
 export const STATS = {
   tests: 714,
@@ -57,6 +59,7 @@ export const STATS = {
   scopes: 22,
   capabilities: 11,
   adapters: 9,
+  endpoints: 190,
 } as const;
 
 /**

@@ -29,15 +29,40 @@ interface Props {
   small?: boolean;
   /** A phone-width capture: 585 intrinsic px wide, no title bar. */
   phone?: boolean;
+  /**
+   * A second capture of the same screen, taken at 390 CSS px, served below
+   * 40rem instead of the desktop file.
+   *
+   * A 1280px admin screen scaled into a 350px column is a grey rectangle: the
+   * body text lands at about four CSS pixels. Where the product has a real
+   * narrow layout, this swaps in a photograph of that layout instead, and the
+   * `<picture>` means a phone downloads one file rather than both. The desktop
+   * chrome comes off with it — a browser title bar over a phone layout is a
+   * frame lying about what it is holding.
+   */
+  phoneName?: string;
+  /** Intrinsic pixel height of the phone PNG. Its width is always 585. */
+  phoneHeight?: number;
   /** The hero shot is above the fold and must not be lazy-loaded. */
   eager?: boolean;
   /** A line under the frame, for what the screenshot cannot say itself. */
   caption?: string;
 }
 
-const { name, height, alt, url, small = false, phone = false, eager = false, caption } = Astro.props;
+const {
+  name,
+  height,
+  alt,
+  url,
+  small = false,
+  phone = false,
+  phoneName,
+  phoneHeight,
+  eager = false,
+  caption,
+} = Astro.props;
 const width = phone ? 585 : 1920;
-const cls = ["shot", small && "sm", phone && "phone"].filter(Boolean).join(" ");
+const cls = ["shot", small && "sm", phone && "phone", phoneName && "has-phone"].filter(Boolean).join(" ");
 ---
 
 <figure class="shot-fig">
@@ -52,14 +77,21 @@ const cls = ["shot", small && "sm", phone && "phone"].filter(Boolean).join(" ");
         </div>
       )
     }
-    <img
-      src={`/screens/${name}.png`}
-      width={width}
-      height={height}
-      alt={alt}
-      loading={eager ? "eager" : "lazy"}
-      decoding={eager ? "sync" : "async"}
-    />
+    <picture>
+      {
+        phoneName && (
+          <source media="(max-width: 40rem)" srcset={`/screens/${phoneName}.png`} width={585} height={phoneHeight} />
+        )
+      }
+      <img
+        src={`/screens/${name}.png`}
+        width={width}
+        height={height}
+        alt={alt}
+        loading={eager ? "eager" : "lazy"}
+        decoding={eager ? "sync" : "async"}
+      />
+    </picture>
   </div>
   {caption && <figcaption>{caption}</figcaption>}
 </figure>

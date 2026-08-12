@@ -16,65 +16,65 @@ import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL } from "../consts";
 const HANDLING = [
   {
     title: "Redacted unless asked for, everywhere",
-    body: "Email addresses, phone numbers, dietary and accessibility notes, travel and visa details, and any answer a form marks personal are removed from every response that has not been granted the separate permission to see them — including inside a scope that can already read the proposal. It is a default, not a setting somebody has to remember.",
+    body: "Email addresses, phone numbers, dietary and accessibility notes, travel details, and any answer a form marks personal need their own permission. Without it they are removed, including from a scope that can already read the proposal.",
   },
   {
     title: "Never in a log line",
-    body: "Application logs carry identifiers, not values. A person is an id in the log; the email address is not there to leak from a log aggregator, a crash report or a support screenshot.",
+    body: "Application logs carry identifiers, not values. A person is an id, so an email address cannot leak from a log aggregator, a crash report or a support screenshot.",
   },
   {
     title: "Never in the published schedule",
-    body: "The public snapshot is built from what the programme means to show — titles, times, rooms, speaker names and bios. Personal fields are not redacted from it at render time; they never enter it.",
+    body: "The public snapshot carries titles, times, rooms, speaker names and bios. Personal fields are not redacted from it at render time; they never enter it.",
   },
   {
     title: "Two things nobody can unlock",
-    body: "Private notes about a person are never visible to that person, and neither is the review data for a proposal they submitted or are credited on. These are not redactions a permission can lift — the data is absent from the surface entirely.",
+    body: "Private notes about a person are never visible to that person, and neither is the review data for a proposal they submitted or are credited on. No permission lifts either.",
   },
 ];
 
 const RIGHTS = [
   {
     title: "Export",
-    body: "Any person can pull everything held about them as JSON, plus the files they uploaded, from their own portal. Nobody has to ask you for it, and you do not have to build it.",
+    body: "Any person pulls everything held about them as JSON, plus their uploaded files, from their own portal. Nobody has to ask you, and you do not have to build it.",
   },
   {
     title: "Erasure that reaches the copies",
-    body: "Erasing a person anonymises the record, clears the profile and deletes their files, while keeping the proposal and session content they authored where you have a record-keeping interest in it. Crucially it also deletes their rows from every linked external table — including paused ones — before the links are dropped. An erasure that stops at your database is not an erasure when half the programme is mirrored into a spreadsheet.",
+    body: "Erasure anonymises the record, clears the profile and deletes the files, keeping the proposal and session content they authored. It also deletes their rows from every linked external table, paused ones included. An erasure that stops at your database is not an erasure when half the programme is mirrored into a spreadsheet.",
   },
   {
     title: "Anything that cannot be honoured is said out loud",
-    body: "If a provider refuses a delete, the link is left in an error state and surfaced, rather than reporting an erasure that did not fully happen.",
+    body: "If a provider refuses a delete, the link is left in an error state and surfaced. Nothing reports an erasure that did not fully happen.",
   },
   {
     title: "Retention with a number on it",
-    body: "Abandoned draft proposals are purged a configurable period after an event closes — two years by default. Audit and event logs are kept for seven years with the personal data redacted after two.",
+    body: "Abandoned drafts are purged after an event closes, two years by default. Audit and event logs are kept for seven years, personal data redacted after two.",
   },
 ];
 
 const ACCESS = [
   {
     title: "Permissions are recomputed on every request",
-    body: "Nothing caches authority. What a control is allowed to do is decided again by the server when it is used, so a revoked role takes effect on the next request rather than the next sign-in.",
+    body: "Nothing caches authority. A revoked role takes effect on the next request, not the next sign-in.",
   },
   {
     title: "Blind review is enforced by refusal",
-    body: "In a single- or double-blind round, identity is withheld rather than hidden with CSS. A reviewer with a declared conflict does not get a warning; the score is refused.",
+    body: "In a single- or double-blind round, identity is withheld, not hidden with CSS. A reviewer with a declared conflict does not get a warning; the score is refused.",
   },
   {
     title: "API keys are narrow and mortal",
-    body: "Scoped to named events, read separated from write, personal data its own additive scope, an expiry date, a rate limit, and a secret shown once and never stored. A key for your marketing site cannot read a review.",
+    body: "Scoped to named events, read separated from write, personal data its own additive scope, an expiry, a rate limit, and a secret shown once. A key for your marketing site cannot read a review.",
   },
   {
     title: "Credentials are references, not values",
-    body: "An integration stores the name of a secret, never the secret. The core resolves it at call time, which is what keeps a provider token out of the settings screen, the audit log and any export of either.",
+    body: "An integration stores the name of a secret, never the secret. It is resolved at call time, which keeps a provider token out of the settings screen, the audit log and any export.",
   },
   {
     title: "Everything that matters is audited",
-    body: "Who did what, when, from where — append-only, and surviving an erasure with the identifier alone. Overrides and waivers carry a written reason, so an accepted proposal below quorum has a name and a sentence beside it a year later.",
+    body: "Who did what, when, from where. Append-only, and surviving an erasure with the identifier alone. Overrides and waivers carry a written reason, so a proposal accepted below quorum has a sentence beside it a year later.",
   },
   {
     title: "One writer for the schedule",
-    body: "Two organizers dragging the same slot queue behind one another rather than interleaving. A stale edit anywhere else is refused with the current state rather than overwriting the other person's work.",
+    body: "Two organizers dragging the same slot queue behind one another instead of interleaving. A stale edit anywhere else is refused with the current state.",
   },
 ];
 ---
@@ -86,7 +86,7 @@ const ACCESS = [
   <PageHead
     eyebrow="Security & data"
     title="It is your database, in your account, under your policy."
-    lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. What follows is what the software does with it on your behalf — and, at the bottom, what is currently wrong with it."
+    lede="Podium deploys to a Cloudflare account in your name. Nobody at this project can read your speakers' data, because nobody at this project has it. Below is what the software does with it, and at the bottom, what is currently wrong."
   />
 
   <section>
@@ -94,9 +94,8 @@ const ACCESS = [
       <span class="eyebrow">Personal data</span>
       <h2>Redaction is the default, not a feature.</h2>
       <p class="sub">
-        Adding a field to this product means deciding whether it is personal data before it can
-        ship. That is a rule with a check behind it, which is why the list below is short enough to
-        read.
+        Adding a field means deciding whether it is personal data before it can ship. That is a rule
+        with a check behind it.
       </p>
       <div class="cards">
         {
@@ -116,8 +115,8 @@ const ACCESS = [
       <span class="eyebrow">Subject rights</span>
       <h2>Export and erasure are features, not a support process.</h2>
       <p class="sub">
-        A speaker asking to be removed should not become an afternoon of your time and a query you
-        write by hand.
+        A speaker asking to be removed should not cost you an afternoon and a query you write by
+        hand.
       </p>
       <div class="cards">
         {
@@ -155,28 +154,26 @@ const ACCESS = [
       <span class="eyebrow">Disclosed</span>
       <h2>One thing that is currently wrong, and the fix.</h2>
       <p class="sub">
-        This is in the repository's implementation notes, in more detail than here. It is on this
-        page because a security page that lists only strengths is a security page nobody should
-        believe.
+        The implementation notes carry it in more detail. It is on this page because a security page
+        that lists only strengths is one nobody should believe.
       </p>
       <div class="notice">
         <p>
-          <strong>Password hashing is deliberately below the recommended work factor</strong> on a
-          deployment running Cloudflare's free plan, which allows ten milliseconds of processing per
-          request. The correctly-sized hash costs about 345 ms and made signing in fail outright, so
-          the shipped parameters are roughly two orders of magnitude cheaper to attack offline than
-          the current recommendation.
+          <strong>Password hashing is deliberately below the recommended work factor</strong> on
+          Cloudflare's free plan, which allows ten milliseconds of processing per request. The
+          correctly-sized hash costs about 345 ms and made signing in fail outright. What ships is
+          roughly two orders of magnitude cheaper to attack offline than the recommendation.
         </p>
         <p>
           The fix is one line and a plan change: move to the paid Workers plan and put the
-          parameters back. Stored hashes are carried up to the new setting the next time each person
-          signs in, so there is no migration and no reset.
+          parameters back. Stored hashes are carried up the next time each person signs in, so there
+          is no migration and no reset.
         </p>
         <p>
-          Two things reduce what it is worth to an attacker — passwords are optional and off by
-          default in production configuration, with invitations the intended route in, and the
-          shipped configuration has no password reset form to farm. It is still a real weakness, and
-          it is the first thing to fix on any deployment holding real speakers.
+          Two things reduce what it is worth to an attacker. Passwords are optional and off by
+          default in production, with invitations the intended route in, and there is no password
+          reset form to farm. It is still the first thing to fix on a deployment holding real
+          speakers.
         </p>
       </div>
       <div class="two-col" style="margin-top: 2.5rem">
@@ -205,7 +202,7 @@ const ACCESS = [
 
   <Cta
     heading="Read it before you run it."
-    sub="Every rule on this page is in the model, and every enforcement of it is in the code, in the same repository, under one licence."
+    sub="Every rule on this page is in the model, and every enforcement of it is in the code, in the same repository."
     secondaryHref={GITHUB_URL}
     secondaryLabel="Get the source"
   />
