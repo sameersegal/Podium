@@ -8,7 +8,7 @@ campaigns and export the programme.
 ## Install
 
 ```
-/plugin marketplace add podiumconf/podium
+/plugin marketplace add https://github.com/sameersegal/Podium
 /plugin install podium-ops@podium
 ```
 
