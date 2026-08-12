@@ -1195,8 +1195,14 @@ export async function addCoSpeaker(
   const proposal = await getProposal(app, proposalId_);
   const existingRows = await speakersOf(app, proposalId_);
 
+  // INV-04-5 is a property of the chosen format, and the roster is collected
+  // before the format is (the seeded form asks "About you" on step 1 and
+  // "About your talk" on step 2). With no format chosen there is no cap to
+  // apply yet — defaulting to one made naming a co-speaker impossible on every
+  // fresh draft. Submission-time validation still enforces the real cap
+  // (04, rule 4), which is where a format is guaranteed to exist.
   const format = proposal.session_format_id ? await app.db.byId<Row>("session_format", str(proposal.session_format_id)) : null;
-  const maxSpeakers = num(format?.max_speakers, 1);
+  const maxSpeakers = format ? num(format.max_speakers, 1) : Number.POSITIVE_INFINITY;
   const active = existingRows.filter((r) => str(r.participation_status) !== "removed");
   if (active.length >= maxSpeakers) {
     // INV-04-5: speaker count never exceeds `SessionFormat.max_speakers`.

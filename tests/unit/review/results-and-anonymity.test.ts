@@ -210,10 +210,10 @@ function reviewableFixture(overrides: Partial<ReviewableProposal> = {}): Reviewa
 function referenceAnswers(): Pick<ReviewableProposal, "answers" | "reference_labels"> {
   return {
     answers: [
-      { field_key: "track", label: "Track", type: "track_picker", value: "trk_ai", pii: false },
-      { field_key: "format", label: "Session format", type: "format_picker", value: "fmt_talk", pii: false },
-      { field_key: "speakers", label: "Speakers", type: "speaker_list", value: ["per_speaker"], pii: false },
-      { field_key: "slides", label: "Draft slides", type: "file", value: { asset_ids: ["ast_1"] }, pii: false },
+      { field_key: "track", label: "Track", type: "track_picker", value: "trk_ai", pii: false, identifies_speaker: false },
+      { field_key: "format", label: "Session format", type: "format_picker", value: "fmt_talk", pii: false, identifies_speaker: false },
+      { field_key: "speakers", label: "Speakers", type: "speaker_list", value: ["per_speaker"], pii: false, identifies_speaker: false },
+      { field_key: "slides", label: "Draft slides", type: "file", value: { asset_ids: ["ast_1"] }, pii: false, identifies_speaker: false },
       {
         field_key: "level",
         label: "Audience level",
@@ -221,6 +221,7 @@ function referenceAnswers(): Pick<ReviewableProposal, "answers" | "reference_lab
         options: [{ value: "intermediate", label: "Intermediate" }],
         value: "intermediate",
         pii: false,
+      identifies_speaker: false,
       },
     ],
     reference_labels: {
@@ -272,6 +273,35 @@ describe("INV-05-8 / 'Fairness rules made explicit': double_blind hides speaker 
   it("shows the speaker under single_blind — only double_blind hides speakers from reviewers", () => {
     const html = scorecardHtml("single_blind");
     expect(html).toContain("Kenji Watanabe");
+  });
+
+  /**
+   * The roster was dropped and the bio *answer* was not, so the one field
+   * guaranteed to open with the speaker's own name survived every other
+   * precaution. `pii` could not fix it — a bio is published beside the talk —
+   * so the form says so with `identifies_speaker` instead.
+   */
+  it("drops an answer the form flags as identifying, even though it is public rather than pii", () => {
+    const bioAnswer = {
+      answers: [
+        {
+          field_key: "speaker_bio",
+          label: "Speaker bio",
+          type: "long_text" as const,
+          value: "Kenji Watanabe runs the platform team at Orbital.",
+          pii: false,
+          identifies_speaker: true,
+        },
+      ],
+      reference_labels: {},
+    };
+    const blind = scorecardHtml("double_blind", bioAnswer);
+    expect(blind).not.toContain("Kenji Watanabe");
+    expect(blind).not.toContain("Orbital");
+    expect(blind).not.toContain("Speaker bio");
+
+    // Not blind, not hidden — the flag is about anonymity, not secrecy.
+    expect(scorecardHtml("open", bioAnswer)).toContain("Kenji Watanabe");
   });
 });
 

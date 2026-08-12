@@ -18,7 +18,7 @@ import type {
   ScheduleSnapshot,
 } from "@podiumconf/domain/scheduling/publication.js";
 import { isSpeakerWidget, WIDGET_LABELS, type EmbedFormat, type WidgetType } from "@podiumconf/domain/scheduling/types.js";
-import { formatInZone, formatTimeInZone } from "@podiumconf/domain/shared/time.js";
+import { calendarDateInZone, formatInZone, formatTimeInZone } from "@podiumconf/domain/shared/time.js";
 import { escapeHtml, html, joinHtml, raw, type SafeHtml } from "../../ui/html.js";
 import { avatar, badge } from "../../ui/layout.js";
 
@@ -62,9 +62,16 @@ export interface FieldAllowlist {
   hide?: string[];
 }
 
+/**
+ * An `EventDay.date` is a calendar date in the event's own timezone; a
+ * session's `starts_at` is an instant. Slicing the instant compares a UTC date
+ * to a local one, which silently moves every session after the day's UTC
+ * midnight onto the next day — a 6pm Pacific workshop lands on day 2, and day 1
+ * renders empty.
+ */
 function dayOf(snapshot: ScheduleSnapshot, instant: string | null): string | null {
   if (!instant) return null;
-  const cal = instant.slice(0, 10);
+  const cal = calendarDateInZone(instant, snapshot.event.timezone);
   return snapshot.event.days.find((d) => d.date === cal)?.id ?? null;
 }
 
@@ -276,7 +283,7 @@ export function sessionSnippet(s: PublishedSessionSnapshot): SafeHtml {
   return snippet(full);
 }
 
-function sessionDataAttrs(s: PublishedSessionSnapshot, speakers: PublishedSpeakerSnapshot[]): string {
+function sessionDataAttrs(s: PublishedSessionSnapshot, speakers: PublishedSpeakerSnapshot[], timezone: string): string {
   const names = speakersOf(s, speakers).map((sp) => sp.display_name).join(", ");
   return [
     `data-session-id="${escapeHtml(s.session_id)}"`,
@@ -285,7 +292,7 @@ function sessionDataAttrs(s: PublishedSessionSnapshot, speakers: PublishedSpeake
     `data-track="${escapeHtml(s.track?.id ?? "")}"`,
     `data-format="${escapeHtml(s.format?.id ?? "")}"`,
     `data-room="${escapeHtml(s.room?.id ?? "")}"`,
-    `data-day="${escapeHtml((s.starts_at ?? "").slice(0, 10))}"`,
+    `data-day="${escapeHtml(s.starts_at ? calendarDateInZone(s.starts_at, timezone) : "")}"`,
     `data-starts="${escapeHtml(s.starts_at ?? "")}"`,
   ].join(" ");
 }
@@ -300,7 +307,7 @@ export function renderSessionsList(snapshot: ScheduleSnapshot, opts: RenderOptio
 
 function sessionCard(s: PublishedSessionSnapshot, speakers: PublishedSpeakerSnapshot[], opts: RenderOptions): SafeHtml {
   const people = speakersOf(s, speakers);
-  return html`${raw(`<article class="session-card" ${sessionDataAttrs(s, speakers)}>`)}
+  return html`${raw(`<article class="session-card" ${sessionDataAttrs(s, speakers, opts.timezone)}>`)}
     <h3><a href="/e/${opts.eventSlug}/sessions/${s.session_id}">${s.title}</a></h3>
     ${sponsorDisclosure(s)}
     ${sessionMeta(s, opts)}
@@ -338,7 +345,7 @@ export function renderItinerary(snapshot: ScheduleSnapshot, opts: RenderOptions)
 export function renderAgendaGrid(snapshot: ScheduleSnapshot, dayId: string, opts: RenderOptions): SafeHtml {
   const day = snapshot.event.days.find((d) => d.id === dayId);
   if (!day) return html`<p class="empty">No such day.</p>`;
-  const daySessions = snapshot.sessions.filter((s) => s.starts_at?.slice(0, 10) === day.date && s.room);
+  const daySessions = snapshot.sessions.filter((s) => s.starts_at && calendarDateInZone(s.starts_at, opts.timezone) === day.date && s.room);
   if (daySessions.length === 0) return html`<p class="empty">Nothing placed in a public room on ${day.label ?? day.date}.</p>`;
 
   const items: GridItem[] = daySessions.map((s) => ({ id: s.session_id, room_id: s.room!.id, starts_at: s.starts_at!, ends_at: s.ends_at! }));
@@ -350,7 +357,7 @@ export function renderAgendaGrid(snapshot: ScheduleSnapshot, dayId: string, opts
 
   return renderGrid(layout, (b) => {
     const s = byId.get(b.item.id)!;
-    return html`<a href="/e/${opts.eventSlug}/sessions/${s.session_id}" ${raw(sessionDataAttrs(s, snapshot.speakers))}>
+    return html`<a href="/e/${opts.eventSlug}/sessions/${s.session_id}" ${raw(sessionDataAttrs(s, snapshot.speakers, opts.timezone))}>
       <span class="t">${s.title}</span>
       ${sponsorDisclosure(s)}
     </a>`;
@@ -418,7 +425,7 @@ export function renderSessionDetail(snapshot: ScheduleSnapshot, sessionId: strin
   const s = snapshot.sessions.find((x) => x.session_id === sessionId);
   if (!s) return html`<p class="empty">This session is not part of the published schedule.</p>`;
   const people = speakersOf(s, snapshot.speakers);
-  return html`<article class="session-card" ${raw(sessionDataAttrs(s, snapshot.speakers))}>
+  return html`<article class="session-card" ${raw(sessionDataAttrs(s, snapshot.speakers, opts.timezone))}>
     <h2>${s.title}</h2>
     ${s.subtitle ? html`<p class="lede">${s.subtitle}</p>` : raw("")}
     ${sponsorDisclosure(s)}

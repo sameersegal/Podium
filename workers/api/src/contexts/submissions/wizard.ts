@@ -24,6 +24,7 @@ import { answerDisplay } from "@podiumconf/domain/submissions/answer-display.js"
 import { isBlank, type AnswerMap } from "@podiumconf/domain/submissions/answers.js";
 import { nextAction, type EditAffordance, type NextAction } from "@podiumconf/domain/submissions/types.js";
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
+import { formatInZone } from "@podiumconf/domain/shared/time.js";
 import { escapeHtml, html, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import type { EventRef } from "../../ui/shell.js";
@@ -121,31 +122,31 @@ function controlFor(
 
   switch (f.type) {
     case "long_text":
-      return html`${sentinel}${field({ name, label: f.label, type: "textarea", rows: 6, required: f.is_required, help: f.help_text, value: value ?? "", error })}`;
+      return html`${sentinel}${field({ name, label: f.label, type: "textarea", rows: 6, required: f.is_required, validate: false, help: f.help_text, value: value ?? "", error })}`;
     case "markdown":
       return html`${sentinel}${field({
         name,
         label: f.label,
         type: "textarea",
         rows: 6,
-        required: f.is_required,
+        required: f.is_required, validate: false,
         help: (f.help_text ? `${f.help_text} ` : "") + "Markdown (headings, bold, italics, links, lists) is supported.",
         value: value ?? "",
         error,
       })}`;
     case "email":
-      return field({ name, label: f.label, type: "email", required: f.is_required, help: f.help_text, value: value ?? "", error });
+      return field({ name, label: f.label, type: "email", required: f.is_required, validate: false, help: f.help_text, value: value ?? "", error });
     case "url":
-      return field({ name, label: f.label, type: "url", required: f.is_required, help: f.help_text, value: value ?? "", error });
+      return field({ name, label: f.label, type: "url", required: f.is_required, validate: false, help: f.help_text, value: value ?? "", error });
     case "number":
     case "duration_picker":
-      return field({ name, label: f.label, type: "number", required: f.is_required, help: f.help_text, value: value ?? "", error });
+      return field({ name, label: f.label, type: "number", required: f.is_required, validate: false, help: f.help_text, value: value ?? "", error });
     case "date":
-      return field({ name, label: f.label, type: "date", required: f.is_required, help: f.help_text, value: value ?? "", error });
+      return field({ name, label: f.label, type: "date", required: f.is_required, validate: false, help: f.help_text, value: value ?? "", error });
     case "single_select":
     case "track_picker":
     case "format_picker":
-      return field({ name, label: f.label, type: "select", required: f.is_required, help: f.help_text, value: value ?? "", options, error });
+      return field({ name, label: f.label, type: "select", required: f.is_required, validate: false, help: f.help_text, value: value ?? "", options, error });
     case "multi_select":
       return html`${sentinel}${field({
         name,
@@ -158,7 +159,7 @@ function controlFor(
       })}`;
     case "checkbox":
     case "consent":
-      return html`${sentinel}${field({ name, label: f.label, type: "checkbox", required: f.is_required, help: f.help_text, value: !!value, error })}`;
+      return html`${sentinel}${field({ name, label: f.label, type: "checkbox", required: f.is_required, validate: false, help: f.help_text, value: !!value, error })}`;
     case "file":
       return fileControl(f, value, error);
     case "speaker_list":
@@ -166,7 +167,7 @@ function controlFor(
       return raw("");
     case "short_text":
     default:
-      return field({ name, label: f.label, type: "text", required: f.is_required, help: f.help_text, value: value ?? "", error });
+      return field({ name, label: f.label, type: "text", required: f.is_required, validate: false, help: f.help_text, value: value ?? "", error });
   }
 }
 
@@ -274,6 +275,15 @@ export async function speakerRoster(app: AppContext, _proposalId: string, speake
   return out;
 }
 
+/**
+ * The roster sits inside the step's own `<form>`, and managing a co-speaker is
+ * a different POST to a different route — but HTML has no nested forms, and a
+ * browser that meets an inner `<form>` closes the outer one, orphaning every
+ * control after it (here: the whole rest of the step, plus "Save draft" and
+ * "Save and continue"). So the roster's buttons stay where they belong
+ * visually and are associated by `form=` id to real form elements emitted
+ * after the step form closes. `companionForms` is what the caller must render.
+ */
 function speakerRosterBlock(
   f: FormFieldSpec,
   roster: RosterEntry[],
@@ -282,32 +292,59 @@ function speakerRosterBlock(
   origin: string,
   error: string | undefined,
   currentStepKey: string,
-): SafeHtml {
+): { block: SafeHtml; companionForms: SafeHtml } {
   const active = roster.filter((r) => r.participation_status !== "removed");
+  const removable = active.filter((r) => r.speaker_role !== "primary" || origin === "sponsor");
+  const formId = (personId: string) => `rmspk_${personId.replace(/[^\w]/g, "_")}`;
   const rows = active.map(
     (r) => html`<tr>
       <td>${r.full_name}${str(r.person_id) === submitterPersonId ? html` <span class="small muted">(you)</span>` : raw("")}</td>
       <td>${badge(r.speaker_role)}</td>
       <td>${badge(r.participation_status)}</td>
-      <td class="right">${r.speaker_role !== "primary" || origin === "sponsor"
-        ? actionForm(`${basePath}/speakers/${r.person_id}/remove`, "Remove", { confirm: `Remove ${r.full_name} from this proposal?` })
+      <td class="right">${removable.some((x) => x.person_id === r.person_id)
+        ? html`<button
+            type="submit"
+            form="${formId(r.person_id)}"
+            class="small secondary"
+            ${raw(`onclick="return confirm('${escapeHtml(`Remove ${r.full_name} from this proposal?`)}')"`)}
+          >Remove</button>`
         : raw("")}</td>
     </tr>`,
   );
-  return html`<div class="field" data-field-key="${f.key}">
+
+  const block = html`<div class="field" data-field-key="${f.key}">
     <label>${f.label}${f.is_required ? html` <span class="req">*</span>` : raw("")}</label>
     ${f.help_text ? html`<span class="help">${f.help_text}</span>` : raw("")}
     ${table(["Speaker", "Role", "Status", ""], rows, "Nobody named yet.")}
     <details class="row-edit"><summary>Add a co-speaker</summary>
-      <form method="post" action="${basePath}/speakers" class="inline-grid">
-        <input type="hidden" name="redirect_step" value="${currentStepKey}">
-        ${field({ name: "full_name", label: "Their name", required: true })}
-        ${field({ name: "email", label: "Their email", type: "email", required: true, help: "They get a one-time link to confirm." })}
-        <button type="submit" class="small">Add co-speaker</button>
-      </form>
+      <div class="inline-grid">
+        ${field({ name: "full_name", label: "Their name", required: true, attrs: 'form="add-cospeaker"' })}
+        ${field({
+          name: "email",
+          label: "Their email",
+          type: "email",
+          required: true,
+          help: "They get a one-time link to confirm.",
+          attrs: 'form="add-cospeaker"',
+        })}
+        <button type="submit" form="add-cospeaker" class="small">Add co-speaker</button>
+      </div>
     </details>
     ${error ? html`<span class="field-error">${error}</span>` : raw("")}
   </div>`;
+
+  const companionForms = html`<form method="post" action="${basePath}/speakers" id="add-cospeaker" hidden>
+      <input type="hidden" name="redirect_step" value="${currentStepKey}">
+    </form>
+    ${joinHtml(
+      removable.map(
+        (r) => html`<form method="post" action="${basePath}/speakers/${r.person_id}/remove" id="${formId(r.person_id)}" hidden>
+          <input type="hidden" name="redirect_step" value="${currentStepKey}">
+        </form>`,
+      ),
+    )}`;
+
+  return { block, companionForms };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -360,7 +397,10 @@ export function renderWizardPage(data: StepPageData): SafeHtml {
   const errorFor = (key: string) => data.fieldErrors.find((e) => e.field_key === key)?.message;
 
   const notice = data.affordance.requires_unsubmit
-    ? html`<p class="notice warn">This proposal was already submitted. Saving a change here moves it back to a draft; you will need to submit it again.</p>`
+    ? html`<p class="notice info">
+        This proposal is already with the committee. The call is still open, so saving a change here updates it and
+        resubmits it for you — a new revision the committee sees.
+      </p>`
     : raw("");
 
   if (data.current.kind === "review") {
@@ -383,29 +423,46 @@ export function renderWizardPage(data: StepPageData): SafeHtml {
   const currentIndex = data.steps.findIndex((s) => s.key === data.current.key);
   const nextStepKey = data.steps[currentIndex + 1]?.key ?? data.current.key;
 
+  const companions: SafeHtml[] = [];
+  const blocks = fields.map((f) => {
+    if (f.type !== "speaker_list") {
+      return fieldBlock(f, controlFor(f, data.answers[f.key], errorFor(f.key), { tracks: data.tracks, formats: data.formats }));
+    }
+    const roster = speakerRosterBlock(
+      f,
+      data.roster,
+      data.submitterPersonId,
+      basePath,
+      str(data.proposal.origin),
+      errorFor(f.key),
+      data.current.key,
+    );
+    companions.push(roster.companionForms);
+    return roster.block;
+  });
+
   return html`${pageHead(str(data.proposal.title) || "Untitled proposal", `${str(data.proposal.reference)} · ${data.current.title}`)}
     ${stepIndicator(data.steps, data.current.key, completed, basePath)}
     ${notice}
+    ${data.fieldErrors.length
+      ? html`<p class="notice err">
+          ${data.fieldErrors.length} required answer${data.fieldErrors.length === 1 ? " is" : "s are"} still missing:
+          ${data.fieldErrors.map((e) => e.message).join(" ")} Your answers so far are saved — fill these in to continue.
+        </p>`
+      : raw("")}
     ${card(
       html`<form method="post" action="${basePath}/step/${data.current.key}" enctype="multipart/form-data" class="stack">
         <input type="hidden" name="client_revision" value="${data.clientRevision}">
         <input type="hidden" name="next_step_key" value="${nextStepKey}">
         ${data.current.description ? html`<p class="muted">${data.current.description}</p>` : raw("")}
-        ${fields.length === 0
-          ? empty("Nothing to fill in on this step.")
-          : joinHtml(
-              fields.map((f) =>
-                f.type === "speaker_list"
-                  ? speakerRosterBlock(f, data.roster, data.submitterPersonId, basePath, str(data.proposal.origin), errorFor(f.key), data.current.key)
-                  : fieldBlock(f, controlFor(f, data.answers[f.key], errorFor(f.key), { tracks: data.tracks, formats: data.formats })),
-              ),
-            )}
+        ${fields.length === 0 ? empty("Nothing to fill in on this step.") : joinHtml(blocks)}
         <div class="actions">
-          <button type="submit" name="save" value="1" class="secondary">Save draft</button>
+          <button type="submit" name="save" value="1" class="secondary" formnovalidate>Save draft</button>
           <button type="submit" name="next" value="1">Save and continue</button>
         </div>
         ${conditionScript(fields)}
-      </form>`,
+      </form>
+      ${joinHtml(companions)}`,
     )}`;
 }
 
@@ -528,6 +585,7 @@ export function proposalsListView(proposals: SubmitterDashboard["proposals"]): S
 
 export function proposalReadView(detail: ProposalDetail, next: NextAction, canEdit: boolean): SafeHtml {
   const p = detail.proposal;
+  const timezone = str(detail.event?.timezone, "UTC");
   const byStep = new Map<string, typeof detail.answer_views>();
   for (const a of detail.answer_views) {
     if (!a.visible) continue;
@@ -565,7 +623,7 @@ export function proposalReadView(detail: ProposalDetail, next: NextAction, canEd
       <td>#${num(r.revision_number)}</td>
       <td>${badge(str(r.change_kind))}</td>
       <td class="small">${Object.keys(diff).join(", ") || "—"}</td>
-      <td class="small muted">${str(r.created_at)}</td>
+      <td class="small muted">${formatInZone(str(r.created_at), timezone)}</td>
     </tr>`;
   });
 
@@ -599,7 +657,7 @@ export function newProposalPickerView(cfps: Row[], entitlementsByEvent: Map<stri
   const cards = cfps.map((c) => {
     const entitlements = entitlementsByEvent.get(str(c.event_id)) ?? [];
     return card(
-      html`<p class="muted">${str(c.event_name)} · closes ${str(c.closes_at)}${bool(c.is_late) ? html` <span class="badge warn">late submissions flagged</span>` : raw("")}</p>
+      html`<p class="muted">${str(c.event_name)} · closes ${formatInZone(str(c.closes_at), str(c.event_timezone, "UTC"))}${bool(c.is_late) ? html` <span class="badge warn">late submissions flagged</span>` : raw("")}</p>
         <form method="post" action="/portal/proposals/new" class="stack">
           <input type="hidden" name="cfp_id" value="${str(c.id)}">
           ${entitlements.length

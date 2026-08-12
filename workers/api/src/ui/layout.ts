@@ -332,18 +332,32 @@ export interface FieldOptions {
   accept?: string;
   id?: string;
   attrs?: string;
+  /**
+   * Whether a required control also carries the HTML `required` attribute.
+   * The submission wizard sets this false: it validates a step on the server
+   * so the failure is a rendered, linkable message on the field rather than a
+   * transient browser bubble that no screenshot and no screen reader history
+   * can show — and so "Save draft" can save a page that is deliberately
+   * incomplete.
+   */
+  validate?: boolean;
 }
 
 export function field(o: FieldOptions): SafeHtml {
   const id = o.id ?? `f_${o.name.replace(/[^\w]/g, "_")}`;
-  const req = o.required ? raw(' required aria-required="true"') : raw("");
+  const req = o.required ? raw(o.validate === false ? ' aria-required="true"' : ' required aria-required="true"') : raw("");
   const extra = o.attrs ? raw(" " + o.attrs) : raw("");
   let control: SafeHtml;
   if (o.type === "textarea") {
     control = html`<textarea id="${id}" name="${o.name}" rows="${o.rows ?? 6}" placeholder="${o.placeholder ?? ""}"${req}${extra}>${o.value ?? ""}</textarea>`;
   } else if (o.type === "select") {
     control = html`<select id="${id}" name="${o.name}"${req}${extra}>
-      ${o.required ? raw("") : html`<option value="">— none —</option>`}
+      ${
+        // A required select validated on the server still needs an empty first
+        // option, or the browser preselects option one and "did not answer"
+        // becomes indistinguishable from "chose the first track".
+        o.required && o.validate !== false ? raw("") : html`<option value="">${o.required ? "— choose —" : "— none —"}</option>`
+      }
       ${(o.options ?? []).map(
         (opt) =>
           html`<option value="${opt.value}"${String(o.value ?? "") === opt.value ? raw(" selected") : raw("")}>${opt.label}</option>`,

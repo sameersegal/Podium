@@ -271,7 +271,15 @@ A conventional four-step shape, which the seed data should ship:
 | `maps_to` | `enum(none, title, abstract, description, track, format, duration, level, keywords, av_requirements, recording_consent, coi_disclosure, speakers)` | Y | promotes an answer into a first-class `Proposal` column (INV-02-7) |
 | `audience` | `enum(public, committee_only, organizer_only)` | Y | `public` may appear on the published schedule; the rest never do |
 | `pii` | `bool` | Y | flags the answer for retention and export handling |
+| `identifies_speaker` | `bool` | Y | the answer names its speaker; a `double_blind` round drops it ([05](05-review-and-selection.md)) |
 | `sort_order` | `int` | Y | |
+
+**`identifies_speaker` is not `pii`.** `pii` means "redact from public responses, snapshots
+and logs"; a speaker bio is the opposite — it is *published*, beside the talk, on the
+schedule. What makes it dangerous is narrower and applies in exactly one place: it opens
+with the speaker's own name, so a blind round must not show it to a reviewer. Two flags,
+because a field can be either, both, or neither, and collapsing them would force every
+blind-safe bio to vanish from the public page.
 
 **`maps_to` is the bridge between a configurable form and a typed domain.** The committee
 needs `title`, `abstract`, `track` and `format` to exist as real columns for sorting,

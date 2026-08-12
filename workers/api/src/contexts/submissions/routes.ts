@@ -15,6 +15,7 @@ import type { FormSpec } from "@podiumconf/domain/event-config/types.js";
 import { DomainError, notFound, validationError } from "@podiumconf/domain/shared/errors.js";
 import { newId } from "@podiumconf/domain/shared/ids.js";
 import { fieldByKey, mappedKeys } from "@podiumconf/domain/submissions/answers.js";
+import { validateStep } from "@podiumconf/domain/submissions/validation.js";
 import type { Origin } from "@podiumconf/domain/event-config/types.js";
 import { flashCookie, type PersonView, type RequestContext } from "../../http/context.js";
 import { collectPrefixed, readInput, type Input } from "../../http/input.js";
@@ -348,7 +349,13 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
       const window = await cfpWindow(app, str(proposal.cfp_id));
       const affordance = editAffordance(str(proposal.status), { accepts_edit: window.accepts.allowed, allow_edit_after_submit: window.allow_edit_after_submit });
       if (!affordance.editable) return redirectToDetail(proposal, affordance.reason);
-      if (affordance.requires_unsubmit) await unsubmitProposal(app, proposal.id); // submitted --> draft (04, "the way out")
+      // `allow_edit_after_submit` means "submitters may edit until closes_at"
+      // (02). Editing still routes through `draft` because content is immutable
+      // in `submitted` (INV-04-7), but that is a mechanism, not an outcome: a
+      // submitter who fixes a typo must not silently end up unsubmitted. The
+      // round trip back to `submitted` happens below, once the save lands.
+      const wasSubmitted = affordance.requires_unsubmit;
+      if (wasSubmitted) await unsubmitProposal(app, proposal.id); // submitted --> draft (04, "the way out")
 
       const input = await readInput(req);
       const form = await formOf(app, proposal);
@@ -382,9 +389,73 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
       }
       await app.flush();
 
-      const steps = wizardSteps(form, await answersOf(app, proposal.id));
+      const saved = await answersOf(app, proposal.id);
+      const steps = wizardSteps(form, saved);
+
+      // Back to `submitted`, unless the edit left it failing a submission rule —
+      // in which case it stays a draft and the submitter is told why.
+      let resubmitFailed: string | null = null;
+      if (wasSubmitted) {
+        try {
+          await submitProposal(app, proposal.id);
+          await app.flush();
+        } catch (err) {
+          if (!(err instanceof DomainError) || err.status >= 500) throw err;
+          resubmitFailed = err.message;
+        }
+      }
+
+      // The answers are already persisted — "Save and continue" never loses
+      // work — but a step with a required answer still missing re-renders in
+      // place, naming the field, rather than advancing past the gap.
+      if (advancing) {
+        const stepErrors = validateStep(form, saved, params.stepKey);
+        if (stepErrors.length > 0) {
+          const current = steps.find((s) => s.key === params.stepKey);
+          if (current) {
+            const event = (await loadEvent(ctx, str(proposal.event_id)))!;
+            const [tracks, formats, speakerRows] = await Promise.all([
+              cfpTrackOptions(app, str(proposal.cfp_id), true),
+              cfpFormatOptions(app, str(proposal.cfp_id), true),
+              speakersOf(app, proposal.id),
+            ]);
+            const progress = await progressOf(app, proposal.id);
+            const data: StepPageData = {
+              proposal: (await app.db.byId<Row>("proposal", proposal.id)) ?? proposal,
+              event,
+              form,
+              answers: saved,
+              steps,
+              current,
+              tracks,
+              formats,
+              roster: await speakerRoster(app, proposal.id, speakerRows),
+              fieldErrors: stepErrors,
+              affordance,
+              window,
+              clientRevision: num(progress?.client_revision, 0),
+              submitterPersonId: str(proposal.submitter_person_id),
+              progress,
+            };
+            return htmlResponse(
+              portalPage(
+                ctx,
+                { title: str(proposal.title) || "Untitled proposal", active: "proposals", width: "wide" },
+                renderWizardPage(data),
+              ),
+            );
+          }
+        }
+      }
+
       const target = resolveStepKey(steps, nextStepKey ?? params.stepKey, null);
-      return redirect(`/portal/proposals/${proposal.id}/step/${target}`, 303, OK("Saved."));
+      return redirect(
+        `/portal/proposals/${proposal.id}/step/${target}`,
+        303,
+        resubmitFailed
+          ? WARN(`Saved as a draft — it could not go back to the committee: ${resubmitFailed}`)
+          : OK(wasSubmitted ? "Saved and resubmitted. The committee sees your update." : "Saved."),
+      );
     }),
   );
 
@@ -434,6 +505,13 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
             portalPage(ctx, { title: str(proposal.title) || "Untitled proposal", active: "proposals", width: "wide" }, renderWizardPage(data)),
             { status: 422 },
           );
+        }
+        // A rule failure that names an invariant rather than a field — the cap,
+        // a closed call, an exhausted entitlement. The submitter should read it
+        // on their own review step, not on a bare error page that has thrown
+        // away every answer they can still fix.
+        if (err instanceof DomainError && err.status < 500) {
+          return redirect(`/portal/proposals/${proposal.id}/step/review-and-submit`, 303, WARN(err.message));
         }
         throw err;
       }
