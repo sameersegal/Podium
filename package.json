@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Podium — an open-source SessionBoard alternative for AI Engineer-style conferences",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:only": "node scripts/dev.mjs --no-reset",

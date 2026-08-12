@@ -38,7 +38,7 @@ export const AUDIENCES = [
   {
     name: "Podium",
     built_for: "AI-Engineer-shaped conferences that want to own the whole thing.",
-    body: "Free, Apache-2.0, and it deploys to your own Cloudflare account. Built for the program chair who is also the review chair, sells sponsor sessions, and would rather read the rules than file a ticket to find out what they are.",
+    body: "Free, MIT-licensed, and it deploys to your own Cloudflare account. Built for the program chair who is also the review chair, sells sponsor sessions, and would rather read the rules than file a ticket to find out what they are.",
     href: null,
   },
 ];
@@ -50,7 +50,7 @@ export const AUDIENCES = [
 export const STRUCTURAL = [
   {
     row: "Licence",
-    podium: "Apache-2.0",
+    podium: "MIT",
     sessionize: "Proprietary",
     sessionboard: "Proprietary",
   },

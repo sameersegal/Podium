@@ -143,3 +143,9 @@ before reporting.
 Logos, the web icon set and the usage rules live in [`brand/`](brand/README.md); the contents
 of [`brand/web/`](brand/web) are served from both [`public/`](public) and
 [`www/public/`](www/public).
+
+## Licence
+
+[MIT](LICENSE). Fork it, deploy it, change it, run it for a commercial conference, keep your
+changes to yourself — the only condition is that the copyright notice travels with the copies
+you pass on. Contributions are taken under the same licence; there is no CLA.

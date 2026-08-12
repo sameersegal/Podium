@@ -135,7 +135,7 @@ them, and the evaluator that ships calls no external model.
 ## D) Positioning and comparison — win on the real difference, never on a straw man
 
 Podium's actual differences, in the order they matter to a buyer, are: it is **free and
-Apache-2.0**; it runs on **infrastructure the organizer owns**, with no per-speaker pricing and
+MIT-licensed**; it runs on **infrastructure the organizer owns**, with no per-speaker pricing and
 no data they cannot export; **sponsor sessions are first-class**, not a bolt-on; the **rules are
 written down before the code**, with a check in CI that fails when the two disagree; and it is
 **built for agents to operate** (C), which none of the incumbents was. Everything else is table
