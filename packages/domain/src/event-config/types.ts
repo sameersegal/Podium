@@ -215,6 +215,13 @@ export interface FormFieldSpec {
   maps_to: MapsTo;
   audience: FieldAudience;
   pii: boolean;
+  /**
+   * This answer names its speaker, so a `double_blind` round must not show it
+   * (05, "Fairness rules made explicit"). Independent of `pii`: a speaker bio
+   * is published beside the talk, so it is not personal data to redact — it is
+   * simply fatal to anonymity.
+   */
+  identifies_speaker: boolean;
   sort_order: number;
 }
 

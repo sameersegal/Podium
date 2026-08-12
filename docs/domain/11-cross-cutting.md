@@ -94,6 +94,13 @@ Additional handling:
   authored where the org has a legitimate record-keeping interest, and preserves audit rows
   with the id only. What cannot be honoured is stated to the requester rather than silently
   skipped.
+- **Erasure propagates to every mirror.** A `sync` integration ([`09`](09-api-and-integrations.md))
+  puts personal data in a system this one does not control, and an erasure that stops at the
+  database boundary is not an erasure. Deleting or deactivating a `Person` deletes their
+  external records on every `SyncMapping` — including inactive ones, since a mapping that is
+  merely paused still holds the data — before the links are dropped (INV-09-22). A mapping
+  whose provider refuses the delete keeps the link in `error` and surfaces it, rather than
+  reporting an erasure that did not fully happen.
 - **Retention**: draft proposals abandoned for `privacy.retention_days` (default 730) after
   an event closes are purged; audit and domain event logs are retained for 7 years, PII
   redacted after 2.
@@ -343,6 +350,8 @@ PII export and erasure, and any organizer edit of submitter-owned content.
 | Import records in bulk | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
 | Request an export | ✎ | ✎ | ✎ | ✎ (track) | O | ✎ | ✎ (sponsor) | — | — | — |
 | Manage custom field definitions | ✎ | ✎ | ✎ | — | — | — | — | — | — | — |
+| Configure a `SyncMapping` ([`09`](09-api-and-integrations.md)) | ✎ | ✎ | — | — | — | — | — | — | — | — |
+| Resolve a sync conflict | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
 | Define onboarding tasks | ✎ | ✎ | ✎ | — | — | ✎ | — | — | — | — |
 | Complete a task | ✎ | ✎ | ✎ | — | — | ✎ | ✎ | O | O | — |
 | Approve a task submission | ✎ | ✎ | ✎ | — | — | ✎ | ✎ (sponsor) | — | — | — |
@@ -401,6 +410,14 @@ the top.
 - Counters (`Entitlement.consumed_count`, `ProposalScore.*`) are **derived**, computed from
   their source rows. Stored counters drift, and drifted counters here mean a sponsor loses a
   slot they paid for.
+
+INV-11-6 is easy to satisfy by accident and hard to satisfy on purpose. Every service builds
+its patch from a named set of fields, so a derived column has never had a route that could
+write it — the rule holds because nothing asks. A surface that accepts a *field bag* from
+outside breaks that pattern, and there are now two: bulk import and two-way sync. Both must
+name their writable fields per subject explicitly rather than passing through what they were
+given, and a field outside the set is refused rather than dropped, so a mapping pointed at a
+derived column fails while somebody is looking at it (INV-09-17).
 
 ## Invariants
 

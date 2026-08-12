@@ -561,7 +561,7 @@ export async function loadReviewableProposal(app: AppContext, proposalId: string
   const fieldIds = [...new Set(answerRows.map((a) => str(a.form_field_id)).filter(Boolean))];
   const fields = fieldIds.length
     ? await app.db.raw<Row>(
-        `SELECT id, key, label, type, options, pii, audience FROM form_field WHERE id IN (${fieldIds.map(() => "?").join(",")})`,
+        `SELECT id, key, label, type, options, pii, identifies_speaker, audience FROM form_field WHERE id IN (${fieldIds.map(() => "?").join(",")})`,
         fieldIds,
       )
     : [];
@@ -577,6 +577,7 @@ export async function loadReviewableProposal(app: AppContext, proposalId: string
       options: field ? parseJson<{ value: string; label: string }[] | null>(field.options, null) : null,
       value: parseJson<unknown>(a.value, str(a.value)),
       pii: field ? bool(field.pii) : false,
+      identifies_speaker: field ? bool(field.identifies_speaker) : false,
     };
   });
 

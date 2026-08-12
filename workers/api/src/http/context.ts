@@ -7,7 +7,7 @@
  */
 
 import { AppContext, type Env } from "@podiumconf/data/context.js";
-import { bool, D1Db, parseJson, str } from "@podiumconf/data/db.js";
+import { bool, D1Db, parseJson, str, type Row } from "@podiumconf/data/db.js";
 import { hashToken } from "@podiumconf/domain/identity/credentials.js";
 import type { Actor } from "@podiumconf/domain/events/envelope.js";
 import {
@@ -55,6 +55,12 @@ export interface RequestContext {
   flash: { kind: "ok" | "err" | "warn" | "info"; message: string } | null;
   /** Set by handlers that resolve an event from the path. */
   eventId: string | null;
+  /**
+   * `Organization.default_timezone` — the zone org-level screens render
+   * instants in, where no event has narrowed it further (11, "Time": every
+   * instant is displayed in a stated zone, never raw).
+   */
+  orgTimezone: string;
   now: string;
   app(eventId?: string | null): AppContext;
   can(capability: Capability, target?: Target): boolean;
@@ -163,6 +169,8 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
   const now = nowIso();
   const orgId = await resolveOrgId(env);
   const db = new D1Db(env.DB, orgId);
+  const orgRow = orgId ? await db.byId<Row>("organization", orgId) : null;
+  const orgTimezone = str(orgRow?.default_timezone, "UTC");
 
   let person: PersonView | null = null;
   let apiKeyId: string | null = null;
@@ -235,6 +243,7 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
     correlationId,
     flash,
     eventId: null,
+    orgTimezone,
     now,
     waitUntil,
     app(eventId?: string | null) {
@@ -323,6 +332,7 @@ const CAPABILITY_PHRASE: Record<Capability, string> = {
   "schedule.publish": "publish the schedule",
   "schedule.read_published": "read the published schedule",
   "pii.read": "see personal contact details",
+  "sync.resolve_conflict": "resolve a sync conflict",
   "audit.read": "read the audit log",
 };
 
@@ -366,6 +376,11 @@ const CAPABILITY_SCOPES: Partial<Record<Capability, { read: ApiScope[]; write: A
   "event.configure": { read: ["events:read"], write: ["events:write"] },
   "config.manage": { read: ["events:read"], write: ["events:write"] },
   "cfp.configure": { read: ["events:read"], write: ["events:write"] },
+  // A key driving the sync must hold `events:write`; without it, reading a
+  // conflict queue is all it can do. `hasScopeFor` defaults an unmapped
+  // capability to `true`, so leaving this out would let a `tasks:write` key
+  // resolve conflicts on the programme.
+  "sync.resolve_conflict": { read: ["events:read"], write: ["events:write"] },
 };
 
 function hasScopeFor(scopes: ApiScope[] | null, capability: Capability, write: boolean): boolean {

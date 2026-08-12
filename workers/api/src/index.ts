@@ -12,7 +12,7 @@
 import type { Env } from "@podiumconf/data/context.js";
 import { DomainError } from "@podiumconf/domain/shared/errors.js";
 import { STALE_WRITE_MESSAGE } from "./http/concurrency.js";
-import { buildContext, FLASH_COOKIE, clearCookie, type RequestContext } from "./http/context.js";
+import { buildContext, FLASH_COOKIE, clearCookie, flashCookie, type RequestContext } from "./http/context.js";
 import { isMutating, remember, replayIfSeen } from "./http/idempotency.js";
 import { errorResponse, htmlResponse, json, redirect, wantsJson } from "./http/responses.js";
 import { Router } from "./http/router.js";
@@ -86,7 +86,7 @@ export default {
       if (isMutating(req.method)) res = await remember(env, ctx.orgId, req, res);
       return res;
     } catch (err) {
-      if (err instanceof DomainError && !wantsJson(req)) return errorPage(err);
+      if (err instanceof DomainError && !wantsJson(req)) return recoverableRedirect(req, err) ?? errorPage(err);
       return errorResponse(err);
     }
   },
@@ -112,6 +112,33 @@ function notFound(req: Request, ctx: RequestContext): Response {
     ),
     { status: 404 },
   );
+}
+
+/**
+ * A rule refusing a form post is not a crash, and answering it with a
+ * full-page "That did not work" throws away the form the person was filling
+ * in — every other field, and the place they were standing. So a recoverable
+ * refusal of an HTML POST goes back where it came from carrying the message as
+ * a flash, which is how every successful post already reports itself.
+ *
+ * Deliberately narrow: only same-origin form posts with a `Referer`, and never
+ * for auth (401/403 must not bounce someone round a loop), a version conflict
+ * (which has its own reconciliation page) or a 5xx.
+ */
+function recoverableRedirect(req: Request, err: DomainError): Response | null {
+  if (!isMutating(req.method)) return null;
+  if (err.status >= 500 || err.status === 401 || err.status === 403 || err.code === "version_conflict") return null;
+  const referer = req.headers.get("referer");
+  if (!referer) return null;
+  let back: URL;
+  try {
+    back = new URL(referer);
+  } catch {
+    return null;
+  }
+  if (back.origin !== new URL(req.url).origin) return null;
+  const detail = err.fieldErrors?.length ? ` ${err.fieldErrors.map((f) => f.message).join(" ")}` : "";
+  return redirect(back.pathname + back.search, 303, { "set-cookie": flashCookie("err", `${err.message}${detail}`) });
 }
 
 function errorPage(err: DomainError): Response {

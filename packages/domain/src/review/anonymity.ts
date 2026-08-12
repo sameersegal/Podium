@@ -21,6 +21,12 @@ export interface ProposalAnswerView {
   value: unknown;
   /** `FormField.pii` — redacted under `double_blind` regardless of scope. */
   pii: boolean;
+  /**
+   * `FormField.identifies_speaker` — an answer that names its author. A
+   * speaker bio is the ordinary case: `public` rather than `pii`, because it
+   * is published beside the talk, and yet fatal to a blind round.
+   */
+  identifies_speaker: boolean;
 }
 
 export interface ProposalSpeakerView {
@@ -85,6 +91,10 @@ export interface ReviewableProjection {
  * entirely — a redacted placeholder still leaks that the answer exists, and
  * "Removed" next to a company name is often enough to identify the lab.
  *
+ * An answer the form marks `identifies_speaker` — a speaker bio, most often —
+ * goes the same way. It is not `pii`, because it is published beside the talk;
+ * it is simply the answer most likely to open with the speaker's own name.
+ *
  * The same reasoning governs the two reference-valued answers that name people
  * indirectly (05, "Fairness rules made explicit"). A `speaker_list` answer *is*
  * the roster, so under `double_blind` it goes with the speakers rather than
@@ -114,7 +124,7 @@ export function reviewableProjection(
     // pretending (05, "Fairness rules made explicit").
     sponsor_name: blinded ? null : proposal.sponsor_name,
     answers: proposal.answers
-      .filter((a) => !(blinded && (a.pii || a.type === "speaker_list")))
+      .filter((a) => !(blinded && (a.pii || a.identifies_speaker || a.type === "speaker_list")))
       .map((a) => ({
         field_key: a.field_key,
         label: a.label,

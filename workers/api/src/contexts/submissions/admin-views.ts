@@ -206,7 +206,12 @@ export function proposalAdminDetailView(data: AdminDetailData): SafeHtml {
   return html`${pageHead(
       str(p.title) || "Untitled proposal",
       `${str(p.reference)} · ${detail.event ? str(detail.event.name) : ""}`,
+      // The two screens a chair reaches for from here — what the committee
+      // said, and what to do about it — used to be reachable only by knowing
+      // the URLs.
       html`${badge(str(p.status))}
+        <a class="btn secondary" href="/admin/proposals/${str(p.id)}/review">Reviews and discussion</a>
+        <a class="btn" href="/admin/proposals/${str(p.id)}/decision">Record a decision</a>
         ${data.canEdit
           ? html`${actionForm(`/admin/proposals/${str(p.id)}/withdraw`, "Withdraw", { confirm: "Withdraw this proposal?" })}`
           : raw("")}`,

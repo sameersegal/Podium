@@ -421,7 +421,8 @@ stateDiagram-v2
 
 ## Emitted events
 
-`organization.created`, `person.created`, `person.merged`, `person.merge_candidate_detected`,
+`organization.created`, `person.created`, `person.updated`, `person.merged`,
+`person.merge_candidate_detected`,
 `person.deactivated`, `speaker_profile.updated`, `person_note.added`,
 `event_participant.added`, `event_participant.status_changed`,
 `event_participant.portal_invited`, `role_grant.created`, `role_grant.revoked`,

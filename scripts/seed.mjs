@@ -497,7 +497,10 @@ insert("call_for_proposals", {
   closes_at: "2027-04-30T23:59:00.000Z",
   grace_period_minutes: 30,
   late_submission_policy: "allow_with_flag",
-  max_proposals_per_person: 3,
+  // Counts drafts too (INV-04-10: only `withdrawn`/`rejected`/`expired` free a
+  // slot), so a demo cap tight enough to trip over abandoned drafts teaches the
+  // wrong lesson about the rule. Ten leaves room to experiment.
+  max_proposals_per_person: 10,
   allow_edit_after_submit: 1,
   withdraw_allowed_until: "always",
   active_form_id: FORM,
@@ -556,6 +559,9 @@ const fieldDefs = [
     type: "long_text",
     required: true,
     audience: "public",
+    // Published beside the talk, so not `pii` — but it opens with the
+    // speaker's own name, so a double-blind round must not show it.
+    identifies_speaker: true,
     validation: { max_length: 1200 },
   },
   {
@@ -662,6 +668,7 @@ fieldDefs.forEach((f, i) => {
     maps_to: f.maps_to ?? "none",
     audience: f.audience,
     pii: f.pii ? 1 : 0,
+    identifies_speaker: f.identifies_speaker ? 1 : 0,
     sort_order: i,
   });
 });

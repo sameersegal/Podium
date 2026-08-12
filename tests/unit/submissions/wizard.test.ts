@@ -33,6 +33,7 @@ function field(partial: Partial<FormFieldSpec> & Pick<FormFieldSpec, "key" | "la
     maps_to: "none",
     audience: "public",
     pii: false,
+    identifies_speaker: false,
     sort_order: 0,
     ...partial,
   };

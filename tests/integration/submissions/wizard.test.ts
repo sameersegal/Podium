@@ -223,6 +223,35 @@ describe("the submitter wizard (04)", () => {
     expect(body).toContain('name="answer.format"');
   });
 
+  /**
+   * HTML has no nested forms: a browser meeting an inner `<form>` closes the
+   * outer one and orphans every control after it. The speaker roster posts to
+   * its own route, so it used to open a form inside the step's form — which
+   * put the rest of the step, "Save draft" and "Save and continue" outside any
+   * form at all, and made the wizard impossible to complete in a browser while
+   * every server-side test kept passing.
+   */
+  it("keeps the step's controls inside one form — the roster's own posts never nest inside it", async () => {
+    const res = await SELF.fetch(`http://localhost/portal/proposals/${proposalId}/step/your-details`, withCookie(cookie));
+    const body = await res.text();
+
+    let depth = 0;
+    let nested = 0;
+    for (const m of body.matchAll(/<\/?form\b/gi)) {
+      if (m[0][1] === "/") depth = Math.max(0, depth - 1);
+      else {
+        if (depth > 0) nested++;
+        depth++;
+      }
+    }
+    expect(nested).toBe(0);
+
+    // The roster's controls are still on the page, associated by `form=` id to
+    // form elements that sit outside the step form.
+    expect(body).toContain('form="add-cospeaker"');
+    expect(body).toContain('id="add-cospeaker"');
+  });
+
   it("saves a partial step with 'Save draft' — autosave runs no validation", async () => {
     const res = await SELF.fetch(
       `http://localhost/portal/proposals/${proposalId}/step/the-talk`,
@@ -303,6 +332,32 @@ describe("the submitter wizard (04)", () => {
     expect(row?.submitted_at).toBeTruthy();
   });
 
+  it("edits a submitted proposal in place: the round trip through draft ends back at submitted", async () => {
+    const res = await SELF.fetch(
+      `http://localhost/portal/proposals/${proposalId}/step/the-talk`,
+      withCookie(cookie, {
+        method: "POST",
+        body: new URLSearchParams({
+          "answer.title": "My great talk",
+          "answer.abstract": "A very good abstract about the thing. Updated: now includes 2026 benchmark data.",
+          "answer.track": TRACK,
+          "answer.format": FORMAT,
+          client_revision: "2",
+          save: "1",
+        }),
+        headers: FORM_HEADERS,
+        redirect: "manual",
+      }),
+    );
+    expect(res.status).toBe(303);
+
+    // 04, "`submitted --> draft --> submitted` is one move": a submitter who
+    // fixes a typo must not silently drop out of the committee's queue.
+    const row = await env.DB.prepare("SELECT status, abstract FROM proposal WHERE id = ?").bind(proposalId).first<{ status: string; abstract: string }>();
+    expect(row?.abstract).toContain("Updated: now includes 2026 benchmark data.");
+    expect(row?.status).toBe("submitted");
+  });
+
   it("INV-11-7 / INV-04-11: the submitter's own view of the proposal carries no review data", async () => {
     const html = await SELF.fetch(`http://localhost/portal/proposals/${proposalId}`, withCookie(cookie));
     const body = await html.text();
@@ -322,6 +377,75 @@ describe("the submitter wizard (04)", () => {
     const res = await SELF.fetch(`http://localhost/portal/proposals/${proposalId}`, withCookie(otherCookie, { redirect: "manual" }));
     expect([401, 403]).toContain(res.status);
   });
+});
+
+/**
+ * Its own draft, because it deliberately leaves a step incomplete and the
+ * happy-path suite above walks one proposal from draft to submitted in order.
+ */
+describe("the wizard's per-step gate (04, rule 2 scoped to a step)", () => {
+  let cookie: string;
+  let proposalId: string;
+
+  beforeAll(async () => {
+    await seed();
+    cookie = await signIn(SPEAKER_EMAIL, SPEAKER_PASSWORD);
+    const created = await SELF.fetch(
+      "http://localhost/portal/proposals/new",
+      withCookie(cookie, { method: "POST", body: new URLSearchParams({ cfp_id: CFP }), headers: FORM_HEADERS, redirect: "manual" }),
+    );
+    proposalId = /prp_[A-Za-z0-9]+/.exec(created.headers.get("location") ?? "")![0];
+  });
+
+  /**
+   * The roster is collected on "About you" and the format on "About your
+   * talk", so a fresh draft has no format when the co-speaker is named.
+   * Enforcing INV-04-5 against a default of one made that refuse every time —
+   * the cap belongs to a format that has not been chosen yet.
+   */
+  it("names a co-speaker on a draft with no format yet — the cap waits for a format to exist", async () => {
+    const res = await SELF.fetch(
+      `http://localhost/portal/proposals/${proposalId}/speakers`,
+      withCookie(cookie, {
+        method: "POST",
+        body: new URLSearchParams({ full_name: "Marcus Okafor", email: "wiz-cospeaker@example.com", redirect_step: "your-details" }),
+        headers: FORM_HEADERS,
+        redirect: "manual",
+      }),
+    );
+    expect(res.status).toBe(200);
+    // INV-01-15: the one-time accept link is shown on screen, never redirected past.
+    expect(await res.text()).toContain("/invite/");
+
+    const rows = await env.DB.prepare("SELECT speaker_role, participation_status FROM proposal_speaker WHERE proposal_id = ? ORDER BY sort_order")
+      .bind(proposalId)
+      .all<{ speaker_role: string; participation_status: string }>();
+    expect(rows.results.map((r) => r.speaker_role)).toEqual(["primary", "co_speaker"]);
+  });
+
+  it("'Save and continue' with a required answer missing re-renders the step naming it, and does not advance", async () => {
+    const res = await SELF.fetch(
+      `http://localhost/portal/proposals/${proposalId}/step/the-talk`,
+      withCookie(cookie, {
+        method: "POST",
+        body: new URLSearchParams({ "answer.title": "Only a title", client_revision: "0", next_step_key: "review-and-submit", next: "1" }),
+        headers: FORM_HEADERS,
+        redirect: "manual",
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Abstract is required.");
+    expect(body).toContain("required answer");
+    // Still on the step it could not leave.
+    expect(body).toContain(`/portal/proposals/${proposalId}/step/the-talk`);
+
+    // Nothing was lost: the answers that were given are persisted anyway.
+    const row = await env.DB.prepare("SELECT title, status FROM proposal WHERE id = ?").bind(proposalId).first<{ title: string; status: string }>();
+    expect(row?.title).toBe("Only a title");
+    expect(row?.status).toBe("draft");
+  });
+
 });
 
 describe("admin proposal queue — PII redaction (INV-09-5 / INV-11-4)", () => {

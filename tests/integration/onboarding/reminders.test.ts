@@ -88,13 +88,21 @@ async function makeTaskInstance(id: string, assignee: string) {
   return env.DB.prepare("SELECT * FROM task_instance WHERE id = ?").bind(id).first<Record<string, unknown>>();
 }
 
-/** A queue mock swapped into `AppContext.env` so the test observes the exact
+/**
+ * A queue mock swapped into `AppContext.env` so the test observes the exact
  * `DELIVERY_QUEUE.send` call the fix adds, without depending on Miniflare's
- * real (asynchronous, timing-sensitive) local queue consumer. */
-function appWithMockQueue(): { app: AppContext; sendMock: ReturnType<typeof vi.fn> } {
+ * real (asynchronous, timing-sensitive) local queue consumer.
+ *
+ * The clock is pinned too: `attemptSend` defers a send that lands inside the
+ * recipient's quiet hours, so a test that reads the real wall clock asserts a
+ * different outcome depending on what time of day it runs.
+ */
+const MIDDAY_UTC = "2026-08-11T19:00:00.000Z"; // midday in America/Los_Angeles
+
+function appWithMockQueue(now = MIDDAY_UTC): { app: AppContext; sendMock: ReturnType<typeof vi.fn> } {
   const sendMock = vi.fn(async () => undefined);
   const mockEnv = { ...(env as unknown as Env), DELIVERY_QUEUE: { send: sendMock, sendBatch: vi.fn() } } as unknown as Env;
-  const app = new AppContext({ env: mockEnv, orgId: ORG, eventId: EVENT, actor: SYSTEM_ACTOR });
+  const app = new AppContext({ env: mockEnv, orgId: ORG, eventId: EVENT, actor: SYSTEM_ACTOR, clock: { now: () => now } });
   return { app, sendMock };
 }
 

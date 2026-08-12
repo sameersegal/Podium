@@ -10,9 +10,16 @@ import type { Env } from "@podiumconf/data/context.js";
 export type DeliveryMessage =
   | { kind: "webhook"; delivery_id: string; webhook_id: string; org_id: string; event_id: string }
   | { kind: "notification"; notification_id: string; org_id: string }
-  | { kind: "campaign"; campaign_id: string; org_id: string };
+  | { kind: "campaign"; campaign_id: string; org_id: string }
+  // Two-way sync (09). The reaction only marks links dirty; the provider call
+  // happens here, so batching, rate limits and retries stay in the queue.
+  | { kind: "sync_push"; mapping_id: string; org_id: string; trigger: SyncRunTrigger }
+  | { kind: "sync_pull"; mapping_id: string; org_id: string; trigger: SyncRunTrigger }
+  | { kind: "sync_erase"; person_id: string; org_id: string };
 
+import type { SyncRunTrigger } from "@podiumconf/domain/platform/sync.js";
 import { deliverWebhook, deliverNotification, sendCampaign } from "../contexts/platform/delivery.js";
+import { deliverSyncErase, deliverSyncPull, deliverSyncPush } from "../contexts/platform/sync-delivery.js";
 
 export async function runDelivery(env: Env, msg: DeliveryMessage): Promise<void> {
   switch (msg.kind) {
@@ -22,5 +29,11 @@ export async function runDelivery(env: Env, msg: DeliveryMessage): Promise<void>
       return deliverNotification(env, msg);
     case "campaign":
       return sendCampaign(env, msg);
+    case "sync_push":
+      return deliverSyncPush(env, msg);
+    case "sync_pull":
+      return deliverSyncPull(env, msg);
+    case "sync_erase":
+      return deliverSyncErase(env, msg);
   }
 }

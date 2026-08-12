@@ -393,6 +393,7 @@ function formJson(spec: FormSpec): Record<string, unknown> {
         maps_to: f.maps_to,
         audience: f.audience,
         pii: f.pii,
+        identifies_speaker: f.identifies_speaker,
         sort_order: f.sort_order,
       })),
     })),
@@ -488,6 +489,7 @@ function readFieldInput(input: Input, form: FormSpec, stepId: string, fieldId?: 
     maps_to: (input.str("maps_to", "none") || "none") as MapsTo,
     audience: (input.str("audience", "public") || "public") as FieldAudience,
     pii: input.bool("pii"),
+    identifies_speaker: input.bool("identifies_speaker"),
     sort_order: input.int("sort_order"),
   };
 }
@@ -1678,6 +1680,7 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
       maps_to: values.maps_to,
       audience: values.audience,
       pii: values.pii,
+      identifies_speaker: values.identifies_speaker,
     });
     await app.flush();
     return redirect(`/admin/cfps/${params.cfpId}/form`, 303, OK("Field updated."));
@@ -1878,6 +1881,14 @@ function fieldFormControls(
       id: `aud_${uid}`,
     })}
     ${field({ name: "pii", label: "The answer is personal data", type: "checkbox", value: existing?.pii ?? false, help: "Redacted from public responses, snapshots and logs.", id: `pii_${uid}` })}
+    ${field({
+      name: "identifies_speaker",
+      label: "The answer names the speaker",
+      type: "checkbox",
+      value: existing?.identifies_speaker ?? false,
+      help: "Hidden from reviewers in a double-blind round. A speaker bio is the usual case: published beside the talk, so not personal data — just fatal to anonymity.",
+      id: `ids_${uid}`,
+    })}
     <fieldset class="field conditional">
       <legend>Conditional visibility</legend>
       <span class="help">Show this field only when an earlier answer says so. A rule may only reference fields that come before this one.</span>
@@ -2506,6 +2517,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
       maps_to: input.str("maps_to", "none") as MapsTo,
       audience: input.str("audience", "public") as FieldAudience,
       pii: input.bool("pii"),
+      identifies_speaker: input.bool("identifies_speaker"),
       sort_order: input.int("sort_order"),
     });
     await app.flush();

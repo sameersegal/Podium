@@ -205,6 +205,38 @@ describe("compare-and-set on aggregate roots (INV-11-14)", () => {
     expect(await columnOf("call_for_proposals", CFP, "name")).toBe("Renamed by the first");
   });
 
+  /**
+   * INV-02-4 — a per-format deadline may only bring the call's own deadline
+   * forward. Closing the call early therefore strands any override behind it,
+   * and refusing the chair's edit over data they never touched is the wrong
+   * answer: closing a call is exactly what a chair does at the deadline.
+   */
+  it("closing a call early pulls its format overrides in with it, rather than refusing the edit", async () => {
+    await run("INSERT OR IGNORE INTO cfp_format_option (id, cfp_id, session_format_id, is_available, closes_at_override, sort_order) VALUES (?,?,?,?,?,?)", [
+      "cfo_conc",
+      CFP,
+      FORMAT,
+      1,
+      "2027-03-15T00:00:00.000Z",
+      0,
+    ]);
+
+    const version = await renderedVersion(cookie, `/admin/cfps/${CFP}`);
+    const res = await post(cookie, `/admin/cfps/${CFP}`, {
+      row_version: version,
+      name: "Main CFP",
+      audience: "public",
+      opens_at: "2027-01-01T00:00",
+      closes_at: "2027-02-01T00:00",
+      late_submission_policy: "reject",
+      withdraw_allowed_until: "decision",
+    });
+    expect(flashKind(res)).toBe("ok");
+
+    expect(await columnOf("call_for_proposals", CFP, "closes_at")).toBe("2027-02-01T00:00:00.000Z");
+    expect(await columnOf("cfp_format_option", "cfo_conc", "closes_at_override")).toBe("2027-02-01T00:00:00.000Z");
+  });
+
   it("refuses a stale session content edit — the abstract nobody can reconstruct", async () => {
     const version = await renderedVersion(cookie, `/admin/sessions/${SESSION}`);
 

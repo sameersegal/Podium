@@ -78,6 +78,7 @@ export type Capability =
   | "schedule.publish"
   | "schedule.read_published"
   | "pii.read"
+  | "sync.resolve_conflict"
   | "audit.read";
 
 const W: Access = "write";
@@ -90,6 +91,11 @@ const N: Access = "none";
  * Missing principals default to `none`.
  */
 export const AUTHZ_MATRIX: Record<Capability, Partial<Record<Principal, Access>>> = {
+  // Configuring a `SyncMapping` is `org.configure` — it names an integration
+  // and its credentials. Resolving a conflict is not: it is a decision about
+  // which of two values for a session title is right, which is the programme's
+  // question and not the administrator's.
+  "sync.resolve_conflict": { owner: W, admin: W, program_chair: W, organizer: W },
   "org.configure": { owner: W, admin: W },
   "event.configure": { owner: W, admin: W, program_chair: W },
   "config.manage": { owner: W, admin: W, program_chair: W, organizer: R },

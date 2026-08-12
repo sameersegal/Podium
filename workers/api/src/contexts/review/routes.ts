@@ -15,7 +15,7 @@
  */
 
 import type { AppContext } from "@podiumconf/data/context.js";
-import { bool, num, str, strOrNull, type Row } from "@podiumconf/data/db.js";
+import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import type {
   AssignedBy,
   AssignmentStatus,
@@ -125,10 +125,12 @@ import {
   type PersonRef,
   type PoolRowView,
   type AiReviewView,
+  type HumanReviewView,
 } from "./views.js";
 import { overrideScorecardForm, reviewerAssignmentView, reviewerDashboardView, type ReviewerAssignmentRow } from "./reviewer-views.js";
 
 const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
+const WARN = (message: string) => ({ "set-cookie": flashCookie("warn", message) });
 
 /* -------------------------------------------------------------------------- */
 /* Shared loaders                                                             */
@@ -197,9 +199,6 @@ async function loadAssignmentRows(app: AppContext, round: RoundView): Promise<As
   }));
 }
 
-function toLocalInput(instant: string | null | undefined): string {
-  return instant ? instant.slice(0, 16) : "";
-}
 
 function fromLocalInput(value: string | null, timezone: string): string {
   if (!value) return "";
@@ -732,12 +731,17 @@ function registerAssignmentRoutes(router: Router<RequestContext>): void {
     const { round, event } = await loadRoundFor(ctx, params.roundId);
     ctx.requireRead("decision.manage", { event_id: event.id });
     const app = ctx.app(event.id);
-    const [rows, pool, lookups] = await Promise.all([loadAssignmentRows(app, round), loadPoolRows(app, round), eventLookups(app, event.id)]);
+    const [rows, pool, lookups, poolProposals] = await Promise.all([
+      loadAssignmentRows(app, round),
+      loadPoolRows(app, round),
+      eventLookups(app, event.id),
+      roundScopeProposals(app, round),
+    ]);
     return htmlResponse(
       adminPage(
         ctx,
         { title: `Assignments · ${round.name}`, event, active: "review", width: "wide" },
-        assignmentsView({ event, round, rows, pool, ...lookups, canWrite: ctx.canWrite("decision.manage", { event_id: event.id }) }),
+        assignmentsView({ event, round, rows, pool, poolProposals, ...lookups, canWrite: ctx.canWrite("decision.manage", { event_id: event.id }) }),
       ),
     );
   });
@@ -748,7 +752,12 @@ function registerAssignmentRoutes(router: Router<RequestContext>): void {
     const app = ctx.app(event.id);
     const filter = filterFromParams(ctx.url.searchParams);
     const pendingProposal = await proposeAutoDistribution(app, round.id, filter);
-    const [rows, pool, lookups] = await Promise.all([loadAssignmentRows(app, round), loadPoolRows(app, round), eventLookups(app, event.id)]);
+    const [rows, pool, lookups, poolProposals] = await Promise.all([
+      loadAssignmentRows(app, round),
+      loadPoolRows(app, round),
+      eventLookups(app, event.id),
+      roundScopeProposals(app, round),
+    ]);
     return htmlResponse(
       adminPage(
         ctx,
@@ -758,6 +767,7 @@ function registerAssignmentRoutes(router: Router<RequestContext>): void {
           round,
           rows,
           pool,
+          poolProposals,
           ...lookups,
           canWrite: true,
           pendingProposal,
@@ -783,12 +793,17 @@ function registerAssignmentRoutes(router: Router<RequestContext>): void {
     });
     const report = await confirmAssignments(app, round.id, pairs);
     await app.flush();
-    const [rows, pool, lookups] = await Promise.all([loadAssignmentRows(app, round), loadPoolRows(app, round), eventLookups(app, event.id)]);
+    const [rows, pool, lookups, poolProposals] = await Promise.all([
+      loadAssignmentRows(app, round),
+      loadPoolRows(app, round),
+      eventLookups(app, event.id),
+      roundScopeProposals(app, round),
+    ]);
     return htmlResponse(
       adminPage(
         ctx,
         { title: `Assignments · ${round.name}`, event, active: "review", width: "wide" },
-        assignmentsView({ event, round, rows, pool, ...lookups, canWrite: true, report }),
+        assignmentsView({ event, round, rows, pool, poolProposals, ...lookups, canWrite: true, report }),
       ),
     );
   });
@@ -804,7 +819,12 @@ function registerAssignmentRoutes(router: Router<RequestContext>): void {
     const proposed = await proposeBulkAssignment(app, round.id, { filter, reviewer_person_ids: reviewerIds, mode });
     const result = await confirmAssignments(app, round.id, proposed.proposed);
     await app.flush();
-    const [rows, pool, lookups] = await Promise.all([loadAssignmentRows(app, round), loadPoolRows(app, round), eventLookups(app, event.id)]);
+    const [rows, pool, lookups, poolProposals] = await Promise.all([
+      loadAssignmentRows(app, round),
+      loadPoolRows(app, round),
+      eventLookups(app, event.id),
+      roundScopeProposals(app, round),
+    ]);
     return htmlResponse(
       adminPage(
         ctx,
@@ -814,12 +834,36 @@ function registerAssignmentRoutes(router: Router<RequestContext>): void {
           round,
           rows,
           pool,
+          poolProposals,
           ...lookups,
           canWrite: true,
           report: result,
           unassignable: proposed.unassignable,
         }),
       ),
+    );
+  });
+
+  /**
+   * One proposal, one reviewer. Bulk and auto-distribution cover the volume
+   * case, but a chair also just wants to hand *this* abstract to *that*
+   * reviewer, and expressing that as a keyword filter that happens to match one
+   * row is a trap: a filter that matches two rows assigns two.
+   */
+  router.post("/admin/rounds/:roundId/assignments/one", async (req, ctx, params) => {
+    const { round, event } = await loadRoundFor(ctx, params.roundId);
+    ctx.requireWrite("decision.manage", { event_id: event.id });
+    const input = await readInput(req);
+    const app = ctx.app(event.id);
+    const report = await confirmAssignments(app, round.id, [
+      { proposal_id: input.str("proposal_id"), reviewer_person_id: input.str("reviewer_person_id"), assigned_by: "chair" as AssignedBy },
+    ]);
+    await app.flush();
+    const refused = report.refused[0];
+    return redirect(
+      `/admin/rounds/${round.id}/assignments`,
+      303,
+      refused ? WARN(`Not assigned — ${refused.message}`) : OK("Assigned."),
     );
   });
 
@@ -1193,6 +1237,43 @@ function registerDiscussionRoutes(router: Router<RequestContext>): void {
 
     const rounds = await app.db.select<Row>("review_round", { event_id: event.id });
 
+    // What the committee actually wrote. Blind rounds withhold the reviewer's
+    // name from committee readers too (05, "Fairness rules made explicit") —
+    // the scores and the prose are the chair's to read either way.
+    const humanRows = (await app.db.select<Row>("review", { proposal_id: str(proposal.id), author_kind: "human" })).filter(
+      (r) => str(r.status) === "submitted",
+    );
+    const humanReviewers = await personRefs(app, humanRows.map((r) => strOrNull(r.reviewer_person_id)));
+    const humanReviews: HumanReviewView[] = [];
+    for (const r of humanRows) {
+      const round = rounds.find((x) => str(x.id) === str(r.round_id));
+      const showName = round ? reviewerIdentityVisible(str(round.anonymity) as RoundAnonymity) : false;
+      const criteria = round ? (await requireRubric(app, str(round.rubric_id))).criteria : [];
+      const scoreRows = await app.db.select<Row>("criterion_score", { review_id: str(r.id) });
+      humanReviews.push({
+        id: str(r.id),
+        round_name: round ? str(round.name) : "—",
+        reviewer_name: showName ? (humanReviewers[str(r.reviewer_person_id)]?.name ?? null) : null,
+        overall_score: r.overall_score === null || r.overall_score === undefined ? null : Number(r.overall_score),
+        recommendation: strOrNull(r.recommendation),
+        confidence: strOrNull(r.confidence),
+        flags: parseJson<string[]>(r.flags, []),
+        comments_for_committee: strOrNull(r.comments_for_committee),
+        comments_for_speaker: strOrNull(r.comments_for_speaker),
+        submitted_at: strOrNull(r.submitted_at),
+        scores: criteria.map((c) => {
+          const s = scoreRows.find((x) => str(x.criterion_id) === c.id);
+          const value =
+            s === undefined
+              ? "—"
+              : s.value_number !== null && s.value_number !== undefined
+                ? String(num(s.value_number))
+                : (strOrNull(s.value_option) ?? strOrNull(s.value_text) ?? (s.value_bool === null || s.value_bool === undefined ? "—" : bool(s.value_bool) ? "Yes" : "No"));
+          return { label: c.label, value, weight: c.weight ?? null };
+        }),
+      });
+    }
+
     // 05, "AI evaluation": the chair's screen shows the machine's opinion
     // labelled, and offers the override on the spot. A superseded one still
     // shows — the disagreement is the point (INV-05-16).
@@ -1256,6 +1337,7 @@ function registerDiscussionRoutes(router: Router<RequestContext>): void {
           threads,
           conflicts,
           aiReviews,
+          humanReviews,
           canWriteComments: canWrite,
           canDeclareCoi: canWrite,
           canSeeChairsOnly: canWrite,

@@ -7,6 +7,7 @@
  */
 
 import type { AppContext } from "@podiumconf/data/context.js";
+import { slotKey as buildSlotKey } from "@podiumconf/domain/content/assets.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumconf/data/db.js";
 import {
   assertAcyclic,
@@ -916,7 +917,13 @@ export async function storeTaskUpload(app: AppContext, taskId: string, file: Fil
   }
   const contentType = file.type || "application/octet-stream";
   const filename = (file.name || "upload").replace(/[^\w.\-]+/g, "_").slice(0, 120);
-  const slotKey = `task:${taskId}:${filename}`;
+  // A task's upload belongs to the thing the task is about, not to the task
+  // row. Keying it `task:<id>:<filename>` hid every deliverable from the event
+  // files library (which scopes by `session:`/`person:` slots) and restarted
+  // versioning whenever the speaker renamed the file — "slides-final-v2.pdf"
+  // became version 1 all over again. The slot is the subject plus the
+  // definition key, so re-submitting any file supersedes the last one.
+  const slotKey = buildSlotKey(str(t.subject_type), str(t.subject_id), str(t.definition_key));
   const prior = await app.db.raw<Row>("SELECT id, version FROM asset WHERE slot_key = ? AND org_id = ? ORDER BY version DESC LIMIT 1", [
     slotKey,
     app.orgId,

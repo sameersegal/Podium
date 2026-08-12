@@ -19,6 +19,7 @@ import { versionField } from "../../http/concurrency.js";
 import { badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import type { EventRef } from "../../ui/shell.js";
+import { withDuration } from "../event-config/views.js";
 import { blockingTasksByEvent, readinessByEvent } from "../scheduling/program-link.js";
 import { sessionContent } from "./service.js";
 
@@ -267,6 +268,11 @@ export interface BoardRow {
  * (06, `content_diverged`; the per-session version — `isContentDiverged` in
  * `service.ts` — is what the detail page uses).
  */
+/** The accepted duration, or the session's own where the proposal named none. */
+function baselineDuration(requested: unknown, sessionDuration: unknown): number {
+  return requested === null || requested === undefined ? num(sessionDuration) : num(requested);
+}
+
 async function divergenceSet(app: AppContext, sessions: Row[]): Promise<Set<string>> {
   const proposalIds = sessions.filter((s) => s.proposal_id).map((s) => str(s.proposal_id));
   if (proposalIds.length === 0) return new Set();
@@ -292,7 +298,11 @@ async function divergenceSet(app: AppContext, sessions: Row[]): Promise<Set<stri
       abstract: str(proposal.abstract),
       description: strOrNull(proposal.description),
       session_format_id: str(decision?.assigned_format_id ?? proposal.session_format_id ?? ""),
-      duration_minutes: num(decision?.assigned_duration_minutes ?? proposal.requested_duration_minutes, num(s.duration_minutes)),
+      // `num(null, fallback)` returns 0, not the fallback — `Number(null)` is a
+      // finite 0. A proposal that never named a duration therefore produced a
+      // baseline of 0, and every session built from one was flagged as edited
+      // since acceptance forever, which is how a real signal becomes noise.
+      duration_minutes: baselineDuration(decision?.assigned_duration_minutes ?? proposal.requested_duration_minutes, s.duration_minutes),
       track_id: strOrNull(decision?.assigned_track_id ?? proposal.assigned_track_id ?? proposal.track_id),
     };
     if (contentDiverged(sessionContent(s), baseline)) out.add(str(s.id));
@@ -527,7 +537,7 @@ export function programBoardView(input: {
 export function newSessionFormView(input: { event: EventRef; tracks: Row[]; formats: Row[]; sponsors: Row[] }): SafeHtml {
   const { event, tracks, formats, sponsors } = input;
   const trackOpts = tracks.map((t) => ({ value: str(t.id), label: str(t.name) }));
-  const formatOpts = formats.map((f) => ({ value: str(f.id), label: `${str(f.name)} (${num(f.default_duration_minutes)} min)` }));
+  const formatOpts = formats.map((f) => ({ value: str(f.id), label: withDuration(str(f.name), num(f.default_duration_minutes)) }));
   const sponsorOpts = sponsors.map((s) => ({ value: str(s.id), label: str(s.display_name) || str(s.name) }));
   return html`${pageHead("New session", "Breaks, keynotes and registration blocks are sessions too — origin decides which rules apply.")}
     ${card(html`<form method="post" action="/admin/events/${event.id}/sessions/new" class="stack">

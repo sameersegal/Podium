@@ -30,6 +30,7 @@ import {
 } from "@podiumconf/domain/review/types.js";
 import type { ResultFilters, ResultRow, RoundView } from "./scoring.js";
 import type { PublishPreviewRow } from "./service.js";
+import { calendarDateInZone, formatTimeInZone } from "@podiumconf/domain/shared/time.js";
 import { versionField } from "../../http/concurrency.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, submitButton, table } from "../../ui/layout.js";
@@ -68,7 +69,7 @@ export function roundsOverviewView(d: { event: EventRef; rounds: RoundSummary[];
     (s) => html`<tr>
       <td><a href="/admin/rounds/${s.round.id}"><strong>${s.round.name}</strong></a><br><span class="small muted">${humanise(s.round.anonymity)}</span></td>
       <td>${badge(s.round.status)}</td>
-      <td class="small">${s.round.opens_at.slice(0, 10)} → ${s.round.closes_at.slice(0, 10)}</td>
+      <td class="small">${calendarDateInZone(s.round.opens_at, d.event.timezone)} → ${calendarDateInZone(s.round.closes_at, d.event.timezone)}</td>
       <td>${s.rubricName}</td>
       <td>${s.proposalCount}</td>
       <td>${s.poolSize}</td>
@@ -126,8 +127,8 @@ export function roundFormView(d: RoundFormData): SafeHtml {
         options: opts(ROUND_ANONYMITY),
         help: "double_blind also hides speaker identity from reviewers; sponsor sessions are excluded from blind rounds by scope.",
       })}
-      ${field({ name: "opens_at", label: "Opens", type: "datetime-local", required: true, value: r ? toLocal(r.opens_at) : "" })}
-      ${field({ name: "closes_at", label: "Closes", type: "datetime-local", required: true, value: r ? toLocal(r.closes_at) : "" })}
+      ${field({ name: "opens_at", label: `Opens (${d.event.timezone})`, type: "datetime-local", required: true, value: r ? toLocal(r.opens_at, d.event.timezone) : "" })}
+      ${field({ name: "closes_at", label: `Closes (${d.event.timezone})`, type: "datetime-local", required: true, value: r ? toLocal(r.closes_at, d.event.timezone) : "" })}
       ${field({ name: "target_reviews_per_proposal", label: "Reviews needed per proposal (quorum)", type: "number", required: true, min: 1, value: r?.target_reviews_per_proposal ?? 2 })}
       ${field({ name: "max_assignments_per_reviewer", label: "Max assignments per reviewer", type: "number", min: 1, value: r?.max_assignments_per_reviewer ?? "" })}
       ${field({ name: "show_other_reviews_before_submit", label: "Let a reviewer see other reviews before their own is submitted", type: "checkbox", value: !!r?.show_other_reviews_before_submit, help: "Default off — anchoring is real." })}
@@ -146,8 +147,14 @@ export function roundFormView(d: RoundFormData): SafeHtml {
   );
 }
 
-function toLocal(instant: string): string {
-  return instant ? instant.slice(0, 16) : "";
+/**
+ * The form posts a wall-clock time the routes read in the event's zone, so the
+ * value shown has to be in that zone too — otherwise opening a round's settings
+ * and saving them unchanged shifts both dates by the offset.
+ */
+function toLocal(instant: string, timezone: string): string {
+  if (!instant) return "";
+  return `${calendarDateInZone(instant, timezone)}T${formatTimeInZone(instant, timezone)}`;
 }
 
 /* ========================================================================== */
@@ -281,6 +288,8 @@ export function assignmentsView(d: {
   round: RoundView;
   rows: AssignmentRowView[];
   pool: PoolRowView[];
+  /** Every proposal the round's scope puts in play — the single-assign picker. */
+  poolProposals: Row[];
   tracks: Row[];
   formats: Row[];
   cfps: Row[];
@@ -298,7 +307,7 @@ export function assignmentsView(d: {
       <td>${personLink(r.reviewer, str(r.assignment.reviewer_person_id))}</td>
       <td>${badge(str(r.assignment.assigned_by))}</td>
       <td>${badge(str(r.assignment.status))}</td>
-      <td class="small">${str(r.assignment.due_at).slice(0, 10)}</td>
+      <td class="small">${calendarDateInZone(str(r.assignment.due_at), d.event.timezone)}</td>
       <td class="right">
         ${d.canWrite && !["submitted", "revoked", "expired"].includes(str(r.assignment.status))
           ? actionForm(`/admin/rounds/${d.round.id}/assignments/${str(r.assignment.id)}/revoke`, "Revoke", { confirm: "Revoke this assignment?" })
@@ -322,6 +331,34 @@ export function assignmentsView(d: {
     ${d.pendingProposal ? autoProposalCard(d.round, d.pendingProposal) : raw("")}
     ${unassignableCard(d.pendingProposal?.unassignable ?? d.unassignable ?? undefined)}
     ${table(["Proposal", "Reviewer", "Assigned by", "Status", "Due", ""], rows, "No assignments yet.")}
+    ${d.canWrite
+      ? card(
+          html`<form method="post" action="/admin/rounds/${d.round.id}/assignments/one" class="inline-grid">
+            ${field({
+              name: "proposal_id",
+              label: "Proposal",
+              type: "select",
+              required: true,
+              options: d.poolProposals.map((p) => ({ value: str(p.id), label: `${str(p.reference)} — ${str(p.title)}` })),
+            })}
+            ${field({
+              name: "reviewer_person_id",
+              label: "Reviewer",
+              type: "select",
+              required: true,
+              options: d.pool
+                .filter((p) => p.member.status === "active" && p.member.pool_role === "reviewer")
+                .map((p) => ({ value: p.member.person_id, label: p.person?.name ?? p.member.person_id })),
+            })}
+            <button type="submit">Assign</button>
+          </form>
+          <p class="small muted">
+            One proposal to one reviewer. Caps and conflicts of interest are checked the same way as they are in bulk —
+            a refusal says which rule it broke.
+          </p>`,
+          "Assign a single proposal",
+        )
+      : raw("")}
     ${d.canWrite
       ? html`<div class="grid two">
           ${card(
@@ -798,7 +835,7 @@ export function decisionFormView(d: { event: EventRef; proposal: Row; decision: 
             ${field({ name: "assigned_track_id", label: "Assign to track", type: "select", value: dec ? str(dec.assigned_track_id) : "", options: d.tracks.map((t) => ({ value: str(t.id), label: str(t.name) })) })}
             ${field({ name: "assigned_format_id", label: "Assign to format", type: "select", value: dec ? str(dec.assigned_format_id) : "", options: d.formats.map((f) => ({ value: str(f.id), label: str(f.name) })) })}
             ${field({ name: "assigned_duration_minutes", label: "Assigned duration (minutes)", type: "number", min: 1, value: dec?.assigned_duration_minutes ?? "" })}
-            ${field({ name: "confirmation_deadline", label: "Confirmation deadline", type: "datetime-local", value: dec ? toLocal(str(dec.confirmation_deadline)) : "", help: "Required to publish an acceptance." })}
+            ${field({ name: "confirmation_deadline", label: `Confirmation deadline (${d.event.timezone})`, type: "datetime-local", value: dec ? toLocal(str(dec.confirmation_deadline), d.event.timezone) : "", help: "Required to publish an acceptance." })}
             ${field({ name: "conditions", label: "Conditions of acceptance (shown to the speaker)", type: "textarea", rows: 2, value: dec ? str(dec.conditions) : "" })}
             ${field({ name: "feedback_for_speaker", label: "Feedback for the speaker", type: "textarea", rows: 4, value: dec ? str(dec.feedback_for_speaker) : "", help: "The one channel to the speaker." })}
             ${field({ name: "rationale", label: "Rationale (committee-only)", type: "textarea", rows: 3, value: dec ? str(dec.rationale) : "" })}
@@ -888,6 +925,58 @@ export interface AiReviewView {
   overrideForm: SafeHtml | null;
 }
 
+/** One submitted human review, as the chair reads it. */
+export interface HumanReviewView {
+  id: string;
+  round_name: string;
+  /** Null in a blind round — the score is the point, the name is not. */
+  reviewer_name: string | null;
+  overall_score: number | null;
+  recommendation: string | null;
+  confidence: string | null;
+  flags: string[];
+  comments_for_committee: string | null;
+  comments_for_speaker: string | null;
+  submitted_at: string | null;
+  scores: { label: string; value: string; weight: number | null }[];
+}
+
+/**
+ * 05 promises the chair reads what the committee wrote. The round's results
+ * table aggregates it, but an aggregate is not a review: a mean of 4.36 does
+ * not tell a chair that the one reviewer who read it said "name the tooling".
+ */
+function humanReviewsCard(reviews: HumanReviewView[]): SafeHtml {
+  if (reviews.length === 0) return card(empty("No reviews submitted for this proposal yet."), "Reviews");
+  return card(
+    html`${reviews.map(
+      (r) => html`<article class="review-read">
+        <h3>
+          ${r.reviewer_name ?? "Reviewer (blind round)"}
+          ${r.overall_score !== null ? html` <span class="badge">Rating ${r.overall_score}</span>` : raw("")}
+          ${r.recommendation ? badge(r.recommendation) : raw("")}
+        </h3>
+        <p class="small muted">
+          ${r.round_name}${r.confidence ? ` · confidence ${humanise(r.confidence)}` : ""}${r.submitted_at
+            ? ` · submitted ${r.submitted_at.slice(0, 16).replace("T", " ")}`
+            : ""}
+        </p>
+        ${r.flags.length ? html`<p>${r.flags.map((f) => badge(f))}</p>` : raw("")}
+        ${table(
+          ["Criterion", "Score", "Weight"],
+          r.scores.map((s) => html`<tr><td>${s.label}</td><td>${s.value}</td><td>${s.weight ?? "—"}</td></tr>`),
+          "No per-criterion scores.",
+        )}
+        ${r.comments_for_committee
+          ? html`<p><strong>For the committee:</strong> ${r.comments_for_committee}</p>`
+          : raw("")}
+        ${r.comments_for_speaker ? html`<p><strong>For the speaker:</strong> ${r.comments_for_speaker}</p>` : raw("")}
+      </article>`,
+    )}`,
+    "Reviews",
+  );
+}
+
 export function proposalDiscussionView(d: {
   event: EventRef;
   proposal: Row;
@@ -895,6 +984,7 @@ export function proposalDiscussionView(d: {
   threads: CommentThreadItem[];
   conflicts: (ConflictRecord & { reviewerName: string })[];
   aiReviews: AiReviewView[];
+  humanReviews: HumanReviewView[];
   canWriteComments: boolean;
   canDeclareCoi: boolean;
   canSeeChairsOnly: boolean;
@@ -925,6 +1015,7 @@ export function proposalDiscussionView(d: {
 
   return html`
     ${pageHead(str(d.proposal.title), `${str(d.proposal.reference)} · committee discussion. Never speaker-visible.`)}
+    ${humanReviewsCard(d.humanReviews)}
     ${aiReviewsCard(d.aiReviews)}
     ${card(
       html`<ul class="notes">${threadRows}</ul>
