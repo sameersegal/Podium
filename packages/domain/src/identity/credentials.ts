@@ -7,25 +7,34 @@
  *
  * Argon2id, per the same section.
  *
- * **These parameters are deliberately far below the OWASP floor.** The Worker
- * runs on the Cloudflare free plan, which allows 10 ms of CPU per invocation.
- * The previous setting — m=12 MiB, t=3, chosen against the paid plan's 30 s
- * budget — costs ~345 ms of Worker CPU, so every sign-in was killed with
- * `exceededCpu` (error 1102) and password login was effectively down. m=256 KiB
- * with t=1 costs ~3 ms, which is what is left once the rest of the sign-in
- * request is paid for.
+ * **m=12 MiB, t=3 — an OWASP-recommended configuration.** This deployment ran
+ * on the Cloudflare free plan until 2026-08-12, whose 10 ms CPU ceiling could
+ * not pay for a real hash: the setting was m=256 KiB, t=1, roughly two orders
+ * of magnitude cheaper to attack offline than it should have been, and
+ * documented at the time as a stopgap rather than a position. The plan is now
+ * Workers Paid, whose budget is measured in seconds, and this is the revert
+ * that stopgap was written to anticipate.
  *
- * The cost of that: this is roughly two orders of magnitude cheaper to attack
- * offline than RFC 9106's second recommendation (19 MiB, t=2). It is a stopgap
- * to keep the service usable on the free plan, not a considered security
- * position. Raising `ARGON2_PARAMS` back to `{ t: 3, m: 12288 }` is the whole
- * revert; `needsRehash` below then upgrades each stored hash on next sign-in.
+ * Why 12 MiB and t=3 rather than the 19 MiB, t=2 that OWASP lists first — the
+ * two cost the same, 108 ms against 116 ms per hash when measured directly, so
+ * the choice is not about time. It is about memory: a Workers isolate has
+ * 128 MB, every concurrent sign-in holds its own Argon2 buffer for the duration
+ * of the hash, and 12 MiB leaves room for roughly ten at once where 19 MiB
+ * leaves six. Both configurations are on OWASP's list; this one has more
+ * headroom on the runtime that actually has to run it. Revisit if sign-in
+ * concurrency is ever measured rather than guessed at.
+ *
+ * Nothing needs migrating. `verifyPassword` reads the parameters out of each
+ * stored PHC string, so hashes written at m=256 still verify at their own cost,
+ * and `needsRehash` carries each one up to these parameters on its owner's next
+ * successful sign-in, while the plaintext is in hand. Nobody holds the
+ * plaintexts, so there is no batch path and none is needed.
  */
 
 import { argon2id } from "@noble/hashes/argon2.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 
-const ARGON2_PARAMS = { t: 1, m: 256, p: 1, dkLen: 32 } as const;
+const ARGON2_PARAMS = { t: 3, m: 12288, p: 1, dkLen: 32 } as const;
 
 function toBase64(bytes: Uint8Array): string {
   let bin = "";
@@ -55,12 +64,30 @@ export function hashPassword(plaintext: string, salt: Uint8Array = randomBytes(1
 
 /**
  * The cost of verifying a hash is fixed by the hash, not by `ARGON2_PARAMS` —
- * the PHC string carries the parameters it was written with. A stored hash
- * above this ceiling cannot be checked inside the free plan's 10 ms, so
- * attempting it does not fail the sign-in, it kills the isolate. Callers ask
- * `beyondCpuBudget` first and send the person to a password reset instead.
+ * the PHC string carries the parameters it was written with. A hash far above
+ * what the plan can pay for does not fail the sign-in, it kills the isolate, so
+ * callers ask `beyondCpuBudget` first and send the person to a password reset
+ * instead.
+ *
+ * **This ceiling must always sit above `ARGON2_PARAMS.m`, and raising the two
+ * is a single edit.** Lowering `m` to 256 for the free plan left this at 1024,
+ * which was correct then and became a trap: bumping `ARGON2_PARAMS` back to
+ * 12288 on its own would have made every newly-set password unverifiable the
+ * moment it was written — a self-inflicted lockout with no error until someone
+ * tried to sign in. `tests/unit/shared/seed-credentials.test.ts` pins the
+ * relationship from the seed's side; the assertion below states it directly.
+ *
+ * 64 MiB, not 12: the point is to refuse nonsense — a parameter set no code
+ * here would ever write — rather than to second-guess a legitimate change to
+ * `ARGON2_PARAMS`.
  */
-const MAX_VERIFIABLE_M = 1024;
+const MAX_VERIFIABLE_M = 65536;
+
+if (ARGON2_PARAMS.m > MAX_VERIFIABLE_M) {
+  throw new Error(
+    `ARGON2_PARAMS.m (${ARGON2_PARAMS.m}) exceeds MAX_VERIFIABLE_M (${MAX_VERIFIABLE_M}): every password written would be refused on the next sign-in.`,
+  );
+}
 
 function storedParams(stored: string): { t: number; m: number; p: number } | null {
   const parts = stored.split("$");

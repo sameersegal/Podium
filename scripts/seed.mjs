@@ -112,8 +112,13 @@ const dayAt = (dayIndex, hh, mm = 0) => {
  * seed kept writing `m=12288`. Every seeded persona's password became
  * unverifiable, `npm run dev` could not publish the seeded schedule, and
  * `scripts/smoke.mjs` could not sign in at all.
+ *
+ * Back to `m=12288` now that the deployment is on Workers Paid — the drift is
+ * the same distance in the other direction, and the same test catches it.
+ * Seeding sixteen personas costs about a second and a half of hashing rather
+ * than a hundredth of that; `npm run dev` pays it once.
  */
-const ARGON = { t: 1, m: 256, p: 1, dkLen: 32 };
+const ARGON = { t: 3, m: 12288, p: 1, dkLen: 32 };
 
 function b64(bytes) {
   return Buffer.from(bytes).toString("base64");
