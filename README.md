@@ -3,8 +3,21 @@
   <img src="brand/podium-logo-horizontal.png" alt="Podium" width="325">
 </picture>
 
+[![CI](https://github.com/sameersegal/Podium/actions/workflows/ci.yml/badge.svg)](https://github.com/sameersegal/Podium/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 An open-source alternative to SessionBoard, scoped to the jobs an **AI Engineer–style
 conference** actually has to get done — not a full clone.
+
+It runs in your own Cloudflare account. The software is MIT, so the only bill is hosting,
+and the one fixed line of it is Cloudflare's — from $5 a month, published on their pricing
+page rather than promised on ours. There is no hosted tier: somebody deploys this, and that
+somebody is you.
+
+The specification is [`docs/domain/`](docs/domain/README.md), it is normative, and it
+predates the code. Code implements it, and `npm run drift` fails the build when the two
+disagree. That is the part that makes a fork survivable: point an agent at the model, it
+builds against the model, and CI catches it the moment the two come apart.
 
 Six capabilities:
 
@@ -29,7 +42,7 @@ citizens with countable entitlements, an event roster, content approval and revi
 history, assisted placement, campaigns and an auditable outbox, bulk import and export, and
 a cross-event speaker directory.
 
-The domain model is the specification, and code implements it. Read it first:
+Read the model first:
 
 → **[`docs/domain/`](docs/domain/README.md)**
 
@@ -38,6 +51,25 @@ bounded contexts and the master ERD. Every open question is resolved — the dec
 their reasoning are in [`13-open-questions.md`](docs/domain/13-open-questions.md), together
 with the corrections that building it surfaced. The shape the code took is described in
 [`docs/implementation.md`](docs/implementation.md).
+
+## What it does not do
+
+On this page, rather than discovered after you deploy it.
+
+- **No attendee registration, ticketing or badging.** A deliberate boundary, not a gap on a
+  roadmap — see [`09`](docs/domain/09-api-and-integrations.md). The `ticketing` plugin is a
+  stub, and it exists so the contract has a shape, not so the feature has a start.
+- **No hosted tier**, and no plan for one.
+- **No track record.** Nobody has publicly run a live conference on this yet. A ten-year-old
+  SaaS has something here that a new repository cannot have, and no amount of test count
+  substitutes for it.
+- **A smaller integration catalogue** than the incumbents: nine adapters behind capability
+  contracts, listed at [podiumstack.com/integrations](https://podiumstack.com/integrations).
+- **The importer moves people and the roster, not the programme.** One CSV brings your
+  speakers and their history across, which is the part that would otherwise be a week of
+  typing. Sessions and sponsors preview and then refuse, no route authors a proposal on
+  someone's behalf, and last year's scores and decisions stay in whatever the old tool
+  exports.
 
 ## Running it locally
 
@@ -111,6 +143,34 @@ the reaction map in [`10-domain-events.md`](docs/domain/10-domain-events.md), an
 reaction is idempotent on `DomainEvent.id`, because at-least-once delivery is assumed
 everywhere.
 
+## Built for agents, both ends
+
+The claim is not that an AI wrote it. It is that the repository is arranged so an agent can
+change it without you re-reading the diff line by line.
+
+**Producing it.** [`docs/domain/`](docs/domain/README.md) is the specification and it came
+first. The [`implementer`](.claude/agents/implementer.md) agent validates a request against
+the model and stops when the model does not cover it, so the failure mode is a refusal
+rather than an invented field. Three skills in [`.claude/skills/`](.claude/skills) do the
+recurring work the same way each time — `domain-expert` answers behaviour questions from the
+model, `domain-drift` produces the model diff that belongs in the same commit as the code,
+and `security-audit` inventories every route with the guard in front of it. `npm run drift`
+and `npm run plugin:check` are both steps in the `check` job of
+[`ci.yml`](.github/workflows/ci.yml): the build fails when code drifts from the model, or
+when the endpoint catalogue drifts from the routes.
+
+**Operating it.** [`claude-plugin/`](claude-plugin) is a Claude Code plugin, `podium-ops` —
+eight skills that drive a *running* instance over the `/v1` API with a zero-dependency CLI,
+given an instance URL and an API token. Its endpoint catalogue is generated from the routes,
+never hand-written. Install it from this repository with `/plugin marketplace add`.
+
+Driving that API from outside found three defects that reading the code had not, recorded
+and closed as D1–D3 in
+[`13-open-questions.md`](docs/domain/13-open-questions.md).
+
+The limits: there is no MCP server and no OpenAPI document. The management surface is
+specified in [`09`](docs/domain/09-api-and-integrations.md) and that is the document.
+
 ## The marketing site
 
 [`www/`](www) is the static site at [podiumstack.com](https://podiumstack.com) — an Astro
@@ -124,8 +184,8 @@ The app does not know either hostname. It reads `PUBLIC_BASE_URL`, which
 [`scripts/deploy-config.mjs`](scripts/deploy-config.mjs) sets from `PODIUM_HOSTNAME` at deploy
 time — which is what lets the same artifact serve your domain when you self-host.
 
-Seven pages, one per question a buyer arrives with: the landing page, `/features`,
-`/integrations`, `/compare`, `/pricing`, `/demo` and `/security`. Every product image on them is
+Eight pages, one per question a buyer arrives with: the landing page, `/features`,
+`/integrations`, `/compare`, `/fork`, `/pricing`, `/demo` and `/security`. Every product image on them is
 a photograph of the running app taken by [`www/scripts/screenshots.mjs`](www/scripts/screenshots.mjs)
 against this repository's own seed — never a mockup — so a redesigned screen means re-running it:
 
@@ -143,6 +203,31 @@ before reporting.
 Logos, the web icon set and the usage rules live in [`brand/`](brand/README.md); the contents
 of [`brand/web/`](brand/web) are served from both [`public/`](public) and
 [`www/public/`](www/public).
+
+## Contributing, and where to ask
+
+[**Discussions**](https://github.com/sameersegal/Podium/discussions) for questions, "does it
+do X", and what you would need before running your own event on it.
+[**Issues**](https://github.com/sameersegal/Podium/issues) for bugs and concrete proposals.
+Support is the issue tracker and the people who wrote it — there is no queue, no
+response-time commitment, and nobody contractually on the hook the week of your event.
+
+Before a pull request:
+
+```bash
+npm test && npm run typecheck && npm run drift
+```
+
+`npm run drift` is the one that surprises people. A field added to a table without being
+added to the model is an incomplete change, and the check exists to say so out loud rather
+than let the specification quietly become fiction. If you need something the model does not
+cover, change the model in the same pull request — that is the convention here, not an
+afterthought. [`CLAUDE.md`](CLAUDE.md) is the working agreement in full, for humans and
+agents alike.
+
+Security issues: please report them privately through
+[GitHub's advisory form](https://github.com/sameersegal/Podium/security/advisories/new)
+rather than opening a public issue.
 
 ## Licence
 
