@@ -1,0 +1,72 @@
+# Dependabot — free on this repository because it is public.
+#
+# Three ecosystems, because this repository holds three dependency sets that
+# have nothing to do with each other:
+#
+#   /        the app. One runtime dependency (@noble/hashes) and a handful of
+#            build-time ones. A bump here can break the Worker.
+#   /www     the marketing site. Its own lockfile, its own CI job, and it
+#            imports nothing from the app — so its updates must not be bundled
+#            with the app's or a landing-page bump waits on a D1 migration.
+#   actions  the workflows. Pinned to commit SHAs for supply-chain reasons, and
+#            a SHA nobody can bump is a SHA that rots. Dependabot understands
+#            the `uses: owner/repo@<sha> # vX.Y.Z` form and updates both halves.
+#
+# Grouped, and weekly rather than daily. The failure mode this avoids is not
+# missing an update — it is twelve open PRs nobody reviews, which is how a
+# security bump ends up sitting behind eleven patch bumps for a fortnight.
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the routine noise. Security advisories are never grouped by
+      # Dependabot regardless of what is written here — they arrive on their own
+      # and should be read on their own.
+      app-dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      app-production:
+        dependency-type: production
+        update-types: [minor, patch]
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps"
+      include: scope
+
+  - package-ecosystem: npm
+    directory: /www
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+    open-pull-requests-limit: 5
+    groups:
+      www-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    labels: [dependencies, marketing-site]
+    commit-message:
+      prefix: "deps(www)"
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "deps(ci)"
