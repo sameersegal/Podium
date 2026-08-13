@@ -26,6 +26,25 @@ export const ISSUES_URL = `${GITHUB_URL}/issues`;
 export const SOCIAL_HANDLE = "@podiumstack";
 export const SOCIAL_URL = "https://x.com/podiumstack";
 
+/**
+ * PostHog. The key is checked in on purpose: a project API key is a write-only
+ * ingest key, it is published in the page source of every site that uses one,
+ * and it cannot read an event, a person or a query. Treating it as a secret
+ * would buy nothing and cost a deploy-time variable somebody eventually forgets
+ * to set.
+ *
+ * `POSTHOG_HOSTS` is what keeps it from being a nuisance. Analytics runs on the
+ * two hostnames this site is actually served on and nowhere else, so
+ * `astro dev`, a preview build and anybody's clone of this repository send
+ * nothing — the check happens before the library is fetched, so they do not
+ * even download it. Add a hostname here and it starts reporting.
+ *
+ * `src/components/Analytics.astro` holds the configuration and the reasoning.
+ */
+export const POSTHOG_KEY = "phc_pXnRKchKbq3UDi5aAuwBYc7XE6fH9w2opibssrUKTZHK";
+export const POSTHOG_HOST = "https://us.i.posthog.com";
+export const POSTHOG_HOSTS = ["podiumstack.com", "www.podiumstack.com"];
+
 export const SITE_TITLE = "Podium";
 export const SITE_DESCRIPTION =
   "Run your conference program from your own Cloudflare account. Podium handles the call for proposals, review, sponsor sessions, speaker onboarding and the schedule your site embeds. MIT-licensed, and the only bill is your hosting.";
