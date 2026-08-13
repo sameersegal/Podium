@@ -140,6 +140,36 @@ Where the truth is unflattering, put it on the page yourself, below the first pr
 finds a limitation from you trusts the rest of the page. "Podium does not do attendee
 registration" has closed more deals than it lost.
 
+### A disclosure is not automatically a claim, and needs its own discipline
+
+The rules above govern assertions, which are falsifiable and so bound themselves. A disclosure is
+unfalsifiable in the honest direction: nothing above stops you adding one, and an agent writing
+for credibility will keep adding them until the page argues against the product. That has happened
+here. Three rules bound it, and none of them is licence to hide anything:
+
+- **A disclosure needs a reader who asked.** State a limitation on the page where the reader is
+  making the decision it bears on. "No third-party penetration test" belongs on the security page,
+  because a buyer with a questionnaire will ask. "Nobody read the thirty-six unscoped queries one
+  at a time" is a sentence no buyer knows how to ask for, and volunteering it on a page they
+  arrived at for another reason is not honesty; it is a competitor's pull-quote. If the fact bears
+  on nothing the reader is deciding, it belongs in your report, not on the page.
+- **One caveat, one home.** A limitation ships on exactly one page. The same fair caveat on four
+  pages stops being four disclosures and becomes a fifth claim — *this is not ready* — which
+  nobody wrote and nobody checked against C.
+- **Order it so the reader carries the right clause.** A paragraph is remembered by its last
+  sentence. Where a disclosure has a control, a mitigation or a date, that goes last and the risk
+  goes in the middle. Ending on the worst case is a choice about emphasis, not a fact, and you are
+  responsible for it either way. Never delete the risk to achieve this.
+
+**Temporary states carry a tense.** Most of what damages a page here is not a false sentence but a
+true one written in permanent voice about a state that lasts a fortnight — a host that is not
+seeded today, an adapter nobody has written, a first migration that has not happened. Written flat,
+it engraves a snapshot. Either the underlying thing is fixed before the page ships (say so and
+stop, per Phase 0), or the sentence dates itself, names the control that exists now and says what
+closes it. The password-hashing block on `/security` is the pattern: disclosed in the present tense
+while it was true, past tense the day it was fixed. Write every temporary disclosure so that
+rewrite is a one-line edit, and say on the page that it will happen.
+
 **Two things stop you rather than ship.** A true competitor fact that undermines our own
 positioning is a positioning problem, not a table row: report it and wait. So is a page where the
 honest "no" outnumbers the reasons to move, which argues against switching however accurate each
@@ -178,9 +208,11 @@ things:
 
 **Claim 3, an agent can change it.** What this buyer came for, because it turns "it does not do X"
 into an afternoon. MIT-licensed, so the fork is theirs. What makes the fork survivable is the
-machinery from Claim 1, and somebody else's agent inherits those guardrails. The limit goes on the
-same page: a change you make is a merge you own, and nobody has run that upgrade path in public.
-Never imply a plugin surface where there is a fork.
+machinery from Claim 1, and somebody else's agent inherits those guardrails. A change you make is
+a merge you own, and nobody has run that upgrade path in public — which is a real limit and has
+one home, under "the unflattering half" on `/fork`, where the reader is deciding whether to fork.
+Anywhere else it is the same sentence doing no work. Never imply a plugin surface where there is
+a fork.
 
 **State the boundary rather than letting them find it.** Two sets of tooling ship, and they do
 different jobs. `.claude/` builds the product. `claude-plugin/` is eight skills that operate a
@@ -207,7 +239,10 @@ equivalent, what a speaker sees change. Feature parity is the boring half of tha
 Podium's real weaknesses belong on the site: **no attendee registration or ticketing**
 (deliberately, per the ticketing decision in
 [`09`](../../docs/domain/09-api-and-integrations.md)); **no hosted tier**; **no track record** a
-ten-year-old SaaS can point at; a **smaller integration catalogue**.
+ten-year-old SaaS can point at; a **smaller integration catalogue**. Each gets one home, per the
+disclosure rules in C. The first two are permanent properties of the product and read as
+qualification — say them flat, and let them lose the wrong buyer fast. The second two are states
+this project is moving through, so they carry a tense: what is true today, and what changes it.
 
 - **Compare on what a buyer will feel**, not a checklist you can win. Rows the competitor wins are
   present and say so plainly. Watch the proportion, per C.
@@ -454,6 +489,8 @@ Short, factual, about the reader rather than the markup:
 
 - What each page now makes the reader want, and the one action it asks for.
 - Claims you checked and what backed each. Anything weakened or dropped, and what it said before.
+- Disclosures added, moved or reordered, the one page each now lives on, and for any that describe
+  a temporary state, what closes it and what the sentence becomes that day.
 - Competitor facts used, with source and date. Anything you stopped on rather than shipping (C).
 - Agents-first sentences (D), which of the three claims each makes, and the property behind it.
 - What you verified in the browser: viewports, measured numbers, where the screenshots are, and
