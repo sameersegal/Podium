@@ -45,6 +45,11 @@
  *      off below. If something later needs one of them, the import moves to
  *      `posthog-js` — measure the page again before doing it.
  *
+ * The small click tracker at the bottom is the only GTM behaviour here. It
+ * preserves incoming UTM parameters as readers move around the site, tags the
+ * links that leave for the app, GitHub and X, and sends explicit PostHog events
+ * for the few actions that matter. It still writes no cookies or localStorage.
+ *
  * Nothing lives in this frontmatter. `define:vars` does not apply to a bundled
  * script, so the script below imports `consts.ts` directly and Vite inlines the
  * values at build time.
@@ -53,6 +58,113 @@
 
 <script>
   import { POSTHOG_HOST, POSTHOG_HOSTS, POSTHOG_KEY } from "../consts";
+
+  const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
+  const OUTBOUND_HOSTS = new Set(["app.podiumstack.com", "github.com", "x.com", "twitter.com"]);
+  const TRACKED_ACTIONS = new Map([
+    ["demo", "marketing_demo_cta_clicked"],
+    ["github", "marketing_github_clicked"],
+    ["x", "marketing_x_clicked"],
+    ["contact", "marketing_contact_clicked"],
+    ["guide", "marketing_guide_clicked"],
+    ["outbound", "marketing_outbound_clicked"],
+    ["internal", "marketing_internal_link_clicked"],
+  ]);
+
+  type LinkKind = "demo" | "github" | "x" | "contact" | "guide" | "outbound" | "internal";
+
+  const slug = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/@/g, "at-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64);
+
+  const campaignParams = () => {
+    const current = new URLSearchParams(location.search);
+    return UTM_KEYS.reduce<Record<string, string>>((params, key) => {
+      const value = current.get(key);
+      if (value) params[key] = value;
+      return params;
+    }, {});
+  };
+
+  const linkUrl = (anchor: HTMLAnchorElement) => {
+    try {
+      return new URL(anchor.href);
+    } catch {
+      return null;
+    }
+  };
+
+  const linkKind = (url: URL, anchor: HTMLAnchorElement): LinkKind => {
+    const text = anchor.textContent?.trim().toLowerCase() ?? "";
+
+    if (url.hostname === "app.podiumstack.com" || url.pathname === "/demo") return "demo";
+    if (url.hostname === "github.com") {
+      return url.pathname.includes("/issues/new") || text.includes("problem") ? "contact" : "github";
+    }
+    if (url.hostname === "x.com" || url.hostname === "twitter.com") return "x";
+    if (url.protocol === "mailto:") return "contact";
+    if (url.origin === location.origin && url.pathname.startsWith("/guides")) return "guide";
+    if (url.origin !== location.origin) return "outbound";
+    return "internal";
+  };
+
+  const linkLabel = (anchor: HTMLAnchorElement, kind: LinkKind) => {
+    const text = anchor.getAttribute("aria-label") ?? anchor.textContent ?? kind;
+    return slug(text) || kind;
+  };
+
+  const applyUtmParams = (anchor: HTMLAnchorElement) => {
+    const url = linkUrl(anchor);
+    if (!url) return;
+
+    const incoming = campaignParams();
+    const hasIncomingCampaign = Object.keys(incoming).length > 0;
+
+    if (url.origin === location.origin && hasIncomingCampaign) {
+      UTM_KEYS.forEach((key) => {
+        if (incoming[key] && !url.searchParams.has(key)) url.searchParams.set(key, incoming[key]);
+      });
+      anchor.href = `${url.pathname}${url.search}${url.hash}`;
+      return;
+    }
+
+    if (!OUTBOUND_HOSTS.has(url.hostname) || url.searchParams.has("utm_source")) return;
+
+    const kind = linkKind(url, anchor);
+    url.searchParams.set("utm_source", "podium_site");
+    url.searchParams.set("utm_medium", "website");
+    url.searchParams.set("utm_campaign", "marketing_site");
+    url.searchParams.set("utm_content", linkLabel(anchor, kind));
+    anchor.href = url.href;
+  };
+
+  const trackClick = (
+    posthog: { capture: (event: string, properties?: Record<string, unknown>) => void },
+    anchor: HTMLAnchorElement
+  ) => {
+    const url = linkUrl(anchor);
+    if (!url) return;
+
+    const kind = linkKind(url, anchor);
+    const event = TRACKED_ACTIONS.get(kind);
+    if (!event) return;
+
+    posthog.capture(event, {
+      link_kind: kind,
+      link_label: linkLabel(anchor, kind),
+      link_url: url.href,
+      link_hostname: url.hostname,
+      link_pathname: url.pathname,
+      page_pathname: location.pathname,
+      page_url: location.href,
+      ...campaignParams(),
+    });
+  };
 
   if (POSTHOG_HOSTS.includes(location.hostname)) {
     import("posthog-js/dist/module.slim.js").then(({ default: posthog }) => {
@@ -86,6 +198,12 @@
       // live page, and any one-off `posthog.capture("…")` somebody adds later.
       // Both would fail silently without this line.
       (window as unknown as { posthog: typeof posthog }).posthog = posthog;
+
+      document.querySelectorAll<HTMLAnchorElement>("a[href]").forEach(applyUtmParams);
+      document.addEventListener("click", (event) => {
+        const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+        if (anchor) trackClick(posthog, anchor);
+      });
     });
   }
 </script>
