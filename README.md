@@ -94,10 +94,10 @@ the shipped seed, because a deployment nobody can sign into is worse than the ma
 
 | Persona | Email | Password |
 |---|---|---|
-| Organizer / program chair | `sbek-organizer@example.com` | `SbekTest!2027-org` |
-| Speaker | `sbek-speaker@example.com` | `SbekTest!2027-spk` |
-| Second speaker | `sbek-speaker2@example.com` | `SbekTest!2027-spk2` |
-| Reviewer | `sbek-reviewer@example.com` | `SbekTest!2027-rev` |
+| Organizer / program chair | `organizer@devflowconf.example` | `PodiumDemo2027!` |
+| Speaker | `speaker@devflowconf.example` | `PodiumDemo2027!` |
+| Second speaker | `cospeaker@devflowconf.example` | `PodiumDemo2027!` |
+| Reviewer | `reviewer@devflowconf.example` | `PodiumDemo2027!` |
 
 | Surface | Where |
 |---|---|

@@ -80,30 +80,34 @@ export const STATS = {
 } as const;
 
 /**
- * The demo sign-ins, copied from `README.md`. These are seed personas on a
- * database that is reset, not people — publishing them is the point, since a
- * "see it running" link that lands on a login form nobody can pass is a dead
- * end dressed up as a call to action.
+ * The demo sign-ins, copied from `README.md`. These are seed personas, not
+ * people — publishing them is the point, since a "see it running" link that
+ * lands on a login form nobody can pass is a dead end dressed up as a call to
+ * action.
+ *
+ * They work on the hosted instance as well as locally. Nothing resets the
+ * hosted database, so it is shared mutable state and `/demo` says so rather
+ * than implying a fresh conference per visitor.
  */
 export const DEMO_PERSONAS = [
   {
     role: "Organizer / program chair",
-    email: "sbek-organizer@example.com",
-    password: "SbekTest!2027-org",
+    email: "organizer@devflowconf.example",
+    password: "PodiumDemo2027!",
     lands: "/admin",
     sees: "Every event, the proposal board, the agenda, sponsors and the publish queue.",
   },
   {
     role: "Reviewer",
-    email: "sbek-reviewer@example.com",
-    password: "SbekTest!2027-rev",
+    email: "reviewer@devflowconf.example",
+    password: "PodiumDemo2027!",
     lands: "/review",
     sees: "A queue of assigned proposals, a rubric, and the ones a conflict blocks.",
   },
   {
     role: "Speaker",
-    email: "sbek-speaker@example.com",
-    password: "SbekTest!2027-spk",
+    email: "speaker@devflowconf.example",
+    password: "PodiumDemo2027!",
     lands: "/portal",
     sees: "One accepted talk, its room and time, and what is still outstanding.",
   },

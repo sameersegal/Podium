@@ -63,7 +63,7 @@ describe("the seed's credentials", () => {
   });
 
   it("produces a hash the app can verify, and rejects the wrong password", () => {
-    const password = "SbekTest!2027-org";
+    const password = "PodiumDemo2027!";
     const stored = seedStyleHash(password, "devflow-organizer", seeded);
     expect(verifyPassword(password, stored)).toBe(true);
     expect(verifyPassword("not-the-password", stored)).toBe(false);
