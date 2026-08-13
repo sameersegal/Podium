@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import Analytics from "../components/Analytics.astro";
+import NavLinks from "../components/NavLinks.astro";
 import {
   APP_URL,
   DOMAIN_MODEL_URL,
@@ -8,7 +9,6 @@ import {
   IMPLEMENTATION_URL,
   ISSUES_URL,
   LICENSE_URL,
-  NAV,
   SIGN_IN_URL,
   SITE_DESCRIPTION,
   SITE_TITLE,
@@ -36,9 +36,6 @@ const path = Astro.url.pathname.replace(/index\.html$/, "").replace(/\.html$/, "
 // is set in astro.config.mjs, so Astro.site is podiumstack.com at build time.
 const canonical = new URL(path, Astro.site).href;
 const ogImage = new URL("/og-image.png", Astro.site).href;
-
-/** `/features` is current on `/features`; `/` is current on nothing else. */
-const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`);
 ---
 
 <!doctype html>
@@ -105,10 +102,15 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
   <body>
     <a class="skip" href="#main">Skip to content</a>
 
-    {/* No hamburger, and no script behind the nav. Six short labels wrap onto
-        a second line on a phone, which costs a few pixels above the fold and
-        buys a nav that cannot fail: nothing to toggle, nothing to trap focus
-        in, and it is all still there with scripts blocked. */}
+    {/* The nav is a row beside the brand where it fits, and a disclosure where
+        it does not. It used to be the row at every width, wrapping onto a
+        second line at 390px and a third at 320px — a 201px header on the
+        narrowest screen, a quarter of it gone before the page started.
+
+        Still no script. `<details>` is the toggle, which means it works with
+        scripts blocked, cannot trap focus, and is opened and closed by the
+        keyboard without anybody implementing that. `NavLinks` says why the
+        links are rendered twice rather than moved between the two. */}
     <header class="topbar">
       <div class="wrap">
         {/* Deliberately not the copy in the repository root `brand/`, which is
@@ -125,35 +127,30 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
             <img src="/podium-logo-horizontal-light.png" alt="Podium" width="325" height="96" />
           </picture>
         </a>
-        <a class="btn secondary top-cta" href="/demo">Run the demo</a>
         <nav class="topnav" aria-label="Primary">
-          {
-            NAV.map((item) => (
-              <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
-                {item.label}
-              </a>
-            ))
-          }
-          <a href={GITHUB_URL}>GitHub</a>
-          {/* The handle earns the same top-of-page place as the repository, but
-              not another word: a seventh label would hit the stated ceiling and
-              crowd the action beside it. The glyph is inline markup — no script,
-              no second request — and the accessible name is the handle itself,
-              so a screen reader hears what the footer link says. */}
-          <a
-            class="icon-link"
-            href={SOCIAL_URL}
-            aria-label={`${SOCIAL_HANDLE} on X`}
-            title={`${SOCIAL_HANDLE} on X`}
-          >
+          <NavLinks path={path} />
+        </nav>
+        <a class="btn secondary top-cta" href="/demo">Run the demo</a>
+        {/* The accessible name is on the summary, not the icon: a screen reader
+            hears "Menu, collapsed" and the browser handles the state, which is
+            the whole reason this is a `<details>` and not a button somebody has
+            to wire up. */}
+        <details class="menu">
+          <summary aria-label="Menu">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path
-                fill="currentColor"
-                d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25h6.826l4.713 6.231 5.451-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                d="M4 7h16M4 12h16M4 17h16"
               ></path>
             </svg>
-          </a>
-        </nav>
+          </summary>
+          <nav class="menu-nav" aria-label="Primary">
+            <NavLinks path={path} />
+          </nav>
+        </details>
       </div>
     </header>
 

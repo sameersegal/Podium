@@ -1,0 +1,55 @@
+---
+import { GITHUB_URL, NAV, SOCIAL_HANDLE, SOCIAL_URL } from "../consts";
+
+/**
+ * The contents of the primary nav, rendered twice by `Base.astro` — once as the
+ * row beside the brand, once inside the disclosure that replaces it on a phone.
+ *
+ * Rendering the same links twice is deliberate, and the alternative was worse.
+ * A single nav inside the `<details>`, revealed at the wide breakpoint, needs
+ * `::details-content` to override the content-visibility a closed `<details>`
+ * puts on its own contents — Chrome has had that since 131 and Safari only
+ * since 18.4, and the failure mode on anything older is a site with no
+ * navigation at all. Two copies of eight links is a few hundred bytes and
+ * cannot fail. Only one of them is ever rendered, so nothing is announced
+ * twice.
+ *
+ * Both copies come from `NAV` in consts, so there is one list to change.
+ */
+interface Props {
+  /** The current path, for the underline on the page you are already on. */
+  path: string;
+}
+
+const { path } = Astro.props;
+
+/** `/features` is current on `/features`; `/` is current on nothing else. */
+const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`);
+---
+
+{
+  NAV.map((item) => (
+    <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
+      {item.label}
+    </a>
+  ))
+}
+<a href={GITHUB_URL}>GitHub</a>
+{/* The handle earns the same top-of-page place as the repository, but not
+    another word: a seventh label would hit the stated ceiling and crowd the
+    action beside it. The glyph is inline markup — no script, no second request
+    — and the accessible name is the handle itself, so a screen reader hears
+    what the footer link says. */}
+<a class="icon-link" href={SOCIAL_URL} aria-label={`${SOCIAL_HANDLE} on X`} title={`${SOCIAL_HANDLE} on X`}>
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path
+      fill="currentColor"
+      d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.657l-5.214-6.817-5.966 6.817H1.68l7.73-8.835L1.254 2.25h6.826l4.713 6.231 5.451-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644Z"
+    ></path>
+  </svg>
+  {/* Shown in the disclosure and hidden in the row beside the brand: a bare
+      glyph is legible in a line of glyph-sized things and anonymous in a list
+      of words. The handle is a substring of the link's accessible name, which
+      is what stops the visible label and the announced one disagreeing. */}
+  <span class="icon-label">{SOCIAL_HANDLE}</span>
+</a>

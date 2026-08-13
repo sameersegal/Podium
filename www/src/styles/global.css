@@ -156,17 +156,12 @@
   /* How far a deep link stops short of the top of the window, so the sticky
      header does not sit on the thing it just scrolled to.
 
-     Measured rather than guessed, because the header is not one height: it is
-     73px wherever the nav fits beside the brand, 157px at 390px where the six
-     labels wrap onto two rows, and 201px at 320px where they take three. This
-     is the wrapped case and the media query below is the other one.
-
-     It clears the tallest of those outright rather than counting on the
-     section padding under it, because a screenshot row on /features has no
-     padding — its heading is the first thing in the box, and at 320px it
-     arrived 33px underneath the header when this value was tuned to the
-     390px case. */
-  --anchor-offset: 212px;
+     One value, because the header is 73px at every width — it was three, back
+     when the nav wrapped and the header stood at 157px on a phone and 201px at
+     320px. Measured against the built page, not derived: it has to clear the
+     header for a screenshot row on /features too, whose heading is the first
+     thing in the box with no section padding under it. */
+  --anchor-offset: 96px;
 
   /* ---------- radius ----------
      A 6px corner reads as engineered where an 18px one reads as friendly, and
@@ -301,14 +296,18 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
 
 /* ---------- header ----------
    Sticky, the canvas at 88% with a blur behind it, and a single hairline at
-   the bottom. Deliberately no hamburger: six short labels wrap onto a second
-   line, which costs a few pixels above the fold and buys a nav with nothing to
-   toggle, nothing to trap focus in, and no dependency on a script running.
+   the bottom.
 
-   Source order is brand, action, nav; from 56rem up the nav is reordered to
-   sit between them, which is the reading order. On a phone that puts the
-   action on the brand's row rather than below the whole nav, and saves about
-   70px of the first screen. */
+   One row at every width. Eight labels do not fit beside the brand on a phone,
+   so below 60rem they move into a disclosure and the row keeps the brand, the
+   action and a 44px button. The row itself no longer wraps — `nowrap` is what
+   holds the header at 72px, and it used to reach 157px at 390px and 201px at
+   320px, where the labels took three lines and a quarter of the first screen.
+
+   The toggle is a `<details>`, so there is still no script behind the nav:
+   nothing to trap focus in, and the whole thing works with scripts blocked.
+   The links are rendered twice; `NavLinks.astro` says why that beats revealing
+   one copy at the breakpoint. */
 .topbar {
   position: sticky;
   top: 0;
@@ -320,7 +319,7 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
 }
 .topbar .wrap {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--s-2) var(--s-5);
   min-height: 72px;
@@ -333,13 +332,11 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
 .topbar .brand img { height: 28px; width: auto; display: block; }
 .topbar a { color: var(--text-2); text-decoration: none; font-weight: 500; }
 .topbar a:hover { color: var(--text-1); }
+/* The row beside the brand. Absent below 60rem, where `.menu` has it. */
 .topbar .topnav {
-  display: flex;
-  flex-wrap: wrap;
+  display: none;
   align-items: center;
   gap: 0 var(--s-5);
-  width: 100%;
-  order: 3;
   font-size: 15px;
 }
 /* The 44px touch target is the padding, not the text — hence the negative
@@ -351,6 +348,7 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
   min-height: 44px;
   display: flex;
   align-items: center;
+  white-space: nowrap;
 }
 .topbar .topnav a[aria-current="page"] { color: var(--text-1); box-shadow: inset 0 -2px 0 var(--violet-fill); }
 /* A nav link whose label is a glyph: the social handle, and nothing else so far.
@@ -359,12 +357,71 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
    gap to `GitHub` the same as every other gap in the row. */
 .topbar .topnav .icon-link { min-width: 44px; justify-content: center; margin-inline-start: -14px; }
 .topbar .topnav .icon-link svg { width: 17px; height: 17px; display: block; }
-.topbar .top-cta { order: 2; }
+.topbar .topnav .icon-label { display: none; }
 
-@media (min-width: 56rem) {
-  .topbar .topnav { width: auto; order: 1; margin-left: auto; }
-  .topbar .top-cta { order: 2; }
-  .topbar .brand { margin-right: 0; }
+/* ---------- the phone nav ----------
+   A `<details>` whose summary is a 44px button and whose panel drops out of the
+   header. The panel is `absolute`, so opening it does not push the page down
+   under a sticky header, and it is opaque rather than the header's 88% canvas,
+   because a translucent panel over a screenshot is unreadable. */
+.topbar .menu { position: relative; }
+.topbar .menu > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-control);
+  color: var(--text-2);
+  cursor: pointer;
+  list-style: none;
+}
+.topbar .menu > summary::-webkit-details-marker { display: none; }
+.topbar .menu > summary:hover { color: var(--text-1); background: var(--control-bg-hover); }
+.topbar .menu[open] > summary { color: var(--text-1); background: var(--raised); }
+.topbar .menu > summary svg { width: 22px; height: 22px; display: block; }
+.topbar .menu-nav {
+  position: absolute;
+  top: calc(100% + var(--s-3));
+  right: 0;
+  min-width: 13rem;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-2) 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-surface);
+  box-shadow: var(--e-2);
+  font-size: 16px;
+}
+.topbar .menu-nav a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--s-5);
+}
+.topbar .menu-nav a:hover { background: var(--control-bg-hover); color: var(--text-1); }
+.topbar .menu-nav a[aria-current="page"] { color: var(--text-1); box-shadow: inset 2px 0 0 var(--violet-fill); }
+/* In a column of words the glyph needs one beside it. */
+.topbar .menu-nav .icon-link { gap: var(--s-3); }
+.topbar .menu-nav .icon-link svg { width: 17px; height: 17px; display: block; flex: none; }
+
+/* At 320px the brand, the action and the button are 4px wider than the row.
+   The action gives up the horizontal padding rather than the height: a 44px
+   target that says "Run the demo" beats a 36px one that still does. */
+@media (max-width: 22.5rem) {
+  .topbar .wrap { gap: var(--s-2); }
+  .topbar .top-cta { padding: 0 var(--s-3); font-size: 14px; }
+}
+
+/* 60rem and not the 56rem the old wrapping layout used: the row is brand,
+   eight labels and the action, and measured against the built page it needs
+   920px before the action runs off the right edge. 960px is the next step up
+   with room to spare, so a font that loads a little wider than its fallback
+   cannot push it over. Below that, the disclosure. */
+@media (min-width: 60rem) {
+  .topbar .topnav { display: flex; }
+  .topbar .menu { display: none; }
 }
 
 /* ---------- buttons ----------
@@ -433,12 +490,6 @@ section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; 
    being unreachable, which is quiet enough to read past and solid enough to
    long-press. */
 :where(section, .feature)[id] { scroll-margin-top: var(--anchor-offset); }
-
-/* The width the nav stops wrapping at, which is where the header loses two
-   thirds of its height. Same breakpoint as the topbar's own rule. */
-@media (min-width: 56rem) {
-  :root { --anchor-offset: 84px; }
-}
 
 .anchor {
   margin-left: 0.3em;
