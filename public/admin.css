@@ -1001,6 +1001,11 @@ td .progress { min-width: 4rem; }
 .queue-row .meta { font-family: var(--mono); font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .queue-row .chip { font-family: var(--mono); font-size: 11px; color: var(--ink-2); background: var(--neutral); border-radius: var(--r-pill); padding: 5px 9px; flex: none; }
 
+/* Where this row would move to. Several verbs rather than one, because a
+   decision queue is re-sorted far more often than it is added to — the row is
+   already in a list and the question is which one it belongs in. */
+.queue-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; flex: none; margin: 0; }
+
 /* The keyboard selection. It is a ring rather than a fill, because a filled row
    and the danger wash on an overdue row would fight, and the overdue one has to
    win — being late is a property of the work, being selected is a property of
@@ -1195,7 +1200,14 @@ dialog::backdrop { background: rgb(21 16 33 / .38); }
   .needs-row, .queue-row { flex-wrap: wrap; align-items: flex-start; }
   .needs-row .rule { align-self: auto; height: 22px; }
   .needs-row .body, .queue-row .body { flex-basis: 100%; order: 3; }
-  .needs-row .actions, .queue-row .chip, .queue-row > .btn { order: 4; }
+  .needs-row .actions, .queue-row .chip, .queue-row > .btn, .queue-row > .queue-actions { order: 4; }
+  /* 44px of tappable height, not 44px of text — these are the buttons a chair
+     triages a few hundred proposals with, one thumb at a time. */
+  .queue-actions > button, .queue-row > .btn.small { min-height: 44px; }
+  /* The verbs take the row's full width and wrap inside it. Left at `flex:
+     none` they keep their one-line width and push the last one off the card,
+     which is exactly the button a proposal with no leaning yet needs most. */
+  .queue-actions { flex: 1 1 100%; }
   .needs-row .actions { margin-left: auto; }
 }
 

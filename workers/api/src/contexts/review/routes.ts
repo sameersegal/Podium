@@ -1158,7 +1158,14 @@ function registerDecisionRoutes(router: Router<RequestContext>): void {
       const decision = decisions.find((d) => str(d.status) !== "superseded") ?? null;
       const roundId = await latestRoundForProposal(app, str(proposal.id));
       const score = roundId ? await proposalScoreFor(app, roundId, str(proposal.id)) : null;
-      rows.push({ proposal, decision, hasQuorum: score ? score.has_quorum : false });
+      rows.push({
+        proposal,
+        decision,
+        hasQuorum: score ? score.has_quorum : false,
+        // INV-05-17: an AI review never counts towards quorum, so the queue
+        // shows the human count that actually gates the publish.
+        reviews: score ? { done: score.human_review_count, target: score.target_reviews_per_proposal } : null,
+      });
     }
     const { tracks, formats } = await eventLookups(app, event.id);
     return htmlResponse(
@@ -1179,15 +1186,19 @@ function registerDecisionRoutes(router: Router<RequestContext>): void {
     const app = ctx.app(event.id);
     const outcome = input.optional("outcome");
     if (outcome) {
+      // Moving a proposal between the queues is one click and says only where
+      // it moved to. Everything else the decision already carries — a
+      // confirmation deadline, a reason for going ahead below quorum — is
+      // deliberately absent rather than null, so `recordDecision` keeps it.
+      const deadline = input.optional("confirmation_deadline");
       await recordDecision(app, {
         proposal_id: input.str("proposal_id"),
         outcome: outcome as DecisionInput["outcome"],
-        confirmation_deadline: input.optional("confirmation_deadline") ? fromLocalInput(input.str("confirmation_deadline"), event.timezone) : null,
-        quorum_waived_reason: input.optional("quorum_waived_reason"),
+        ...(deadline ? { confirmation_deadline: fromLocalInput(deadline, event.timezone) } : {}),
       });
       await app.flush();
     }
-    return redirect(`/admin/events/${event.id}/decisions`, 303, OK("Decision recorded — still provisional until published."));
+    return redirect(`/admin/events/${event.id}/decisions`, 303, OK("Moved. Still yours alone until you publish."));
   });
 
   router.get("/admin/proposals/:proposalId/decision", async (_req, ctx, params) => {

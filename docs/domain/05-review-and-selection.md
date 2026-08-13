@@ -430,6 +430,28 @@ stateDiagram-v2
   superseded --> [*]
 ```
 
+### The accept and reject queues
+
+A provisional decision is not a decision the chair has taken; it is the one they are leaning
+towards. That makes the set of provisional decisions the chair's working surface, and it has
+two obvious buckets — the proposals currently headed for an acceptance, and those headed for
+a rejection. **Those buckets are a projection of `Decision.outcome` where
+`Decision.status = provisional`, not states of their own.** `Proposal.status` stays
+`in_review` throughout, because nothing has happened to the proposal yet and nobody has been
+told anything.
+
+This is deliberate rather than incidental. `Proposal.status` is downstream of `Decision`, and
+a second pair of "nearly accepted" statuses beside `accepted` would be the same fact in two
+places, free to disagree — with every rule keyed on `accepted` or `rejected`
+([INV-04-7](04-submissions.md), [INV-04-8](04-submissions.md), onboarding, scheduling, the
+public program) having to learn which of the two it meant.
+
+Triage is the activity that happens *before* the reviews are all in, which is why
+[INV-05-11](#invariants) bites at publish and not at record: a chair may mark a proposal as
+headed for acceptance while it is still short of quorum, and finds out it is short when they
+try to tell the speaker. Quorum still hard-blocks the moment that matters (R32 in
+[`13-open-questions.md`](13-open-questions.md)).
+
 **The waitlist is the outcome and the superseding decision, and nothing more** (R18 in
 [`13-open-questions.md`](13-open-questions.md)). Ranked position, automatic promotion on a
 withdrawal, and expiry of waitlist status are all deliberately unmodelled. Auto-promotion is
@@ -502,8 +524,10 @@ people who handle these need a process this tool cannot see.
   for `outcome = accept`, `confirmation_deadline` is set and in the future.
 - **INV-05-10** Publishing a decision batch sends at most one speaker notification per
   proposal, and is idempotent on decision id.
-- **INV-05-11** `outcome = accept` requires `has_quorum`, unless the round is configured to
-  waive it or the chair records an explicit `quorum_waived` reason on the decision.
+- **INV-05-11** *Publishing* an `outcome = accept` requires `has_quorum`, unless the round is
+  configured to waive it or the chair records an explicit `quorum_waived` reason on the
+  decision. *Recording* one provisionally does not — see "The accept and reject queues"
+  above, and R32 in [`13-open-questions.md`](13-open-questions.md).
 - **INV-05-12** A round cannot be `finalised` while any in-scope proposal lacks a published
   decision.
 - **INV-05-13** A `RubricCriterion` must carry the configuration its `type` requires:

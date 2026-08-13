@@ -6,8 +6,9 @@ import { buildEvent, SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js
 import { templateSpec } from "@podiumstack/domain/platform/templates.js";
 
 /**
- * INV-05-11 — "`outcome = accept` requires `has_quorum`, unless … the chair
- * records an explicit `quorum_waived` reason on the decision."
+ * INV-05-11 — "*Publishing* an `outcome = accept` requires `has_quorum`, unless
+ * … the chair records an explicit `quorum_waived` reason on the decision.
+ * *Recording* one provisionally does not" (R32).
  * INV-05-10 — "Publishing a decision batch sends at most one speaker
  * notification per proposal, and is idempotent on decision id."
  */
@@ -200,22 +201,132 @@ describe("decisions and publishing", () => {
     cookie = await signInChair();
   });
 
-  it("INV-05-11: refuses to accept a proposal short of quorum without a waiver reason", async () => {
+  /** The decisions screen, and the one bucket of it a test cares about. */
+  async function queues(): Promise<{ html: string; bucket: (title: string) => string }> {
+    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/decisions`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    return {
+      html: body,
+      bucket(title: string) {
+        const start = body.indexOf(title);
+        if (start === -1) return "";
+        const next = body.indexOf("<h2>", start + title.length);
+        return body.slice(start, next === -1 ? undefined : next);
+      },
+    };
+  }
+
+  /** Move a proposal between the queues the way the screen does: one click. */
+  async function moveTo(proposalId: string, outcome: string): Promise<void> {
+    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/decisions`, {
+      method: "POST",
+      body: new URLSearchParams({ proposal_id: proposalId, outcome }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+  }
+
+  it("groups undecided proposals under the untriaged bucket before a chair has leaned either way", async () => {
+    const { bucket } = await queues();
+    expect(bucket("Not looked at yet")).toContain("REVDEC-0001");
+    expect(bucket("Not looked at yet")).toContain("REVDEC-0002");
+    // An accepted proposal is off the chair's desk, not in a queue.
+    expect(bucket("Not looked at yet")).not.toContain("REVDEC-0003");
+  });
+
+  it("moves a proposal into the accept queue in one click, and out again, without touching Proposal.status", async () => {
+    await moveTo(PROPOSAL_FULL, "accept");
+    let view = await queues();
+    expect(view.bucket("Accept queue")).toContain("REVDEC-0002");
+    expect(view.bucket("Not looked at yet")).not.toContain("REVDEC-0002");
+
+    await moveTo(PROPOSAL_FULL, "reject");
+    view = await queues();
+    expect(view.bucket("Reject queue")).toContain("REVDEC-0002");
+    expect(view.bucket("Accept queue")).not.toContain("REVDEC-0002");
+
+    // The queues are a projection of the provisional decision. Nothing has
+    // happened to the proposal and nobody has been told.
+    const proposal = await env.DB.prepare("SELECT status FROM proposal WHERE id = ?").bind(PROPOSAL_FULL).first<{ status: string }>();
+    expect(proposal?.status).toBe("in_review");
+    const decision = await env.DB.prepare("SELECT status, outcome FROM decision WHERE proposal_id = ?")
+      .bind(PROPOSAL_FULL)
+      .all<{ status: string; outcome: string }>();
+    expect(decision.results).toHaveLength(1); // edited in place, not a second record
+    expect(decision.results[0].status).toBe("provisional");
+  });
+
+  it("keeps the confirmation deadline when a proposal is moved between queues", async () => {
+    // Set on the decision form, which sends every field...
+    const form = await SELF.fetch(`http://localhost/admin/proposals/${PROPOSAL_FULL}/decision`, {
+      method: "POST",
+      body: new URLSearchParams({ outcome: "accept", confirmation_deadline: "2027-05-01T10:00" }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(form.status).toBe(303);
+    const before = await env.DB.prepare("SELECT confirmation_deadline FROM decision WHERE proposal_id = ?")
+      .bind(PROPOSAL_FULL)
+      .first<{ confirmation_deadline: string }>();
+    expect(before?.confirmation_deadline).toBeTruthy();
+
+    // ...and must survive a queue move, which sends only the outcome. Losing
+    // it here would silently block the publish it is required for.
+    await moveTo(PROPOSAL_FULL, "waitlist");
+    await moveTo(PROPOSAL_FULL, "accept");
+    const after = await env.DB.prepare("SELECT confirmation_deadline FROM decision WHERE proposal_id = ?")
+      .bind(PROPOSAL_FULL)
+      .first<{ confirmation_deadline: string }>();
+    expect(after?.confirmation_deadline).toBe(before?.confirmation_deadline);
+  });
+
+  it("INV-05-11: records a provisional accept for a proposal short of quorum, so triage is not blocked on the reviews", async () => {
     const res = await SELF.fetch(`http://localhost/admin/proposals/${PROPOSAL_SHORT}/decision`, {
       method: "POST",
       body: new URLSearchParams({ outcome: "accept", confirmation_deadline: "2027-05-01T10:00" }),
-      headers: { cookie, "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
       redirect: "manual",
     });
-    expect(res.status).toBe(422);
-    const body = await res.json<{ invariant?: string }>();
-    expect(body.invariant).toBe("INV-05-11");
+    expect(res.status).toBe(303);
 
-    const { results } = await env.DB.prepare("SELECT COUNT(*) AS n FROM decision WHERE proposal_id = ?").bind(PROPOSAL_SHORT).all<{ n: number }>();
-    expect(results[0].n).toBe(0);
+    const { results } = await env.DB.prepare("SELECT status, quorum_waived_reason FROM decision WHERE proposal_id = ?")
+      .bind(PROPOSAL_SHORT)
+      .all<{ status: string; quorum_waived_reason: string | null }>();
+    expect(results).toHaveLength(1);
+    expect(results[0].status).toBe("provisional");
+    expect(results[0].quorum_waived_reason).toBeFalsy();
+
+    // The leaning is the chair's alone until they publish (R5) — nothing has
+    // happened to the proposal and nobody has been told.
+    const proposal = await env.DB.prepare("SELECT status FROM proposal WHERE id = ?").bind(PROPOSAL_SHORT).first<{ status: string }>();
+    expect(proposal?.status).toBe("in_review");
   });
 
-  it("INV-05-11: accepts once an explicit quorum_waived_reason is recorded", async () => {
+  it("INV-05-11: refuses to publish that accept while it is short of quorum and no reason is recorded", async () => {
+    const decision = await env.DB.prepare("SELECT id FROM decision WHERE proposal_id = ? AND status = 'provisional'")
+      .bind(PROPOSAL_SHORT)
+      .first<{ id: string }>();
+    expect(decision?.id).toBeTruthy();
+
+    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/decisions/publish`, {
+      method: "POST",
+      body: new URLSearchParams({ decision_id: decision!.id }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(303);
+
+    // Skipped, not published: the speaker is the person this invariant
+    // protects, and they have not been told anything.
+    const after = await env.DB.prepare("SELECT status FROM decision WHERE id = ?").bind(decision!.id).first<{ status: string }>();
+    expect(after?.status).toBe("provisional");
+    const proposal = await env.DB.prepare("SELECT status FROM proposal WHERE id = ?").bind(PROPOSAL_SHORT).first<{ status: string }>();
+    expect(proposal?.status).toBe("in_review");
+  });
+
+  it("INV-05-11: publishes that same accept once an explicit quorum_waived_reason is recorded", async () => {
     const res = await SELF.fetch(`http://localhost/admin/proposals/${PROPOSAL_SHORT}/decision`, {
       method: "POST",
       body: new URLSearchParams({
@@ -228,12 +339,23 @@ describe("decisions and publishing", () => {
     });
     expect(res.status).toBe(303);
 
-    const { results } = await env.DB.prepare("SELECT status, quorum_waived_reason FROM decision WHERE proposal_id = ?")
+    const decision = await env.DB.prepare("SELECT id, status, quorum_waived_reason FROM decision WHERE proposal_id = ?")
       .bind(PROPOSAL_SHORT)
-      .all<{ status: string; quorum_waived_reason: string }>();
-    expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("provisional");
-    expect(results[0].quorum_waived_reason).toBeTruthy();
+      .first<{ id: string; status: string; quorum_waived_reason: string }>();
+    // Edited in place — `provisional → provisional` is drawn on the diagram.
+    expect(decision?.status).toBe("provisional");
+    expect(decision?.quorum_waived_reason).toBeTruthy();
+
+    const publish = await SELF.fetch(`http://localhost/admin/events/${EVENT}/decisions/publish`, {
+      method: "POST",
+      body: new URLSearchParams({ decision_id: decision!.id }),
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+    });
+    expect(publish.status).toBe(303);
+
+    const after = await env.DB.prepare("SELECT status FROM decision WHERE id = ?").bind(decision!.id).first<{ status: string }>();
+    expect(after?.status).toBe("published");
   });
 
   it("INV-05-10: publishing a decision batch twice sends exactly one notification per proposal", async () => {
