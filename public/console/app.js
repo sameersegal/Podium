@@ -307,6 +307,75 @@ function reviewerContext() {
   return { name: round.name, lines: [parts.join(" · ")] };
 }
 
+/**
+ * The event in context, and the way to point the console at another one.
+ *
+ * Mirrors `railContext` in `ui/layout.ts` — the same `<details>`, the same
+ * rows, the same explicit "open in a new tab" beside each. The rows are
+ * ordinary links, so the router picks them up and switches in the same
+ * document; `boot.events` is already on the payload, so this costs no fetch.
+ *
+ * One event is not a choice, so with fewer than two the card is the plain
+ * link it was.
+ */
+function eventSwitcher(ev, running) {
+  const events = boot.events || [];
+  const dot = running ? h("span", { class: "dot", "aria-hidden": "true" }) : null;
+
+  if (events.length < 2) {
+    return h(
+      "div",
+      { class: "rail-context" },
+      h("div", { class: "head" }, dot, h("a", { class: "name", href: "/admin/events/" + ev.id }, ev.name)),
+      eventLines(ev).map((line, i) => h("p", { key: i }, line)),
+    );
+  }
+
+  return h(
+    "details",
+    { class: "rail-context switcher" },
+    h(
+      "summary",
+      null,
+      // Name and dates both inside the summary: a closed `<details>` hides
+      // everything else, and the dates are what the card is for.
+      h(
+        "span",
+        { class: "head" },
+        dot,
+        h("span", { class: "name" }, ev.name),
+        h("span", { class: "caret", "aria-hidden": "true" }, "▾"),
+        h("span", { class: "sr-only" }, "Switch event"),
+      ),
+      eventLines(ev).map((line, i) => h("p", { key: i }, line)),
+    ),
+    h(
+      "div",
+      { class: "event-menu" },
+      h("p", { class: "rail-group-label" }, "Switch to"),
+      events.map((e) =>
+        h(
+          "span",
+          { key: e.id, class: "event-row" + (e.id === ev.id ? " current" : "") },
+          h(
+            "a",
+            { href: "/admin/events/" + e.id, "aria-current": e.id === ev.id ? "true" : null },
+            h("span", { class: "n" }, e.name),
+            h("span", { class: "s" }, e.status),
+          ),
+          h(
+            "a",
+            { class: "tab", href: "/admin/events/" + e.id, target: "_blank", rel: "noopener", title: "Open in a new tab" },
+            "↗",
+            h("span", { class: "sr-only" }, "Open " + e.name + " in a new tab"),
+          ),
+        ),
+      ),
+      h("a", { class: "all", href: "/admin/events" }, "All events"),
+    ),
+  );
+}
+
 function rail(active) {
   const ev = boot.event;
   const today = (boot.now || "").slice(0, 10);
@@ -336,17 +405,7 @@ function rail(active) {
             context.lines.map((line, i) => h("p", { key: i }, line)),
           )
         : ev
-          ? h(
-              "div",
-              { class: "rail-context" },
-              h(
-                "div",
-                { class: "head" },
-                running ? h("span", { class: "dot", "aria-hidden": "true" }) : null,
-                h("a", { class: "name", href: "/admin/events/" + ev.id }, ev.name),
-              ),
-              eventLines(ev).map((line, i) => h("p", { key: i }, line)),
-            )
+          ? eventSwitcher(ev, running)
           : null,
       h(
         "nav",

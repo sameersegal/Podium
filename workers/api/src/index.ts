@@ -9,7 +9,7 @@
  *             abandonment, confirmation-deadline expiry, `delivered`.
  */
 
-import { str } from "@podiumstack/data/db.js";
+import { str, type Row } from "@podiumstack/data/db.js";
 import type { Env } from "@podiumstack/data/context.js";
 import { DomainError } from "@podiumstack/domain/shared/errors.js";
 import { STALE_WRITE_MESSAGE } from "./http/concurrency.js";
@@ -24,6 +24,7 @@ import { runQueueBatch } from "./consumers/dispatch.js";
 import { runScheduled } from "./consumers/cron.js";
 import { page } from "./ui/layout.js";
 import { loadRailCounts } from "./ui/rail-counts.js";
+import { toEventRef } from "./ui/shell.js";
 import { escapeHtml, html, raw } from "./ui/html.js";
 
 export { ScheduleDurableObject } from "./durable/schedule.js";
@@ -156,13 +157,16 @@ async function attachRailCounts(req: Request, ctx: RequestContext, url: URL): Pr
   let eventId: string | null = parts[1] === "events" && parts[2]?.startsWith("evt_") ? parts[2] : null;
   try {
     const app = ctx.app();
-    if (!eventId) {
-      // `/admin` and the organization-wide screens open on the same event the
-      // landing page does — the most recent one — so the rail does not empty
-      // itself the moment you step out of an event.
-      const rows = await app.db.select<{ id: string }>("event", {}, { orderBy: "starts_on DESC", limit: 1 });
-      eventId = rows[0]?.id ?? null;
-    }
+    // Every event the switcher offers, newest first, and the one in context.
+    // One query answers both: the rail needs a list to switch between and a
+    // row to draw, and reading them separately would ask the same table twice.
+    const rows = await app.db.select<Row>("event", {}, { orderBy: "starts_on DESC", limit: 50 });
+    ctx.railEvents = rows.map(toEventRef);
+    // `/admin` and the organization-wide screens — settings included — open on
+    // the same event the landing page does, the most recent one, so the rail
+    // does not empty itself the moment you step out of an event.
+    ctx.railEvent = (eventId ? ctx.railEvents.find((e) => e.id === eventId) : ctx.railEvents[0]) ?? null;
+    eventId = ctx.railEvent?.id ?? null;
     if (!eventId) return;
     if (!ctx.isStaff({ event_id: eventId })) return;
     ctx.rail = await loadRailCounts(app, eventId, ctx.now);

@@ -70,6 +70,16 @@ export interface RequestContext {
   /** How many D1 statements this request has prepared so far. See `countingEnv`. */
   queries: QueryCounter;
   /**
+   * The event the rail is drawn around, and every event it can switch to.
+   *
+   * Loaded in the same seam as `rail`, and for the same reason: the rail is
+   * chrome. An organization-wide screen — settings, contacts, the team — still
+   * shows the event's own phases, because losing Sessions and Speakers the
+   * moment you open a webhook is losing the navigation, not scoping it.
+   */
+  railEvent?: import("../ui/shell.js").EventRef | null;
+  railEvents?: import("../ui/shell.js").EventRef[];
+  /**
    * `Organization.default_timezone` — the zone org-level screens render
    * instants in, where no event has narrowed it further (11, "Time": every
    * instant is displayed in a stated zone, never raw).

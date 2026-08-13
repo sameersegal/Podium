@@ -22,7 +22,7 @@
 import { str, type Row } from "@podiumstack/data/db.js";
 import { formatInZone } from "@podiumstack/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
-import type { SafeHtml } from "./html.js";
+import { html, raw, type SafeHtml } from "./html.js";
 import { page, type ConsoleChrome, type Crumb, type KeyHint, type NavItem, type RailGroup, type RailItem } from "./layout.js";
 import type { LiveOptions } from "./live.js";
 import type { RailCounts } from "./rail-counts.js";
@@ -95,8 +95,34 @@ export function isSettingsSection(active: string): boolean {
   return SETTINGS_SECTIONS.some((s) => s.key === active);
 }
 
-export function settingsNav(active: string): NavItem[] {
-  return SETTINGS_SECTIONS.map((s) => ({ href: s.href, label: s.label, current: active === s.key }));
+/**
+ * The settings area, as a column of its own between the rail and the form.
+ *
+ * These eleven screens are one area with eleven sections, so they need a
+ * navigation — but taking the rail for it cost the reader everything else.
+ * Opening a webhook should not remove Sessions, Speakers and the agenda from
+ * the screen; the event you are running does not stop existing because you
+ * went to look at an API key.
+ *
+ * So the rail stays the rail, and the sections become the second of three
+ * columns. Below `64rem` it collapses to a `<details>` above the form, the
+ * same pattern and the same reason as the rail's own drawer.
+ */
+function settingsShell(active: string, body: SafeHtml): SafeHtml {
+  const current = SETTINGS_SECTIONS.find((s) => s.key === active);
+  return html`<div class="settings-split">
+    <details class="settings-nav">
+      <summary><span class="sr-only">Settings section: </span>${current ? current.label : "Settings"}</summary>
+      <nav aria-label="Settings sections">
+        <p class="rail-group-label">Settings</p>
+        ${SETTINGS_SECTIONS.map(
+          (s) =>
+            html`<a href="${s.href}"${s.key === active ? raw(' aria-current="page"') : raw("")}>${s.label}</a>`,
+        )}
+      </nav>
+    </details>
+    <div class="settings-body">${body}</div>
+  </div>`;
 }
 
 /** Zero and null are different: a count of 0 is noise, so it is not drawn. */
@@ -124,14 +150,6 @@ function count(n: number | undefined, urgency: RailItem["urgency"] = "quiet"): P
  *   is worse than two honest labels.
  */
 export function adminRail(ev: EventRef | null, active: string, counts: RailCounts = {}): RailGroup[] {
-  // A settings section keeps the settings rail even while an event is loaded:
-  // these screens are organization-wide, and an event's phases would navigate
-  // the reader out of the area they are in.
-  if (isSettingsSection(active)) {
-    return [
-      { label: "Settings", items: SETTINGS_SECTIONS.map((s) => ({ href: s.href, label: s.label, current: active === s.key })) },
-    ];
-  }
   if (!ev) {
     return [
       {
@@ -297,32 +315,67 @@ export interface ShellOptions {
 }
 
 export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtml): SafeHtml {
-  // A settings screen is organization-wide even when an event is loaded, so it
-  // neither claims an event's phases nor names one in its breadcrumb.
-  const ev = isSettingsSection(opts.active ?? "") ? null : (opts.event ?? null);
-  const groups = markCurrent(ctx.url.pathname, adminRail(ev, opts.active ?? "", ctx.rail ?? {}), Boolean(opts.active));
+  const settings = isSettingsSection(opts.active ?? "");
+  // The rail is drawn around an event even on the organization-wide screens.
+  // A screen that names one wins; anything else falls back to the event the
+  // request already resolved for the rail's counts, so Sessions and Speakers
+  // do not vanish because the reader opened a webhook.
+  const ev = opts.event ?? ctx.railEvent ?? null;
+  // A settings screen is still organization-wide, so no event phase is current
+  // in the rail and the event does not lead the breadcrumb.
+  const groups = markCurrent(
+    ctx.url.pathname,
+    adminRail(ev, settings ? "" : (opts.active ?? ""), ctx.rail ?? {}),
+    settings || Boolean(opts.active),
+  );
   const crumbs: Crumb[] = opts.crumbs ?? [
-    ...(ev ? [{ label: ev.name, href: `/admin/events/${ev.id}` }] : [{ label: "Podium", href: "/admin" }]),
+    ...(settings
+      ? // "Settings / Settings" is what a naive prefix produces on the area's
+        // own landing screen, so the parent is dropped when the section is it.
+        opts.title === "Settings"
+        ? []
+        : [{ label: "Settings", href: "/admin/settings" }]
+      : ev
+        ? [{ label: ev.name, href: `/admin/events/${ev.id}` }]
+        : [{ label: "Podium", href: "/admin" }]),
     { label: opts.title },
   ];
   return page(
     {
       // The event is in the tab title too — admin and the portal are now two
       // open tabs, and "Proposals · Podium" twice over tells you nothing.
-      title: ev ? `${opts.title} · ${ev.name}` : opts.title,
+      title: !settings && ev ? `${opts.title} · ${ev.name}` : opts.title,
       surface: "admin",
       width: opts.width,
       flash: ctx.flash,
       console: {
         home: "/admin",
         context: ev
-          ? { name: ev.name, href: `/admin/events/${ev.id}`, lines: eventLines(ev, ctx.now), live: isRunning(ev, ctx.now) }
+          ? {
+              name: ev.name,
+              href: `/admin/events/${ev.id}`,
+              lines: eventLines(ev, ctx.now),
+              live: isRunning(ev, ctx.now),
+              // Every event the request already loaded for the rail. One event
+              // is not a choice, so the switcher only appears when there is
+              // something to switch to.
+              switchTo: (ctx.railEvents ?? []).map((e) => ({
+                id: e.id,
+                name: e.name,
+                status: e.status,
+                current: e.id === ev.id,
+              })),
+            }
           : null,
         groups,
+        // The footer names its own current item. Path matching is switched off
+        // for these screens (`markCurrent`'s `stated`), so an org-wide screen
+        // that did not say so lit nothing at all and the rail stopped answering
+        // "where am I".
         footer: railFooter(ctx, [
-          { href: "/admin/events", label: "All events" },
-          { href: "/admin/team", label: "Team" },
-          { href: "/admin/settings", label: "Settings", current: isSettingsSection(opts.active ?? "") || undefined },
+          { href: "/admin/events", label: "All events", current: opts.active === "events" || undefined },
+          { href: "/admin/team", label: "Team", current: opts.active === "team" || undefined },
+          { href: "/admin/settings", label: "Settings", current: settings || undefined },
         ]),
         crumbs,
         status: opts.status ?? null,
@@ -330,7 +383,7 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
       },
       live: opts.live ? { eventId: opts.event?.id ?? null, ...opts.live } : undefined,
     },
-    body,
+    settings ? settingsShell(opts.active ?? "", body) : body,
   );
 }
 
