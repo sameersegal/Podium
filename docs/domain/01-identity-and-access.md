@@ -445,6 +445,15 @@ stateDiagram-v2
   must be a path within this deployment; anything else is replaced by the default
   destination for that person. Sign-in is the request most worth stealing and the page most
   worth impersonating, and both properties exist to stop exactly that.
+- **INV-01-19** Setting the first credential on an existing `Person` requires proof that the
+  requester holds that address — an `Invitation` token (INV-01-7), or a verification the
+  deployment sends to it. Knowing an email address is never sufficient. A `Person` with no
+  `password` `AuthIdentity` is the ordinary state of everyone the organization has named but
+  not yet heard from — placeholder co-speakers, invited reviewers, imported contacts — and
+  several of them hold role grants, so a self-service claim over that state is a takeover of
+  whatever they hold. Sign-up therefore creates accounts; it never adopts one, and the
+  refusal is worded exactly as a wrong password is, so that it is not the sharper
+  account-existence oracle of the two.
 
 ## Emitted events
 

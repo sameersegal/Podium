@@ -381,7 +381,15 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
       if (!ctx.canWrite(capability, target)) throw denial(ctx, capability);
     },
     requireRead(capability, target) {
-      if (!ctx.can(capability, target)) throw denial(ctx, capability);
+      // INV-11-16. `own` authorises a *record* — "their own proposal", "their own session".
+      // Whether the caller owns it can only be decided when the target names
+      // one, so on a collection target (`{event_id}` alone, which is what every
+      // list endpoint passes) an `own` grade would authorise the entire
+      // collection instead of one row. That is how a speaker came to read every
+      // proposal in the event. A record-scoped target keeps the old behaviour,
+      // which is what the portal's own-record reads depend on.
+      const ok = recordScoped(target) ? ctx.can(capability, target) : ctx.canRead(capability, target);
+      if (!ok) throw denial(ctx, capability);
     },
     requirePerson() {
       if (!person) throw unauthorized("Sign in to continue.");
@@ -392,7 +400,13 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
     },
     includePii(target) {
       if (apiScopes) return apiScopes.includes("pii:read");
-      return accessFor(principals, "pii.read", { event_id: ctx.eventId, ...target }, now) !== "none";
+      const access = accessFor(principals, "pii.read", { event_id: ctx.eventId, ...target }, now);
+      // INV-11-16, same rule as `requireRead`. `pii.read` grades `speaker` as `own` — a
+      // speaker may see their own contact details — but on a collection target
+      // that resolved to "every address on the event", which handed a speaker
+      // more than a reviewer, who holds no `pii.read` grade at all.
+      if (access === "own") return recordScoped(target);
+      return access !== "none";
     },
   };
   return ctx;
@@ -443,6 +457,16 @@ const CAPABILITY_PHRASE: Record<Capability, string> = {
   "sync.resolve_conflict": "resolve a sync conflict",
   "audit.read": "read the audit log",
 };
+
+/**
+ * Whether a target names one record rather than a collection. `event_id` and
+ * `track_id` scope a set; the rest identify a row, which is the only thing an
+ * `own` grade can be evaluated against.
+ */
+function recordScoped(target?: Target): boolean {
+  if (!target) return false;
+  return Boolean(target.proposal_id || target.session_id || target.sponsor_id || target.person_id);
+}
 
 function denial(ctx: RequestContext, capability: Capability) {
   if (!ctx.person && !ctx.apiKeyId) return unauthorized("Sign in to continue.");
