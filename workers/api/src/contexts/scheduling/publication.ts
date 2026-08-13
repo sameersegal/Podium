@@ -96,6 +96,10 @@ function assetUrl(assetId: string | null): string | null {
 export async function buildSnapshot(
   app: AppContext,
   eventId: string,
+  // `facts` lets a caller that has already loaded them say so — the same
+  // `preloaded` affordance `recomputeConflicts` has, and for the same reason:
+  // the fact set is two rounds of queries and nothing about it changes between
+  // two reads in one request.
   opts: {
     scope?: PublishScope | null;
     overrideSessionIds?: Set<string>;
@@ -106,7 +110,7 @@ export async function buildSnapshot(
      * The publication diff needs the verdicts and nothing else: which sessions
      * would go out, and their times, which are their placements'. Assembling
      * the payload as well — speakers, profiles, sponsors, tiers, assets, tracks,
-     * formats, the venue — is ten more statements whose result it discards.
+     * formats, the venue — is nine more statements whose result it discards.
      *
      * It is an early return from the *same* loop rather than a second
      * implementation, so the publishability rule (INV-08-4) cannot differ
@@ -115,9 +119,11 @@ export async function buildSnapshot(
     verdictsOnly?: boolean;
   } = {},
 ): Promise<SnapshotBuild> {
-  const facts = opts.facts ?? (await loadScheduleFacts(app, eventId));
+  const [facts, conflicts] = await Promise.all([
+    opts.facts ? Promise.resolve(opts.facts) : loadScheduleFacts(app, eventId),
+    listConflicts(app, eventId),
+  ]);
   const event = facts.event;
-  const conflicts = await listConflicts(app, eventId);
   const errorCodes = errorCodesBySession(conflicts);
   const overrides = opts.overrideSessionIds ?? new Set<string>();
 
@@ -126,29 +132,27 @@ export async function buildSnapshot(
   const dayRows = facts.dayRows.filter((d) => !opts.scope?.event_day_ids?.length || opts.scope.event_day_ids.includes(str(d.id)));
   const dayIds = new Set(dayRows.map((d) => str(d.id)));
 
+  // One round, not two: `sessionIds` is the only thing the second half needed
+  // from the first, and it comes from the facts, which are already in hand.
+  // Skipped entirely when only the verdicts were asked for.
   const lean = opts.verdictsOnly === true;
-  const [trackRows, formatRows, venueRow, assetRows] = lean
-    ? [[] as Row[], [] as Row[], null, [] as Row[]]
+  const sessionIds = facts.sessionRows.map((s) => str(s.id));
+  const [trackRows, formatRows, venueRow, assetRows, speakerRows, sessionAssetRows, sponsorshipRows, tierRows, sponsorRows] = lean
+    ? [[] as Row[], [] as Row[], null, [] as Row[], [] as Row[], [] as Row[], [] as Row[], [] as Row[], [] as Row[]]
     : await Promise.all([
         app.db.select<Row>("track", { event_id: eventId }, { orderBy: "sort_order, name" }),
         app.db.select<Row>("session_format", { event_id: eventId }, { orderBy: "sort_order, name" }),
         event.venue_id ? app.db.byId<Row>("venue", event.venue_id) : Promise.resolve(null),
         app.db.select<Row>("asset", {}),
-      ]);
-  const assetById = new Map(assetRows.map((a) => [str(a.id), a]));
-  const trackById = new Map(trackRows.map((t) => [str(t.id), t]));
-  const formatById = new Map(formatRows.map((f) => [str(f.id), f]));
-
-  const sessionIds = facts.sessionRows.map((s) => str(s.id));
-  const [speakerRows, sessionAssetRows, sponsorshipRows, tierRows, sponsorRows] = lean
-    ? [[] as Row[], [] as Row[], [] as Row[], [] as Row[], [] as Row[]]
-    : await Promise.all([
         sessionIds.length ? app.db.select<Row>("session_speaker", { session_id: sessionIds }, { orderBy: "sort_order" }) : Promise.resolve([] as Row[]),
         sessionIds.length ? app.db.select<Row>("session_asset", { session_id: sessionIds }) : Promise.resolve([] as Row[]),
         app.db.select<Row>("sponsorship", { event_id: eventId }),
         app.db.select<Row>("sponsorship_tier", { event_id: eventId }),
         app.db.select<Row>("sponsor", {}),
       ]);
+  const assetById = new Map(assetRows.map((a) => [str(a.id), a]));
+  const trackById = new Map(trackRows.map((t) => [str(t.id), t]));
+  const formatById = new Map(formatRows.map((f) => [str(f.id), f]));
   const sponsorById = new Map(sponsorRows.map((s) => [str(s.id), s]));
   const tierById = new Map(tierRows.map((t) => [str(t.id), t]));
   const sponsorshipBySponsor = new Map(sponsorshipRows.map((s) => [str(s.sponsor_id), s]));
@@ -762,13 +766,23 @@ export async function snapshotById(env: Env, orgId: string, publicationId: strin
  * publication so the staleness is impossible to miss.
  */
 export async function pendingChanges(app: AppContext, eventId: string): Promise<PendingPublicationChanges> {
-  const live = await liveRow(app, eventId);
-  const liveSessions = live ? await snapshotSessions(app, str(live.id)) : null;
-  // One read of the schedule, shared. This used to load the facts, hand them to
-  // `buildSnapshot`, and then load them again to build the working set — the
-  // same twenty statements twice, on the hottest read model in admin.
-  const facts = await loadScheduleFacts(app, eventId);
-  const build = await buildSnapshot(app, eventId, { facts, verdictsOnly: true });
+  // The schedule facts are loaded once and handed to the snapshot build, rather
+  // than each of them loading their own. This function used to read the whole
+  // fact set twice — once here, once inside `buildSnapshot` — and wait for the
+  // live publication before starting either, which is four sequential rounds of
+  // queries for a diff of one event. It is on the event dashboard as a single
+  // count, where it was the slowest thing on the screen by a factor of three.
+  //
+  // `verdictsOnly` is the other half of the same saving: this needs to know
+  // *which* sessions would publish, not what the payload would say about them,
+  // so the build stops once it has decided.
+  const [facts, live] = await Promise.all([loadScheduleFacts(app, eventId), liveRow(app, eventId)]);
+  const [liveSessions, build] = await Promise.all([
+    live ? snapshotSessions(app, str(live.id)) : Promise.resolve(null),
+    buildSnapshot(app, eventId, { facts, verdictsOnly: true }),
+  ]);
+  // Named rather than read off `build.sessions`, which `verdictsOnly` leaves
+  // empty — the answer must not depend on whether the payload was assembled.
   const publishableIds = new Set(build.publishable_session_ids);
 
   const placementBySession = new Map(facts.placements.map((p) => [p.session_id, p]));

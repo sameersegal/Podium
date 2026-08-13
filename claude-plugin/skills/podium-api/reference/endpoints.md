@@ -53,7 +53,7 @@ Paths shown with `:name` take an id in that position.
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/console/bootstrap` | `session` | `event` | — |  | workers/api/src/surfaces/console.ts:256 |
+| `GET /v1/console/bootstrap` | `session` | `path` `event` | — |  | workers/api/src/surfaces/console.ts:308 |
 
 ## content
 
@@ -90,7 +90,7 @@ Paths shown with `:name` take an id in that position.
 | `POST /v1/events/:eventId/archive` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2034 |
 | `POST /v1/events/:eventId/auto-place` | `schedule:publish` | — | `track_ids` `event_day_ids` `strategy` |  | workers/api/src/contexts/scheduling/api-routes.ts:229 |
 | `POST /v1/events/:eventId/clone` | `events:read` `events:write` | — | `name` `slug` `edition` `tagline` `description` `timezone` `starts_on` `ends_on` `mode` `website_url` |  | workers/api/src/contexts/event-config/routes.ts:1984 |
-| `GET /v1/events/:eventId/dashboard` | `events:read` | `sections` | — |  | workers/api/src/surfaces/console.ts:272 |
+| `GET /v1/events/:eventId/dashboard` | `events:read` | `sections` | — |  | workers/api/src/surfaces/console.ts:336 |
 | `GET /v1/events/:eventId/days` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2049 |
 | `POST /v1/events/:eventId/days` | `events:write` | — | `date` `label` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2055 |
 | `GET /v1/events/:eventId/formats` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2143 |
@@ -199,12 +199,12 @@ Paths shown with `:name` take an id in that position.
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/proposals` | `proposals:read` | `event_id` `q` `sort` `status` `track_id` `format_id` `origin` `cfp_id` | — | · | workers/api/src/contexts/submissions/routes.ts:797 |
-| `POST /v1/proposals` | `proposals:read` | — | `cfp_id` `submitter_person_id` `entitlement_id` `sponsor_id` `origin` | · | workers/api/src/contexts/submissions/routes.ts:853 |
-| `GET /v1/proposals/:id` | `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:809 |
-| `PATCH /v1/proposals/:id` | `proposals:write` | — | `reason` `keywords` `title` `abstract` `description` `session_format_id` `requested_duration_minutes` `track_id` `assigned_track_id` `audience_level` `language` `recording_consent` `recording_conditions` `coi_disclosure` | · | workers/api/src/contexts/submissions/routes.ts:881 |
-| `POST /v1/proposals/:id/submit` | `session` `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:894 |
-| `POST /v1/proposals/:id/withdraw` | `proposals:read` | — | `reason` | · | workers/api/src/contexts/submissions/routes.ts:910 |
+| `GET /v1/proposals` | `proposals:read` | `event_id` `q` `sort` `fields` `status` `track_id` `format_id` `origin` `cfp_id` | — | · | workers/api/src/contexts/submissions/routes.ts:798 |
+| `POST /v1/proposals` | `proposals:read` | — | `cfp_id` `submitter_person_id` `entitlement_id` `sponsor_id` `origin` | · | workers/api/src/contexts/submissions/routes.ts:860 |
+| `GET /v1/proposals/:id` | `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:816 |
+| `PATCH /v1/proposals/:id` | `proposals:write` | — | `reason` `keywords` `title` `abstract` `description` `session_format_id` `requested_duration_minutes` `track_id` `assigned_track_id` `audience_level` `language` `recording_consent` `recording_conditions` `coi_disclosure` | · | workers/api/src/contexts/submissions/routes.ts:888 |
+| `POST /v1/proposals/:id/submit` | `session` `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:901 |
+| `POST /v1/proposals/:id/withdraw` | `proposals:read` | — | `reason` | · | workers/api/src/contexts/submissions/routes.ts:917 |
 | `GET /v1/proposals/:proposalId/score` | `reviews:read` | `round_id` | — |  | workers/api/src/contexts/review/routes.ts:1658 |
 
 ## public

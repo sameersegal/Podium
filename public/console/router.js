@@ -46,6 +46,22 @@ export const location = {
   query: new URLSearchParams(window.location.search),
 };
 
+/**
+ * Called after a same-document navigation lands on a new path — not after a
+ * query-string rewrite, which is the same screen with a different filter on it.
+ * The shell listens so the event in context can follow the route.
+ */
+const arrivals = new Set();
+
+export function onNavigate(handler) {
+  arrivals.add(handler);
+  return () => arrivals.delete(handler);
+}
+
+function announce() {
+  for (const handler of [...arrivals]) handler(location.pathname);
+}
+
 function sync() {
   location.pathname = window.location.pathname;
   location.search = window.location.search;
@@ -67,6 +83,7 @@ export function navigate(href, options) {
   else window.history.pushState({}, "", url.href);
   sync();
   if (!opts.keepScroll) window.scrollTo(0, 0);
+  announce();
   redraw();
 }
 
@@ -88,6 +105,7 @@ export function setQuery(patch, options) {
 export function start() {
   window.addEventListener("popstate", () => {
     sync();
+    announce();
     redraw();
   });
 

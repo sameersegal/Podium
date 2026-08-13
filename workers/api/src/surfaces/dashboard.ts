@@ -72,29 +72,36 @@ async function one(app: AppContext, sql: string, params: unknown[]): Promise<num
   return rows[0] ? num(rows[0].n) : 0;
 }
 
-/** Reads one status out of a `GROUP BY status` result. Absent means zero. */
-function tally(rows: { status: string; n: number }[]): (status: string) => number {
-  const map = new Map(rows.map((r) => [str(r.status), num(r.n)]));
-  return (status: string) => map.get(status) ?? 0;
+/**
+ * `GROUP BY` rather than one query per value.
+ *
+ * Eight `COUNT(*) WHERE status = …` over the same table is eight round trips to
+ * count one table, and the version that asks per call or per round is worse
+ * still: it grows with the event. This turns a grouped result into the lookup
+ * the caller wanted, defaulting to zero for a group with no rows — which the
+ * per-value queries returned for free and a `GROUP BY` silently omits.
+ */
+async function tally(app: AppContext, sql: string, params: unknown[]): Promise<Record<string, number>> {
+  const rows = await app.db.raw<{ k: string; n: number }>(sql, params);
+  const out: Record<string, number> = {};
+  for (const row of rows) out[str(row.k)] = num(row.n);
+  return out;
 }
 
-/** Adds up the statuses a partition covers, from the same grouped result. */
-function sum(rows: { status: string; n: number }[], keep: (status: string) => boolean): number {
-  return rows.reduce((total, r) => (keep(str(r.status)) ? total + num(r.n) : total), 0);
-}
+const at = (counts: Record<string, number>, key: string): number => counts[key] ?? 0;
 
 /**
  * Which parts of the read model a caller actually renders.
  *
- * `today` is `/admin`: the funnel, the five queues that need a person, one
- * round, and the deadlines. It renders no submission chart, no per-call table,
- * no sponsorship totals and no activation checklist — so it should not pay for
- * them. "Ship the fields the widget renders" (implementer.md, G) is a rule
- * about queries as much as about payloads.
+ * `today` is `/admin`: the funnel, the queues that need a person, the open
+ * round, and the deadlines. It draws no submission chart, no per-call table, no
+ * sponsorship totals and no activation checklist — so it should not pay for
+ * their queries. "Ship the fields the widget renders" (implementer.md, G) is a
+ * rule about queries as much as about payloads.
  *
- * The skipped sections come back empty rather than absent, so the shape is one
- * type and a caller that asks for `today` and then reads `sponsorship` gets
- * zeroes rather than a crash. A screen that needs a section asks for `all`.
+ * The skipped sections come back empty rather than absent, so there is one type
+ * and a caller that asks for `today` and then reads `sponsorship` gets zeroes
+ * rather than a crash.
  */
 export type DashboardSections = "today" | "all";
 
@@ -109,17 +116,37 @@ export async function eventDashboard(
   if (!event) throw new Error("no such event");
   const base = `/admin/events/${eventId}`;
 
-  // One statement per table, grouped, rather than one per status. Eleven
-  // `COUNT(*) … WHERE status = ?` round trips answered the same question as a
-  // single `GROUP BY status`, and this read model is on the console's hottest
-  // route — every dashboard view paid for all of them.
-  const [byStatus, sessionsByStatus, placed] = await Promise.all([
-    app.db.raw<{ status: string; n: number }>(
-      "SELECT status, COUNT(*) AS n FROM proposal WHERE event_id = ? AND deleted_at IS NULL GROUP BY status",
+  /**
+   * Everything below reads; nothing depends on anything else here except
+   * through `event`, which is already in hand. So it all goes out at once, and
+   * each group inside is a `GROUP BY` rather than a query per value — this read
+   * was thirty-odd sequential round trips, several of them per call and per
+   * round, which is a shape that gets slower as the event gets bigger.
+   */
+  const [
+    proposalsByStatus,
+    sessionsByStatus,
+    placed,
+    byDay,
+    calls,
+    review,
+    decisionCounts,
+    onboardingCounts,
+    taskByStatus,
+    conflictsBySeverity,
+    pending,
+    sponsorshipCounts,
+    check,
+    nextConfirmation,
+  ] = await Promise.all([
+    tally(
+      app,
+      "SELECT status AS k, COUNT(*) AS n FROM proposal WHERE event_id = ? AND deleted_at IS NULL GROUP BY status",
       [eventId],
     ),
-    app.db.raw<{ status: string; n: number }>(
-      "SELECT status, COUNT(*) AS n FROM session WHERE event_id = ? AND deleted_at IS NULL GROUP BY status",
+    tally(
+      app,
+      "SELECT status AS k, COUNT(*) AS n FROM session WHERE event_id = ? AND deleted_at IS NULL GROUP BY status",
       [eventId],
     ),
     one(
@@ -129,23 +156,63 @@ export async function eventDashboard(
         WHERE p.event_id = ? AND s.deleted_at IS NULL AND s.status != 'cancelled'`,
       [eventId],
     ),
+    /** Thirty days of submission volume — the only reliable read on whether a call is landing. */
+    full
+      ? app.db.raw<{ date: string; n: number }>(
+          `SELECT substr(submitted_at, 1, 10) AS date, COUNT(*) AS n
+             FROM proposal
+            WHERE event_id = ? AND deleted_at IS NULL AND submitted_at IS NOT NULL AND submitted_at >= ?
+            GROUP BY date ORDER BY date`,
+          [eventId, isoDaysAgo(now, 30)],
+        )
+      : Promise.resolve([] as { date: string; n: number }[]),
+    callsWithSubmissions(app, eventId, event, full),
+    reviewProgress(app, eventId, now),
+    decisionsPending(app, eventId, now),
+    tally(
+      app,
+      `SELECT k, COUNT(*) AS n FROM (
+         SELECT 'open' AS k FROM task_instance WHERE event_id = ?1 AND status IN ${OPEN_TASK_STATES}
+         UNION ALL
+         SELECT 'blocking' FROM task_instance WHERE event_id = ?1 AND is_blocking = 1 AND status IN ${OPEN_TASK_STATES}
+         UNION ALL
+         SELECT 'overdue' FROM task_instance WHERE event_id = ?1 AND due_at IS NOT NULL AND due_at < ?2 AND status IN ${OPEN_TASK_STATES}
+         UNION ALL
+         SELECT 'awaiting_review' FROM task_instance WHERE event_id = ?1 AND status = 'submitted' AND requires_review = 1
+       ) GROUP BY k`,
+      [eventId, now],
+    ),
+    app.db.raw<{ status: string; n: number }>(
+      "SELECT status, COUNT(*) AS n FROM task_instance WHERE event_id = ? GROUP BY status",
+      [eventId],
+    ),
+    tally(
+      app,
+      `SELECT severity AS k, COUNT(*) AS n FROM schedule_conflict
+        WHERE event_id = ? AND acknowledged_reason IS NULL GROUP BY severity`,
+      [eventId],
+    ),
+    pendingChanges(app, eventId),
+    full ? sponsorshipTotals(app, eventId, now) : Promise.resolve({} as Record<string, number>),
+    // A dozen reads of the event's configuration — days, rooms, formats,
+    // tracks, sessions — and Today does not draw the checklist they answer.
+    full ? activationCheck(app, eventId) : Promise.resolve({ ready: true, blockers: [] as string[] }),
+    app.db.raw<{ at: string }>(
+      `SELECT MIN(confirmation_deadline) AS at FROM proposal
+        WHERE event_id = ? AND deleted_at IS NULL AND status = 'accepted' AND confirmation_deadline > ?`,
+      [eventId, now],
+    ),
   ]);
 
-  const proposalsIn = tally(byStatus);
-  const sessionsIn = tally(sessionsByStatus);
-  const drafts = proposalsIn("draft");
-  const submitted = proposalsIn("submitted");
-  const inReview = proposalsIn("in_review");
-  const changesRequested = proposalsIn("changes_requested");
-  const accepted = proposalsIn("accepted");
-  const waitlisted = proposalsIn("waitlisted");
-  const rejected = proposalsIn("rejected");
-  const withdrawn = proposalsIn("withdrawn");
-  // "Cancelled is not a session any more" and "confirmed onwards" are the two
-  // partitions every caller wants, so they are derived here rather than asked
-  // for separately.
-  const sessions = sum(sessionsByStatus, (st) => st !== "cancelled");
-  const confirmed = sum(sessionsByStatus, (st) => ["confirmed", "scheduled", "published", "delivered"].includes(st));
+  const accepted = at(proposalsByStatus, "accepted");
+  const waitlisted = at(proposalsByStatus, "waitlisted");
+  const rejected = at(proposalsByStatus, "rejected");
+  const changesRequested = at(proposalsByStatus, "changes_requested");
+  const withdrawn = at(proposalsByStatus, "withdrawn");
+  // "Sessions" is everything not cancelled; "confirmed" is the four states that
+  // mean a session is really happening. Both fall out of one grouped count.
+  const sessions = Object.entries(sessionsByStatus).reduce((total, [status, n]) => (status === "cancelled" ? total : total + n), 0);
+  const confirmed = ["confirmed", "scheduled", "published", "delivered"].reduce((total, s) => total + at(sessionsByStatus, s), 0);
 
   /**
    * The funnel is the shape of the round: how many came in, how many are being
@@ -154,245 +221,29 @@ export async function eventDashboard(
    * proposals out of it.
    */
   const funnel = [
-    { key: "draft", label: "Drafts", count: drafts, href: `${base}/proposals?status=draft` },
-    { key: "submitted", label: "Awaiting review", count: submitted, href: `${base}/proposals?status=submitted` },
-    { key: "in_review", label: "In review", count: inReview, href: `${base}/review` },
+    { key: "draft", label: "Drafts", count: at(proposalsByStatus, "draft"), href: `${base}/proposals?status=draft` },
+    { key: "submitted", label: "Awaiting review", count: at(proposalsByStatus, "submitted"), href: `${base}/proposals?status=submitted` },
+    { key: "in_review", label: "In review", count: at(proposalsByStatus, "in_review"), href: `${base}/review` },
     { key: "accepted", label: "Accepted", count: accepted, href: `${base}/decisions` },
     { key: "confirmed", label: "Confirmed sessions", count: confirmed, href: `${base}/sessions` },
     { key: "placed", label: "On the schedule", count: placed, href: `${base}/schedule` },
   ];
 
-  /** Thirty days of submission volume — the only reliable read on whether a call is landing. */
-  const byDay = !full ? [] : await app.db.raw<{ date: string; n: number }>(
-    `SELECT substr(submitted_at, 1, 10) AS date, COUNT(*) AS n
-       FROM proposal
-      WHERE event_id = ? AND deleted_at IS NULL AND submitted_at IS NOT NULL AND submitted_at >= ?
-      GROUP BY date ORDER BY date`,
-    [eventId, isoDaysAgo(now, 30)],
-  );
-
-  // The deadline list needs the calls' close times whatever the caller asked
-  // for, so the rows are always read; only the per-call submission counts and
-  // derived statuses are skipped.
-  const cfpRows = await app.db.select<Row>("call_for_proposals", { event_id: eventId }, { orderBy: "closes_at" });
-  // One grouped count for every call, not one per call.
-  const submissionRows = full && cfpRows.length
-    ? await app.db.raw<{ cfp_id: string; n: number }>(
-        `SELECT cfp_id, COUNT(*) AS n FROM proposal
-          WHERE event_id = ? AND deleted_at IS NULL AND status != 'draft'
-          GROUP BY cfp_id`,
-        [eventId],
-      )
-    : [];
-  const submissionsByCfp = new Map(submissionRows.map((r) => [str(r.cfp_id), num(r.n)]));
-  const cfps = !full ? [] : await Promise.all(
-    cfpRows.map(async (c) => ({
-      id: str(c.id),
-      name: str(c.name),
-      status: await derivedCfpStatus(app, c, event),
-      closes_at: str(c.closes_at),
-      submissions: submissionsByCfp.get(str(c.id)) ?? 0,
-    })),
-  );
-
-  /* review ------------------------------------------------------------------ */
-
-  const roundRows = await app.db.select<Row>("review_round", { event_id: eventId }, { orderBy: "sequence" });
-
-  // Four statements per round became two for all of them. The old shape was a
-  // textbook N+1: a chair with six rounds paid twenty-four round trips to fill
-  // in one card. Both queries are grouped by round, so the cost is flat in the
-  // number of rounds.
-  const [assignmentRows, quorumRows] = roundRows.length
-    ? await Promise.all([
-        app.db.raw<{ round_id: string; n: number; submitted: number; declined: number }>(
-          `SELECT round_id,
-                  COUNT(*)                                                AS n,
-                  SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END)   AS submitted,
-                  SUM(CASE WHEN status = 'declined'  THEN 1 ELSE 0 END)   AS declined
-             FROM review_assignment
-            WHERE round_id IN (SELECT id FROM review_round WHERE event_id = ?)
-            GROUP BY round_id`,
-          [eventId],
-        ),
-        // A proposal short of its round's target is one the committee cannot
-        // decide yet (INV-05-11), which is the number a chair is looking for.
-        // The target is joined from the round rather than bound per round, so
-        // every round's shortfall comes back in one pass.
-        app.db.raw<{ round_id: string; n: number }>(
-          `SELECT round_id, COUNT(*) AS n FROM (
-             SELECT a.round_id AS round_id, a.proposal_id
-               FROM review_assignment a
-               JOIN review_round r ON r.id = a.round_id
-              WHERE r.event_id = ?
-              GROUP BY a.round_id, a.proposal_id
-             HAVING SUM(CASE WHEN a.status = 'submitted' THEN 1 ELSE 0 END)
-                    < MAX(COALESCE(NULLIF(r.target_reviews_per_proposal, 0), 1))
-           )
-           GROUP BY round_id`,
-          [eventId],
-        ),
-      ])
-    : [[], []];
-
-  const assignmentsByRound = new Map(assignmentRows.map((r) => [str(r.round_id), r]));
-  const quorumByRound = new Map(quorumRows.map((r) => [str(r.round_id), num(r.n)]));
-
-  const rounds = roundRows.map((r) => {
-    const roundId = str(r.id);
-    const stats = assignmentsByRound.get(roundId);
-    return {
-      id: roundId,
-      name: str(r.name),
-      status: str(r.status),
-      target: num(r.target_reviews_per_proposal, 1) || 1,
-      assignments: stats ? num(stats.n) : 0,
-      submitted: stats ? num(stats.submitted) : 0,
-      declined: stats ? num(stats.declined) : 0,
-      below_quorum: quorumByRound.get(roundId) ?? 0,
-    };
-  });
-
-  /**
-   * Who is holding the round up. Named rather than counted, because "eleven
-   * reviews outstanding" is not actionable and "Priya has eleven, four overdue"
-   * is a message someone can send.
-   */
-  const behindRows = await app.db.raw<{ person_id: string; name: string; outstanding: number; overdue: number }>(
-    `SELECT a.reviewer_person_id AS person_id,
-            COALESCE(pe.display_name, pe.full_name) AS name,
-            COUNT(*) AS outstanding,
-            SUM(CASE WHEN a.due_at IS NOT NULL AND a.due_at < ? THEN 1 ELSE 0 END) AS overdue
-       FROM review_assignment a
-       JOIN review_round r ON r.id = a.round_id
-       JOIN person pe ON pe.id = a.reviewer_person_id
-      WHERE r.event_id = ? AND r.status = 'open' AND a.status IN ('assigned','in_progress')
-      GROUP BY a.reviewer_person_id, name
-      ORDER BY overdue DESC, outstanding DESC
-      LIMIT 8`,
-    [now, eventId],
-  );
-
-  /* decisions --------------------------------------------------------------- */
-
-  const [provisional, awaitingConfirmation, confirmationOverdue] = await Promise.all([
-    // R5 — a decision is provisional until it is explicitly published, and the
-    // gap between the two is the "saved a dropdown, emailed 400 rejections"
-    // failure this number exists to make visible.
-    one(
-      app,
-      `SELECT COUNT(*) AS n FROM decision d JOIN proposal p ON p.id = d.proposal_id
-        WHERE p.event_id = ? AND d.status = 'provisional'`,
-      [eventId],
-    ),
-    one(
-      app,
-      `SELECT COUNT(*) AS n FROM session
-        WHERE event_id = ? AND deleted_at IS NULL AND status = 'pending_confirmation'`,
-      [eventId],
-    ),
-    one(
-      app,
-      `SELECT COUNT(*) AS n FROM proposal
-        WHERE event_id = ? AND deleted_at IS NULL AND status = 'accepted'
-          AND confirmation_deadline IS NOT NULL AND confirmation_deadline < ?
-          AND session_id IN (SELECT id FROM session WHERE status = 'pending_confirmation')`,
-      [eventId, now],
-    ),
-  ]);
-
-  /* onboarding -------------------------------------------------------------- */
-
-  // One pass over `task_instance`, with the four partitions as conditional
-  // sums. They are four questions about the same rows, and asking each one
-  // separately was four scans of the same index.
-  const taskRows = await app.db.raw<{ status: string; n: number; blocking: number; overdue: number; awaiting: number }>(
-    `SELECT status,
-            COUNT(*)                                                                     AS n,
-            SUM(CASE WHEN is_blocking = 1 THEN 1 ELSE 0 END)                             AS blocking,
-            SUM(CASE WHEN due_at IS NOT NULL AND due_at < ? THEN 1 ELSE 0 END)            AS overdue,
-            SUM(CASE WHEN requires_review = 1 THEN 1 ELSE 0 END)                          AS awaiting
-       FROM task_instance
-      WHERE event_id = ?
-      GROUP BY status`,
-    [now, eventId],
-  );
-  const isOpenTask = (status: string) =>
-    ["blocked", "not_started", "in_progress", "submitted", "changes_requested"].includes(status);
-  const openTasks = taskRows.reduce((t, r) => (isOpenTask(str(r.status)) ? t + num(r.n) : t), 0);
-  const blockingOpen = taskRows.reduce((t, r) => (isOpenTask(str(r.status)) ? t + num(r.blocking) : t), 0);
-  const overdueTasks = taskRows.reduce((t, r) => (isOpenTask(str(r.status)) ? t + num(r.overdue) : t), 0);
-  const awaitingReview = taskRows.reduce((t, r) => (str(r.status) === "submitted" ? t + num(r.awaiting) : t), 0);
-  const taskByStatus = taskRows.map((r) => ({ status: str(r.status), n: num(r.n) }));
-
-  /* schedule ---------------------------------------------------------------- */
-
-  const conflictRows = await app.db.raw<{ severity: string; n: number }>(
-    `SELECT severity, COUNT(*) AS n FROM schedule_conflict
-      WHERE event_id = ? AND acknowledged_reason IS NULL GROUP BY severity`,
-    [eventId],
-  );
-  const conflictsBy = tally(conflictRows.map((r) => ({ status: str(r.severity), n: num(r.n) })));
-  const conflictErrors = conflictsBy("error");
-  const conflictWarnings = conflictsBy("warning");
-
-  const pending = await pendingChanges(app, eventId);
-
-  /* sponsorship ------------------------------------------------------------- */
-
-  // Four counts over the same two joined tables, in one statement.
-  const sponsorRows = !full ? [] : await app.db.raw<{ sponsorships: number; granted: number; consumed: number; holds: number }>(
-    `SELECT
-       (SELECT COUNT(*) FROM sponsorship WHERE event_id = ? AND status != 'cancelled')             AS sponsorships,
-       (SELECT COALESCE(SUM(e.quantity), 0) FROM entitlement e
-          JOIN sponsorship sp ON sp.id = e.sponsorship_id
-         WHERE sp.event_id = ? AND sp.status != 'cancelled'
-           AND e.entitlement_type IN ('session_slot','workshop_slot','lightning_slot','keynote_slot')) AS granted,
-       -- \`consumed_count\` is derived (R8) — counted from the proposals that hold
-       -- the entitlement, never from a stored counter, because a sponsor losing
-       -- a slot they paid for is what drift costs here.
-       (SELECT COUNT(*) FROM proposal p
-          JOIN entitlement e ON e.id = p.entitlement_id
-          JOIN sponsorship sp ON sp.id = e.sponsorship_id
-         WHERE sp.event_id = ? AND p.deleted_at IS NULL
-           AND p.status NOT IN ('withdrawn','rejected','expired'))                                 AS consumed,
-       (SELECT COUNT(*) FROM entitlement e
-          JOIN sponsorship sp ON sp.id = e.sponsorship_id
-         WHERE sp.event_id = ? AND e.expires_at IS NOT NULL AND e.expires_at < ?)                  AS holds`,
-    // Positional `?` throughout, matching every other raw query here — D1
-    // binds by position, and one statement that binds by name is one
-    // somebody copies wrong.
-    [eventId, eventId, eventId, eventId, isoDaysAhead(now, 14)],
-  );
-  const sponsorships = num(sponsorRows[0]?.sponsorships);
-  const granted = num(sponsorRows[0]?.granted);
-  const consumed = num(sponsorRows[0]?.consumed);
-  const holdsExpiring = num(sponsorRows[0]?.holds);
-
-  // The activation checklist is a dozen reads of the event's configuration —
-  // days, rooms, formats, tracks, sessions — and Today does not draw it.
-  const check = full ? await activationCheck(app, eventId) : { ready: true, blockers: [] as string[] };
-
   /* deadlines --------------------------------------------------------------- */
 
   const deadlines: DashboardDeadline[] = [];
-  for (const c of cfpRows) {
+  for (const c of calls.rows) {
     const closes = strOrNull(c.closes_at);
     if (closes && closes > now) {
       deadlines.push({ label: `${str(c.name)} closes`, at: closes, kind: "cfp", href: `/admin/cfps/${str(c.id)}` });
     }
   }
-  for (const r of roundRows) {
+  for (const r of review.rows) {
     const closes = strOrNull(r.closes_at);
     if (closes && closes > now) {
       deadlines.push({ label: `${str(r.name)} review closes`, at: closes, kind: "review", href: `${base}/review` });
     }
   }
-  const nextConfirmation = await app.db.raw<{ at: string }>(
-    `SELECT MIN(confirmation_deadline) AS at FROM proposal
-      WHERE event_id = ? AND deleted_at IS NULL AND status = 'accepted' AND confirmation_deadline > ?`,
-    [eventId, now],
-  );
   if (nextConfirmation[0] && nextConfirmation[0].at) {
     deadlines.push({
       label: "First confirmation deadline",
@@ -419,50 +270,228 @@ export async function eventDashboard(
     },
     funnel,
     submissions_by_day: byDay.map((r) => ({ date: str(r.date), count: num(r.n) })),
-    cfps,
-    review: {
-      rounds,
-      reviewers_behind: behindRows.map((r) => ({
-        person_id: str(r.person_id),
-        name: str(r.name),
-        outstanding: num(r.outstanding),
-        overdue: num(r.overdue),
-      })),
-    },
+    cfps: calls.cfps,
+    review: { rounds: review.rounds, reviewers_behind: review.behind },
     decisions: {
-      provisional,
+      provisional: at(decisionCounts, "provisional"),
       accepted,
       waitlisted,
       rejected,
       changes_requested: changesRequested,
       withdrawn,
-      awaiting_confirmation: awaitingConfirmation,
-      confirmation_overdue: confirmationOverdue,
+      awaiting_confirmation: at(decisionCounts, "awaiting_confirmation"),
+      confirmation_overdue: at(decisionCounts, "confirmation_overdue"),
     },
     onboarding: {
-      open: openTasks,
-      blocking_open: blockingOpen,
-      overdue: overdueTasks,
-      awaiting_review: awaitingReview,
+      open: at(onboardingCounts, "open"),
+      blocking_open: at(onboardingCounts, "blocking"),
+      overdue: at(onboardingCounts, "overdue"),
+      awaiting_review: at(onboardingCounts, "awaiting_review"),
       by_status: taskByStatus.map((r) => ({ status: str(r.status), count: num(r.n) })),
     },
     schedule: {
       sessions,
       placed,
       unplaced: Math.max(0, confirmed - placed),
-      conflict_errors: conflictErrors,
-      conflict_warnings: conflictWarnings,
+      conflict_errors: at(conflictsBySeverity, "error"),
+      conflict_warnings: at(conflictsBySeverity, "warning"),
       pending_publication_changes: pending.count,
     },
     sponsorship: {
-      sponsorships,
-      entitlements_granted: granted,
-      entitlements_consumed: consumed,
-      holds_expiring: holdsExpiring,
+      sponsorships: at(sponsorshipCounts, "sponsorships"),
+      entitlements_granted: at(sponsorshipCounts, "granted"),
+      entitlements_consumed: at(sponsorshipCounts, "consumed"),
+      holds_expiring: at(sponsorshipCounts, "holds_expiring"),
     },
     readiness: { ready: check.ready, blockers: check.blockers },
     deadlines,
   };
+}
+
+/**
+ * The calls, with how many proposals each has taken.
+ *
+ * One grouped count for every call rather than one count per call: an event
+ * with a call per track paid a round trip per track for a number that is one
+ * `GROUP BY` away. `derivedCfpStatus` is given the event it already has, so it
+ * stays the pure computation it is rather than fetching one per call too.
+ */
+/**
+ * `rows` is always read — the deadline list needs every call's closing time
+ * whatever the caller asked for. Only the per-call submission counts and
+ * derived statuses, which are the table nobody drew, are skipped.
+ */
+async function callsWithSubmissions(app: AppContext, eventId: string, event: Row, full = true) {
+  const rows = await app.db.select<Row>("call_for_proposals", { event_id: eventId }, { orderBy: "closes_at" });
+  if (!full) return { rows, cfps: [] as { id: string; name: string; status: string; closes_at: string; submissions: number }[] };
+  const submissions = await tally(
+    app,
+    `SELECT cfp_id AS k, COUNT(*) AS n FROM proposal
+      WHERE event_id = ? AND deleted_at IS NULL AND status != 'draft' GROUP BY cfp_id`,
+    [eventId],
+  );
+  const cfps = await Promise.all(
+    rows.map(async (c) => ({
+      id: str(c.id),
+      name: str(c.name),
+      status: await derivedCfpStatus(app, c, event),
+      closes_at: str(c.closes_at),
+      submissions: at(submissions, str(c.id)),
+    })),
+  );
+  return { rows, cfps };
+}
+
+/**
+ * Every round's progress, and who is holding one up.
+ *
+ * The per-round counts are two grouped queries across the event's rounds rather
+ * than four per round. `below_quorum` has to stay its own query because the
+ * target it compares against is per round: the inner group counts submitted
+ * reviews per proposal, and the outer one keeps the proposals short of the
+ * round that owns them (INV-05-11) — the number a chair is looking for, because
+ * a proposal below quorum is one the committee cannot decide yet.
+ */
+async function reviewProgress(app: AppContext, eventId: string, now: string) {
+  const rows = await app.db.select<Row>("review_round", { event_id: eventId }, { orderBy: "sequence" });
+  if (rows.length === 0) return { rows, rounds: [], behind: [] };
+
+  const [byRoundStatus, belowQuorum, behindRows] = await Promise.all([
+    app.db.raw<{ round_id: string; status: string; n: number }>(
+      `SELECT a.round_id, a.status, COUNT(*) AS n FROM review_assignment a
+         JOIN review_round r ON r.id = a.round_id
+        WHERE r.event_id = ? GROUP BY a.round_id, a.status`,
+      [eventId],
+    ),
+    tally(
+      app,
+      `SELECT round_id AS k, COUNT(*) AS n FROM (
+         SELECT a.round_id AS round_id, a.proposal_id
+           FROM review_assignment a
+           JOIN review_round r ON r.id = a.round_id
+          WHERE r.event_id = ?
+          GROUP BY a.round_id, a.proposal_id
+         HAVING SUM(CASE WHEN a.status = 'submitted' THEN 1 ELSE 0 END)
+              < MAX(COALESCE(NULLIF(r.target_reviews_per_proposal, 0), 1))
+       ) GROUP BY round_id`,
+      [eventId],
+    ),
+    /**
+     * Who is holding the round up. Named rather than counted, because "eleven
+     * reviews outstanding" is not actionable and "Priya has eleven, four
+     * overdue" is a message someone can send.
+     */
+    app.db.raw<{ person_id: string; name: string; outstanding: number; overdue: number }>(
+      `SELECT a.reviewer_person_id AS person_id,
+              COALESCE(pe.display_name, pe.full_name) AS name,
+              COUNT(*) AS outstanding,
+              SUM(CASE WHEN a.due_at IS NOT NULL AND a.due_at < ? THEN 1 ELSE 0 END) AS overdue
+         FROM review_assignment a
+         JOIN review_round r ON r.id = a.round_id
+         JOIN person pe ON pe.id = a.reviewer_person_id
+        WHERE r.event_id = ? AND r.status = 'open' AND a.status IN ('assigned','in_progress')
+        GROUP BY a.reviewer_person_id, name
+        ORDER BY overdue DESC, outstanding DESC
+        LIMIT 8`,
+      [now, eventId],
+    ),
+  ]);
+
+  const perRound = new Map<string, { total: number; submitted: number; declined: number }>();
+  for (const r of byRoundStatus) {
+    const key = str(r.round_id);
+    const entry = perRound.get(key) ?? { total: 0, submitted: 0, declined: 0 };
+    const n = num(r.n);
+    entry.total += n;
+    if (str(r.status) === "submitted") entry.submitted += n;
+    if (str(r.status) === "declined") entry.declined += n;
+    perRound.set(key, entry);
+  }
+
+  const rounds = rows.map((r) => {
+    const roundId = str(r.id);
+    const counts = perRound.get(roundId) ?? { total: 0, submitted: 0, declined: 0 };
+    return {
+      id: roundId,
+      name: str(r.name),
+      status: str(r.status),
+      target: num(r.target_reviews_per_proposal, 1) || 1,
+      assignments: counts.total,
+      submitted: counts.submitted,
+      declined: counts.declined,
+      below_quorum: at(belowQuorum, roundId),
+    };
+  });
+
+  return {
+    rows,
+    rounds,
+    behind: behindRows.map((r) => ({
+      person_id: str(r.person_id),
+      name: str(r.name),
+      outstanding: num(r.outstanding),
+      overdue: num(r.overdue),
+    })),
+  };
+}
+
+/**
+ * The three decision numbers that mean someone has to do something. They span
+ * three tables, so this is a union of three counts rather than a `GROUP BY`,
+ * but it is still one round trip instead of three.
+ */
+function decisionsPending(app: AppContext, eventId: string, now: string): Promise<Record<string, number>> {
+  return tally(
+    app,
+    // R5 — a decision is provisional until it is explicitly published, and the
+    // gap between the two is the "saved a dropdown, emailed 400 rejections"
+    // failure this number exists to make visible.
+    `SELECT k, COUNT(*) AS n FROM (
+       SELECT 'provisional' AS k FROM decision d JOIN proposal p ON p.id = d.proposal_id
+        WHERE p.event_id = ?1 AND d.status = 'provisional'
+       UNION ALL
+       SELECT 'awaiting_confirmation' FROM session
+        WHERE event_id = ?1 AND deleted_at IS NULL AND status = 'pending_confirmation'
+       UNION ALL
+       SELECT 'confirmation_overdue' FROM proposal
+        WHERE event_id = ?1 AND deleted_at IS NULL AND status = 'accepted'
+          AND confirmation_deadline IS NOT NULL AND confirmation_deadline < ?2
+          AND session_id IN (SELECT id FROM session WHERE status = 'pending_confirmation')
+     ) GROUP BY k`,
+    [eventId, now],
+  );
+}
+
+/**
+ * Sponsorship totals. `granted` sums a quantity rather than counting rows, so
+ * this is a union of sums; `consumed` is derived (R8) — counted from the
+ * proposals that hold the entitlement, never from a stored counter, because a
+ * sponsor losing a slot they paid for is what drift costs here.
+ */
+async function sponsorshipTotals(app: AppContext, eventId: string, now: string): Promise<Record<string, number>> {
+  const rows = await app.db.raw<{ k: string; n: number }>(
+    `SELECT k, SUM(n) AS n FROM (
+       SELECT 'sponsorships' AS k, COUNT(*) AS n FROM sponsorship WHERE event_id = ?1 AND status != 'cancelled'
+       UNION ALL
+       SELECT 'granted', COALESCE(SUM(e.quantity), 0) FROM entitlement e
+         JOIN sponsorship sp ON sp.id = e.sponsorship_id
+        WHERE sp.event_id = ?1 AND sp.status != 'cancelled'
+          AND e.entitlement_type IN ('session_slot','workshop_slot','lightning_slot','keynote_slot')
+       UNION ALL
+       SELECT 'consumed', COUNT(*) FROM proposal p
+         JOIN entitlement e ON e.id = p.entitlement_id
+         JOIN sponsorship sp ON sp.id = e.sponsorship_id
+        WHERE sp.event_id = ?1 AND p.deleted_at IS NULL AND p.status NOT IN ('withdrawn','rejected','expired')
+       UNION ALL
+       SELECT 'holds_expiring', COUNT(*) FROM entitlement e
+         JOIN sponsorship sp ON sp.id = e.sponsorship_id
+        WHERE sp.event_id = ?1 AND e.expires_at IS NOT NULL AND e.expires_at < ?2
+     ) GROUP BY k`,
+    [eventId, isoDaysAhead(now, 14)],
+  );
+  const out: Record<string, number> = {};
+  for (const row of rows) out[str(row.k)] = num(row.n);
+  return out;
 }
 
 function isoDaysAgo(now: string, days: number): string {

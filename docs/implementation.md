@@ -405,10 +405,63 @@ should not be changed without reading it first:
   payload's `can` / `can_write` maps decide whether a control is *drawn*; the server decides
   again on the write.
 
+**The event in context follows the route.** `boot.event` is the answer for the path the
+*document* was opened at, and a console that never reloads outlives it. Every client-side
+arrival that crosses out of that event re-reads the payload through
+`GET /v1/console/bootstrap?path=…`, which resolves the path with the same `matchConsolePath` /
+`eventForMatch` pair the boot document uses — so the two agree by construction rather than by
+review, including for the paths that reach their event indirectly (`/admin/cfps/:cfpId/form`
+through the call, `/admin/proposals/:proposalId` through the proposal). It carries the boot
+document's capability check with it. The rule, in `syncEventContext` in `app.js`: a route that
+names an event switches to it; a route that names none — `/admin`, `/admin/events` — keeps the
+one already in context, and a cold load of those has nothing to keep, which is the one place
+the two arrivals differ and they differ only by keeping *more* context. Permissions come back
+with the event, because `can` / `can_write` are computed against it; adopting an event without
+them is the stale authority R30 says the console must never hold.
+`tests/integration/foundation/console-context.test.ts` asserts each path's bootstrap answer
+against its own boot document, so a new console path that resolves differently in the two
+places fails the build.
+
+**The module graph is preloaded, not discovered.** `CONSOLE_MODULES` in `surfaces/console.ts`
+lists every file the console loads, and `shell()` emits a `modulepreload` for each. Preloading
+only `app.js` left the browser finding the views after parsing it and their shared imports
+after parsing those — two idle round trips, 84–177 ms of the cold load. A view added to
+`views/` belongs in that list; leaving it out costs a round trip and nothing else, so this
+decays quietly rather than breaking.
+
 Reads the console alone needs are `GET /v1/console/bootstrap`, `GET /v1/events/:eventId/dashboard`
 (`surfaces/dashboard.ts` — a cross-context read model, beside `admin-home.ts` for the same
 reason) and `GET /v1/cfps/:cfpId/builder`. Everything else it does goes through the ordinary
 management surface.
+
+**The board asks for its columns.** `GET /v1/proposals` takes `?fields=` (`http/projection.ts`,
+specified in [`09`](domain/09-api-and-integrations.md) under the list-endpoint rules) and the
+board sends the columns the reader has picked. Projection is applied to the *serialised* row,
+after `includePii` has decided its contents, which is what makes it unable to widen anything;
+`tests/integration/submissions/wizard.test.ts` asserts that naming a withheld field does not
+un-withhold it.
+
+**Measuring it.** `node scripts/perf-console.mjs` walks all fourteen console routes in a real
+browser and reports three numbers per screen — a cold load with an empty cache, a warm reload,
+and a client-side navigation into the screen — plus the server time for every document and
+every `/v1` endpoint the console was *seen* to call, harvested from the run rather than listed
+by hand. It needs Playwright, which is deliberately not a dependency of this repository
+(`npm i -D playwright`); nothing else here drives a browser.
+
+"Ready" is not `load`: it is the first frame on which the screen's skeleton is gone and no
+`/v1` request is in flight, which works uniformly because every view in `views/` renders
+`.console-skeleton` while its resource loads. The three numbers exist because they answer
+different questions — the cold one is what a morning URL costs, the in-app one is what R30
+actually bought, and the gap between them is the module waterfall and the boot document. A
+screen marked `*` fetched nothing when navigated into although its cold load fetched: it is
+either reusing the previous screen's resource or rendering a different branch, and the two
+columns are not comparable until you know which.
+
+`node scripts/perf-seed-scale.mjs --proposals 800` inflates the local database to the size an
+open call actually reaches, because the seed is sized to make every screen true rather than to
+make a benchmark strain. It writes copied rows straight into D1, below the domain layer —
+allowed precisely because nothing about behaviour is being asserted — and `npm run db:reset`
+puts the seed back.
 
 ### Live updates
 

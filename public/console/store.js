@@ -16,16 +16,16 @@ import { ApiError } from "./api.js";
 /* Boot                                                                        */
 /* -------------------------------------------------------------------------- */
 
-const EMPTY_BOOT = { person: null, org: null, events: [], event: null, can: {}, can_write: {}, rail: {}, now: null };
+const emptyBoot = () => ({ person: null, org: null, events: [], event: null, can: {}, can_write: {}, rail: {}, now: null });
 
 function readBoot() {
   const el = document.getElementById("console-boot");
-  if (!el) return EMPTY_BOOT;
+  if (!el) return emptyBoot();
   try {
-    return Object.assign({}, EMPTY_BOOT, JSON.parse(el.textContent));
+    return Object.assign(emptyBoot(), JSON.parse(el.textContent));
   } catch (err) {
     console.error("console boot payload is not JSON", err);
-    return EMPTY_BOOT;
+    return emptyBoot();
   }
 }
 
@@ -35,6 +35,20 @@ function readBoot() {
  * load, and the shell is the part the reader uses to orient.
  */
 export const boot = readBoot();
+
+/**
+ * Replace the boot payload after a re-read, in place.
+ *
+ * In place because every view imports this one object and reads through it;
+ * rebinding the export would leave each of them holding the payload the
+ * document booted with. Missing keys are reset rather than merged, so a
+ * payload that answers with no event in context actually clears the one that
+ * was there — a stale event bar over a screen belonging to another event is
+ * the failure this exists to prevent.
+ */
+export function applyBoot(next) {
+  Object.assign(boot, emptyBoot(), next);
+}
 
 /** May the reader see this at all — decides whether a section is drawn. */
 export function can(capability) {

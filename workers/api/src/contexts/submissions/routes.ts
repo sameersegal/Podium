@@ -20,6 +20,7 @@ import type { Origin } from "@podiumstack/domain/event-config/types.js";
 import { flashCookie, requirePersonalAuthorship, type PersonView, type RequestContext } from "../../http/context.js";
 import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
+import { assertKnownFields, project, projectionFrom } from "../../http/projection.js";
 import type { Handler, Router } from "../../http/router.js";
 import { adminPage, loadEvent, portalPage } from "../../ui/shell.js";
 import { cfpFormatOptions, cfpTrackOptions } from "../event-config/views.js";
@@ -803,7 +804,13 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const filters = queueFiltersFrom(ctx.url);
     const { rows, next_cursor, total } = await proposalQueue(app, eventId, filters);
     const includePii = ctx.includePii({ event_id: eventId });
-    return json({ data: rows.map((r) => proposalRowJson(r, includePii)), next_cursor, total });
+    // `?fields=` narrows the row after redaction has decided its contents, so
+    // it can only ever remove — see `http/projection.ts`. Omitted, the response
+    // is the whole entity, as it has always been.
+    const fields = projectionFrom(ctx.url);
+    const serialised = rows.map((r) => proposalRowJson(r, includePii));
+    assertKnownFields(fields, serialised[0]);
+    return json({ data: serialised.map((r) => project(r, fields)), next_cursor, total });
   });
 
   router.get("/v1/proposals/:id", async (_req, ctx, params) => {
