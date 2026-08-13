@@ -31,7 +31,6 @@
       "html-unescaped|workers/api/src/contexts/scheduling/widgets.ts|return html`<article class=\"session-card\" ${raw(sessionDataAttrs(s, snapshot.speakers, opts.timezone))}>",
       "html-unescaped|workers/api/src/ui/layout.ts|const EXTERNAL_ICON = raw(",
       "html-unescaped|workers/api/src/ui/layout.ts|const MENU_ICON = raw(",
-      "html-unescaped|workers/api/src/ui/layout.ts|const USER_ICON = raw(",
       "html-unescaped|workers/api/src/ui/layout.ts|const req = o.required ? raw(o.validate === false ? ' aria-required=\"true\"' : ' required aria-required=\"true\"'",
       "html-unescaped|workers/api/src/ui/layout.ts|control = html`<input id=\"${id}\" type=\"${o.type ?? \"text\"}\" name=\"${o.name}\" value=\"${o.value ?? \"\"}\" placehol"
     ],
@@ -98,6 +97,7 @@
     "secret-literal": [
       "secret-literal|scripts/dev.mjs|password = <15 chars>",
       "secret-literal|scripts/perf-console.mjs|password = <15 chars>",
+      "secret-literal|scripts/seed-publish.mjs|password = <15 chars>",
       "secret-literal|scripts/seed.mjs|password = <15 chars>",
       "secret-literal|scripts/smoke.mjs|password = <15 chars>"
     ]
