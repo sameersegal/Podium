@@ -10,7 +10,7 @@
 import { runAllCron } from "../consumers/cron.js";
 import { replayUnprocessedEvents } from "../consumers/replay.js";
 import { str, type Row } from "@podiumstack/data/db.js";
-import { forbidden } from "@podiumstack/domain/shared/errors.js";
+import { forbidden, notFound } from "@podiumstack/domain/shared/errors.js";
 import type { RequestContext } from "../http/context.js";
 import { json } from "../http/responses.js";
 import type { Router } from "../http/router.js";
@@ -37,8 +37,14 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
   router.get("/dev/ids", async (_req, ctx) => {
     guard(ctx);
     const app = ctx.app();
+    // Every event, not only the active one: the seed ships a delivered prior
+    // edition whose schedule also has to be published for its public pages to
+    // say anything (INV-09-6), and a caller cannot publish an event it cannot
+    // name.
+    const all = await app.db.select<Row>("event", {}, { orderBy: "starts_on" });
+    const events = all.map((e) => ({ id: str(e.id), slug: str(e.slug), status: str(e.status) }));
     const [event] = await app.db.select<Row>("event", { status: "active" }, { orderBy: "starts_on", limit: 1 });
-    if (!event) return json({});
+    if (!event) return json({ events });
     const eventId = str(event.id);
     const [cfp] = await app.db.select<Row>("call_for_proposals", { event_id: eventId }, { orderBy: "created_at", limit: 1 });
     const [proposal] = await app.db.select<Row>("proposal", { event_id: eventId }, { orderBy: "created_at", limit: 1 });
@@ -49,6 +55,7 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
     const [person] = await app.db.select<Row>("person", {}, { orderBy: "created_at", limit: 1 });
     return json({
       org_id: ctx.orgId,
+      events,
       event_id: eventId,
       event_slug: str(event.slug),
       cfp_id: cfp ? str(cfp.id) : null,
@@ -60,6 +67,32 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
       task_id: task ? str(task.id) : null,
       person_id: person ? str(person.id) : null,
     });
+  });
+
+  /**
+   * Put the bytes for a seeded `Asset` where its row already says they are.
+   *
+   * The seed writes `asset` rows in SQL — it has to, because it writes the
+   * `speaker_profile` and `sponsor` rows that point at them — but R2 has no SQL
+   * surface, and `wrangler r2 object put` spends six seconds of process startup
+   * per object, which is most of a minute for a seed with two dozen images in
+   * it. So the seed hands the bytes to the Worker, which is already running and
+   * already holds the binding.
+   *
+   * It writes only where an existing row points: the key comes from the row,
+   * never from the caller, so this cannot be used to write an arbitrary object
+   * into the bucket. Non-production only, like everything else here.
+   */
+  router.put("/dev/assets/:assetId", async (req, ctx, params) => {
+    guard(ctx);
+    const app = ctx.app();
+    const asset = await app.db.byId<Row>("asset", params.assetId);
+    if (!asset) throw notFound("Asset", params.assetId);
+    const bytes = await req.arrayBuffer();
+    await app.env.ASSETS_BUCKET.put(str(asset.storage_key), bytes, {
+      httpMetadata: { contentType: str(asset.content_type) },
+    });
+    return json({ storage_key: str(asset.storage_key), size_bytes: bytes.byteLength });
   });
 
   /** Run every cron sweep now rather than waiting for the next trigger. */

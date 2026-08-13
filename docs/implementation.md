@@ -537,3 +537,28 @@ Four properties, in the order they matter:
   the JSON layer as the documented body shape.
 - Enum members live as `as const` arrays in `packages/domain/src/<context>/types.ts`, so a
   drift checker can compare them with the model.
+
+### The seed, and the two things it cannot do in SQL
+
+`scripts/seed.mjs` emits one SQL file and applies it. Two parts of a populated conference are
+not reachable that way, and both are finished afterwards, against the running Worker, through
+the surface an organizer would use:
+
+- **The publication.** Every public surface serves the `live` publication and nothing else
+  (INV-09-6), so `scripts/dev.mjs` signs in as the seeded organizer and publishes — now for
+  both editions, since the archived one's agenda, speakers and ICS feed read the same
+  snapshot the current one's do. Faking a snapshot in SQL would be the one place the seed
+  asserted a shape the publisher never produced.
+- **The bytes behind the images.** The seed writes `asset` rows — it has to, because it also
+  writes the `speaker_profile` and `sponsor` rows that point at them — with the same
+  `slot_key` and `storage_key` shape `uploadAssetDirect` derives, plus the generated PNGs on
+  disk. `scripts/seed-assets.mjs` then pushes those files through `PUT /dev/assets/:id`, which
+  puts each one at the key its own row already names. R2 has no SQL surface, and
+  `wrangler r2 object put` spends about six seconds of process startup per object, which is
+  most of a minute for two dozen images; the running Worker already holds the binding.
+
+The images themselves come from `scripts/lib/placeholder-image.mjs`, a PNG encoder over
+`node:zlib` and a 5×7 bitmap font, deterministic in the seed string so a re-seed overwrites
+the same objects rather than accumulating versions of the same face. They are placeholders,
+but they are files: they exercise `/assets/:id`, the scan gate (INV-11-3) and the
+`content-length` the row claims, all of which a hardcoded `<svg>` fallback would route around.
