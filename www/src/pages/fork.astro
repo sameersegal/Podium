@@ -53,11 +53,11 @@ const REPO_SLUG = GITHUB_URL.replace("https://github.com/", "");
  *                       workers/api/src and writes the reference the podium-api
  *                       skill ships; `--check` exits 1 when it is stale
  *
- * What that section must never say is what any of it *does* when run. Nothing
- * here has been executed against a live instance in the writing of this page,
- * and the only hosted instance is not answering, so there is no worked example,
- * no outcome and no "your agent runs your CFP" — the plugin hands an agent the
- * map, and the page says exactly that much.
+ * What that section must never say is what any of it *does* when run. This page
+ * describes the plugin structurally and stops; the worked example, with the
+ * numbers a real run returned, lives on /guides/agents, which is where the
+ * closing link now goes. Keep the split — a reader here is deciding whether to
+ * fork, not learning to operate an instance.
  *
  * `npm run plugin:check` is a script in the root package.json and is *not* a
  * step in .github/workflows/ci.yml, unlike `npm run drift`. The page says the
@@ -250,7 +250,7 @@ const COMMANDS = [
           minted, in a <code>.env</code> rather than an argument your shell history keeps.
         </p>
       </div>
-      <p class="nextstep"><a href={`${GITHUB_URL}/tree/main/claude-plugin`}>The plugin, as it ships →</a></p>
+      <p class="nextstep"><a href="/guides/agents">Installing it, and what an agent can take off you →</a></p>
     </div>
   </section>
 

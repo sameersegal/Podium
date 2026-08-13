@@ -122,6 +122,24 @@ mid-rotation secret validity in `packages/domain/src/platform/webhooks.ts`;
 [`09`](../../../../docs/domain/09-api-and-integrations.md) and
 [`10`](../../../../docs/domain/10-domain-events.md).
 
+Three limits found by driving it, each of which a page has already had to phrase around:
+
+- **A key minted on the admin screen never expires.** `ApiKey.expires_at` is real and
+  `POST /v1/api-keys` reads it, but the form at `/admin/api-keys/new` offers only name, scopes and
+  event ids (`registerSettingsRoutes` in `workers/api/src/contexts/platform/routes.ts`). So "keys
+  expire" is a property of the model, not of the key an organizer actually creates. `/guides/agents`
+  says so on the page.
+- **Uploaded bytes do reach the Worker.** R2's binding has no S3 presigner, so `storage.r2` signs a
+  short-lived URL back into the deployment and streams the body through without buffering it
+  (`packages/plugins/src/storage/r2.ts`). "Never passes through the application" is the claim on
+  `/integrations` and it is a shade stronger than the code. Prefer "streams straight into the
+  bucket instead of being buffered".
+- **The presigned upload route needs a storage integration installed; the UI's own upload does
+  not.** The forms post multipart to `/admin/events/:eventId/files/upload` and work on a bare
+  deployment. `POST /v1/assets/presign` resolves the fallback `storage.r2` with `secret: null`,
+  and `presign_upload` throws (`packages/plugins/src/storage/r2.ts`). Nothing on the site claims
+  the presigned route works out of the box; do not start.
+
 ---
 
 ## What Podium does not do

@@ -1,0 +1,410 @@
+---
+import Base from "../../layouts/Base.astro";
+import Cta from "../../components/Cta.astro";
+import PageHead from "../../components/PageHead.astro";
+import Shot from "../../components/Shot.astro";
+import { GITHUB_URL, IMPLEMENTATION_URL } from "../../consts";
+
+/*
+ * For the organizer who has decided to leave and now has to stand the thing up
+ * in an account with their own name on the invoice, before the call opens.
+ *
+ * There is no deploy guide anywhere else — README covers running it locally and
+ * stops, and /pricing lists the resources as an argument about cost rather than
+ * as a recipe. This page is the recipe. Everything on it is read out of the
+ * repository, and nothing on it has been executed against a real Cloudflare
+ * account in the writing of it, which is why no step here claims a duration, a
+ * dashboard screenshot or a "should take about". It claims commands and what
+ * they are for.
+ *
+ * Where each fact comes from:
+ *
+ *   the four services   the bindings in `wrangler.jsonc` — DB (D1), CACHE (KV),
+ *                       ASSETS_BUCKET (R2), three queues by name, two durable
+ *                       object classes in the `migrations` block, and the
+ *                       quarter-hourly cron in `triggers`
+ *   the create commands `npx wrangler <thing> create --help` in this repository,
+ *                       checked against wrangler 4.120.1, which is the version
+ *                       in the root package.json. Two of them are also named in
+ *                       the header comment of scripts/deploy-config.mjs
+ *   the env vars        `required(...)` in scripts/deploy-config.mjs:
+ *                       PODIUM_HOSTNAME, CF_D1_DATABASE_ID, CF_KV_CACHE_ID; the
+ *                       local file path it names is ~/.cloudflare/podium.env
+ *   the two commands    `deploy:migrate` and `deploy` in the root package.json,
+ *                       and the order comes from the ci.yml comment saying why
+ *                       migrations run before the Worker
+ *   the custom domain   `config.routes` in deploy-config.mjs, plus its warning
+ *                       that `wrangler deploy` replaces the Worker's whole set
+ *                       of custom domains rather than merging them
+ *   the secret          the block comment in `wrangler.jsonc` naming
+ *                       UNSUBSCRIBE_SECRET and the exact `wrangler secret put`
+ *                       line, and `resolveSecret` in
+ *                       contexts/platform/service.ts for the secret_ref rule
+ *   first-run setup     contexts/identity/setup-routes.ts and the redirect in
+ *                       index.ts that sends an org-less deployment there
+ *   the CPU trap        docs/implementation.md, "Password hashing, and the plan
+ *                       that pays for it" — the 10 ms free-plan ceiling, error
+ *                       1102, and the fact that the fix was a plan change
+ *   password sign-in    `passwordLoginEnabled` in contexts/identity/service.ts
+ *                       and the dated lockout recorded in the integrations
+ *                       comment of scripts/seed.mjs
+ *   the AI toggle       `aiEvaluationEnabled` in contexts/review/service.ts, and
+ *                       packages/plugins/src/analytics/local-evaluator.ts for
+ *                       "calls no external model"
+ *   Postgres            packages/data/src/db.ts, 388 lines, whose own header
+ *                       says swapping in Postgres via Hyperdrive means
+ *                       reimplementing that file and not the model
+ *
+ * What this page must never grow: a claimed monthly bill (that is /pricing's
+ * refusal and it stands), a Cloudflare price we did not read on Cloudflare's
+ * page, or a step nobody has run. If a self-hoster reports that the queue names
+ * have to be created in a different order, that is a correction to make here on
+ * the day, not a paragraph to hedge with now.
+ */
+
+const CLOUDFLARE_PRICING = "https://developers.cloudflare.com/workers/platform/pricing/";
+const WRANGLER_CONFIG_URL = `${GITHUB_URL}/blob/main/wrangler.jsonc`;
+const DEPLOY_CONFIG_URL = `${GITHUB_URL}/blob/main/scripts/deploy-config.mjs`;
+
+/** The bindings in `wrangler.jsonc`, in the reader's words rather than theirs. */
+const SERVICES = [
+  {
+    what: "A database",
+    holds:
+      "Every proposal, score, decision, session, speaker and sponsor row you will ever hold. It is in your account, and a CSV export of it needs nobody's permission.",
+  },
+  {
+    what: "A key-value namespace",
+    holds:
+      "The published schedule snapshot your website reads, and the replay cache that turns a retried write into the same answer instead of a second booking.",
+  },
+  {
+    what: "A bucket",
+    holds:
+      "Headshots, slide decks, signed agreements. An upload carries a short-lived signature and streams straight into the bucket instead of being buffered, so a 200 MB deck is not a timed-out request.",
+  },
+  {
+    what: "Three queues",
+    holds:
+      "One carries what happened. One carries what goes out: mail, webhooks, spreadsheet pushes. The third keeps whatever failed six attempts, so a bad afternoon is a queue you can read rather than mail nobody can account for.",
+  },
+];
+
+const BITES = [
+  {
+    title: "Sign-ins die on the free plan",
+    body: "A correctly sized password hash costs far more than the ten milliseconds of processor time a free Worker gets per request, so attempts are killed mid-hash and sign-in fails intermittently. This deployment ran that way for months, on a hash deliberately weakened to fit, and moving to the paid plan is what let that be undone. Start on Workers Paid.",
+  },
+  {
+    title: "Installing an email provider turns password sign-in off",
+    body: "Password sign-in is on wherever no email provider is active, and off the moment one is. That is deliberate: a deployment that can neither send mail nor take a password cannot exist. It also means the afternoon you connect Resend, everyone signing in with a password stops. Tick the box on the settings screen first, or send everybody an invitation link.",
+  },
+  {
+    title: "The first-pass review is off, and stays off",
+    body: "Nothing switches it on for you. Switched on, its scores sit beside your reviewers' rather than inside them, never count toward quorum, and are always overridable. The evaluator in the box calls no external model at all — it scores structure and says so.",
+  },
+  {
+    title: "Moving off D1 costs you one file",
+    body: "The database sits behind 388 lines, and no query outside them knows it is talking to D1. Postgres behind Hyperdrive means rewriting that file and nothing above it. The rules do not move, and neither does anything that reads them.",
+  },
+];
+---
+
+<Base
+  title="Deploy to Cloudflare"
+  description="A field guide from a fresh clone to a running Podium in your own Cloudflare account: the services to create, the three environment variables, the two deploy commands, the one secret, first-run setup, and the four choices that bite later."
+>
+  <PageHead
+    eyebrow="Field guide"
+    title="Stand it up in an account with your name on it."
+    lede="Six commands create the services, two put the Worker up, and a one-time screen makes you the owner. Nothing in the sequence talks to us, and no part of it needs our permission. Below is the whole thing in order, plus the four choices that decide whether your speakers can sign in."
+  >
+    <div class="actions">
+      <a class="btn primary" href={GITHUB_URL}>Get the source</a>
+      <a class="btn secondary" href="/pricing">What it will cost</a>
+    </div>
+  </PageHead>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Before the first command</span>
+      <h2>Four things get created, and you own them.</h2>
+      <p class="sub">
+        A Cloudflare account on the paid Workers plan, a hostname whose DNS Cloudflare already
+        answers for, and Node. That is the entire prerequisite list.
+      </p>
+      <div class="table-wrap">
+        <table class="matrix stack">
+          <thead>
+            <tr>
+              <th scope="col">What</th>
+              <th scope="col">What lives in it</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              SERVICES.map((s) => (
+                <tr>
+                  <th scope="row">{s.what}</th>
+                  <td data-label="What lives in it">{s.holds}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="prose">
+        <p>
+          Create them once. The names are not decorative: the configuration in the repository
+          refers to them, so a bucket called something else is a deploy that fails.
+        </p>
+      </div>
+      <pre class="term"><code>npx wrangler d1 create podium
+npx wrangler kv namespace create CACHE
+npx wrangler r2 bucket create podium-assets
+npx wrangler queues create podium-events
+npx wrangler queues create podium-delivery
+npx wrangler queues create podium-dlq</code></pre>
+      <div class="prose">
+        <p>
+          The first two print an id each. Keep both; the next section wants them. Two durable
+          objects and a quarter-hourly schedule come with the deploy itself, so there is nothing to
+          create for the reminders, the sweeps or the deadline expiries.
+        </p>
+      </div>
+      <p class="nextstep"><a href={WRANGLER_CONFIG_URL}>The configuration those names come from →</a></p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">The deploy</span>
+      <h2>Set three variables, then run two commands.</h2>
+      <p class="sub">
+        There are no account ids anywhere in the repository you cloned. Production configuration
+        is generated at deploy time from what you export, which is why your first deploy cannot
+        land in somebody else's database.
+      </p>
+      <ol class="steps">
+        <li>
+          <h3>Put the three values somewhere your shell can read</h3>
+          <p>
+            The hostname you will serve on, and the two ids the create commands printed. In a file,
+            not your shell history. The deploy script reads them from the environment and writes a
+            config that is never committed.
+          </p>
+          <pre class="term"><code>PODIUM_HOSTNAME=cfp.yourconference.com
+CF_D1_DATABASE_ID=…
+CF_KV_CACHE_ID=…</code></pre>
+        </li>
+        <li>
+          <h3>Set the one secret the application cannot start without</h3>
+          <p>
+            It signs the unsubscribe links, so a speaker can leave a mailing list without signing
+            in. Generating or checking one of those links throws without it.
+          </p>
+          <pre class="term"><code>npm run deploy:config
+npx wrangler secret put UNSUBSCRIBE_SECRET -c wrangler.production.jsonc</code></pre>
+        </li>
+        <li>
+          <h3>Migrate, then ship</h3>
+          <p>
+            In that order, always. Migrations are append-only, so the new schema fits the code
+            already running. The reverse order gives you new code reading columns that do not
+            exist yet.
+          </p>
+          <pre class="term"><code>npm run deploy:migrate
+npm run deploy</code></pre>
+        </li>
+      </ol>
+      <div class="notice">
+        <p>
+          <strong>The hostname list replaces, it does not merge.</strong> Deploying publishes the
+          hostnames you named as the Worker's complete set. A hostname currently served by a
+          different Worker is taken from it, silently. Name every hostname you want served, every
+          time.
+        </p>
+      </div>
+      <p class="nextstep"><a href={DEPLOY_CONFIG_URL}>The script that generates the config →</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">First run</span>
+      <h2>Open the setup screen before anyone else does.</h2>
+      <p class="sub">
+        Nothing seeds the organization. A freshly migrated deployment has no accounts in it at all,
+        and every path sends you to the same place until one exists.
+      </p>
+      <div class="prose">
+        <p>
+          The screen asks for the conference-running body, a default timezone, a contact address,
+          and your own name, email and password. Submitting it creates the organization, your
+          person record and your ownership of it as one write, then signs you in.
+        </p>
+        <p>
+          Then it is gone. Every method on that path is refused the instant an organization exists,
+          checked against the database on each request rather than cached. It is a screen that runs
+          with nobody signed in and makes an administrator.
+        </p>
+        <p>
+          There is a lock under it as well. The first row it claims can hold exactly one value, so
+          two people racing to set up the same empty deployment cannot both win.
+        </p>
+        <p>
+          Import your speakers after that, not before. One CSV brings people and their history
+          across from the tool you are leaving.
+        </p>
+      </div>
+      <p class="nextstep"><a href="/compare">What comes across from the incumbent, and what does not →</a></p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">The parts that bite</span>
+      <h2>Four choices you make once and live with.</h2>
+      <p class="sub">
+        Two of them have already gone wrong on a real deployment of this software, on dates you can
+        go and read. They are here so they do not go wrong on yours.
+      </p>
+      <div class="grid-hair two">
+        {
+          BITES.map((b) => (
+            <div class="card">
+              <h3>{b.title}</h3>
+              <p>{b.body}</p>
+            </div>
+          ))
+        }
+      </div>
+
+      <Shot
+        name="settings"
+        height={1398}
+        phoneName="settings-phone"
+        phoneHeight={1524}
+        url="app.podiumstack.com/admin/settings"
+        alt="The organization settings screen: name, contact email and primary domain, then an Access section with an 'Allow password sign-in' checkbox, a Review section with an 'AI first-pass review' checkbox, and a draft retention field set to 730 days."
+        caption="Two of the four are checkboxes on one screen. Both are ticked here because the demo conference opts in to both; a deployment you set up arrives with neither."
+      />
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Once it answers</span>
+      <h2>Five checks, in the order they fail.</h2>
+      <ol class="steps">
+        <li>
+          <h3>The sign-in page answers</h3>
+          <p>
+            On a deployment nobody has set up, it redirects to the setup screen, which is the
+            correct answer and not a fault. After setup it renders. This is the same check the
+            build runs against our own deploy.
+          </p>
+        </li>
+        <li>
+          <h3>Create an event and read what it made for you</h3>
+          <p>
+            A new event arrives with days, rooms, formats, review rubrics, about a dozen speaker
+            onboarding tasks and a draft call. The common mistake is building a second set of
+            tracks beside the ones already there.
+          </p>
+        </li>
+        <li>
+          <h3>Send yourself something and look in the outbox</h3>
+          <p>
+            With no provider installed, every message is composed, rendered, recorded and never
+            sent. That is a legitimate state to run in, and it is how you rehearse an announcement
+            to four hundred speakers.
+          </p>
+        </li>
+        <li>
+          <h3>Publish a schedule and embed it</h3>
+          <p>
+            Publishing writes an immutable snapshot. Your marketing site reads that, a CDN caches
+            it, and rolling back is pointing at the previous one. Nothing public touches the live
+            programme tables.
+          </p>
+        </li>
+        <li>
+          <h3>Mint a read-only key and try to read something with it</h3>
+          <p>
+            A key reaches exactly what its scopes name. Give one only the schedule and confirm for
+            yourself that it cannot see a review or a speaker's email address.
+          </p>
+        </li>
+      </ol>
+      <div class="notice">
+        <p>
+          <strong>Nobody will do the upgrades.</strong> Pulling a release and redeploying is a
+          five-minute job, and it is your job. There is no status page to check and no vendor to
+          email at nine on a Monday. If that is a dealbreaker, it is better to find out today than
+          in April.
+        </p>
+      </div>
+      <p class="nextstep"><a href="/pricing">What this costs, itemised, and what it costs that is not money →</a></p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <span class="eyebrow">Connecting a provider</span>
+      <h2>Store the key, then name the key.</h2>
+      <p class="sub">
+        Email, chat and spreadsheet sync all install the same way, and the field that trips people
+        up is the same field every time.
+      </p>
+      <div class="prose">
+        <p>
+          The install form asks for a secret <em>reference</em>, not a secret. Put the provider's
+          key in your Worker's secrets under a name you choose, then type that name into the form.
+          A key pasted into that field is a leak, not a configuration, and the application will not
+          find it there anyway.
+        </p>
+        <pre class="term"><code>npx wrangler secret put RESEND_API_KEY -c wrangler.production.jsonc</code></pre>
+        <p>
+          Then install Resend and put <code>RESEND_API_KEY</code> in the reference field. Health
+          check it from the same screen; a misconfigured provider says what went wrong there rather
+          than in a bounced acceptance three weeks later.
+        </p>
+        <p>
+          Then go back to the settings screen and decide about passwords, because you have just
+          changed that answer.
+        </p>
+      </div>
+      <p class="nextstep"><a href="/integrations">Everything that plugs in, and what has no adapter yet →</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">The bill</span>
+      <h2>One fixed line, and the rest is metered.</h2>
+      <div class="prose">
+        <p>
+          The software is free and the licence cannot be revoked. Workers Paid starts at five
+          dollars a month on{" "}
+          <a href={CLOUDFLARE_PRICING} rel="nofollow noopener">Cloudflare's own pricing page</a>.
+          That is the only source that binds; it is not our price to promise. Storage, database
+          reads and queue messages are metered and small next to the included allowances, but your
+          event is not our event.
+        </p>
+        <p>
+          There is no monthly total on this page. Every one on a page like this is a guess you find
+          out was wrong on your own invoice.
+        </p>
+      </div>
+      <p class="nextstep"><a href="/guides/agents">Now hand the running instance to an agent →</a></p>
+    </div>
+  </section>
+
+  <Cta
+    heading="Run it on your laptop before you run it on your domain."
+    sub="One command resets a database, seeds a conference already halfway through its year and serves it on port 8787. No Cloudflare account is involved, and everything above is the same software."
+    secondaryHref={IMPLEMENTATION_URL}
+    secondaryLabel="How it is put together"
+  />
+</Base>

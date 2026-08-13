@@ -1099,7 +1099,12 @@ main p.nextstep > a, main p.jump > a { display: inline-flex; align-items: center
 footer { border-top: 1px solid var(--line); padding: var(--s-8) 0 var(--s-7); font-size: 14px; color: var(--text-3); }
 footer a { color: var(--text-2); text-decoration: none; }
 footer a:hover { color: var(--text-1); }
-footer .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--s-6) var(--s-5); }
+/* 10rem and not 11rem: the footer carries six columns since the field guides
+   gained one, and at an 11rem floor the sixth wrapped onto a row of its own —
+   one heading and three links marooned under the wordmark. 160px still clears
+   the longest label in here ("Implementation notes", "app.podiumstack.com"),
+   and the tracks are `1fr` above the floor so nothing is actually set at it. */
+footer .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: var(--s-6) var(--s-5); }
 footer .cols h2 {
   font: 500 12px/1 var(--font-mono);
   letter-spacing: 0.14em;

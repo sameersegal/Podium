@@ -75,7 +75,7 @@ export const STATS = {
   scopes: 22,
   capabilities: 11,
   adapters: 9,
-  endpoints: 190,
+  endpoints: 193,
   routes: 510,
 } as const;
 

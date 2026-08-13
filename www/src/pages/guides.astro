@@ -1,0 +1,85 @@
+---
+import Base from "../layouts/Base.astro";
+import Cta from "../components/Cta.astro";
+import PageHead from "../components/PageHead.astro";
+import { GITHUB_URL } from "../consts";
+
+/*
+ * The section index, and it exists for one reason: /features, /pricing and
+ * /compare all argue about whether to switch, and none of them tells anybody how.
+ * A reader who has finished arguing has two jobs left — get it running, and get
+ * their agent onto it — and this page is where those two live.
+ *
+ * Deliberately not in the nav. Six labels plus the repository is the stated
+ * ceiling and the nav is at it, so this page is reached from the footer, from
+ * the foot of /pricing and /fork, and from each guide pointing at the other.
+ * A seventh nav label would cost more than this page is worth.
+ *
+ * It stays short on purpose. An index that restates both guides is a page the
+ * reader finishes instead of the guide, and every sentence here is either the
+ * question the guide answers or the shape of the answer.
+ */
+
+const GUIDES = [
+  {
+    href: "/guides/deploy",
+    title: "Deploy it to Cloudflare",
+    answers: "“What do I actually have to create, and what breaks on the way?”",
+    body: "Six commands for the services, three environment variables, two to ship it, one secret, and the setup screen that makes you the owner. Then the four choices that bite: the plan that decides whether sign-in works at all, the provider that silently turns password sign-in off, the first-pass review that stays off until you say otherwise, and what moving to Postgres would really cost.",
+  },
+  {
+    href: "/guides/agents",
+    title: "Run it with an agent",
+    answers: "“Which parts of this can I stop doing by hand?”",
+    body: "Installing the plugin, scoping a key so a leak is an afternoon, and the jobs an agent can take end to end — the funnel, the unreviewed pile, the speakers holding up the schedule, next year's clone. Plus the three things no key of any kind is allowed to do, and why refusing them is the point.",
+  },
+];
+---
+
+<Base
+  title="Field guides"
+  description="Two guides for the part after the decision: standing Podium up in your own Cloudflare account, and handing the running instance to an agent. Every command read out of the repository."
+>
+  <PageHead
+    eyebrow="Field guides"
+    title="You have decided. Now here is the doing."
+    lede="The rest of this site argues about whether to move. These two do not argue. They are the sequence of commands that puts a conference platform on your own infrastructure, and the sequence that puts your agent in charge of the half of the job nobody enjoys."
+  >
+    <div class="actions">
+      <a class="btn primary" href="/guides/deploy">Start with the deploy</a>
+      <a class="btn secondary" href={GITHUB_URL}>Get the source</a>
+    </div>
+  </PageHead>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Two of them</span>
+      <h2>Written from the repository, not from memory.</h2>
+      <p class="sub">
+        Every command below exists in the source you are about to clone. Every setting named is
+        one you can go and look at. Where nobody has run something in public, the guide says so
+        instead of implying otherwise.
+      </p>
+      <div class="grid-hair two">
+        {
+          GUIDES.map((g) => (
+            <div class="card">
+              <h3>{g.title}</h3>
+              <p><strong>{g.answers}</strong></p>
+              <p>{g.body}</p>
+              <p class="jump"><a href={g.href}>Open the guide →</a></p>
+            </div>
+          ))
+        }
+      </div>
+      <p class="nextstep"><a href="/demo">Or run the whole thing on your laptop first →</a></p>
+    </div>
+  </section>
+
+  <Cta
+    heading="A guide that turns out to be wrong is a bug we can fix."
+    sub="Both of these are checked against the source in the same repository as the product, so a step that no longer works is a defect in one of them. Say which one and it gets corrected."
+    secondaryHref={`${GITHUB_URL}/issues/new`}
+    secondaryLabel="Tell us what broke"
+  />
+</Base>

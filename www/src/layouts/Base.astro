@@ -185,6 +185,15 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
             <a href="/demo">Run the demo</a>
             <a href={SIGN_IN_URL}>Sign in</a>
           </div>
+          {/* Not in the nav: six labels plus the repository is the ceiling and
+              the nav is at it. This column is how the guides are found, along
+              with the closing link on /pricing, /fork and each other. */}
+          <div>
+            <h2>Field guides</h2>
+            <a href="/guides">All guides</a>
+            <a href="/guides/deploy">Deploy to Cloudflare</a>
+            <a href="/guides/agents">Run it with an agent</a>
+          </div>
           <div>
             <h2>Source</h2>
             <a href="/fork">Fork it</a>

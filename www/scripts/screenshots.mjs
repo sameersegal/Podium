@@ -113,11 +113,12 @@ contexts.anonymousPhone = await phoneContext(null);
 /**
  * Arrange the state two screens need and the seed does not ship.
  *
- * The seed installs no integrations, which is correct for a conference that has
- * just been created and useless as a photograph of the integrations screen. So
- * this installs them — through the product's own forms, over the organizer's
- * real session, exactly as an organizer would. Nothing here fabricates a
- * screen; it puts the app into a state the app can genuinely be in.
+ * The seed installs one email provider and nothing else, which is correct for a
+ * conference that has just been created and useless as a photograph of the
+ * integrations screen. So this installs the rest — through the product's own
+ * forms, over the organizer's real session, exactly as an organizer would.
+ * Nothing here fabricates a screen; it puts the app into a state the app can
+ * genuinely be in.
  *
  * The credentials are secret *references* rather than secrets (the install form
  * takes the name of a stored secret and never the value), so no real token is
@@ -126,77 +127,80 @@ contexts.anonymousPhone = await phoneContext(null);
  * development, because it is the one whose tables can be listed with no network
  * — the mapping UI is provider-independent, which is the entire point of the
  * capability contract, and the marketing page says which provider it is.
+ *
+ * The guard is **per plugin key**, and that is load-bearing. It used to be
+ * "install nothing if anything is installed", which was true when the seed
+ * shipped no integrations and silently stopped working the day it gained one:
+ * every run then skipped the whole arrangement, the sync shot fell through to
+ * the empty `/admin/sync` conflicts page, and both captions on /integrations
+ * described a screen no longer in the file.
  */
 async function arrangeIntegrations() {
   const request = contexts.organizer.request;
 
-  /** Installed integrations, by id. The install picker names every plugin key
-      whether or not it is installed, so presence of a key proves nothing — an
-      `itg_` link does. */
+  /** Installed integrations as `plugin_key` → id. The install picker names
+      every plugin key whether or not it is installed, so the listing page
+      proves only which ids exist; the key each one holds is on its own page. */
   const installed = async () => {
     const html = await (await request.get(`${base}/admin/integrations`)).text();
-    return [...new Set([...html.matchAll(/\/admin\/integrations\/(itg_[A-Z0-9]+)/g)].map((m) => m[1]))];
-  };
-
-  /** The in-memory sync integration, if it is there. Its id is what the sync
-      shot needs, and the only way to tell which id it is, is to open it. */
-  const findMemory = async (ids) => {
+    const ids = [...new Set([...html.matchAll(/\/admin\/integrations\/(itg_[A-Z0-9]+)/g)].map((m) => m[1]))];
+    const byKey = {};
     for (const id of ids) {
       const page = await (await request.get(`${base}/admin/integrations/${id}`)).text();
-      if (page.includes("sync.memory")) return id;
+      const key = page.match(/\b((?:email|chat|sync|storage|analytics|ticketing)\.[a-z_]+)\b/)?.[1];
+      if (key && !byKey[key]) byKey[key] = id;
     }
-    return null;
+    return byKey;
   };
 
-  const already = await installed();
-  if (already.length > 0) {
-    console.log(`integrations  ${already.length} already installed — skipping arrangement`);
-    return await findMemory(already);
+  const WANTED = [
+    {
+      plugin_key: "email.resend",
+      display_name: "Resend",
+      secret_ref: "RESEND_API_KEY",
+      "config.from_email": "hello@devflowconf.example",
+      "config.from_name": "DevFlow Conf",
+      is_default_for_capability: "on",
+    },
+    {
+      plugin_key: "email.sendgrid",
+      display_name: "SendGrid (standby)",
+      secret_ref: "SENDGRID_API_KEY",
+      "config.from_email": "hello@devflowconf.example",
+      "config.from_name": "DevFlow Conf",
+    },
+    {
+      plugin_key: "chat.slack",
+      display_name: "Slack — #programme",
+      secret_ref: "SLACK_BOT_TOKEN",
+      "config.default_channel": "#programme",
+    },
+    {
+      plugin_key: "sync.airtable",
+      display_name: "Airtable — programme base",
+      secret_ref: "AIRTABLE_PAT",
+      "config.base_id": "appDevFlowConf2027",
+      is_default_for_capability: "on",
+    },
+    { plugin_key: "sync.memory", display_name: "Programme base (development provider)" },
+  ];
+
+  const before = await installed();
+  const missing = WANTED.filter((w) => !before[w.plugin_key]);
+  for (const form of missing) {
+    await request.post(`${base}/admin/integrations/new`, { form });
   }
 
-  const install = (form) => request.post(`${base}/admin/integrations/new`, { form });
-
-  await install({
-    plugin_key: "email.resend",
-    display_name: "Resend",
-    secret_ref: "RESEND_API_KEY",
-    "config.from_email": "hello@devflowconf.example",
-    "config.from_name": "DevFlow Conf",
-    is_default_for_capability: "on",
-  });
-  await install({
-    plugin_key: "email.sendgrid",
-    display_name: "SendGrid (standby)",
-    secret_ref: "SENDGRID_API_KEY",
-    "config.from_email": "hello@devflowconf.example",
-    "config.from_name": "DevFlow Conf",
-  });
-  await install({
-    plugin_key: "chat.slack",
-    display_name: "Slack — #programme",
-    secret_ref: "SLACK_BOT_TOKEN",
-    "config.default_channel": "#programme",
-  });
-  await install({
-    plugin_key: "sync.airtable",
-    display_name: "Airtable — programme base",
-    secret_ref: "AIRTABLE_PAT",
-    "config.base_id": "appDevFlowConf2027",
-    is_default_for_capability: "on",
-  });
-  await install({
-    plugin_key: "sync.memory",
-    display_name: "Programme base (development provider)",
-  });
-
-  // Find the in-memory integration and map two record types into it. Its tables
-  // can be listed without a network call, so the mapping screen shows real
-  // counts instead of a provider error.
-  const memoryId = await findMemory(await installed());
+  const after = missing.length ? await installed() : before;
+  const memoryId = after["sync.memory"];
   if (!memoryId) {
     console.error("could not find the installed in-memory sync integration");
     process.exit(1);
   }
+
+  // Map two record types into the in-memory provider. Its tables can be listed
+  // without a network call, so the mapping screen shows real counts instead of
+  // a provider error. Posting a mapping that already exists is harmless.
   for (const [subject, table] of [
     ["session", "Sessions"],
     ["proposal", "Proposals"],
@@ -205,11 +209,69 @@ async function arrangeIntegrations() {
       form: { subject, external_table_id: table, event_id: E },
     });
   }
-  console.log(`integrations  installed 5, mapped 2 tables on ${memoryId}`);
+  console.log(`integrations  ${Object.keys(after).length} installed (${missing.length} added), 2 tables mapped`);
   return memoryId;
 }
 
 const memoryId = await arrangeIntegrations();
+
+/**
+ * Arrange the API keys the agent field guide photographs.
+ *
+ * The seed mints none, which is right for a conference nobody has automated yet
+ * and useless as a photograph of the screen an organizer goes to before handing
+ * an agent anything. So this creates three, through the product's own form, over
+ * the organizer's real session — the same shape as `arrangeIntegrations` above.
+ *
+ * Three rather than one, because the claim the shot carries is that a key
+ * reaches exactly what its scopes name: a marketing site that can read the
+ * schedule and nothing else, a sponsorship dashboard that reads the deals, and
+ * an agent that works the onboarding pile and publishes. No secret is captured —
+ * the list shows a prefix, and the full value appears once on the redirect after
+ * creation, which is a screen this script never opens.
+ *
+ * The scopes field is a multi-select, so the body has to repeat the key. A plain
+ * object cannot, hence the hand-built urlencoded body.
+ */
+async function arrangeApiKeys() {
+  const request = contexts.organizer.request;
+
+  const existing = async () => {
+    const html = await (await request.get(`${base}/admin/api-keys`)).text();
+    return [...new Set([...html.matchAll(/\/admin\/api-keys\/(key_[A-Z0-9]+)\//g)].map((m) => m[1]))];
+  };
+
+  const already = await existing();
+  if (already.length > 0) {
+    console.log(`api keys      ${already.length} already minted — skipping arrangement`);
+    return;
+  }
+
+  const mint = (name, scopes) => {
+    const body = new URLSearchParams();
+    body.set("name", name);
+    for (const s of scopes) body.append("scopes", s);
+    return request.post(`${base}/admin/api-keys/new`, {
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      data: body.toString(),
+    });
+  };
+
+  await mint("Marketing site", ["schedule:read"]);
+  await mint("Sponsorship dashboard", ["sponsors:read", "entitlements:read"]);
+  await mint("Programme agent", [
+    "events:read",
+    "proposals:read",
+    "sessions:read",
+    "tasks:read",
+    "tasks:write",
+    "schedule:read",
+    "schedule:publish",
+  ]);
+  console.log("api keys      minted 3");
+}
+
+await arrangeApiKeys();
 
 /**
  * Which conference day to shoot.
@@ -359,6 +421,41 @@ const SHOTS = [
     persona: "organizer",
     path: memoryId ? `/admin/integrations/${memoryId}/sync` : "/admin/sync",
     height: 560,
+  },
+  {
+    // For the deploy guide. The two switches it argues about — password sign-in
+    // and the AI first pass — are both on this one form, so the crop runs to the
+    // save button rather than stopping after the second of them.
+    name: "settings",
+    persona: "organizer",
+    path: "/admin/settings",
+    height: 932,
+  },
+  {
+    // Both of these get a phone capture, unlike the wide tables above, because
+    // both have a genuine narrow layout that keeps the payload in frame: this
+    // one is a single-column form, and the key list below stacks the scopes
+    // under each key's name. What scrolls off the key list at this width is the
+    // status chip and the two buttons, not the scopes — which are the whole
+    // reason the shot exists.
+    name: "settings-phone",
+    persona: "organizerPhone",
+    path: "/admin/settings",
+    height: 1016,
+  },
+  {
+    // For the agent guide: where the token comes from, and what scoping one
+    // actually looks like. Needs `arrangeApiKeys` above to have run.
+    name: "api-keys",
+    persona: "organizer",
+    path: "/admin/api-keys",
+    height: 460,
+  },
+  {
+    name: "api-keys-phone",
+    persona: "organizerPhone",
+    path: "/admin/api-keys",
+    height: 844,
   },
 ];
 
