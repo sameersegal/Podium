@@ -52,7 +52,7 @@ function lanAddress() {
   return null;
 }
 
-const ORGANIZER = { email: "sbek-organizer@example.com", password: "SbekTest!2027-org" };
+const ORGANIZER = { email: "organizer@devflowconf.example", password: "PodiumDemo2027!" };
 
 function run(command, args) {
   execFileSync(command, args, { stdio: "inherit" });

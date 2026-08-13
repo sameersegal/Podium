@@ -59,7 +59,7 @@ const JSON_OUT = flag("json", null);
 const VERBOSE = argv.includes("--verbose");
 
 /** The seed's organizer. Password login is on in the default seed (R23). */
-const ORGANIZER = { email: "sbek-organizer@example.com", password: "SbekTest!2027-org" };
+const ORGANIZER = { email: "organizer@devflowconf.example", password: "PodiumDemo2027!" };
 
 /* -------------------------------------------------------------------------- */
 /* Statistics                                                                  */

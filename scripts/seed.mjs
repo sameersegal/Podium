@@ -175,8 +175,8 @@ const people = [
   {
     key: "jordan",
     name: "Jordan Alvarez",
-    email: "sbek-organizer@example.com",
-    password: "SbekTest!2027-org",
+    email: "organizer@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Programme Director",
     company: "DevFlow Events",
     bio: "Jordan runs the DevFlow Conf programme and has chaired developer-tooling tracks since 2019.",
@@ -184,8 +184,8 @@ const people = [
   {
     key: "priya",
     name: "Priya Raman",
-    email: "sbek-speaker@example.com",
-    password: "SbekTest!2027-spk",
+    email: "speaker@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Principal Engineer",
     company: "Latticework Systems",
     bio: "Priya Raman is a Principal Engineer at Latticework Systems where she leads the build-tooling platform team. She previously maintained the open-source task runner 'gantry' and has spoken at over a dozen developer conferences on build systems, CI reliability, and developer productivity metrics.",
@@ -197,8 +197,8 @@ const people = [
   {
     key: "marcus",
     name: "Marcus Okafor",
-    email: "sbek-speaker2@example.com",
-    password: "SbekTest!2027-spk2",
+    email: "cospeaker@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Staff Developer Advocate",
     company: "Cloudreach Labs",
     bio: "Marcus Okafor is a Staff Developer Advocate at Cloudreach Labs focused on AI agents in production. He writes the newsletter 'Agents Weekly' and co-organizes the SF AI Tinkerers meetup.",
@@ -206,8 +206,8 @@ const people = [
   {
     key: "sam",
     name: "Sam Whitfield",
-    email: "sbek-reviewer@example.com",
-    password: "SbekTest!2027-rev",
+    email: "reviewer@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Principal Engineer",
     company: "Northwind Data",
     bio: "Sam reviews for several developer conferences and works on distributed storage.",
@@ -216,7 +216,7 @@ const people = [
     key: "riley",
     name: "Riley Chen",
     email: "riley.chen@devflowconf.example",
-    password: "SbekTest!2027-org",
+    password: "PodiumDemo2027!",
     title: "Speaker Operations",
     company: "DevFlow Events",
     bio: "Riley looks after speakers from acceptance to the green room.",
@@ -225,7 +225,7 @@ const people = [
     key: "morgan",
     name: "Morgan Diaz",
     email: "morgan.diaz@devflowconf.example",
-    password: "SbekTest!2027-org",
+    password: "PodiumDemo2027!",
     title: "Partnerships",
     company: "DevFlow Events",
     bio: "Morgan looks after sponsor relationships and their sessions.",
@@ -2044,10 +2044,10 @@ if (process.argv.includes("--print")) {
   console.log(`
 Seeded DevFlow Conf 2027.
 
-  Organizer / chair   sbek-organizer@example.com   SbekTest!2027-org
-  Speaker             sbek-speaker@example.com     SbekTest!2027-spk
-  Second speaker      sbek-speaker2@example.com    SbekTest!2027-spk2
-  Reviewer            sbek-reviewer@example.com    SbekTest!2027-rev
+  Organizer / chair   organizer@devflowconf.example   PodiumDemo2027!
+  Speaker             speaker@devflowconf.example     PodiumDemo2027!
+  Second speaker      cospeaker@devflowconf.example   PodiumDemo2027!
+  Reviewer            reviewer@devflowconf.example    PodiumDemo2027!
 
   Admin      http://localhost:8787/admin
   Portal     http://localhost:8787/portal
