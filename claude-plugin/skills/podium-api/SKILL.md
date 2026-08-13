@@ -174,16 +174,24 @@ Say so rather than working around it.
 
 ### A first-person statement is authored by its person (INV-09-27)
 
-**Submitting a proposal and writing a review are refused to every API key**, whatever its
-scopes, with `403 authorship_requires_person` naming the rule:
+**Submitting a proposal, writing a review and declining an assignment are refused to every API
+key**, whatever its scopes, with `403 authorship_requires_person` naming the rule:
 
 ```
-POST /v1/proposals/:id/submit   → 403 authorship_requires_person (INV-09-27)
-POST /v1/reviews                → 403 authorship_requires_person (INV-09-27)
+POST /v1/proposals/:id/submit              → 403 authorship_requires_person (INV-09-27)
+POST /v1/reviews                           → 403 authorship_requires_person (INV-09-27)
+POST /v1/me/assignments/:id/decline        → 403 authorship_requires_person (INV-09-27)
 ```
 
-Both records are somebody's own assertion — *this is my talk*, *this is my assessment* — and
-carry that person's name for as long as they exist. A key is nobody. This is a rule, not a
+All three are somebody's own assertion — *this is my talk*, *this is my assessment*, *I cannot
+review this one* — and carry that person's name for as long as they exist. A key is nobody.
+
+`/v1/me/…` as a whole is the session surface — it answers for whoever the session belongs to,
+so a key has nobody to be there. Its **reads** answer `401 unauthorized` ("Sign in to
+continue"), which is the honest answer to "show me *my* queue" from a credential that is not a
+person, not a scope problem to fix. Its one **write** names the rule above instead, because a
+caller declining an assignment is being told *who* has to do it rather than that their token
+is wrong. This is a rule, not a
 gap: do not look for another route, and do not tell the operator it is a limitation to work
 around. Tell them who needs to do it.
 

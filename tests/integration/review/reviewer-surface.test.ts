@@ -143,12 +143,25 @@ async function signIn(email: string, password: string): Promise<string> {
   return `podium_session=${match[1]}`;
 }
 
+/**
+ * Every `GET` below asks for `?nojs=1`, because the console now owns these two
+ * URLs (R30) and a plain `GET` gets its boot document. That is not a workaround
+ * for the test: the server-rendered pages are still the fallback and still have
+ * to work, so this file is exercising something real. The console's half of the
+ * same guarantees is asserted in `reviewer-console.test.ts`, because each
+ * surface has its own way of losing them.
+ *
+ * The two exceptions are the requests that must be *refused*: a foreign or
+ * invented assignment id and an anonymous caller never reach the console at
+ * all — `consoleDocument` declines them and the route below denies them by
+ * name, which is what INV-05-18 requires of both surfaces.
+ */
 describe("the reviewer surface (INV-05-18)", () => {
   beforeAll(seed);
 
   it("sees exactly the proposals assigned to them, across the round, and no others", async () => {
     const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
-    const res = await SELF.fetch("http://localhost/review", { headers: { cookie } });
+    const res = await SELF.fetch("http://localhost/review?nojs=1", { headers: { cookie } });
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("REVSURF-0001");
@@ -158,7 +171,7 @@ describe("the reviewer surface (INV-05-18)", () => {
 
   it("opens their own assignment", async () => {
     const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
-    const res = await SELF.fetch(`http://localhost/review/${ASSIGNMENT_A}`, { headers: { cookie } });
+    const res = await SELF.fetch(`http://localhost/review/${ASSIGNMENT_A}?nojs=1`, { headers: { cookie } });
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("Assigned Proposal One");
@@ -188,7 +201,7 @@ describe("the reviewer surface (INV-05-18)", () => {
    */
   it("says where in the queue an assignment sits, and offers the next one", async () => {
     const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
-    const res = await SELF.fetch(`http://localhost/review/${ASSIGNMENT_A}`, { headers: { cookie } });
+    const res = await SELF.fetch(`http://localhost/review/${ASSIGNMENT_A}?nojs=1`, { headers: { cookie } });
     const body = await res.text();
     expect(body).toContain("1 of 2 outstanding");
     expect(body).toContain(`/review/${ASSIGNMENT_B}`);
@@ -229,7 +242,7 @@ describe("the reviewer surface (INV-05-18)", () => {
 
   it("separates what is still owed from what is finished", async () => {
     const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
-    const res = await SELF.fetch("http://localhost/review", { headers: { cookie } });
+    const res = await SELF.fetch("http://localhost/review?nojs=1", { headers: { cookie } });
     const body = await res.text();
     // Both are submitted by now, so the queue says so rather than listing them
     // as work. Finished work is not on this page at all any more — it lives
@@ -242,7 +255,7 @@ describe("the reviewer surface (INV-05-18)", () => {
 
   it("reaches submitted work through the rail, and shows it there", async () => {
     const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
-    const res = await SELF.fetch("http://localhost/review?show=submitted", { headers: { cookie } });
+    const res = await SELF.fetch("http://localhost/review?show=submitted&nojs=1", { headers: { cookie } });
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("Two submitted");

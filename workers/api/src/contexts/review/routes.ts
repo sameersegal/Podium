@@ -39,7 +39,7 @@ import { readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect, text } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, type SafeHtml } from "../../ui/html.js";
-import { humanise, pageHead } from "../../ui/layout.js";
+import { pageHead } from "../../ui/layout.js";
 import { adminPage, loadEvent, reviewerPage, type EventRef } from "../../ui/shell.js";
 import { personDisplayName } from "../identity/service.js";
 import {
@@ -52,7 +52,6 @@ import {
   createRound,
   createRubric,
   createSponsorComplianceRubric,
-  currentReviewFor,
   declareConflict,
   declineAssignment,
   deleteConflict,
@@ -69,7 +68,6 @@ import {
   requireAssignmentRow,
   requireOwnAssignment,
   revokeAssignment,
-  reviewableFor,
   saveReviewDraft,
   setAssignmentStatus,
   submitReview,
@@ -89,7 +87,6 @@ import {
   loadConflicts,
   loadReviews,
   progressForRound,
-  progressForReviewer,
   requireEvent,
   requireRound,
   requireRubric,
@@ -132,10 +129,16 @@ import {
   partitionQueue,
   reviewerAssignmentView,
   reviewerDashboardView,
-  type ReviewerAssignmentRow,
   type ReviewerQueueFilter,
-  type ReviewerRound,
 } from "./reviewer-views.js";
+import {
+  loadReviewerQueue,
+  loadScorecard,
+  outstandingQueue,
+  toQueueView,
+  toScorecardView,
+  type ReviewerRound,
+} from "./reviewer-model.js";
 
 const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
 const WARN = (message: string) => ({ "set-cookie": flashCookie("warn", message) });
@@ -348,6 +351,7 @@ function readDecisionInput(input: Input, timezone: string): Omit<DecisionInput, 
 
 export function registerReviewRoutes(router: Router<RequestContext>): void {
   registerReviewerRoutes(router);
+  registerReviewerApi(router);
   registerRoundRoutes(router);
   registerPoolRoutes(router);
   registerAssignmentRoutes(router);
@@ -363,23 +367,18 @@ export function registerReviewRoutes(router: Router<RequestContext>): void {
 /* Reviewer surface — /review                                                 */
 /* ========================================================================== */
 
-/**
- * The reviewer's outstanding assignments, in the order the queue shows them.
+/*
+ * The loading lives in `reviewer-model.ts`, not here: these two screens are
+ * rendered twice — as HTML below, and as JSON for the console that owns the
+ * same two URLs (R30) — and a second copy of the loading would be a second
+ * answer to "what do I still owe".
  *
- * It exists so the scorecard can say "3 of 17" and offer the next one. A
- * reviewer working through a round was being returned to `/review` after every
- * submission and left to find their place again — which is the difference
- * between reviewing seventeen proposals and reviewing four and giving up.
+ * `outstandingQueue`, from the same file, is why the scorecard can say "3 of
+ * 17" and offer the next one. A reviewer working through a round was being
+ * returned to `/review` after every submission and left to find their place
+ * again — the difference between reviewing seventeen proposals and reviewing
+ * four and giving up.
  */
-async function outstandingQueue(app: AppContext, personId: string): Promise<string[]> {
-  const rows = await app.db.raw<Row>(
-    `SELECT id FROM review_assignment
-      WHERE reviewer_person_id = ? AND status IN ('assigned','accepted','in_progress')
-      ORDER BY (due_at IS NULL), due_at, assigned_at`,
-    [personId],
-  );
-  return rows.map((r) => str(r.id));
-}
 
 const SHOW_TITLES: Record<ReviewerQueueFilter, string> = {
   queue: "My queue",
@@ -414,62 +413,7 @@ function railRound(rounds: ReviewerRound[], now: string): { name: string; lines:
 function registerReviewerRoutes(router: Router<RequestContext>): void {
   router.get("/review", async (_req, ctx) => {
     const person = ctx.requirePerson();
-    const app = ctx.app();
-    // Track, format and duration come along so the queue can say what each
-    // proposal *is*. None of the three is blinded under any anonymity setting
-    // — R10 hides speaker names, co-speaker names and employers, not the shape
-    // of the talk — so joining them here is safe for every round at once.
-    const assignmentRows = await app.db.raw<Row>(
-      `SELECT ra.*, rr.name AS round_name,
-              p.reference AS proposal_reference, p.title AS proposal_title,
-              p.requested_duration_minutes, p.audience_level,
-              t.name AS track_name, f.name AS format_name
-         FROM review_assignment ra
-         JOIN review_round rr ON rr.id = ra.round_id
-         LEFT JOIN proposal p ON p.id = ra.proposal_id
-         LEFT JOIN track t ON t.id = COALESCE(p.assigned_track_id, p.track_id)
-         LEFT JOIN session_format f ON f.id = p.session_format_id
-        WHERE ra.reviewer_person_id = ?
-        ORDER BY (ra.due_at IS NULL), ra.due_at, ra.assigned_at`,
-      [person.id],
-    );
-    const rows: ReviewerAssignmentRow[] = assignmentRows.map((r) => ({
-      assignment: r,
-      round_name: str(r.round_name),
-      proposal: r.proposal_reference ? { reference: str(r.proposal_reference), title: str(r.proposal_title) } : null,
-      meta: [
-        strOrNull(r.track_name),
-        strOrNull(r.format_name),
-        r.requested_duration_minutes ? `${num(r.requested_duration_minutes)} min` : null,
-        strOrNull(r.audience_level) ? humanise(str(r.audience_level)) : null,
-      ].filter((x): x is string => Boolean(x)),
-    }));
-    const roundIds = [...new Set(assignmentRows.map((r) => str(r.round_id)))];
-    const progressByRound: Record<string, Awaited<ReturnType<typeof progressForReviewer>>> = {};
-    for (const roundId of roundIds) progressByRound[roundId] = await progressForReviewer(app, roundId, person.id);
-
-    // The rounds themselves, for the rail's context card and the pace sentence:
-    // a reviewer budgets against the date the round shuts, not against a
-    // percentage. Anonymity comes with them because it decides what the queue
-    // is allowed to promise the reader they will not see (R10).
-    const rounds: ReviewerRound[] = [];
-    for (const roundId of roundIds) {
-      const row = await app.db.byId<Row>("review_round", roundId);
-      if (row) {
-        rounds.push({
-          id: roundId,
-          name: str(row.name),
-          anonymity: str(row.anonymity),
-          closes_at: strOrNull(row.closes_at),
-        });
-      }
-    }
-
-    // Counted, never listed — the subject of a conflict is a person, and this
-    // number is only ever rendered as "n are on file for you" (INV-05-18).
-    const conflicts = rows.length
-      ? (await app.db.select<Row>("conflict_of_interest", { reviewer_person_id: person.id })).length
-      : 0;
+    const { rows, progressByRound, rounds, conflicts } = await loadReviewerQueue(ctx.app(), person.id, ctx.now);
 
     const show = queueFilter(ctx.url.searchParams.get("show"));
     const parts = partitionQueue(rows);
@@ -493,66 +437,35 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
 
   router.get("/review/:assignmentId", async (_req, ctx, params) => {
     const person = ctx.requirePerson();
-    const app = ctx.app();
-    const assignment = await requireOwnAssignment(app, person.id, params.assignmentId); // INV-05-18 + INV-11-7
-    const round = await requireRound(app, str(assignment.round_id));
-    const { rubric, criteria } = await requireRubric(app, round.rubric_id);
-    const proposal = await reviewableFor(app, str(assignment.proposal_id), round.anonymity);
-    const reviewRow = await currentReviewFor(app, params.assignmentId);
-    const scoreRows = reviewRow ? await app.db.select<Row>("criterion_score", { review_id: str(reviewRow.id) }) : [];
-    const scores = scoreRows.map((s) => ({
-      criterion_id: str(s.criterion_id),
-      value_number: s.value_number === null || s.value_number === undefined ? null : num(s.value_number),
-      value_option: strOrNull(s.value_option),
-      value_text: strOrNull(s.value_text),
-      value_bool: s.value_bool === null || s.value_bool === undefined ? null : bool(s.value_bool),
-    }));
-    const naCriterionIds = scoreRows
-      .filter((s) => s.value_number === null && !s.value_option && !s.value_text && (s.value_bool === null || s.value_bool === undefined))
-      .map((s) => str(s.criterion_id));
-
-    const { canSeeOtherReviews } = await import("./service.js");
-    const canSeeOthers = await canSeeOtherReviews(app, round, assignment);
-    const otherReviews = canSeeOthers
-      ? (await loadReviews(app, { round_id: round.id, proposal_id: str(assignment.proposal_id) })).filter(
-          (r) => r.id !== reviewRow?.id && r.status !== "superseded" && r.status !== "draft",
-        )
-      : [];
-    const aggregate = canSeeOthers ? await proposalScoreFor(app, round.id, str(assignment.proposal_id)) : null;
-    const comments = round.discussion_enabled && canSeeOthers ? await listComments(app, str(assignment.proposal_id), false) : [];
-
-    // Where this one sits in the queue, so the scorecard can be worked through
-    // rather than returned to.
-    const queue = await outstandingQueue(app, person.id);
-    const at = queue.indexOf(params.assignmentId);
-    const position = at >= 0 ? { index: at, total: queue.length, previous: queue[at - 1] ?? null, next: queue[at + 1] ?? null } : null;
+    // INV-05-18 + INV-11-7 — ownership is the guard, inside the loader.
+    const m = await loadScorecard(ctx.app(), person.id, params.assignmentId, ctx.now);
 
     return htmlResponse(
       reviewerPage(
         ctx,
         {
-          title: proposal.title,
+          title: m.proposal.title,
           round: railRound(
-            [{ id: round.id, name: round.name, anonymity: round.anonymity, closes_at: round.closes_at ?? null }],
+            [{ id: m.round.id, name: m.round.name, anonymity: m.round.anonymity, closes_at: m.round.closes_at ?? null }],
             ctx.now,
           ),
           active: "queue",
-          crumbs: [{ label: "Review", href: "/review" }, { label: round.name, href: "/review" }, { label: proposal.title }],
+          crumbs: [{ label: "Review", href: "/review" }, { label: m.round.name, href: "/review" }, { label: m.proposal.title }],
         },
         reviewerAssignmentView({
-          assignment,
-          roundName: round.name,
-          anonymity: round.anonymity,
-          proposal,
-          rubric,
-          criteria,
-          existing: { review: reviewRow, scores, naCriterionIds },
-          canSeeOthers,
-          otherReviews,
-          aggregate,
-          comments,
-          discussionEnabled: round.discussion_enabled,
-          position,
+          assignment: m.assignment,
+          roundName: m.round.name,
+          anonymity: m.round.anonymity,
+          proposal: m.proposal,
+          rubric: m.rubric,
+          criteria: m.criteria,
+          existing: { review: m.review, scores: m.scores, naCriterionIds: m.naCriterionIds },
+          canSeeOthers: m.canSeeOthers,
+          otherReviews: m.otherReviews,
+          aggregate: m.aggregate,
+          comments: m.comments,
+          discussionEnabled: m.round.discussion_enabled,
+          position: m.position,
           now: ctx.now,
         }),
       ),
@@ -594,6 +507,64 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
     await declineAssignment(app, params.assignmentId, input.str("reason") as DeclineReason, input.optional("note"));
     await app.flush();
     return redirect("/review", 303, OK("Assignment declined."));
+  });
+}
+
+/* ========================================================================== */
+/* Portal API — /v1/me/assignments                                            */
+/* ========================================================================== */
+
+/**
+ * The same two screens, as JSON, for the console that now owns their URLs
+ * (R30).
+ *
+ * **Why `/v1/me/` and not the management surface.** These are the *portal*
+ * surface as [`09`](docs/domain/09-api-and-integrations.md) defines it: a
+ * session cookie, and scope derived from a relationship rather than a role. A
+ * reviewer sees these assignments because they are theirs (INV-05-18), not
+ * because a matrix row grants them `review.read` over an event — which is why
+ * `requireOwnAssignment` is the guard here, exactly as it is on the HTML routes
+ * beside them, and why no capability is checked. The management surface already
+ * has the chair's view of the same data at `GET /v1/assignments?round_id=`,
+ * gated the other way.
+ *
+ * **Writing a review is not here.** `POST /v1/reviews` already takes the draft
+ * and the submission, from a signed-in person and never from a key
+ * (INV-09-27), so the console posts there. A second write path for the same act
+ * would be a second place for the anonymity and validation rules to be got
+ * wrong.
+ */
+function registerReviewerApi(router: Router<RequestContext>): void {
+  router.get("/v1/me/assignments", async (_req, ctx) => {
+    const person = ctx.requirePerson();
+    return json({ data: toQueueView(await loadReviewerQueue(ctx.app(), person.id, ctx.now)) });
+  });
+
+  router.get("/v1/me/assignments/:assignmentId", async (_req, ctx, params) => {
+    const person = ctx.requirePerson();
+    return json({ data: toScorecardView(await loadScorecard(ctx.app(), person.id, params.assignmentId, ctx.now)) });
+  });
+
+  /**
+   * Declining is the reviewer's own statement about themselves — most often
+   * "I have a conflict" — so it is `/v1/me/` and it needs a person, for the
+   * same reason writing the review does (INV-09-27). It is not a chair
+   * revoking an assignment; that is
+   * `POST /admin/rounds/:roundId/assignments/:assignmentId/revoke`.
+   */
+  router.post("/v1/me/assignments/:assignmentId/decline", async (req, ctx, params) => {
+    requirePersonalAuthorship(ctx, "Declining an assignment");
+    const person = ctx.requirePerson();
+    const app = ctx.app();
+    await requireOwnAssignment(app, person.id, params.assignmentId);
+    const input = await readInput(req);
+    const reason = input.optional("reason");
+    if (!reason) {
+      throw validationError("A reason is required.", [{ field_key: "reason", message: "Why are you declining this one?" }]);
+    }
+    await declineAssignment(app, params.assignmentId, reason as DeclineReason, input.optional("note"));
+    await app.flush();
+    return json({ id: params.assignmentId, status: "declined" });
   });
 }
 

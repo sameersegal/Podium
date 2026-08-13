@@ -145,6 +145,12 @@ export function spinner() {
   return h("span", { class: "console-spinner", "aria-hidden": "true" });
 }
 
+/** The same bar `layout.ts::progressBar` draws, against the same `.progress`. */
+export function progressBar(percent) {
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+  return h("div", { class: "progress", title: pct + "%" }, h("span", { style: "width:" + pct + "%" }));
+}
+
 export function notice(message, kind) {
   return message ? h("p", { class: cx("notice", kind || "") }, message) : null;
 }
@@ -217,6 +223,60 @@ export function field(spec) {
         h("option", { key: opt.value, value: opt.value, selected: String(opt.value) === String(spec.value) }, opt.label),
       ),
     );
+  } else if (spec.type === "multi_select") {
+    // A native multiple `<select>`, as on the server. `onchange` is handed the
+    // selected values rather than the event, because every caller wants the
+    // list and none of them wants to walk `selectedOptions`.
+    control = h(
+      "select",
+      {
+        id,
+        name: spec.name,
+        multiple: true,
+        size: Math.min(6, (spec.options || []).length || 3),
+        disabled: spec.disabled || false,
+        onchange: spec.onchange ? (ev) => spec.onchange([...ev.target.selectedOptions].map((o) => o.value)) : null,
+      },
+      (spec.options || []).map((opt) =>
+        h(
+          "option",
+          { key: opt.value, value: opt.value, selected: Array.isArray(spec.value) && spec.value.includes(opt.value) },
+          opt.label,
+        ),
+      ),
+    );
+  } else if (spec.type === "radio") {
+    // A `<fieldset>` of radios, not a checkbox and not a select: a checkbox
+    // cannot tell "unanswered" from "no", and INV-05-5 has to tell them apart
+    // to know whether a required criterion was answered.
+    return h(
+      "fieldset",
+      { class: cx("field", spec.error && "field-error") },
+      h("legend", null, spec.label, spec.required ? h("span", { class: "req" }, "*") : null),
+      spec.help ? h("p", { class: "help" }, spec.help) : null,
+      (spec.options || []).map((opt, i) =>
+        h(
+          "div",
+          { key: opt.value, class: "checkline" },
+          h("input", {
+            id: id + "_" + i,
+            type: "radio",
+            name: spec.name,
+            value: opt.value,
+            checked: String(spec.value == null ? "" : spec.value) === String(opt.value),
+            onchange: spec.onchange || null,
+            disabled: spec.disabled || false,
+          }),
+          h(
+            "label",
+            { for: id + "_" + i },
+            opt.label,
+            opt.description ? h("span", { class: "muted small" }, " — " + opt.description) : null,
+          ),
+        ),
+      ),
+      spec.error ? h("p", { class: "err small" }, spec.error) : null,
+    );
   } else if (spec.type === "checkbox") {
     // `.checkline` inside `.field`, not both on one element: `.field` is a
     // column and `.checkline` is a row, and an element carrying both stacks the
@@ -244,6 +304,11 @@ export function field(spec) {
       id,
       type: spec.type || "text",
       name: spec.name,
+      // A rubric's scale is on the control, as it is on the server: `1..5` typed
+      // into a box that accepts anything is a criterion scored 50 by a slip.
+      min: spec.min === undefined ? null : spec.min,
+      max: spec.max === undefined ? null : spec.max,
+      step: spec.step === undefined ? null : spec.step,
       value: spec.value == null ? "" : String(spec.value),
       placeholder: spec.placeholder || null,
       oninput: spec.oninput || null,

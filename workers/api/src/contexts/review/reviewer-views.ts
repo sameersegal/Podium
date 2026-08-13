@@ -23,31 +23,12 @@ import type { ProposalScore } from "@podiumstack/domain/review/scoring.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { badge, card, empty, field, humanise, pageHead, progressBar } from "../../ui/layout.js";
 import { plural, spell, Spell } from "../../ui/words.js";
+import type { ReviewerAssignmentRow, ReviewerRound } from "./reviewer-model.js";
 import { opts } from "./views.js";
 
 /* ========================================================================== */
 /* GET /review — my assignments                                               */
 /* ========================================================================== */
-
-export interface ReviewerAssignmentRow {
-  assignment: Row;
-  round_name: string;
-  proposal: { reference: string; title: string } | null;
-  /**
-   * Track, format and duration, already blinded — never a speaker name, which
-   * `double_blind` withholds (R10). It is on the card so a reviewer picking
-   * their next one is not choosing between eleven identical titles.
-   */
-  meta: string[];
-}
-
-/** The round a reviewer is working in, as much of it as the queue needs. */
-export interface ReviewerRound {
-  id: string;
-  name: string;
-  anonymity: string;
-  closes_at: string | null;
-}
 
 export interface ReviewerQueueData {
   rows: ReviewerAssignmentRow[];

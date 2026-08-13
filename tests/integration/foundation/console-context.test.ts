@@ -146,6 +146,7 @@ describe("the console's event in context", () => {
     [`/admin/proposals/${PROPOSAL}`, "reaches it through the proposal"],
     ["/admin", "names none, and opens on the most recent"],
     ["/admin/events", "names none, and has none"],
+    ["/review", "is the other console, and takes no event at all"],
   ] as const;
 
   for (const [path, how] of paths) {
@@ -157,6 +158,28 @@ describe("the console's event in context", () => {
       expect(event ? event.id : null).toBe(booted);
     });
   }
+
+  /**
+   * The reviewer surface is the one console path that must *not* acquire an
+   * event. `/review` is one segment long, like `/admin`, and the rule that
+   * opens `/admin` on the most recent event would otherwise fly an event bar
+   * over a queue that spans rounds in several of them — and hand the client a
+   * rail belonging to a different screen.
+   */
+  it("boots /review with no event and the reviewer's own rail, and says so both ways", async () => {
+    const res = await SELF.fetch("http://localhost/review", { headers: { cookie, accept: "text/html" } });
+    const html = await res.text();
+    const payload = /<script type="application\/json" id="console-boot">(.*?)<\/script>/s.exec(html)!;
+    const booted = JSON.parse(payload[1].replace(/<\\\//g, "</"));
+    expect(booted.surface).toBe("reviewer");
+    expect(booted.event).toBeNull();
+    expect(booted.reviewer).not.toBeNull();
+
+    const navigated = await navigatedTo("/review", cookie);
+    expect(navigated.status).toBe(200);
+    expect(navigated.boot!.surface).toBe("reviewer");
+    expect(navigated.boot!.event).toBeNull();
+  });
 
   it("opens /admin on the most recent event, not the first one seeded", async () => {
     const navigated = await navigatedTo("/admin", cookie);

@@ -1,11 +1,18 @@
 /**
- * The admin console's server half — R30.
+ * The console's server half — R30.
  *
  * Two jobs, and deliberately no third: serve the boot document for the screens
  * the console owns, and answer the reads that are the console's alone (the
  * bootstrap payload and the event dashboard). Everything else the console does
  * goes through the ordinary `/v1` management surface, which is the whole point
  * of porting onto an API that already exists.
+ *
+ * It boots **two** consoles out of one client. `admin` is the organizer's,
+ * railed by the event's workflow; `reviewer` is `/review`, railed by one
+ * person's queue, which R30's amendment moved onto this side of the line. The
+ * surface is decided here, travels in the boot payload as `surface`, and is the
+ * only thing `app.js` branches on — the modules, the components and the
+ * stylesheet are the same for both.
  *
  * ## Which screens
  *
@@ -33,6 +40,7 @@ import type { Router } from "../http/router.js";
 import { escapeHtml } from "../ui/html.js";
 import { loadRailCounts } from "../ui/rail-counts.js";
 import { toEventRef, type EventRef } from "../ui/shell.js";
+import { loadReviewerRail, ownsAssignment } from "../contexts/review/reviewer-model.js";
 import { eventDashboard } from "./dashboard.js";
 
 /**
@@ -40,8 +48,22 @@ import { eventDashboard } from "./dashboard.js";
  * router uses. Each names the capability that gates it, so a person without it
  * gets the server-rendered page (which will refuse them properly) rather than a
  * console that boots and then 403s on its first fetch.
+ *
+ * `surface` says which of the two consoles a path belongs to. `admin` is the
+ * organizer's, railed by the event's workflow; `reviewer` is `/review`, railed
+ * by one person's queue. They share this file, `app.js` and every module under
+ * it, because they are the same client — what differs is the rail, the chrome
+ * and which endpoints the screens read.
+ *
+ * A reviewer path names **no capability**, and that is the honest answer rather
+ * than a gap: the reviewer surface is scoped by whose assignments these are
+ * (INV-05-18), not by a matrix row, which is exactly what the server-rendered
+ * `/review` does — it requires a person and nothing else, and shows somebody
+ * with no assignments an empty queue. Gating the console harder than the page
+ * it shares a URL with would hand two readers of the same link two different
+ * products.
  */
-const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
+const CONSOLE_PATHS: { segments: string[]; capability?: Capability; surface?: "admin" | "reviewer" }[] = [
   // Organization-wide: no event in the path. `/admin` still opens on the most
   // recent event, because "what needs me today" is always about one.
   { segments: ["admin"], capability: "config.manage" },
@@ -58,6 +80,11 @@ const CONSOLE_PATHS: { segments: string[]; capability: Capability }[] = [
   { segments: ["admin", "events", ":eventId", "publications"], capability: "schedule.read_published" },
   { segments: ["admin", "cfps", ":cfpId", "form"], capability: "cfp.configure" },
   { segments: ["admin", "proposals", ":proposalId"], capability: "proposal.read_any" },
+  // The reviewer's own two screens. No event in either path: a reviewer's
+  // assignments cross rounds and can cross events, and the rail they need is
+  // their queue rather than one event's workflow.
+  { segments: ["review"], surface: "reviewer" },
+  { segments: ["review", ":assignmentId"], surface: "reviewer" },
 ];
 
 /**
@@ -92,12 +119,14 @@ const CONSOLE_MODULES = [
   "/console/views/proposals.js",
   "/console/views/agenda.js",
   "/console/views/form-builder.js",
+  "/console/views/reviewer.js",
 ];
 
 interface ConsoleMatch {
   params: Record<string, string>;
-  capability: Capability;
+  capability?: Capability;
   segments: string[];
+  surface: "admin" | "reviewer";
 }
 
 function matchConsolePath(pathname: string): ConsoleMatch | null {
@@ -114,7 +143,7 @@ function matchConsolePath(pathname: string): ConsoleMatch | null {
         break;
       }
     }
-    if (ok) return { params, capability: route.capability, segments: route.segments };
+    if (ok) return { params, capability: route.capability, segments: route.segments, surface: route.surface ?? "admin" };
   }
   return null;
 }
@@ -133,6 +162,22 @@ async function eventForMatch(
   hit: ConsoleMatch,
 ): Promise<{ event: EventRef | null; missing: boolean }> {
   const app = ctx.app();
+  // The reviewer surface has no event in context and must not acquire one:
+  // `/review` is one segment long, and the "open on the most recent event"
+  // branch below would otherwise fly an event bar over a queue that spans
+  // rounds in several of them.
+  //
+  // An assignment that is not this reader's is `missing` in the sense this
+  // function means it — not ours to boot — so the server-rendered route answers
+  // and refuses it by name (INV-05-18). A console shell over somebody else's
+  // assignment id is a 200 where the invariant requires a denial.
+  if (hit.surface === "reviewer") {
+    if (hit.params.assignmentId && ctx.person) {
+      const own = await ownsAssignment(app, ctx.person.id, hit.params.assignmentId);
+      if (!own) return { event: null, missing: true };
+    }
+    return { event: null, missing: false };
+  }
   if (hit.params.eventId) {
     const row = await app.db.byId<Row>("event", hit.params.eventId);
     return { event: row ? toEventRef(row) : null, missing: !row };
@@ -178,10 +223,18 @@ const BOOT_CAPABILITIES: Capability[] = [
   "sponsor.manage",
 ];
 
-async function bootPayload(ctx: RequestContext, ev: EventRef | null): Promise<Record<string, unknown>> {
+async function bootPayload(
+  ctx: RequestContext,
+  ev: EventRef | null,
+  surface: "admin" | "reviewer" = "admin",
+): Promise<Record<string, unknown>> {
   const app = ctx.app();
   const org = await app.db.byId<Row>("organization", ctx.orgId);
-  const events = await app.db.select<Row>("event", {}, { orderBy: "starts_on DESC", limit: 50 });
+  // The reviewer surface has no event switcher and no event bar, so the list
+  // behind both is a query it should not pay for. A reviewer is frequently not
+  // an organizer at all, and reading it would be answering a question they were
+  // never asked.
+  const events = surface === "reviewer" ? [] : await app.db.select<Row>("event", {}, { orderBy: "starts_on DESC", limit: 50 });
   // Two maps, because several capabilities are read-only for some roles and a
   // single "can" would either hide a screen from someone allowed to look at it
   // or offer a button to someone who cannot press it. `canRead` decides whether
@@ -199,14 +252,22 @@ async function bootPayload(ctx: RequestContext, ev: EventRef | null): Promise<Re
   // that reloaded the document, which is the same staleness the numbers on any
   // open screen already have.
   const rail = ev ? await loadRailCounts(app, ev.id, ctx.now) : {};
+  // The other rail. `My queue / Submitted / Declined` are counts of one
+  // person's assignments and the context card names the round they are in —
+  // the same two things the server-rendered reviewer rail draws, loaded in the
+  // same pre-router seam so the two agree on the first frame rather than after
+  // the queue arrives.
+  const reviewer = surface === "reviewer" && ctx.person ? await loadReviewerRail(app, ctx.person.id) : null;
 
   return {
+    surface,
     person: ctx.person
       ? { id: ctx.person.id, full_name: ctx.person.full_name, display_name: ctx.person.display_name }
       : null,
     org: org ? { id: str(org.id), name: str(org.name) } : null,
     event: ev,
     rail,
+    reviewer,
     events: events.map((e) => {
       const ref = toEventRef(e);
       return { id: ref.id, name: ref.name, slug: ref.slug, status: ref.status };
@@ -236,13 +297,13 @@ export async function consoleDocument(req: Request, ctx: RequestContext): Promis
   const { event: ev, missing } = await eventForMatch(ctx, hit);
   if (missing) return null; // no such event or call — let the server page 404 properly
   if (ev) ctx.eventId = ev.id;
-  if (!ctx.canRead(hit.capability, ev ? { event_id: ev.id } : undefined)) return null;
+  if (hit.capability && !ctx.canRead(hit.capability, ev ? { event_id: ev.id } : undefined)) return null;
 
-  const boot = await bootPayload(ctx, ev);
-  return htmlResponse(shell(ev, boot, url));
+  const boot = await bootPayload(ctx, ev, hit.surface);
+  return htmlResponse(shell(ev, boot, url, hit.surface));
 }
 
-function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL): string {
+function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL, surface: "admin" | "reviewer"): string {
   // `</script>` inside a JSON string would close this block early. The payload
   // is org data, not user-authored markup, but the escape costs one replace and
   // removes the question.
@@ -252,7 +313,7 @@ function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL): st
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(ev ? ev.name : "Admin")} · Podium</title>
+  <title>${escapeHtml(surface === "reviewer" ? "Review" : ev ? ev.name : "Admin")} · Podium</title>
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -267,7 +328,7 @@ function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL): st
   <link rel="stylesheet" href="/console.css">
 ${CONSOLE_MODULES.map((m) => `  <link rel="modulepreload" href="${m}">`).join("\n")}
 </head>
-<body class="admin console">
+<body class="${surface} console">
   <div id="console"><div class="console-booting" role="status">Loading the console…</div></div>
   <script type="application/json" id="console-boot">${payload}</script>
   <script type="module" src="/console/app.js"></script>
@@ -277,7 +338,7 @@ ${CONSOLE_MODULES.map((m) => `  <link rel="modulepreload" href="${m}">`).join("\
   <script src="/keys.js" defer></script>
   <noscript>
     <div class="card">
-      <h1>The admin console needs JavaScript</h1>
+      <h1>${surface === "reviewer" ? "This screen needs JavaScript" : "The admin console needs JavaScript"}</h1>
       <p class="lede">This screen is the client-rendered console. The server-rendered version of it is still here.</p>
       <p><a href="${escapeHtml(url.pathname)}?nojs=1">Open the server-rendered page</a></p>
     </div>
@@ -316,8 +377,8 @@ export function registerConsoleRoutes(router: Router<RequestContext>): void {
       const { event, missing } = await eventForMatch(ctx, hit);
       if (missing) throw notFound("Console screen");
       if (event) ctx.eventId = event.id;
-      ctx.requireRead(hit.capability, event ? { event_id: event.id } : undefined);
-      return json({ data: await bootPayload(ctx, event) });
+      if (hit.capability) ctx.requireRead(hit.capability, event ? { event_id: event.id } : undefined);
+      return json({ data: await bootPayload(ctx, event, hit.surface) });
     }
 
     const eventId = url.searchParams.get("event");

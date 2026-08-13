@@ -173,15 +173,19 @@ The decisions that most shape the code, and how each one landed:
   blocker is closed: `scheduling` now has a `/v1` surface, specified in
   [`09`](docs/domain/09-api-and-integrations.md) under "Scheduling on the management
   surface". The console is built and lives in `public/console/` — ES modules, no build step
-  — and owns fifteen screens, which is the organizer's daily loop end to end. It shares URLs
+  — and owns seventeen screens: fifteen are the organizer's daily loop end to end, and two are
+  the reviewer's queue and scorecard, which R30's amendment moved onto this side of the line. It shares URLs
   with the screens it replaces and declines any request it does not own, so the write-heavy
   detail forms are still server-rendered and still work; `?nojs=1` reaches the
   server-rendered version of a ported screen, and an integration test asserting HTML for one
   must ask for it. See "The admin console" in
   [`docs/implementation.md`](docs/implementation.md) before adding a screen — in particular
   the two properties (`SameSite=Lax` + JSON as the CSRF defence, permissions recomputed per
-  request) the console now relies on. Public, embeds, `/portal` and `/review` stay
-  server-rendered and must survive blocked scripts.
+  request) the console now relies on. Public, embeds and `/portal` stay
+  server-rendered and must survive blocked scripts. `/review` no longer does — but its
+  server-rendered pages are still registered, still answer `?nojs=1`, and still read the same
+  model the console's JSON does (`contexts/review/reviewer-model.ts`), which is the rule to
+  copy when porting anything else that has two surfaces.
 
 Corrections the build surfaced are recorded as C1–C8 in
 [`13-open-questions.md`](docs/domain/13-open-questions.md). C7 is the shape to copy when

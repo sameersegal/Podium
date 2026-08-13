@@ -102,7 +102,10 @@ the reviewer whose assignment it answers, under an anonymity setting that only m
 if that attribution is true. Reviewers write them signed in at `/review`. An agent reads
 reviews, aggregates them, chases the missing ones and decides on the result; it does not author
 them. `POST /v1/reviews/:reviewId/override` is different and is available: that is a chair's
-own act on an AI first-pass review.
+own act on an AI first-pass review. **Declining** goes the same way as writing:
+`POST /v1/me/assignments/:id/decline` is the reviewer's own statement and refuses a key too.
+Taking an assignment back is the chair's act and stays open —
+`POST /admin/rounds/:roundId/assignments/:assignmentId/revoke`.
 
 Finding what still needs reviewers: list proposals with `--fields id,title,review_count,target_reviews`
 and filter locally for `review_count < target_reviews`. There is no server-side "unreviewed"

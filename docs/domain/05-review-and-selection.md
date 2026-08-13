@@ -462,12 +462,15 @@ Rules stated here because "we all knew that" is not enforceable:
   COI is refused outright, not merely logged.
 - Reviewer identities are never exposed to submitters, in any state, through any API
   response or event payload.
-- A `Review` is written by the reviewer whose assignment it answers, signing in as themselves.
-  No API key writes one, whatever its scopes ([INV-09-27](09-api-and-integrations.md#invariants)):
+- A `Review` is written — and a `ReviewAssignment` declined — by the reviewer whose assignment
+  it is, signing in as themselves.
+  No API key writes either, whatever its scopes ([INV-09-27](09-api-and-integrations.md#invariants)):
   everything above depends on the author being who the assignment says, and a credential held
   by software is nobody. Reading reviews, scoring, aggregating and deciding are all reachable
-  by a key with the right scopes — as is a chair overriding an AI first-pass review, which is
-  the chair's own act on somebody else's record rather than authorship of a review.
+  by a key with the right scopes — as is a chair overriding an AI first-pass review or revoking
+  an assignment, which are the chair's own acts on somebody else's record rather than
+  authorship. Declining is on the reviewer's side of that line because the commonest reason is
+  a conflict, which the decline records against them.
 
 **`code_of_conduct_concern` is a routing signal and nothing more** (R21 in
 [`13-open-questions.md`](13-open-questions.md)). It tells a chair that something needs to

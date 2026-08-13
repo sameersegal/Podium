@@ -19,7 +19,7 @@ import { boot, applyBoot, drawer, closeDrawer, toasts, dismissToast } from "./st
 import { chrome } from "./chrome.js";
 import { route, match, location, navigate, onNavigate, start } from "./router.js";
 import { connect } from "./live.js";
-import { icons } from "./ui.js";
+import { icons, relativeDays } from "./ui.js";
 
 import { dashboard } from "./views/dashboard.js";
 import { formBuilder } from "./views/form-builder.js";
@@ -27,6 +27,7 @@ import { agenda } from "./views/agenda.js";
 import { proposals } from "./views/proposals.js";
 import { cfps, events, onboarding, publications, review, roster, sessions, setup } from "./views/tables.js";
 import { adminHome, proposalDetail } from "./views/details.js";
+import { reviewerQueue, reviewerScorecard } from "./views/reviewer.js";
 
 /* -------------------------------------------------------------------------- */
 /* The route table                                                             */
@@ -46,6 +47,13 @@ route("/admin/events/:eventId/roster", roster);
 route("/admin/events/:eventId/onboarding", onboarding);
 route("/admin/events/:eventId/publications", publications);
 route("/admin/cfps/:cfpId/form", formBuilder);
+
+// The reviewer surface. Same client, same components, different rail: these two
+// screens belong to one person's queue rather than to an event, which is why
+// they carry no event id and why `boot.surface` — not the path — decides which
+// chrome is drawn around them.
+route("/review", reviewerQueue);
+route("/review/:assignmentId", reviewerScorecard);
 
 /* -------------------------------------------------------------------------- */
 /* The event in context                                                        */
@@ -86,6 +94,10 @@ let contextToken = 0;
 function eventContextFor(pathname) {
   const hit = match(pathname);
   if (!hit) return null;
+  // The reviewer surface has no event in context and never acquires one — its
+  // queue crosses rounds and can cross events, and the boot payload it needs is
+  // the one it already has.
+  if (isReviewer()) return null;
   const current = boot.event ? boot.event.id : null;
   // Named outright: switch when it is not the one we are on.
   if (hit.params.eventId) return hit.params.eventId === current ? null : pathname;
@@ -130,6 +142,37 @@ function syncEventContext(pathname) {
 /* The rail                                                                    */
 /* -------------------------------------------------------------------------- */
 
+/** Which of the two consoles this document is. The server decides; see `surfaces/console.ts`. */
+function isReviewer() {
+  return boot.surface === "reviewer";
+}
+
+/**
+ * The reviewer's rail — the same three destinations `reviewerPage` builds in
+ * `ui/shell.ts`, and for the same reason the admin rail is duplicated there:
+ * the two surfaces share URLs and a reader moving between them must not find
+ * the navigation rearranged underneath.
+ *
+ * They are `?show=` filters on one route rather than three routes, so `active`
+ * is the filter rather than the path. The one link out says it is leaving:
+ * reviewer and speaker are frequently the same person wearing different hats,
+ * and this is where the hat is stated.
+ */
+function reviewerGroups(active) {
+  const counts = (boot.reviewer && boot.reviewer.counts) || {};
+  const n = (value, urgency) => (value ? { count: value, urgency: urgency || "quiet" } : {});
+  return [
+    {
+      items: [
+        Object.assign({ href: "/review", label: "My queue", key: "queue" }, n(counts.queue, "warn")),
+        Object.assign({ href: "/review?show=submitted", label: "Submitted", key: "submitted" }, n(counts.submitted)),
+        Object.assign({ href: "/review?show=declined", label: "Declined", key: "declined" }, n(counts.declined)),
+      ],
+    },
+    { items: [{ href: "/portal", label: "My speaker portal", key: "portal", external: true }] },
+  ];
+}
+
 /**
  * The event's own workflow, in the order it happens — the same five groups
  * `adminRail` builds in `ui/shell.ts`, because the console and the
@@ -141,6 +184,7 @@ function syncEventContext(pathname) {
  * a build step this console exists to avoid.
  */
 function railGroups(active) {
+  if (isReviewer()) return reviewerGroups(active);
   const ev = boot.event;
   const counts = boot.rail || {};
   const n = (value, urgency) => (value ? { count: value, urgency: urgency || "quiet" } : {});
@@ -242,10 +286,32 @@ function eventLines(ev) {
   return [span + " · " + distance, ev.timezone];
 }
 
+/**
+ * What the reviewer's rail says they are working on: one round named, several
+ * counted. A rail that lists three round names has become a second navigation
+ * — the same rule `railRound` follows on the server, over the same rounds.
+ */
+function reviewerContext() {
+  const rounds = (boot.reviewer && boot.reviewer.rounds) || [];
+  if (rounds.length === 0) return null;
+  if (rounds.length > 1) {
+    return { name: rounds.length + " open rounds", lines: [rounds.map((r) => r.name).join(" · ")] };
+  }
+  const round = rounds[0];
+  const parts = [];
+  const closes = relativeDays(round.closes_at, Date.parse(boot.now || new Date().toISOString()));
+  if (closes) parts.push("closes " + closes);
+  // `double-blind`, not `Double blind`: it is a compound adjective, and the
+  // rail is the one place this word appears in running text.
+  parts.push(String(round.anonymity).replace(/_/g, "-"));
+  return { name: round.name, lines: [parts.join(" · ")] };
+}
+
 function rail(active) {
   const ev = boot.event;
   const today = (boot.now || "").slice(0, 10);
   const running = ev ? today >= ev.starts_on && today <= ev.ends_on : false;
+  const context = isReviewer() ? reviewerContext() : null;
   return h(
     "details",
     { class: "rail" },
@@ -262,19 +328,26 @@ function rail(active) {
     h(
       "div",
       { class: "rail-body" },
-      ev
+      context
         ? h(
             "div",
             { class: "rail-context" },
-            h(
-              "div",
-              { class: "head" },
-              running ? h("span", { class: "dot", "aria-hidden": "true" }) : null,
-              h("a", { class: "name", href: "/admin/events/" + ev.id }, ev.name),
-            ),
-            eventLines(ev).map((line, i) => h("p", { key: i }, line)),
+            h("div", { class: "head" }, h("span", { class: "name" }, context.name)),
+            context.lines.map((line, i) => h("p", { key: i }, line)),
           )
-        : null,
+        : ev
+          ? h(
+              "div",
+              { class: "rail-context" },
+              h(
+                "div",
+                { class: "head" },
+                running ? h("span", { class: "dot", "aria-hidden": "true" }) : null,
+                h("a", { class: "name", href: "/admin/events/" + ev.id }, ev.name),
+              ),
+              eventLines(ev).map((line, i) => h("p", { key: i }, line)),
+            )
+          : null,
       h(
         "nav",
         { class: "rail-nav", "aria-label": "Sections" },
@@ -290,9 +363,11 @@ function rail(active) {
       h(
         "div",
         { class: "rail-foot" },
-        railLink({ href: "/admin/events", label: "All events", key: "events" }, active),
-        railLink({ href: "/admin/team", label: "Team", key: "team" }, active),
-        railLink({ href: "/admin/settings", label: "Settings", key: "settings" }, active),
+        // The organizer's foot only. A reviewer has no team screen and no
+        // settings, and `railFooter` gives them the same three-less foot.
+        isReviewer() ? null : railLink({ href: "/admin/events", label: "All events", key: "events" }, active),
+        isReviewer() ? null : railLink({ href: "/admin/team", label: "Team", key: "team" }, active),
+        isReviewer() ? null : railLink({ href: "/admin/settings", label: "Settings", key: "settings" }, active),
         boot.person
           ? railLink(
               {
@@ -322,9 +397,11 @@ function rail(active) {
 
 function bar() {
   const ev = boot.event;
+  const reviewer = isReviewer();
   const crumbs = [];
-  if (ev) crumbs.push({ label: ev.name, href: "/admin/events/" + ev.id });
-  crumbs.push({ label: chrome.title || "Admin" });
+  if (reviewer) crumbs.push({ label: "Review", href: "/review" });
+  else if (ev) crumbs.push({ label: ev.name, href: "/admin/events/" + ev.id });
+  crumbs.push({ label: chrome.title || (reviewer ? "My queue" : "Admin") });
   return h(
     "header",
     { class: "bar" },
@@ -339,14 +416,30 @@ function bar() {
       ]),
     ),
     h("span", { class: "spacer" }),
+    chrome.hints && chrome.hints.length
+      ? h(
+          "p",
+          { class: "hints", "data-hints": "" },
+          chrome.hints.map((hint, i) =>
+            h("span", { key: i, class: "hint" }, hint.keys.map((k, j) => h("kbd", { key: j }, k)), hint.label),
+          ),
+        )
+      : null,
     // The palette lives in `public/keys.js`, which is loaded on both surfaces
     // and finds this button by its attribute rather than by an import.
-    h(
-      "button",
-      { type: "button", class: "omni", "data-palette": "", "aria-haspopup": "dialog" },
-      h("span", { class: "label" }, "Search proposals, people, sessions"),
-      h("kbd", null, h("span", { class: "on-mac" }, "⌘K"), h("span", { class: "on-pc" }, "Ctrl K")),
-    ),
+    //
+    // Not drawn for a reviewer, the same choice `reviewerPage` makes with
+    // `search: false`: a reviewer's whole world is the queue in front of them,
+    // and a palette over three destinations is a menu pretending to be a
+    // search box.
+    reviewer
+      ? null
+      : h(
+          "button",
+          { type: "button", class: "omni", "data-palette": "", "aria-haspopup": "dialog" },
+          h("span", { class: "label" }, "Search proposals, people, sessions"),
+          h("kbd", null, h("span", { class: "on-mac" }, "⌘K"), h("span", { class: "on-pc" }, "Ctrl K")),
+        ),
     ev
       ? h(
           "a",

@@ -130,6 +130,23 @@ describe("INV-09-27: a first-person statement is authored by its person", () => 
     expect(body.invariant).toBe("INV-09-27");
   });
 
+  /**
+   * Declining an assignment is the third of these, and it arrived with the
+   * client-rendered reviewer surface: the console posts it to
+   * `/v1/me/assignments/:id/decline` where the HTML form posts to
+   * `/review/:id/decline`. It is the reviewer's own statement about
+   * themselves — most often "I have a conflict" — and a credential held by
+   * software is nobody. A chair taking the assignment back is a different act,
+   * with a different route and a capability behind it.
+   */
+  it("refuses a key declining an assignment, whatever its scopes", async () => {
+    const res = await post("/v1/me/assignments/asg_does_not_exist/decline", full, { reason: "no_capacity" });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string; invariant?: string };
+    expect(body.error).toBe("authorship_requires_person");
+    expect(body.invariant).toBe("INV-09-27");
+  });
+
   // The ids above are deliberately bogus: the rule is checked before the
   // record is loaded, so the caller is told which rule stopped them rather
   // than whether the id exists. A 404 here would be both a worse answer and a

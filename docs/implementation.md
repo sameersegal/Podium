@@ -6,7 +6,7 @@ took so that a change lands in the same place every time.
 ## Layout
 
 ```
-public/console/             the admin console (R30) — ES modules, no build step
+public/console/             the console (R30), admin and reviewer — ES modules, no build step
 packages/domain/            pure domain logic — no Cloudflare imports, no I/O
   shared/                   ids, time, errors, PII, authorization, ports (11)
   events/                   the catalogue from 10 as types + the envelope
@@ -315,8 +315,42 @@ reviewer now gets the console's language and its keyboard, a rail of its own (`M
 `Submitted` / `Declined`, which are `?show=` filters on one route), and exactly one quiet
 link back to the portal that says it is leaving.
 
-It is still **server-rendered**, which R30 decided deliberately and for a reason that has not
-changed: reviewers work on tablets and check decisions on phones.
+**It is now the console's**, as of R30's amendment — the same client, the same components,
+its own rail. What it is not is a screen of the admin console: `boot.surface` says
+`reviewer`, and on that value the shell draws the three-item rail instead of the event's
+workflow, flies no event bar or event switcher, and omits ⌘K (`reviewerPage` passes
+`search: false` for the same reason — a palette over three destinations is a menu pretending
+to be a search box).
+
+The server-rendered pages are still registered and still answer `?nojs=1`, which is what R30's
+original argument for keeping this surface server-rendered — reviewers are on tablets and
+phones — actually needed. The two are one read model apart, not two:
+
+```
+contexts/review/reviewer-model.ts   loads the queue and the scorecard, once
+  → reviewer-views.ts               renders them as HTML
+  → GET /v1/me/assignments[/:id]    sends them as JSON  (09, "The reviewer's own queue")
+public/console/views/reviewer.js    renders that JSON
+```
+
+The read model, not the view, is where the withholding lives — reviewer identity under a
+non-`open` round, other reviews before INV-05-6 opens them, conflicts counted rather than
+listed. A rule enforced in a view is a rule the other surface does not have, and this surface
+now has two.
+
+Three things about it are worth knowing before changing it:
+
+- **Writes go through endpoints that already existed.** `POST /v1/reviews` takes the draft and
+  the submission, from a signed-in person and never a key (INV-09-27). Only declining needed a
+  route of its own, and it is under `/v1/me/` for the same reason the reads are.
+- **The boot document refuses an assignment that is not the reader's.** `eventForMatch` asks
+  `ownsAssignment` before booting, so `/review/:someone-elses` falls through to the
+  server-rendered route and is denied by name. INV-05-18 says such a request is *denied*, not
+  merely unlinked, and a 200 carrying an empty shell is neither.
+- **The scorecard's enums arrive with the scorecard.** `recommendation`, `confidence`, the
+  flags and the decline reasons are in the payload rather than in the JavaScript, because an
+  enum is additive and a member added in `05` must not reach one of these two surfaces and not
+  the other.
 
 ### The keyboard layer
 
@@ -354,7 +388,7 @@ public/console/store.js     boot payload, toasts, drawer, async resources
 public/console/dnd.js       pointer-event dragging, with keyboard equivalents beside it
 public/console/live.js      the same socket as /live.js, invalidating instead of nudging
 public/console/ui.js        the components layout.ts renders on the server, as vnodes
-public/console/views/       one file per screen
+public/console/views/       one file per screen (`reviewer.js` is the other surface's two)
 public/console.css          only what the console added; app.css is still the shared artifact
 ```
 
@@ -365,10 +399,12 @@ the server-rendered page, which is still registered and still works. So the port
 incremental rather than a flag day, `<noscript>` has somewhere to point, and
 `tests/integration/foundation/concurrency.test.ts` still drives the real HTML forms.
 
-**Ported so far — fifteen screens**, which is the organizer's daily loop end to end:
+**Ported so far — seventeen screens.** Fifteen are the organizer's daily loop end to end:
 `/admin`, the event dashboard, the proposal board and a proposal, the agenda grid, the form
 builder, and the events / setup / calls / sessions / review / speakers / onboarding / publish
-lists. Navigating between any of them is same-document.
+lists. The other two are the reviewer's, `/review` and `/review/:assignmentId` — the same
+client under a different rail, described above. Navigating between any of them is
+same-document.
 
 **Still server-rendered, deliberately:** the write-heavy detail forms — a session, a call's
 settings, a decision, a round's assignments, and the organization-wide settings screens.
@@ -377,7 +413,12 @@ reimplemented badly is worse than a form that reloads. The console links to them
 hiding them.
 
 `public/console/app.js` and `surfaces/console.ts` each hold the route list and the two have
-to agree — a path the server boots and the client cannot match renders an empty shell.
+to agree — a path the server boots and the client cannot match renders an empty shell. Each
+entry on the server side also names the capability that gates it; the two reviewer paths name
+none, deliberately, because that surface is scoped by whose assignments these are (INV-05-18)
+and not by a matrix row, which is exactly what the server-rendered `/review` does. Gating the
+console harder than the page it shares a URL with would hand two readers of the same link two
+different products.
 
 **Testing a ported path.** An integration test asserting server-rendered HTML for a URL the
 console owns must ask for `?nojs=1`, or it will assert against the boot document. That is not
@@ -431,7 +472,10 @@ decays quietly rather than breaking.
 
 Reads the console alone needs are `GET /v1/console/bootstrap`, `GET /v1/events/:eventId/dashboard`
 (`surfaces/dashboard.ts` — a cross-context read model, beside `admin-home.ts` for the same
-reason) and `GET /v1/cfps/:cfpId/builder`. Everything else it does goes through the ordinary
+reason) and `GET /v1/cfps/:cfpId/builder`. The reviewer surface's two reads are not among them:
+`/v1/me/assignments` and `/v1/me/assignments/:id` are the portal surface as `09` defines it —
+a session cookie and relationship-derived scope — and the server-rendered pages read the same
+model. Everything else it does goes through the ordinary
 management surface.
 
 **The board asks for its columns.** `GET /v1/proposals` takes `?fields=` (`http/projection.ts`,
@@ -441,8 +485,8 @@ after `includePii` has decided its contents, which is what makes it unable to wi
 `tests/integration/submissions/wizard.test.ts` asserts that naming a withheld field does not
 un-withhold it.
 
-**Measuring it.** `node scripts/perf-console.mjs` walks all fourteen console routes in a real
-browser and reports three numbers per screen — a cold load with an empty cache, a warm reload,
+**Measuring it.** `node scripts/perf-console.mjs` walks the fourteen organizer console routes
+in a real browser and reports three numbers per screen — a cold load with an empty cache, a warm reload,
 and a client-side navigation into the screen — plus the server time for every document and
 every `/v1` endpoint the console was *seen* to call, harvested from the run rather than listed
 by hand. It needs Playwright, which is deliberately not a dependency of this repository

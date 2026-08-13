@@ -82,6 +82,25 @@ Two properties are load-bearing and are the reason this is a table rather than a
   driving a grid sends `start_time` instead. A placement an hour out is a speaker in the
   wrong room ([`11`](11-cross-cutting.md), "Time").
 
+### The reviewer's own queue on the portal surface
+
+The reviewer surface is client-rendered (R30 as amended in
+[`13`](13-open-questions.md)), and a scorecard that renders itself needs the queue and the
+assignment as data. These are **portal** endpoints, not management ones: a session cookie,
+and scope derived from the relationship — *this assignment is mine* (INV-05-18) — rather than
+from a role. The chair's view of the same records is elsewhere and gated the other way
+(`GET /v1/assignments?round_id=`, `review.read` over the round's event).
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `GET /v1/me/assignments` | session | Every assignment this person holds, across rounds and events, with each round's anonymity and the caller's own progress. Conflicts are **counted, never listed** (INV-05-18). Whole, not cursor-paginated: it is one person's queue, bounded by `ReviewRound.max_assignments_per_reviewer`, and the screen it draws states a total in its heading |
+| `GET /v1/me/assignments/:assignmentId` | session | One scorecard: the proposal already blinded by the round's anonymity, the rubric and its criteria, the caller's own draft, and their place in the queue. Other reviews, the aggregate and the discussion are **absent until INV-05-6 opens them** — withheld from the payload, not from the rendering |
+| `POST /v1/me/assignments/:assignmentId/decline` | session | The reviewer declining their own assignment, with a `reason` and an optional note. Never an API key (INV-09-27) |
+
+Writing the review is not here: `POST /v1/reviews` already takes both the draft and the
+submission from a signed-in person, and a second write path for the same act would be a
+second place for the anonymity and validation rules to be got wrong.
+
 ## ApiKey
 
 <!-- entity: ApiKey -->
@@ -698,8 +717,8 @@ model depends on these choices.
   the thing being administered *is* the scope table. Listing keys stays available — the list
   carries prefixes and scopes, never a secret.
 - **INV-09-27** **A first-person statement is authored by its person, never by an API key.**
-  Submitting a `Proposal` ([`04`](04-submissions.md)) and writing a `Review`
-  ([`05`](05-review.md)) are refused to every key, whatever its scopes, with a typed error
+  Submitting a `Proposal` ([`04`](04-submissions.md)), writing a `Review` and declining a
+  `ReviewAssignment` ([`05`](05-review.md)) are refused to every key, whatever its scopes, with a typed error
   naming this rule rather than a generic authentication failure. Both records are somebody's
   own assertion — *this is my talk*, *this is my assessment* — and the record carries their
   name for as long as it exists: a submission is what an acceptance is granted against, and a
@@ -721,6 +740,11 @@ model depends on these choices.
     surface.
   - A chair overriding an AI first-pass review (`POST /v1/reviews/:reviewId/override`) is a
     chair's own act on someone else's record, not authorship of a review, and is unaffected.
+  - **Declining an assignment** is the third first-person statement, and the reason it is here
+    rather than filed under scheduling one's own work: the commonest decline is *I have a
+    conflict*, which is an assertion about the person declining and is recorded against them
+    as a `ConflictOfInterest` ([`05`](05-review-and-selection.md), `ReviewAssignment`). A chair taking an assignment back is the different act, with its own route and
+    a capability behind it, and stays reachable by a key.
 
   Uploading a file is refused to keys for a related but distinct reason — an `Asset` records
   who uploaded it, and the scan pipeline is built around that — and is not governed here.
