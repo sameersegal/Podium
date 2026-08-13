@@ -252,8 +252,9 @@ function rail(active) {
     h(
       "summary",
       { class: "rail-brand" },
-      h("span", { class: "mark", "aria-hidden": "true" }),
-      h("span", { class: "word" }, "PODIUM"),
+      // The same lockup the server-rendered rail draws, sized in the markup
+      // against layout shift — see `ui/layout.ts::rail()`.
+      h("img", { class: "mark", src: "/podium-logo-horizontal-light.png", alt: "Podium", width: "81", height: "24" }),
       h("span", { class: "spacer" }),
       h("span", { class: "toggle", "aria-hidden": "true" }, icons.menu ? icons.menu() : "≡"),
       h("span", { class: "sr-only" }, "Menu"),

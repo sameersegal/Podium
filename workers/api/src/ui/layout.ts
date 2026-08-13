@@ -253,8 +253,14 @@ function railLink(item: RailItem): SafeHtml {
 function rail(c: ConsoleChrome): SafeHtml {
   return html`<details class="rail">
     <summary class="rail-brand">
-      <span class="mark" aria-hidden="true"></span>
-      <span class="word">PODIUM</span>
+      ${
+        // The real lockup, white wordmark on the rail's near-black — the light
+        // variant exists for exactly this ground (`brand/README.md`). Sized in
+        // the markup as well as the stylesheet: the rail is the first thing
+        // drawn and a brand row that changes height when the image lands moves
+        // every destination under the reader's cursor.
+        html`<img class="mark" src="/podium-logo-horizontal-light.png" alt="Podium" width="81" height="24">`
+      }
       <span class="spacer"></span>
       <span class="toggle" aria-hidden="true">${MENU_ICON}</span>
       <span class="sr-only">Menu</span>

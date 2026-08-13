@@ -236,8 +236,11 @@ hr { border: 0; border-top: 1px solid var(--hairline); margin: var(--sp-5) 0; }
   color: var(--rail-text-on);
 }
 .rail-brand::-webkit-details-marker { display: none; }
-.rail-brand .mark { width: 20px; height: 20px; border-radius: var(--r-sm); background: oklch(0.58 0.19 262); flex: none; }
-.rail-brand .word { font-family: var(--mono); font-weight: 700; font-size: 12px; letter-spacing: .22em; }
+/* The lockup, not a coloured square and a set word. The design handoff drew a
+   plain mark because it had reopened the brand; the brand did not move, so the
+   rail flies the real one. `height` is the authority and `width: auto` keeps
+   the aspect if the artwork is ever regenerated at another size. */
+.rail-brand .mark { height: 24px; width: auto; flex: none; display: block; }
 .rail-brand .spacer { flex: 1; }
 .rail-brand .toggle { display: flex; color: var(--rail-muted-2); }
 
@@ -600,6 +603,24 @@ legend { font-weight: 600; padding: 0 var(--sp-1); font-size: 13px; }
 .inline-grid > .wide, .inline-grid > textarea, .inline-grid > .field.wide { grid-column: 1 / -1; }
 .inline-grid > .field:has(textarea) { grid-column: 1 / -1; }
 .inline-grid > .field:has(textarea) textarea { max-width: 48rem; }
+
+/*
+ * The same form inside a table row, where the 13rem track minimum is wider than
+ * half the cell and collapses the grid to one column. A decision row then draws
+ * its outcome, its deadline, its waiver reason and its button as four
+ * full-width blocks stacked down the cell — four rows of chrome to record one
+ * decision, and the taller the cell the further the next proposal is pushed.
+ *
+ * A narrower minimum and no per-control cap: in a cell the controls are as wide
+ * as the column lets them be, which is the point of putting them there.
+ */
+td .inline-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(8rem, 100%), 1fr));
+  gap: var(--sp-2);
+}
+td .inline-grid input:not([type=checkbox]):not([type=radio]),
+td .inline-grid select { max-width: none; }
+td .inline-grid > button, td .inline-grid > .btn { justify-self: stretch; }
 
 .filter-bar {
   background: var(--surface);
@@ -971,7 +992,11 @@ td .progress { min-width: 4rem; }
 /* The title is the row's own link, so it takes the row's colour rather than a
    link colour — a list of eleven blue underlined headlines reads as a search
    result page, not a queue. */
-.queue-row .title a { color: var(--ink); }
+/* `text-decoration: none` as well as the colour: the title is a `<p>`, so the
+   prose rule above ("a link inside a sentence keeps its underline") was
+   catching it and drawing eleven underlined headlines down the queue. It is a
+   row's own link, not a link inside a sentence. */
+.queue-row .title a { color: var(--ink); text-decoration: none; }
 .queue-row .title a:hover { color: var(--ink); text-decoration: underline; }
 .queue-row .meta { font-family: var(--mono); font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .queue-row .chip { font-family: var(--mono); font-size: 11px; color: var(--ink-2); background: var(--neutral); border-radius: var(--r-pill); padding: 5px 9px; flex: none; }
