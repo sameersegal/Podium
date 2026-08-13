@@ -562,3 +562,31 @@ The images themselves come from `scripts/lib/placeholder-image.mjs`, a PNG encod
 the same objects rather than accumulating versions of the same face. They are placeholders,
 but they are files: they exercise `/assets/:id`, the scan gate (INV-11-3) and the
 `content-length` the row claims, all of which a hardcoded `<svg>` fallback would route around.
+
+### Seeding a deployment
+
+`npm run seed:production` points the same seed at the deployed D1 and R2. It exists because
+the hosted demo at `app.podiumstack.com` is seed data that nothing resets, so it has to be
+re-runnable rather than a thing somebody assembles by hand each time.
+
+Three properties make that safe, and each one is load-bearing:
+
+- **The SQL clears its own rows first.** `teardown()` in `scripts/seed.mjs` emits a `DELETE`
+  per table, derived from the tables `insert()` actually wrote rather than maintained beside
+  them, so a table the seed starts writing is one the teardown starts clearing in the same
+  commit. Re-applying without it is not an option: ids come from a counter, so inserting a
+  row in the middle shifts every id after it — adding the 2026 edition moved 441 of the
+  previous seed's 491 ids, and `INSERT OR REPLACE` would have left all 441 old rows behind.
+  The deletes match on `_01JQ0000`, the fixed epoch every seeded id carries and nothing real
+  does, so they cannot touch a row the seed did not write.
+- **The organization's `created_at` is pinned to 2020-01-01, not `now`.** `resolveOrgId`
+  serves the oldest organization to every request, so a seed stamped with today's date would
+  hand a deployment that has ever held another org to that other org, and render the seeded
+  conference unreachable.
+- **The from address is `SEED_FROM_EMAIL`.** The seeded Resend integration is active, and
+  `devflowconf.example` is reserved and unroutable — right locally, wrong anywhere that can
+  actually send, because Resend refuses a from address outside a verified domain.
+
+Images take the second path there: `/dev/*` is refused when `ENVIRONMENT === "production"`,
+so `scripts/seed-assets.mjs --remote` falls back to `wrangler r2 object put`, eight at a time
+to hide the process startup the dev route exists to avoid.

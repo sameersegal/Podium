@@ -18,7 +18,22 @@
  * It writes two things: the SQL, applied here, and the seeded images, which
  * `scripts/seed-assets.mjs` puts into R2 once the Worker is running.
  *
- * Usage:  node scripts/seed.mjs [--out seed.sql] [--print]
+ * The SQL clears the seed's own rows before writing them, so running it twice
+ * is the same as running it once — see `teardown()`. That is what lets it point
+ * at a deployment as well as at the local database.
+ *
+ * Usage:  node scripts/seed.mjs [--out seed.sql] [--print] [--remote]
+ *
+ *   --remote   target the deployed D1 named in `wrangler.production.jsonc`
+ *              rather than the local one. Needs the account credentials in the
+ *              environment and that config generated (`npm run deploy:config`),
+ *              exactly like `npm run deploy`. `npm run seed:production` is the
+ *              two of them together, plus the images.
+ *
+ * Environment:
+ *
+ *   SEED_FROM_EMAIL   the address the seeded Resend integration sends from.
+ *                     Defaults to the reserved demo domain, which cannot send.
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -32,6 +47,27 @@ import { avatarPng, wordmarkPng } from "./lib/placeholder-image.mjs";
 /* deterministic ids                                                           */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/* where this run points                                                       */
+/* -------------------------------------------------------------------------- */
+
+const REMOTE = process.argv.includes("--remote");
+const D1_TARGET = REMOTE ? ["--remote", "--config", "wrangler.production.jsonc"] : ["--local"];
+const PUBLIC_BASE = process.env.PUBLIC_BASE_URL || "https://app.podiumstack.com";
+const FROM_EMAIL = process.env.SEED_FROM_EMAIL || "hello@devflowconf.example";
+
+/**
+ * The fixed timestamp every seeded id carries, and the marker the teardown
+ * below recognises them by. Nothing else in the product mints an id in this
+ * epoch — real ids are ULIDs stamped with the actual time — so `LIKE
+ * '%_01JQ0000%'` selects seeded rows and only seeded rows, which is what makes
+ * re-seeding a database that already has real data in it safe.
+ *
+ * It has to stay in one place: the teardown matches on what `id()` writes, and
+ * two copies of this string would drift the day someone changed one.
+ */
+const ID_EPOCH = "01JQ0000";
+
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 let counter = 0;
 const idCache = new Map();
@@ -42,7 +78,7 @@ function id(prefix, key) {
   counter += 1;
   // 10 chars of a fixed timestamp + 16 chars derived from the counter and key,
   // so ids are stable across runs and still sort by creation order.
-  const time = "01JQ0000" + CROCKFORD[Math.floor(counter / 32) % 32] + CROCKFORD[counter % 32];
+  const time = ID_EPOCH + CROCKFORD[Math.floor(counter / 32) % 32] + CROCKFORD[counter % 32];
   let hash = 0;
   for (let i = 0; i < cacheKey.length; i++) hash = (hash * 33 + cacheKey.charCodeAt(i)) >>> 0;
   let rand = "";
@@ -69,9 +105,127 @@ function q(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+/**
+ * Three tables carry neither `org_id` nor `id` — they are keyed by what they
+ * hang off. Everything else the seed writes is covered by the two general rules
+ * in `insert`, and a fourth such table trips the error there rather than being
+ * silently left behind.
+ */
+const TEARDOWN_KEY = {
+  draft_progress: "proposal_id",
+  criterion_score: "review_id",
+  event_reference_counter: "event_id",
+};
+
+/** table → the column the teardown matches on, in insertion order. */
+const seededTables = new Map();
+
 function insert(table, row) {
+  if (!seededTables.has(table)) {
+    const key = TEARDOWN_KEY[table] ?? (row.org_id !== undefined ? "org_id" : row.id !== undefined ? "id" : null);
+    if (!key) {
+      throw new Error(
+        `seed: cannot work out how to delete rows from \`${table}\` — it has no org_id and no id. ` +
+          `Add it to TEARDOWN_KEY with the column that points at a seeded row, or a re-seed will leave its rows behind.`,
+      );
+    }
+    seededTables.set(table, key);
+  }
   const keys = Object.keys(row);
   statements.push(`INSERT INTO ${table} (${keys.join(", ")}) VALUES (${keys.map((k) => q(row[k])).join(", ")});`);
+}
+
+/** `id LIKE` this — the marker only seeded rows carry. */
+const MARKED = (column) => `${column} LIKE '%!_${ID_EPOCH}%' ESCAPE '!'`;
+
+/**
+ * Rows the *application* writes for this organization. A function rather than a
+ * constant only because `ORG` is minted further down the file. The seed never creates
+ * them, and a re-seed still has to remove them: a session, an audit entry or a
+ * published snapshot points at a seeded row, so deleting the seeded row without
+ * them fails the foreign key and D1 rolls the whole thing back — which is
+ * exactly what the first attempt against the deployed database did.
+ *
+ * Order matters and is checked by nothing but this list: children first, then
+ * what they hang off. `defer_foreign_keys` moves the check to commit time, so a
+ * child left behind still fails; it buys ordering freedom *within* a level, not
+ * permission to skip a table.
+ */
+const runtimeSweeps = () => [
+  // Children of runtime rows — matched through their parent, because their own
+  // ids are real ULIDs minted at request time and carry no seed marker.
+  ["published_session", `publication_id IN (SELECT id FROM schedule_publication WHERE ${MARKED("event_id")})`],
+  ["published_speaker", `publication_id IN (SELECT id FROM schedule_publication WHERE ${MARKED("event_id")})`],
+  ["schedule_diff_entry", `publication_id IN (SELECT id FROM schedule_publication WHERE ${MARKED("event_id")})`],
+  ["campaign_recipient", `campaign_id IN (SELECT id FROM campaign WHERE org_id = ${q(ORG)})`],
+  ["bulk_import_row", `import_id IN (SELECT id FROM bulk_import WHERE org_id = ${q(ORG)})`],
+  ["webhook_delivery", `webhook_id IN (SELECT id FROM webhook WHERE org_id = ${q(ORG)})`],
+
+  // Children of seeded rows — the parent's id carries the marker directly.
+  ["asset_comment", MARKED("asset_id")],
+  ["session_asset", MARKED("session_id")],
+  ["session_relation", MARKED("session_id")],
+  ["task_submission", MARKED("task_instance_id")],
+  ["task_reminder_log", MARKED("task_instance_id")],
+  ["review_comment", MARKED("proposal_id")],
+  ["review_round_reminder_rule", MARKED("round_id")],
+  ["time_slot", MARKED("event_day_id")],
+  ["auto_place_run", MARKED("event_id")],
+  // No foreign key, so it would not have failed the load — but a stale conflict
+  // is a red banner on an agenda that no longer has the placements it names.
+  ["schedule_conflict", MARKED("event_id")],
+  ["schedule_publication", MARKED("event_id")],
+
+  // Everything else the app writes with an `org_id`, after the children above.
+  ...[
+    "api_key",
+    "audit_log",
+    "auth_session",
+    "bulk_import",
+    "campaign",
+    "custom_field_definition",
+    "dead_letter",
+    "domain_event_record",
+    "export",
+    "external_record_link",
+    "invitation",
+    "notification_suppression",
+    "person_merge_candidate",
+    "sync_mapping",
+    "sync_run",
+    "webhook",
+  ].map((table) => [table, `org_id = ${q(ORG)}`]),
+];
+
+
+/**
+ * The DELETEs that make the seed idempotent, so it can point at a deployment
+ * and not only at a database that was just dropped.
+ *
+ * Re-applying the seed on top of itself is not an option: every id comes from a
+ * counter, so inserting a row in the middle shifts every id after it. Adding the
+ * 2026 edition moved 441 of the previous seed's 491 ids, and an `INSERT OR
+ * REPLACE` would have kept all 441 old rows alongside the new ones — orphaned
+ * sessions on the agenda, orphaned assignments in the review queue.
+ *
+ * Two halves. The seed's own tables are derived from what `insert()` actually
+ * wrote, so a table the seed starts writing is a table the teardown starts
+ * clearing in the same commit, without anyone remembering to. What the seed does
+ * not write is `runtimeSweeps()` above, and that half has to be maintained by
+ * hand — the check on it is that seeding a deployment twice works.
+ *
+ * `event_reaction_log`, `cron_job_run`, `d1_migrations` and `bootstrap_state`
+ * are deliberately untouched: the first is the at-least-once ledger keyed by
+ * domain-event id, and the other three belong to the deployment rather than to
+ * any organization.
+ */
+function teardown() {
+  const out = runtimeSweeps().map(([table, where]) => `DELETE FROM ${table} WHERE ${where};`);
+  // Reverse insertion order, so children go before the parents they reference.
+  for (const [table, key] of [...seededTables].reverse()) {
+    out.push(`DELETE FROM ${table} WHERE ${key === "org_id" ? `org_id = ${q(ORG)}` : MARKED(key)};`);
+  }
+  return out;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -171,7 +325,14 @@ insert("organization", {
     privacy: { retention_days: 730 },
     branding: { accent: "#6366F1" },
   },
-  created_at: now,
+  // Fixed and early, not `now`, and load-bearing on any deployment that has
+  // ever held another organization. `resolveOrgId` serves
+  // `ORDER BY created_at LIMIT 1` — the oldest org, for every request — so a
+  // seed stamped with today's date would hand the whole deployment to whichever
+  // org happened to be created first and render this conference unreachable.
+  // Pinning it also makes re-seeding a no-op for that decision instead of a
+  // coin toss decided by when the seed last ran.
+  created_at: "2020-01-01T00:00:00.000Z",
   updated_at: now,
 });
 
@@ -2668,7 +2829,11 @@ insert("integration", {
   plugin_key: "email.resend",
   capability: "email",
   display_name: "Resend",
-  config: { from_email: "hello@devflowconf.example", from_name: "DevFlow Events" },
+  // `devflowconf.example` is reserved and unroutable, which is right for a
+  // local seed and wrong for a deployment that can actually send: Resend
+  // refuses a from address outside a verified domain. `SEED_FROM_EMAIL` is how
+  // a real deployment supplies its own without the address being committed.
+  config: { from_email: FROM_EMAIL, from_name: "DevFlow Events" },
   secret_ref: "RESEND_API_KEY",
   // INV-09-4: at most one default per capability per scope. This is the only
   // email integration in the seed, so it is the org-scoped default.
@@ -2804,7 +2969,10 @@ function seedAsset({ key, slot, filename, bytes, purpose, uploadedBy }) {
     created_at: daysFromNow(-30),
     deleted_at: null,
   });
-  assetFiles.push({ id: assetId, filename: `${assetId}.png`, storage_key: storageKey, bytes });
+  // `content_type` rides along for the remote push: `PUT /dev/assets/:id` reads
+  // it off the row it is writing for, but `wrangler r2 object put` has no row to
+  // read and stores `application/octet-stream` without being told.
+  assetFiles.push({ id: assetId, filename: `${assetId}.png`, storage_key: storageKey, content_type: "image/png", bytes });
   return assetId;
 }
 
@@ -2869,7 +3037,7 @@ insert("event_reference_counter", { event_id: PRIOR_EVENT, event_code: PRIOR_COD
 /* write it out                                                                */
 /* -------------------------------------------------------------------------- */
 
-const sql = ["PRAGMA defer_foreign_keys = true;", ...statements].join("\n");
+const sql = ["PRAGMA defer_foreign_keys = true;", ...teardown(), ...statements].join("\n");
 const outIndex = process.argv.indexOf("--out");
 const outFile = outIndex >= 0 ? process.argv[outIndex + 1] : ".wrangler/seed.sql";
 
@@ -2893,7 +3061,20 @@ if (process.argv.includes("--print")) {
   await writeFile(
     manifestFile,
     JSON.stringify(
-      { dir: assetDir, assets: assetFiles.map(({ id, filename, storage_key }) => ({ id, filename, storage_key })) },
+      {
+        dir: assetDir,
+        // What the two follow-up steps need and cannot work out for themselves.
+        // `scripts/seed-publish.mjs` reads `events`, because the teardown drops
+        // the publications along with everything else and a public surface
+        // serves the `live` one or nothing (INV-09-6) — and it cannot ask
+        // `/dev/ids` for them the way `dev.mjs` does, since `/dev/*` is refused
+        // on the deployment this exists to seed.
+        events: [
+          { id: EVENT, slug: "devflow-conf-2027" },
+          { id: PRIOR_EVENT, slug: "devflow-conf-2026" },
+        ],
+        assets: assetFiles.map(({ id, filename, storage_key, content_type }) => ({ id, filename, storage_key, content_type })),
+      },
       null,
       2,
     ),
@@ -2901,9 +3082,11 @@ if (process.argv.includes("--print")) {
   );
   console.log(`wrote ${assetFiles.length} images to ${assetDir}`);
 
-  execFileSync("npx", ["wrangler", "d1", "execute", "podium", "--local", `--file=${outFile}`, "-y"], {
+  execFileSync("npx", ["wrangler", "d1", "execute", "podium", ...D1_TARGET, `--file=${outFile}`, "-y"], {
     stdio: "inherit",
   });
+
+  const where = REMOTE ? PUBLIC_BASE : "http://localhost:8787";
   console.log(`
 Seeded DevFlow Conf 2027, and DevFlow Conf 2026 delivered before it.
 
@@ -2912,13 +3095,15 @@ Seeded DevFlow Conf 2027, and DevFlow Conf 2026 delivered before it.
   Second speaker      cospeaker@devflowconf.example   PodiumDemo2027!
   Reviewer            reviewer@devflowconf.example    PodiumDemo2027!
 
-  Admin      http://localhost:8787/admin
-  Portal     http://localhost:8787/portal
-  Reviewer   http://localhost:8787/review
-  Public     http://localhost:8787/e/devflow-conf-2027
-  Last year  http://localhost:8787/e/devflow-conf-2026
+  Admin      ${where}/admin
+  Portal     ${where}/portal
+  Reviewer   ${where}/review
+  Public     ${where}/e/devflow-conf-2027
+  Last year  ${where}/e/devflow-conf-2026
 
-  The seeded images are not in the bucket yet — \`npm run dev\` pushes them
-  (scripts/seed-assets.mjs) once the Worker is up.
+  The seeded images are not in the bucket yet — ${
+    REMOTE ? "`node scripts/seed-assets.mjs --remote` puts them there" : "`npm run dev` pushes them"
+  }
+  (scripts/seed-assets.mjs).
 `);
 }
