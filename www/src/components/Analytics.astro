@@ -1,0 +1,91 @@
+---
+/*
+ * PostHog, and the one script this site ships.
+ *
+ * Everything else here renders without JavaScript and keeps doing so: the nav
+ * has nothing to toggle, the disclosure widgets are native `<details>`, and no
+ * content waits on a network request to become visible. This file does not
+ * change that. It is a module script, so it runs after the document is parsed,
+ * and if it never runs the reader loses nothing.
+ *
+ * Four decisions worth knowing before editing:
+ *
+ *   1. Cookieless, so there is nothing to consent to. `persistence: "memory"`
+ *      writes no cookie and no `localStorage` entry, `person_profiles:
+ *      "identified_only"` never creates a person record because nothing here
+ *      calls `identify`, and Do Not Track is honoured. The site has no cookie
+ *      banner and this is what lets it stay that way.
+ *
+ *      The cost is real and belongs here rather than in a surprised message six
+ *      months from now: with no storage, every page load is a new anonymous id.
+ *      Pageviews, referrers, paths, devices and click targets are accurate.
+ *      Unique visitors are not — they count page loads and inflate. A funnel
+ *      spanning two loads will not join. A banner is the price of fixing that,
+ *      and the trade was made deliberately.
+ *
+ *   2. Two hostnames, checked before anything is fetched. `POSTHOG_HOSTS` in
+ *      `consts.ts` is the whole allowlist, so a local `astro dev`, a preview
+ *      build and a clone of this repository do not merely stay quiet — they
+ *      never download the library. This is the reason the key can sit in the
+ *      repository without turning every fork into a source of fake traffic.
+ *
+ *   3. Bundled, not the published CDN snippet. PostHog's install page hands you
+ *      a minified stub that fetches `array.js` from `*-assets.i.posthog.com`
+ *      and tells you to paste it behind `is:inline` so Astro leaves it alone.
+ *      Importing the package instead pins the version in `package-lock.json`,
+ *      makes the request first-party out of `/_astro/`, and keeps a
+ *      hand-copied blob nobody can review out of the source. Ingest still goes
+ *      to `us.i.posthog.com`, so a blocker that filters on that host filters
+ *      this either way; what changes is that the script itself is ours.
+ *
+ *   4. The slim build, `posthog-js/dist/module.slim.js`. 41 KB over the wire
+ *      against 78 KB for the default entry point, because session replay,
+ *      surveys and the product-tour code are not in it. Each is fetched lazily
+ *      only if switched on in the project, and replay and surveys are switched
+ *      off below. If something later needs one of them, the import moves to
+ *      `posthog-js` — measure the page again before doing it.
+ *
+ * Nothing lives in this frontmatter. `define:vars` does not apply to a bundled
+ * script, so the script below imports `consts.ts` directly and Vite inlines the
+ * values at build time.
+ */
+---
+
+<script>
+  import { POSTHOG_HOST, POSTHOG_HOSTS, POSTHOG_KEY } from "../consts";
+
+  if (POSTHOG_HOSTS.includes(location.hostname)) {
+    import("posthog-js/dist/module.slim.js").then(({ default: posthog }) => {
+      posthog.init(POSTHOG_KEY, {
+        api_host: POSTHOG_HOST,
+
+        // Pinned to the dated snapshot PostHog's own install page generated for
+        // this project, rather than left unset, which means inheriting whatever
+        // the library defaulted to years ago. Moving the date forward is a
+        // deliberate change with a changelog behind it. The explicit options
+        // below win over it either way.
+        defaults: "2026-05-30",
+
+        // The two lines that keep this cookieless.
+        persistence: "memory",
+        person_profiles: "identified_only",
+
+        // Off in the library by default. This audience sets the header and
+        // would be right to expect it honoured.
+        respect_dnt: true,
+
+        // Neither belongs on a nine-page marketing site, and both are what the
+        // slim bundle would otherwise fetch a second script for.
+        disable_session_recording: true,
+        disable_surveys: true,
+      });
+
+      // An `import` keeps the instance in module scope, where the published
+      // snippet would have put it on `window`. Two things expect to find it
+      // there: the PostHog toolbar, which is how you read a heatmap over the
+      // live page, and any one-off `posthog.capture("…")` somebody adds later.
+      // Both would fail silently without this line.
+      (window as unknown as { posthog: typeof posthog }).posthog = posthog;
+    });
+  }
+</script>

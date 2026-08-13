@@ -16,5 +16,8 @@
     "astro": "^7.2.0",
     "playwright": "^1.62.1",
     "wrangler": "^4.120.1"
+  },
+  "dependencies": {
+    "posthog-js": "^1.416.0"
   }
 }
