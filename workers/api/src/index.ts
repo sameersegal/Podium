@@ -9,6 +9,7 @@
  *             abandonment, confirmation-deadline expiry, `delivered`.
  */
 
+import { str } from "@podiumstack/data/db.js";
 import type { Env } from "@podiumstack/data/context.js";
 import { DomainError } from "@podiumstack/domain/shared/errors.js";
 import { STALE_WRITE_MESSAGE } from "./http/concurrency.js";
@@ -22,6 +23,7 @@ import { consoleDocument } from "./surfaces/console.js";
 import { runQueueBatch } from "./consumers/dispatch.js";
 import { runScheduled } from "./consumers/cron.js";
 import { page } from "./ui/layout.js";
+import { loadRailCounts } from "./ui/rail-counts.js";
 import { escapeHtml, html, raw } from "./ui/html.js";
 
 export { ScheduleDurableObject } from "./durable/schedule.js";
@@ -66,10 +68,17 @@ export default {
       // or an event that does not exist — declines it and falls through to the
       // page that has always answered.
       const consoleRes = await consoleDocument(req, ctx);
-      if (consoleRes) return await withSecurityHeaders(req, consoleRes);
+      if (consoleRes) return await withSecurityHeaders(req, withQueryCount(consoleRes, ctx));
+
+      // The console rail's counts, for the server-rendered admin screens that
+      // fall through to here. One query, and only for a signed-in person asking
+      // for an admin page — see `ui/rail-counts.ts` for why it is loaded in this
+      // seam rather than by the shell that draws it. The console SPA does not
+      // reach this line: it returned above with its own dashboard payload.
+      await attachRailCounts(req, ctx, url);
 
       const match = router.match(req.method, url.pathname);
-      if (!match) return await withSecurityHeaders(req, notFound(req, ctx));
+      if (!match) return await withSecurityHeaders(req, withQueryCount(notFound(req, ctx), ctx));
 
       let res = await match.handler(req, ctx, match.params);
 
@@ -88,7 +97,7 @@ export default {
       }
 
       if (isMutating(req.method)) res = await remember(env, ctx.orgId, req, res);
-      return await withSecurityHeaders(req, res);
+      return await withSecurityHeaders(req, withQueryCount(res, ctx));
     } catch (err) {
       // The error paths need the headers too — an error page is still a page,
       // and `errorResponse` is what an injected payload would most like to
@@ -108,6 +117,59 @@ export default {
     execCtx.waitUntil(runScheduled(env, event.scheduledTime));
   },
 };
+
+/**
+ * `x-podium-d1-queries`, outside production.
+ *
+ * The performance contract is "single digits per request; an N+1 is a defect,
+ * not a slow path" (`implementer.md`, G). A budget nobody can read is a budget
+ * nobody keeps, so the number the request actually spent is on the response
+ * where a browser, `curl` and the test harness can all see it.
+ *
+ * Not in production: it is a number about the shape of our code, and telling
+ * every caller how many statements their request cost is a detail they cannot
+ * act on and an attacker can. It is skipped on a 101 for the same reason
+ * nothing else touches one — an upgrade carries its socket on the response.
+ */
+function withQueryCount(res: Response, ctx: RequestContext): Response {
+  if (str(ctx.env.ENVIRONMENT) === "production") return res;
+  const out = new Response(res.body, res);
+  out.headers.set("x-podium-d1-queries", String(ctx.queries.count));
+  return out;
+}
+
+/**
+ * Works out which event the rail is counting, and counts it.
+ *
+ * Deliberately cheap to decline: anything that is not a signed-in person asking
+ * for an HTML admin page returns before touching the database. A failure here
+ * is swallowed, because a rail that cannot count is a rail without numbers and
+ * that is not a reason to fail the page the numbers sit beside.
+ */
+async function attachRailCounts(req: Request, ctx: RequestContext, url: URL): Promise<void> {
+  if (req.method !== "GET" || !ctx.person) return;
+  if (!url.pathname.startsWith("/admin")) return;
+  const accept = req.headers.get("accept") ?? "";
+  if (accept && !accept.includes("text/html") && accept !== "*/*") return;
+
+  const parts = url.pathname.split("/").filter(Boolean);
+  let eventId: string | null = parts[1] === "events" && parts[2]?.startsWith("evt_") ? parts[2] : null;
+  try {
+    const app = ctx.app();
+    if (!eventId) {
+      // `/admin` and the organization-wide screens open on the same event the
+      // landing page does — the most recent one — so the rail does not empty
+      // itself the moment you step out of an event.
+      const rows = await app.db.select<{ id: string }>("event", {}, { orderBy: "starts_on DESC", limit: 1 });
+      eventId = rows[0]?.id ?? null;
+    }
+    if (!eventId) return;
+    if (!ctx.isStaff({ event_id: eventId })) return;
+    ctx.rail = await loadRailCounts(app, eventId, ctx.now);
+  } catch {
+    /* a rail without numbers is still a rail */
+  }
+}
 
 function notFound(req: Request, ctx: RequestContext): Response {
   if (wantsJson(req)) return json({ error: "not_found", message: "No such endpoint." }, { status: 404 });

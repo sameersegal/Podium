@@ -186,7 +186,7 @@ export function layoutGrid<T extends GridItem>(
   return { rooms: activeRooms, window_start: windowStart, window_end: windowEnd, total_minutes: Math.max(1, (end - start) / 60_000), hour_marks: hourMarks, blocks };
 }
 
-/** Render a `GridLayout` as the `.agenda` CSS grid (`public/app.css`) — no JS required. */
+/** Render a `GridLayout` as the `.agenda` CSS grid — no JS required. */
 export function renderGrid<T extends GridItem>(layout: GridLayout<T>, blockContent: (b: GridBlock<T>) => SafeHtml, minutesPerRow = 5, rowPx = 5): SafeHtml {
   if (layout.rooms.length === 0) return html`<p class="empty">Nothing placed in a public room on this day yet.</p>`;
   const totalRows = Math.ceil(layout.total_minutes / minutesPerRow);

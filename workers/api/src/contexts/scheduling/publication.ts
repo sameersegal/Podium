@@ -36,7 +36,7 @@ import {
 import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
 import { errorCodesBySession, listConflicts, recomputeConflicts } from "./conflicts.js";
-import { loadScheduleFacts, toEventFact, type EventFact } from "./facts.js";
+import { loadScheduleFacts, toEventFact, type EventFact, type ScheduleFacts } from "./facts.js";
 import { readinessOf } from "./program-link.js";
 
 /* -------------------------------------------------------------------------- */
@@ -52,6 +52,26 @@ export interface SnapshotBuild {
   rooms: PublishedRoomRef[];
   /** Every candidate's verdict, publishable or not — the publish preview. */
   verdicts: PublishabilityVerdict[];
+  /**
+   * Which sessions this build would publish, named rather than inferred from
+   * `sessions`.
+   *
+   * `verdictsOnly` leaves `sessions` empty, and a caller that only wants to know
+   * *which* sessions would go out — `pendingChanges` — must get the same answer
+   * either way. Reading it off the payload made the answer depend on whether the
+   * payload was built.
+   */
+  publishable_session_ids: string[];
+  /**
+   * The rows this build read, handed back so a caller that needs them too does
+   * not read them a second time.
+   *
+   * `pendingChanges` did exactly that — build the snapshot, then load the same
+   * sessions, placements, rooms, days and slots again to diff against it —
+   * which is why `/admin` and the console dashboard each spent about twenty
+   * statements twice over on every view.
+   */
+  facts: ScheduleFacts;
 }
 
 export interface PublishScope {
@@ -76,9 +96,26 @@ function assetUrl(assetId: string | null): string | null {
 export async function buildSnapshot(
   app: AppContext,
   eventId: string,
-  opts: { scope?: PublishScope | null; overrideSessionIds?: Set<string> } = {},
+  opts: {
+    scope?: PublishScope | null;
+    overrideSessionIds?: Set<string>;
+    facts?: ScheduleFacts;
+    /**
+     * Decide what would publish, and stop there.
+     *
+     * The publication diff needs the verdicts and nothing else: which sessions
+     * would go out, and their times, which are their placements'. Assembling
+     * the payload as well — speakers, profiles, sponsors, tiers, assets, tracks,
+     * formats, the venue — is ten more statements whose result it discards.
+     *
+     * It is an early return from the *same* loop rather than a second
+     * implementation, so the publishability rule (INV-08-4) cannot differ
+     * between the preview, the act and the diff.
+     */
+    verdictsOnly?: boolean;
+  } = {},
 ): Promise<SnapshotBuild> {
-  const facts = await loadScheduleFacts(app, eventId);
+  const facts = opts.facts ?? (await loadScheduleFacts(app, eventId));
   const event = facts.event;
   const conflicts = await listConflicts(app, eventId);
   const errorCodes = errorCodesBySession(conflicts);
@@ -89,24 +126,29 @@ export async function buildSnapshot(
   const dayRows = facts.dayRows.filter((d) => !opts.scope?.event_day_ids?.length || opts.scope.event_day_ids.includes(str(d.id)));
   const dayIds = new Set(dayRows.map((d) => str(d.id)));
 
-  const [trackRows, formatRows, venueRow, assetRows] = await Promise.all([
-    app.db.select<Row>("track", { event_id: eventId }, { orderBy: "sort_order, name" }),
-    app.db.select<Row>("session_format", { event_id: eventId }, { orderBy: "sort_order, name" }),
-    event.venue_id ? app.db.byId<Row>("venue", event.venue_id) : Promise.resolve(null),
-    app.db.select<Row>("asset", {}),
-  ]);
+  const lean = opts.verdictsOnly === true;
+  const [trackRows, formatRows, venueRow, assetRows] = lean
+    ? [[] as Row[], [] as Row[], null, [] as Row[]]
+    : await Promise.all([
+        app.db.select<Row>("track", { event_id: eventId }, { orderBy: "sort_order, name" }),
+        app.db.select<Row>("session_format", { event_id: eventId }, { orderBy: "sort_order, name" }),
+        event.venue_id ? app.db.byId<Row>("venue", event.venue_id) : Promise.resolve(null),
+        app.db.select<Row>("asset", {}),
+      ]);
   const assetById = new Map(assetRows.map((a) => [str(a.id), a]));
   const trackById = new Map(trackRows.map((t) => [str(t.id), t]));
   const formatById = new Map(formatRows.map((f) => [str(f.id), f]));
 
   const sessionIds = facts.sessionRows.map((s) => str(s.id));
-  const [speakerRows, sessionAssetRows, sponsorshipRows, tierRows, sponsorRows] = await Promise.all([
-    sessionIds.length ? app.db.select<Row>("session_speaker", { session_id: sessionIds }, { orderBy: "sort_order" }) : Promise.resolve([] as Row[]),
-    sessionIds.length ? app.db.select<Row>("session_asset", { session_id: sessionIds }) : Promise.resolve([] as Row[]),
-    app.db.select<Row>("sponsorship", { event_id: eventId }),
-    app.db.select<Row>("sponsorship_tier", { event_id: eventId }),
-    app.db.select<Row>("sponsor", {}),
-  ]);
+  const [speakerRows, sessionAssetRows, sponsorshipRows, tierRows, sponsorRows] = lean
+    ? [[] as Row[], [] as Row[], [] as Row[], [] as Row[], [] as Row[]]
+    : await Promise.all([
+        sessionIds.length ? app.db.select<Row>("session_speaker", { session_id: sessionIds }, { orderBy: "sort_order" }) : Promise.resolve([] as Row[]),
+        sessionIds.length ? app.db.select<Row>("session_asset", { session_id: sessionIds }) : Promise.resolve([] as Row[]),
+        app.db.select<Row>("sponsorship", { event_id: eventId }),
+        app.db.select<Row>("sponsorship_tier", { event_id: eventId }),
+        app.db.select<Row>("sponsor", {}),
+      ]);
   const sponsorById = new Map(sponsorRows.map((s) => [str(s.id), s]));
   const tierById = new Map(tierRows.map((t) => [str(t.id), t]));
   const sponsorshipBySponsor = new Map(sponsorshipRows.map((s) => [str(s.sponsor_id), s]));
@@ -144,6 +186,8 @@ export async function buildSnapshot(
     if (!placement) continue;
 
     includedSessionIds.add(id);
+    // The verdict is the answer; the payload below is not being asked for.
+    if (lean) continue;
     const track = row.track_id ? trackById.get(str(row.track_id)) : null;
     const format = formatById.get(str(row.session_format_id));
     const sponsor = row.sponsor_id ? sponsorById.get(str(row.sponsor_id)) : null;
@@ -284,10 +328,14 @@ export async function buildSnapshot(
     formats: formatRows.filter((f) => bool(f.is_public) && sessions.some((s) => s.format?.id === str(f.id))).map((f) => ({ id: str(f.id), name: str(f.name), slug: str(f.slug) })),
     rooms: facts.roomRows.filter((r) => bool(r.is_public) && usedRoomIds.has(str(r.id))).map(roomRef),
     verdicts,
+    publishable_session_ids: [...includedSessionIds],
+    facts,
   };
 
   // INV-08-8, belt and braces: nothing whose audience is not public, and none
-  // of the INV-01-4 fields, may be in the payload.
+  // of the INV-01-4 fields, may be in the payload. `facts` is deliberately not
+  // passed: it is the working rows this build read, not the payload, and it is
+  // never serialised into a publication.
   assertNoPrivateFields({ event: build.event, sessions: build.sessions, speakers: build.speakers });
   return build;
 }
@@ -716,22 +764,27 @@ export async function snapshotById(env: Env, orgId: string, publicationId: strin
 export async function pendingChanges(app: AppContext, eventId: string): Promise<PendingPublicationChanges> {
   const live = await liveRow(app, eventId);
   const liveSessions = live ? await snapshotSessions(app, str(live.id)) : null;
-  const build = await buildSnapshot(app, eventId);
-  const publishableIds = new Set(build.sessions.map((s) => s.session_id));
-
+  // One read of the schedule, shared. This used to load the facts, hand them to
+  // `buildSnapshot`, and then load them again to build the working set — the
+  // same twenty statements twice, on the hottest read model in admin.
   const facts = await loadScheduleFacts(app, eventId);
+  const build = await buildSnapshot(app, eventId, { facts, verdictsOnly: true });
+  const publishableIds = new Set(build.publishable_session_ids);
+
   const placementBySession = new Map(facts.placements.map((p) => [p.session_id, p]));
   const roomById = new Map(facts.roomRows.map((r) => [str(r.id), r]));
 
   const working: WorkingSession[] = facts.sessionRows.map((row) => {
     const id = str(row.id);
     const placement = placementBySession.get(id);
-    const published = build.sessions.find((s) => s.session_id === id);
+    // A published session's times *are* its placement's (`buildSnapshot`:
+    // `starts_at: placement.starts_at`), so the placement is the whole answer
+    // and the payload does not have to be built to read it back.
     return {
       session_id: id,
       title: str(row.title),
-      starts_at: published?.starts_at ?? placement?.starts_at ?? null,
-      ends_at: published?.ends_at ?? placement?.ends_at ?? null,
+      starts_at: placement?.starts_at ?? null,
+      ends_at: placement?.ends_at ?? null,
       room_id: placement ? placement.room_id : null,
       room_name: placement ? str(roomById.get(placement.room_id)?.name) || null : null,
       content_status: str(row.content_status, "draft"),

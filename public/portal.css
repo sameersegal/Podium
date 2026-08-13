@@ -1,0 +1,827 @@
+/* Podium — the program book. `/portal`, `/e/:slug`, and the sign-in pages.
+ *
+ * Editorial, serif, spacious, one job per page. It shares nothing with
+ * `admin.css` — not a colour, not a typeface, not a component — because the two
+ * audiences share nothing either: an organizer lives in the console, and a
+ * speaker visits three times a year while a reader visits once.
+ *
+ * Everything here must render with scripts blocked (08, "Degrade gracefully").
+ * Nothing in this file depends on a script, and nothing that does may be added
+ * to it.
+ *
+ * Structure: tokens → reset → the shell → prose → components → screens →
+ * responsive.
+ */
+
+/* `@font-face` is linked from the document head, not imported here. An
+ * `@import` is a serial round trip: the browser cannot ask for the font
+ * file until it has fetched and parsed this stylesheet, and cannot start
+ * this stylesheet until it has parsed the HTML. Measured on a throttled
+ * mid-range phone that chain cost 360 ms before a byte of the typeface was
+ * requested. See `stylesheet()` in `ui/layout.ts`. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Serif for anything anybody reads: headings, abstracts, body prose. The
+     schedule is a book of talks, and a book is not set in a UI font. */
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  /* Karla for anything anybody scans: labels, metadata, buttons, navigation. */
+  --sans: "Karla", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --page: #e6e6e2;
+  --paper: #f7f7f5;
+  --sheet: #fdfdfc;
+
+  --ink: #1a1a19;
+  --on-ink: #fdfdfc;
+  --ink-2: #46453f;
+  --ink-3: #57564f;
+  --muted: #8a887e;
+  --faint: #a8a69c;
+
+  --rule: #e4e3dc;
+  --rule-soft: #e9e8e1;
+  --frame: #d9d8d1;
+  --control: #cfcec6;
+  --control-hover: #a9a89f;
+  --empty-ring: #c4c3b9;
+
+  /* Terracotta. Deadlines, the current step, the sponsor disclosure, links —
+     everything with a clock or a consequence attached. Nothing decorative. */
+  --accent: oklch(0.47 0.12 35);
+  --accent-hover: oklch(0.38 0.12 35);
+  --accent-border: oklch(0.40 0.12 35);
+  --accent-wash: oklch(0.97 0.03 35);
+  --accent-wash-line: oklch(0.88 0.06 35);
+  --accent-rule: oklch(0.70 0.10 35);
+  --accent-ring: oklch(0.60 0.12 35);
+
+  --ok: oklch(0.42 0.10 155);
+  --ok-wash: oklch(0.96 0.03 155);
+  --warn: oklch(0.48 0.11 65);
+  --warn-wash: oklch(0.97 0.03 65);
+  --danger: oklch(0.48 0.17 25);
+  --danger-wash: oklch(0.97 0.02 25);
+
+  --r-sm: 6px;
+  --r: 8px;
+  --r-lg: 12px;
+  --r-xl: 14px;
+  --r-pill: 999px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 18px;
+  --sp-5: 28px;
+  --sp-6: 40px;
+  --sp-7: 64px;
+
+  --measure: 820px;
+  --measure-wide: 1000px;
+
+  --dur: 120ms;
+}
+
+/* A complete palette, not a filter. The primary button is an ink fill whose
+   label is the paper colour, so in dark mode its hover *lightens* — darkening
+   it toward black would put dark text on a dark button. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0d0d0b;
+    --paper: #131310;
+    --sheet: #1b1a17;
+
+    --ink: #eeede7;
+    --on-ink: #14140f;
+    --ink-2: #c7c4b8;
+    --ink-3: #b0ada2;
+    --muted: #8c8a80;
+    --faint: #6d6a5f;
+
+    --rule: #2c2b26;
+    --rule-soft: #262521;
+    --frame: #2c2b26;
+    --control: #3d3b34;
+    --control-hover: #6d6a5f;
+    --empty-ring: #3d3b34;
+
+    --accent: oklch(0.74 0.11 35);
+    --accent-hover: oklch(0.82 0.09 35);
+    --accent-border: oklch(0.62 0.11 35);
+    --accent-wash: oklch(0.24 0.04 35);
+    --accent-wash-line: oklch(0.40 0.06 35);
+    --accent-rule: oklch(0.58 0.10 35);
+    --accent-ring: oklch(0.70 0.11 35);
+
+    --ok: oklch(0.78 0.10 155);
+    --ok-wash: oklch(0.26 0.04 155);
+    --warn: oklch(0.82 0.10 65);
+    --warn-wash: oklch(0.26 0.04 65);
+    --danger: oklch(0.74 0.14 25);
+    --danger-wash: oklch(0.22 0.03 25);
+  }
+}
+
+/* ---------- reset ---------- */
+
+* { box-sizing: border-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; text-underline-offset: 2px; }
+
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+
+h1, h2, h3, h4 { font-family: var(--serif); font-weight: 600; line-height: 1.25; margin: 0 0 var(--sp-3); letter-spacing: -.015em; }
+h1 { font-size: 34px; line-height: 1.15; letter-spacing: -.02em; }
+h2 { font-size: 26px; margin-top: var(--sp-5); }
+h3 { font-size: 21px; margin-top: var(--sp-4); }
+h4 { font-size: 18px; margin-top: var(--sp-4); }
+p { margin: 0 0 var(--sp-3); }
+/*
+ * Prose has a measure — a 1000px line of 17px serif is a line nobody finishes.
+ *
+ * Named, rather than `main p`. A blanket rule caught every `<li>` in the
+ * program list too, and those are grid rows: capping a grid row at 62 characters
+ * capped the whole schedule at the width of its own abstract.
+ */
+main > p, .prose p, .prose li, .abstract, .arc .what p, .do-first p, .lede { max-width: 62ch; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: var(--sp-5) 0; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- the bar ---------- */
+
+.sheet-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-6);
+  background: var(--sheet);
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+.sheet-bar .spacer { flex: 1; }
+.sheet-bar .wordmark {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.sheet-bar .wordmark:hover { text-decoration: none; color: var(--ink); }
+.sheet-bar nav { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
+.sheet-bar nav a, .sheet-bar .linky {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.sheet-bar nav a:hover, .sheet-bar .linky:hover { color: var(--ink); text-decoration: none; }
+.sheet-bar nav a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+.sheet-bar form { margin: 0; }
+/* Sign-out is a POST, so it has to be a button; it should not look like one. */
+.sheet-bar .linky { background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--sans); }
+.sheet-bar .ext { margin-left: 4px; opacity: .7; }
+
+main { max-width: var(--measure); margin: 0 auto; padding: 52px var(--sp-6) var(--sp-7); }
+main.wide { max-width: var(--measure-wide); }
+main.narrow { max-width: 26rem; }
+/* A page that opens on the hero band has no gutter above it — the band is the
+   top of the page, and 52px of paper between the header rule and the sheet
+   reads as a gap somebody forgot to fill. */
+main:has(> .hero:first-child) { padding-top: 0; }
+
+/* A band that ignores the page gutter and the centred measure — the public
+   hero. `50% - 50vw` is the distance from the container's edge to the
+   viewport's, so the band reaches the window on any width. */
+.bleed { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
+
+/* Sign-in and sign-up: one short form and nothing else, so it sits in the
+   middle of the window rather than at the top of an empty page. */
+body.auth { min-height: 100vh; display: flex; flex-direction: column; }
+body.auth main { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-bottom: var(--sp-7); }
+
+/* ---------- shared type ---------- */
+
+/* The uppercase Karla label. It appears above every section on every editorial
+   screen, and it is the only thing in this design that is ever uppercase. */
+.eyebrow, .label {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.eyebrow.accent { color: var(--accent); letter-spacing: .2em; }
+
+/* Title left, the one secondary action right, once there is room for both. */
+.page-head { margin-bottom: var(--sp-5); display: grid; gap: var(--sp-3); }
+.page-head .actions { margin-top: var(--sp-1); }
+@media (min-width: 48rem) {
+  .page-head { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .page-head h1, .page-head .lede { grid-column: 1; }
+  .page-head .actions { grid-column: 2; grid-row: 1 / span 2; align-self: end; margin: 0; }
+}
+.lede { font-size: 21px; line-height: 1.5; color: var(--ink-2); max-width: 54ch; margin: 0 0 var(--sp-4); }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.mono, .meta { font-family: var(--sans); font-size: 14px; color: var(--ink-3); }
+.nowrap { white-space: nowrap; }
+.break { overflow-wrap: anywhere; word-break: break-word; }
+
+/* A section rule with air above it — how one page separates its jobs without
+   drawing a card around each. */
+.section { margin-top: var(--sp-5); padding-top: var(--sp-5); border-top: 1px solid var(--rule); }
+.section-head { display: flex; align-items: baseline; gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.section-head .eyebrow { margin: 0; }
+.section-head .spacer { flex: 1; }
+.section-head .count { font-family: var(--sans); font-size: 14px; color: var(--muted); }
+
+/* ---------- buttons ---------- */
+
+/*
+ * The primary is an ink fill. Its hover darkens in light mode and *lightens* in
+ * dark mode — never invert the pair, because the label is the paper colour and
+ * darkening a dark button hides it.
+ */
+button, .btn {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1;
+  padding: 13px 20px;
+  min-height: 44px;
+  border-radius: var(--r);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+}
+button:hover, .btn:hover { background: #333330; border-color: #333330; color: var(--on-ink); text-decoration: none; }
+@media (prefers-color-scheme: dark) {
+  button:hover, .btn:hover { background: #d8d6cd; border-color: #d8d6cd; }
+}
+button:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+
+button.secondary, .btn.secondary {
+  background: var(--sheet);
+  color: var(--ink);
+  border-color: var(--control);
+}
+button.secondary:hover, .btn.secondary:hover { background: var(--sheet); color: var(--ink); border-color: var(--control-hover); }
+
+/* The accent fill is reserved for the one action a page is actually asking for
+   — confirming a slot, submitting a talk. There is never more than one. */
+button.accent, .btn.accent { background: var(--accent); border-color: var(--accent-border); color: var(--on-ink); }
+button.accent:hover, .btn.accent:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-ink); }
+@media (prefers-color-scheme: dark) {
+  button.accent, .btn.accent { color: #14140f; }
+  button.accent:hover, .btn.accent:hover { color: #14140f; }
+}
+button.danger, .btn.danger { background: transparent; color: var(--danger); border-color: var(--control); }
+button.danger:hover, .btn.danger:hover { background: transparent; color: var(--danger); border-color: var(--danger); }
+button.ghost, .btn.ghost { background: transparent; border-color: transparent; color: var(--accent); }
+button.ghost:hover, .btn.ghost:hover { background: transparent; color: var(--accent-hover); border-color: transparent; }
+button.small, .btn.small { padding: 9px 14px; font-size: 14px; min-height: 40px; }
+button.block, .btn.block { width: 100%; }
+.actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: center; }
+.inline-form { display: inline; }
+
+/* ---------- "do this first" ---------- */
+
+/*
+ * The one thing the page is asking for, in a block of its own. It is the only
+ * place a primary action appears on the portal, which is what makes a speaker
+ * able to answer "what do I have to do" without reading anything else.
+ */
+.do-first {
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-wash-line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5) 28px;
+  margin: var(--sp-5) 0;
+}
+.do-first .eyebrow { color: var(--accent); }
+.do-first h2 { margin: 0 0 var(--sp-3); font-size: 26px; }
+.do-first p { font-size: 16px; color: var(--ink-2); max-width: 58ch; }
+.do-first .actions { margin-top: var(--sp-4); }
+
+/* ---------- the arc ---------- */
+
+/*
+ * Where a talk has got to, as one line rather than two rows. R13 keeps
+ * `Proposal` and `Session` separate in the model and presents them to a speaker
+ * as one record — this is that record: submitted, reviewed, accepted, confirm,
+ * onboarding, on stage.
+ */
+.arc { display: grid; grid-template-columns: 92px 20px 1fr; }
+.arc .when {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 13px;
+  text-align: right;
+  color: var(--muted);
+  padding-top: 1px;
+}
+.arc .step.now .when { color: var(--accent); font-weight: 600; }
+/* The dot and the line under it are one cell, so the connector fills whatever
+   height the step's own text turns out to need. */
+.arc .track { display: flex; flex-direction: column; align-items: center; }
+.arc .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink); margin-top: 6px; flex: none; }
+.arc .step.now .dot { width: 11px; height: 11px; background: var(--accent); margin-top: 5px; }
+.arc .step.future .dot { background: var(--paper); border: 1px solid var(--empty-ring); }
+.arc .line { width: 1px; flex: 1; background: var(--rule); margin-top: 4px; }
+.arc .step:last-child .line { display: none; }
+.arc .what { padding: 0 0 22px 0; }
+.arc .what .name { font-family: var(--sans); font-weight: 500; font-size: 16px; margin: 0 0 2px; }
+.arc .what p { font-size: 15px; color: var(--ink-2); margin: 0; }
+.arc .step.future .what .name, .arc .step.future .what p { color: var(--faint); }
+/* The committee's released feedback, in the speaker's own timeline rather than
+   in an email they have to go and find. */
+.arc blockquote {
+  margin: var(--sp-3) 0 0;
+  padding-left: var(--sp-4);
+  border-left: 2px solid var(--accent-rule);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--ink-2);
+}
+/* Each step is three cells of one grid rather than a nested grid, so every
+   date, dot and label lines up across the whole column. */
+.arc .step { display: contents; }
+
+/* ---------- what we need from you ---------- */
+
+.tasks { list-style: none; margin: 0; padding: 0; }
+.tasks > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.tasks > li:last-child { border-bottom: 0; }
+.tasks .circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--empty-ring);
+  flex: none;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--on-ink);
+}
+.tasks li.done .circle { background: var(--ink); border-color: var(--ink); }
+.tasks li.overdue .circle { border-color: var(--accent-ring); border-width: 2px; }
+.tasks .body { flex: 1; min-width: 0; }
+.tasks .name { font-family: var(--sans); font-weight: 500; font-size: 16px; margin: 0 0 2px; }
+.tasks li.done .name { text-decoration: line-through; color: var(--muted); }
+/* The due line says the consequence, not the date twice: "Overdue since 10
+   February · blocks your listing" is a sentence somebody acts on. */
+.tasks .due { font-family: var(--sans); font-size: 14px; color: var(--ink-3); margin: 0; }
+.tasks li.overdue .due { color: var(--accent); }
+.tasks .actions { flex: none; }
+
+/* ---------- your other talks ---------- */
+
+.other-talks { list-style: none; margin: 0; padding: 0; }
+.other-talks > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.other-talks > li:last-child { border-bottom: 0; }
+.other-talks .state { font-family: var(--sans); font-size: 13px; color: var(--muted); min-width: 108px; flex: none; }
+.other-talks .title { flex: 1; font-size: 18px; min-width: 0; }
+.other-talks .nudge { font-family: var(--sans); font-size: 14px; color: var(--ink-3); flex: none; }
+
+/* ---------- the public hero ---------- */
+
+.hero {
+  background: var(--sheet);
+  border-bottom: 1px solid var(--rule);
+  padding: 76px var(--sp-6) 60px;
+}
+.hero .inner { max-width: var(--measure-wide); margin: 0 auto; }
+/* No gradient and no photograph: the type is the hero. */
+.hero h1 { font-size: clamp(44px, 6vw, 78px); line-height: 1.02; letter-spacing: -.025em; max-width: 18ch; margin: 0 0 var(--sp-4); }
+.hero .lede { font-size: 21px; max-width: 54ch; }
+.hero .actions { margin-top: var(--sp-5); }
+
+/* Two columns on the public landing page: the story, and the practical facts. */
+.public-body { display: grid; grid-template-columns: 1.45fr 1fr; gap: 56px; align-items: start; }
+.public-body > * { min-width: 0; }
+
+/* A session in a list: time, then the talk. */
+.listing { list-style: none; margin: 0; padding: 0; }
+.listing > li { display: grid; grid-template-columns: 96px 1fr; gap: var(--sp-4); padding: var(--sp-4) 0; border-top: 1px solid var(--rule); }
+.listing .when { font-family: var(--sans); font-size: 14px; color: var(--muted); }
+.listing .title { font-size: 21px; line-height: 1.35; margin: 0 0 2px; }
+.listing .who { font-family: var(--sans); font-size: 14px; color: var(--ink-3); margin: 0; }
+
+/* A title in a list is the row's own link and takes the row's colour. Accent is
+   for deadlines and consequences; a page of terracotta headlines spends it on
+   nothing and leaves none of it for the one date that matters. */
+.listing .title a, .program .title a, .calls .name a, .other-talks .title a { color: var(--ink); }
+.listing .title a:hover, .program .title a:hover, .calls .name a:hover, .other-talks .title a:hover { color: var(--ink); }
+
+/* An open call, and when it shuts. */
+.calls { list-style: none; margin: 0; padding: 0; }
+.calls > li { padding: var(--sp-3) 0; border-top: 1px solid var(--rule); }
+.calls .name { font-size: 18px; margin: 0 0 2px; }
+.calls .closes { font-family: var(--sans); font-size: 14px; color: var(--ink-3); margin: 0; }
+.calls .closes.soon { color: var(--accent); }
+
+/* Venue, sessions, calendar, last updated. Label left, value right. */
+.kv { display: grid; grid-template-columns: 1fr; gap: var(--sp-1) var(--sp-4); font-family: var(--sans); font-size: 14px; }
+.kv dt { color: var(--ink-3); font-weight: 400; }
+.kv dd { margin: 0 0 var(--sp-2); font-weight: 500; overflow-wrap: anywhere; }
+
+/* ---------- the program ---------- */
+
+/*
+ * The day bar sits on a 1px ink rule — the only heavy rule in the design, and
+ * the thing that says "everything below here is one list".
+ */
+.daybar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--ink);
+  margin-bottom: var(--sp-2);
+}
+.daybar a {
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.daybar a:hover { color: var(--ink); text-decoration: none; }
+.daybar a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+/* The filters ride on the same rule as the days, at its right end. Their
+   controls shed the full-width rule every other form control on this surface
+   follows — a select in a bar is as wide as the longest track name, not as wide
+   as the bar. */
+.daybar .filters { margin-left: auto; display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.daybar .filters a { font-size: 14px; }
+.daybar .filters select, .daybar .filters input {
+  width: auto;
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 14px;
+  border-color: var(--rule);
+  background: transparent;
+}
+.daybar .filters input[type="search"] { max-width: 11rem; }
+.daybar .starred-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.daybar .starred-only input { width: auto; min-height: 0; accent-color: var(--ink); }
+
+.program { list-style: none; margin: 0; padding: 0; }
+.program > li {
+  display: grid;
+  grid-template-columns: 110px 1fr 34px;
+  gap: 22px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.program .when { font-family: var(--sans); }
+.program .start { font-size: 17px; font-weight: 500; display: block; }
+.program .length { font-size: 13px; color: var(--muted); display: block; }
+.program .title { font-size: 24px; line-height: 1.3; margin: 0 0 var(--sp-1); }
+.program .who { font-family: var(--sans); font-size: 14px; color: var(--ink-3); margin: 0 0 var(--sp-2); }
+.program .abstract { font-size: 16px; color: var(--ink-2); margin: 0; max-width: 62ch; }
+/* INV-08-7 — a sponsored session says so in every format it appears in. This
+   disclosure is not theme-suppressible and must never become so. */
+.program .sponsored {
+  display: block;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: var(--sp-1);
+}
+
+/* Starring is `localStorage` only — R11, no attendee accounts — so the button
+   is drawn by the page and filled in by a script. With scripts blocked it is a
+   button that does nothing, which is why nothing else on the page depends on
+   what it says. */
+.star {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--control);
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  cursor: pointer;
+}
+.star:hover { background: transparent; border-color: var(--ink); color: var(--ink); }
+.star[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+
+/* ---------- shared components ---------- */
+
+/*
+ * The rest of this file is the vocabulary the submission wizard, the profile
+ * form and the speaker pages already render against. They are not new screens
+ * and the handoff does not redraw them, so they take the editorial palette and
+ * type and otherwise keep the structure they had.
+ */
+
+.card {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-4);
+}
+.card > h2:first-child, .card > h3:first-child { margin-top: 0; }
+
+.grid { display: grid; gap: var(--sp-4); align-items: start; }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+.grid.three { grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); }
+.grid.four { grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.stat { display: block; border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); background: var(--sheet); }
+.stat .n { display: block; font-size: 30px; font-weight: 600; line-height: 1.05; letter-spacing: -.02em; }
+.stat .l { display: block; font-family: var(--sans); font-size: 13px; color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; font-family: var(--sans); font-size: 15px; }
+th, td { text-align: left; padding: var(--sp-3) var(--sp-3) var(--sp-3) 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--rule); }
+td strong, td b { font-weight: 600; }
+.table-wrap { overflow-x: auto; }
+.table-wrap.tall { max-height: min(75vh, 900px); overflow-y: auto; }
+
+form.stack { display: flex; flex-direction: column; gap: var(--sp-4); }
+.field { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.field > label, fieldset.field > legend { font-family: var(--sans); font-weight: 600; font-size: 14px; color: var(--ink-2); }
+.field .help { font-family: var(--sans); color: var(--muted); font-size: 14px; max-width: 60ch; }
+.field .req { color: var(--danger); }
+
+input[type=text], input[type=email], input[type=password], input[type=url], input[type=number],
+input[type=date], input[type=time], input[type=datetime-local], input[type=search], select, textarea {
+  font-family: var(--sans);
+  font-size: 16px;
+  color: var(--ink);
+  padding: 11px var(--sp-3);
+  min-height: 44px;
+  border: 1px solid var(--control);
+  border-radius: var(--r);
+  background: var(--sheet);
+  width: 100%;
+  max-width: 100%;
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+form.stack input:not([type=checkbox]):not([type=radio]):not([type=color]), form.stack select { max-width: 32rem; }
+form.stack textarea { max-width: 100%; }
+form.stack input[type=date], form.stack input[type=time], form.stack input[type=number] { max-width: 14rem; }
+textarea { min-height: 9rem; resize: vertical; line-height: 1.6; font-family: var(--serif); font-size: 17px; }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+input:hover, select:hover, textarea:hover { border-color: var(--control-hover); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+input[readonly] { background: var(--paper); color: var(--muted); }
+select[multiple] { min-height: 0; max-height: 10rem; padding: var(--sp-1); }
+fieldset { border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); margin: 0 0 var(--sp-4); min-width: 0; }
+legend { font-family: var(--sans); font-weight: 600; padding: 0 var(--sp-1); font-size: 14px; }
+.checkline { display: flex; align-items: flex-start; gap: var(--sp-2); font-family: var(--sans); font-size: 15px; min-height: 44px; }
+.checkline input { width: auto; min-height: 0; margin-top: .55rem; accent-color: var(--accent); }
+.checkline label { cursor: pointer; align-self: center; }
+.row { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: flex-end; }
+.row > * { flex: 1; min-width: 160px; }
+.row > .shrink { flex: 0 0 auto; min-width: 0; }
+.inline-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: var(--sp-3); align-items: end; }
+.inline-grid > .field { min-width: 0; }
+.inline-grid > .wide, .inline-grid > .field.wide { grid-column: 1 / -1; }
+.inline-grid > .field:has(textarea) { grid-column: 1 / -1; }
+
+.filter-bar { border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); background: var(--sheet); }
+details.filter-bar > summary { list-style: none; cursor: pointer; font-family: var(--sans); font-weight: 600; font-size: 14px; }
+details.filter-bar > summary::-webkit-details-marker { display: none; }
+.sortbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-family: var(--sans); font-size: 14px; color: var(--muted); margin-bottom: var(--sp-3); }
+.sortbar a[aria-current="true"] { color: var(--ink); font-weight: 600; }
+
+.flash, .notice {
+  font-family: var(--sans);
+  font-size: 15px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r);
+  margin-bottom: var(--sp-5);
+  border: 1px solid;
+}
+.flash.ok, .notice.ok { background: var(--ok-wash); border-color: var(--ok); color: var(--ok); }
+.flash.err, .notice.err { background: var(--danger-wash); border-color: var(--danger); color: var(--danger); }
+.flash.warn, .notice.warn { background: var(--warn-wash); border-color: var(--warn); color: var(--warn); }
+.flash.info, .notice.info { background: var(--accent-wash); border-color: var(--accent-wash-line); color: var(--accent); }
+.field-error { font-family: var(--sans); color: var(--danger); font-size: 14px; font-weight: 600; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pill);
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.badge.ok { color: var(--ok); border-color: var(--ok); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.badge.err { color: var(--danger); border-color: var(--danger); }
+.badge.info { color: var(--accent); border-color: var(--accent-wash-line); }
+.badge + .badge { margin-left: var(--sp-1); }
+.tag { display: inline-block; font-family: var(--sans); font-size: 13px; color: var(--ink-3); margin-right: var(--sp-2); }
+.urgency-warn { color: var(--warn); font-weight: 600; }
+.urgency-err { color: var(--accent); font-weight: 600; }
+
+.empty { padding: var(--sp-6) var(--sp-4); text-align: center; color: var(--muted); font-family: var(--sans); font-size: 15px; border: 1px dashed var(--rule); border-radius: var(--r-lg); }
+.card > .empty { border: 0; padding: var(--sp-5) 0; }
+
+.progress { height: 6px; background: var(--rule); border-radius: var(--r-pill); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.progress-row { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.progress-row .progress { flex: 1; min-width: 5rem; }
+
+.steps { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: 0 0 var(--sp-5); padding: 0; list-style: none; font-family: var(--sans); }
+.steps li { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-pill); border: 1px solid var(--rule); font-size: 14px; color: var(--muted); }
+.steps li.current { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.steps li.done { border-color: var(--rule); color: var(--ink-3); }
+
+.avatar { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; background: var(--rule); }
+.avatar.initials { display: inline-flex; align-items: center; justify-content: center; font-family: var(--sans); font-weight: 600; color: var(--ink-3); font-size: 24px; }
+
+.session-card { border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-4); background: var(--sheet); }
+.session-card h3 { margin: 0 0 var(--sp-2); }
+.speaker-card { border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-4); text-align: center; background: var(--sheet); }
+
+.record-head { display: flex; align-items: flex-start; gap: var(--sp-3); flex-wrap: wrap; }
+.record-head .grow { flex: 1; min-width: 12rem; }
+.record-head h3 { margin: 0 0 var(--sp-1); }
+.record-head p { margin: 0; }
+.record-tasks { list-style: none; margin: var(--sp-3) 0 0; padding: 0; border-top: 1px solid var(--rule-soft); }
+.record-tasks > li { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; padding: var(--sp-2) 0; border-bottom: 1px solid var(--rule-soft); }
+.record-tasks > li:last-child { border-bottom: 0; }
+.record-tasks > li > a { flex: 1; min-width: 10rem; }
+
+.notes, .candidates, .diff-list, .replies, .comment-replies, .links { list-style: none; padding: 0; margin: 0; }
+.notes > li, .candidates > li { padding: var(--sp-3) 0; border-bottom: 1px solid var(--rule-soft); }
+.notes > li:last-child, .candidates > li:last-child { border-bottom: 0; }
+.links, .link-row { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); align-items: center; font-family: var(--sans); font-size: 15px; }
+.comment { padding: var(--sp-3) 0; border-bottom: 1px solid var(--rule-soft); }
+.comment:last-child { border-bottom: 0; }
+.comment-replies, .replies { margin: var(--sp-2) 0 0 var(--sp-4); padding-left: var(--sp-4); border-left: 2px solid var(--rule); }
+.conditional { border-left: 2px solid var(--accent-wash-line); padding-left: var(--sp-3); }
+.conditional-note { color: var(--muted); font-style: italic; }
+.cond-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: flex-end; }
+.copy-url { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+.copy-url input { flex: 1; min-width: 12rem; width: auto; }
+
+.timeline { list-style: none; padding: 0; margin: 0; }
+.timeline li { border-left: 1px solid var(--rule); padding: 0 0 var(--sp-3) var(--sp-4); margin-left: var(--sp-1); position: relative; }
+.timeline li::before { content: ""; position: absolute; left: -4px; top: .55rem; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.timeline li:last-child { border-left-color: transparent; }
+
+.prose { max-width: 62ch; }
+.prose > :first-child { margin-top: 0; }
+.prose > :last-child { margin-bottom: 0; }
+.prose a { text-decoration: underline; text-underline-offset: 2px; }
+.prose ul, .prose ol { padding-left: var(--sp-5); }
+.prose code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875em; background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 0 .25em; }
+.prose blockquote { margin: 0 0 var(--sp-3); padding-left: var(--sp-4); border-left: 2px solid var(--accent-rule); font-style: italic; color: var(--ink-2); }
+
+.form-step { border-left: 2px solid var(--accent-rule); padding-left: var(--sp-4); }
+.review-step { border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); }
+.review-step > h3, .review-step > h4 { margin-top: 0; }
+.review-summary { border-left: 2px solid var(--accent-rule); padding-left: var(--sp-4); margin-bottom: var(--sp-4); }
+.submission { display: grid; gap: var(--sp-4); }
+.criterion { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3); padding: var(--sp-3) 0; border-bottom: 1px solid var(--rule-soft); }
+.criterion > .field { flex: 1; min-width: 14rem; }
+
+details.disclosure { border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); background: var(--sheet); }
+details.disclosure > summary { list-style: none; cursor: pointer; font-family: var(--sans); font-weight: 600; font-size: 15px; min-height: 44px; display: flex; align-items: center; gap: var(--sp-2); }
+details.disclosure > summary::-webkit-details-marker { display: none; }
+details.disclosure > summary::before { content: "+"; color: var(--muted); }
+details.disclosure[open] > summary::before { content: "−"; }
+details.snippet > summary { cursor: pointer; list-style: none; }
+details.snippet > summary::-webkit-details-marker { display: none; }
+details.snippet > summary .more { font-family: var(--sans); color: var(--accent); font-weight: 600; }
+details.snippet[open] > summary { display: none; }
+.gallery-card > summary { cursor: pointer; list-style: none; }
+.gallery-card > summary::-webkit-details-marker { display: none; }
+.gallery-card .panel { border-top: 1px solid var(--rule); margin-top: var(--sp-3); padding-top: var(--sp-3); }
+
+.agenda { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--r-lg); overflow: auto; font-family: var(--sans); }
+.agenda .cell { background: var(--sheet); padding: var(--sp-2); min-height: 2.2rem; font-size: 14px; }
+.agenda .head { background: var(--paper); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.agenda .time { background: var(--paper); color: var(--muted); font-size: 13px; white-space: nowrap; }
+.session-block { background: var(--accent-wash); border-left: 2px solid var(--accent-rule); border-radius: var(--r-sm); padding: var(--sp-2); }
+.session-block .t { font-weight: 600; display: block; }
+
+.live-bar { display: none; }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 47.999rem) {
+  .sheet-bar { padding: var(--sp-3) var(--sp-4); gap: var(--sp-3); }
+  .sheet-bar nav { gap: var(--sp-3); }
+  main { padding: var(--sp-5) var(--sp-4) var(--sp-6); }
+  .hero { padding: var(--sp-6) var(--sp-4) var(--sp-5); }
+  h1 { font-size: 30px; }
+  .lede { font-size: 18px; }
+  .public-body { grid-template-columns: 1fr; gap: var(--sp-5); }
+
+  /* The date column becomes a line above each step rather than a 92px gutter
+     that leaves the label eleven characters wide. */
+  .arc { grid-template-columns: 20px 1fr; }
+  .arc .when { grid-column: 1 / -1; text-align: left; padding: 0 0 2px 0; }
+  .arc .what { padding-bottom: var(--sp-4); }
+
+  /* Time above title, and the star moves up beside the time — a 34px column on
+     a 360px screen costs a tenth of the abstract's width. */
+  .program > li { grid-template-columns: 1fr auto; gap: var(--sp-2) var(--sp-3); }
+  .program .when { grid-column: 1; }
+  .program .star { grid-column: 2; grid-row: 1; align-self: start; }
+  .program .body { grid-column: 1 / -1; }
+  .program .start { display: inline; }
+  .program .length { display: inline; margin-left: var(--sp-2); }
+  .program .title { font-size: 21px; }
+
+  .listing > li { grid-template-columns: 1fr; gap: var(--sp-1); }
+  .other-talks > li { flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+  .other-talks .title { flex-basis: 100%; order: 3; }
+  .do-first { padding: var(--sp-4); }
+}
+
+@media (min-width: 48rem) {
+  .kv { grid-template-columns: minmax(140px, max-content) 1fr; gap: var(--sp-2) var(--sp-4); }
+  .kv dd { margin: 0; text-align: right; }
+}
+
+@media print {
+  .sheet-bar, .actions, .star, .daybar .filters { display: none; }
+  main { max-width: none; padding: 0; }
+  .program > li { break-inside: avoid; }
+}

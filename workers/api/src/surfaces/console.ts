@@ -30,6 +30,7 @@ import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json } from "../http/responses.js";
 import type { Router } from "../http/router.js";
 import { escapeHtml } from "../ui/html.js";
+import { loadRailCounts } from "../ui/rail-counts.js";
 import { toEventRef, type EventRef } from "../ui/shell.js";
 import { eventDashboard } from "./dashboard.js";
 
@@ -157,12 +158,20 @@ async function bootPayload(ctx: RequestContext, ev: EventRef | null): Promise<Re
     can[capability] = ctx.canRead(capability, target);
     canWrite[capability] = ctx.canWrite(capability, target);
   }
+  // The rail's counts, so the console's rail says what the server-rendered one
+  // says. They are refetched with the rest of the boot payload when the reader
+  // switches event; inside one session they are as old as the last navigation
+  // that reloaded the document, which is the same staleness the numbers on any
+  // open screen already have.
+  const rail = ev ? await loadRailCounts(app, ev.id, ctx.now) : {};
+
   return {
     person: ctx.person
       ? { id: ctx.person.id, full_name: ctx.person.full_name, display_name: ctx.person.display_name }
       : null,
     org: org ? { id: str(org.id), name: str(org.name) } : null,
     event: ev,
+    rail,
     events: events.map((e) => {
       const ref = toEventRef(e);
       return { id: ref.id, name: ref.name, slug: ref.slug, status: ref.status };
@@ -213,14 +222,24 @@ function shell(ev: EventRef | null, boot: Record<string, unknown>, url: URL): st
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/app.css">
+  <!-- The same three links ui/layout.ts::stylesheet() writes, for the same
+       reason: an @import inside the stylesheet would make the typeface wait
+       for two round trips it does not need to. -->
+  <link rel="preload" href="/fonts/public-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/admin.css">
   <link rel="stylesheet" href="/console.css">
   <link rel="modulepreload" href="/console/app.js">
 </head>
-<body class="console">
+<body class="admin console">
   <div id="console"><div class="console-booting" role="status">Loading the console…</div></div>
   <script type="application/json" id="console-boot">${payload}</script>
   <script type="module" src="/console/app.js"></script>
+  <!-- The same keyboard layer the server-rendered console gets. It finds the
+       rail and the ⌘K button in the DOM, so it needs no knowledge of which of
+       the two surfaces rendered them. -->
+  <script src="/keys.js" defer></script>
   <noscript>
     <div class="card">
       <h1>The admin console needs JavaScript</h1>
@@ -244,9 +263,16 @@ export function registerConsoleRoutes(router: Router<RequestContext>): void {
     return json({ data: await bootPayload(ctx, ev) });
   });
 
+  /**
+   * `?sections=today` asks for the subset `/admin` renders, and costs roughly a
+   * third of the statements. The console's Today screen uses it; the event
+   * dashboard, which draws the chart, the calls and the sponsorship totals,
+   * asks for everything by leaving it off.
+   */
   router.get("/v1/events/:eventId/dashboard", async (_req, ctx, params) => {
     ctx.requireRead("config.manage", { event_id: params.eventId });
     ctx.eventId = params.eventId;
-    return json({ data: await eventDashboard(ctx.app(params.eventId), params.eventId, ctx.now) });
+    const sections = new URL(ctx.req.url).searchParams.get("sections") === "today" ? "today" : "all";
+    return json({ data: await eventDashboard(ctx.app(params.eventId), params.eventId, ctx.now, sections) });
   });
 }

@@ -34,6 +34,7 @@ const proposal = (over: Partial<DashboardProposal> = {}): DashboardProposal => (
   is_submitter: true,
   feedback_for_speaker: null,
   submitted_at: "2026-01-01T00:00:00.000Z",
+  decision_published_at: null,
   session_id: null,
   ...over,
 });

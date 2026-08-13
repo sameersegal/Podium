@@ -1,14 +1,31 @@
 /**
- * Page shells. Every admin and portal screen renders through one of these so
- * navigation is identical everywhere and an event's context never disappears.
+ * Page shells. Every screen renders through one of these, so navigation is
+ * identical everywhere and an event's context never disappears.
+ *
+ * There are two design languages here and they share nothing on purpose:
+ *
+ * - `adminPage` and `reviewerPage` are the **console** — a dark rail, phase-
+ *   grouped navigation, mono numerals, keyboard accelerators. Two or three
+ *   people are in it all day.
+ * - `portalPage` and `publicPage` are the **program book** — serif, spacious,
+ *   one job per page. A speaker visits three times a year; a reader once.
+ *
+ * The reviewer surface moved from the second to the first. It used to render
+ * through `portalPage`, which made a reviewer's queue a tab of the speaker
+ * portal — but a reviewer is doing operations work on a deadline, and the two
+ * roles are frequently the *same person* wearing different hats. Sharing chrome
+ * meant the hat was never stated. `/review` now has the console's rail and the
+ * console's keyboard, and reaches the portal only through one quiet link that
+ * says it is leaving.
  */
 
 import { str, type Row } from "@podiumstack/data/db.js";
-import { formatDateInZone } from "@podiumstack/domain/shared/time.js";
+import { formatInZone } from "@podiumstack/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
-import { html, raw, type SafeHtml } from "./html.js";
-import { badge, externalLink, page, type NavItem } from "./layout.js";
+import type { SafeHtml } from "./html.js";
+import { page, type ConsoleChrome, type Crumb, type KeyHint, type NavItem, type RailGroup, type RailItem } from "./layout.js";
 import type { LiveOptions } from "./live.js";
+import type { RailCounts } from "./rail-counts.js";
 
 export interface EventRef {
   id: string;
@@ -46,11 +63,15 @@ export async function currentEvent(ctx: RequestContext): Promise<EventRef | null
   return rows[0] ? toEventRef(rows[0]) : null;
 }
 
+/* -------------------------------------------------------------------------- */
+/* the rail                                                                    */
+/* -------------------------------------------------------------------------- */
+
 /**
  * The organization-wide settings screens. They are sections of one area, not
- * ten unrelated pages, so they get a subnav of their own — reaching them by a
- * row of links at the foot of `/admin/settings` left every one of them a
- * dead end.
+ * ten unrelated pages, so they get their own rail group — reaching them by a
+ * row of links at the foot of `/admin/settings` left every one of them a dead
+ * end.
  */
 const SETTINGS_SECTIONS: { key: string; href: string; label: string }[] = [
   { key: "settings", href: "/admin/settings", label: "Organization" },
@@ -78,165 +99,367 @@ export function settingsNav(active: string): NavItem[] {
   return SETTINGS_SECTIONS.map((s) => ({ href: s.href, label: s.label, current: active === s.key }));
 }
 
-export function adminNav(ev: EventRef | null, active: string): NavItem[] {
-  // A settings section keeps the settings subnav even while an event is in
-  // context: these screens are organization-wide, and the event subnav would
-  // navigate away from the area the reader is in.
-  if (isSettingsSection(active)) return settingsNav(active);
-  // Organization-wide screens have no second row: it used to repeat the top
-  // bar link for link, which reads as two navigations that disagree.
-  if (!ev) return [];
+/** Zero and null are different: a count of 0 is noise, so it is not drawn. */
+function count(n: number | undefined, urgency: RailItem["urgency"] = "quiet"): Partial<RailItem> {
+  if (!n) return {};
+  return { count: n, urgency };
+}
+
+/**
+ * The event's own workflow, in the order it happens.
+ *
+ * This replaces a flat row of fourteen section tabs. The destinations are the
+ * same screens — nothing was dropped to make the grouping tidy — but they are
+ * now ordered by phase of the event rather than alphabetically by whoever added
+ * one last, so "where does this go next" is answerable by reading downwards.
+ *
+ * Two deliberate departures from the design handoff, both because the prototype
+ * assumed a screen list this product does not have:
+ *
+ * - There is no **Inbox**. The prototype draws one with a count of 4; nothing in
+ *   this application is an inbox, and inventing a screen to match a mock is the
+ *   wrong direction for the arrow. The slot went to the event's own overview.
+ * - **Sessions** and **Speakers** are two screens here, not the prototype's
+ *   single "Sessions & speakers". A label promising both while linking to one
+ *   is worse than two honest labels.
+ */
+export function adminRail(ev: EventRef | null, active: string, counts: RailCounts = {}): RailGroup[] {
+  // A settings section keeps the settings rail even while an event is loaded:
+  // these screens are organization-wide, and an event's phases would navigate
+  // the reader out of the area they are in.
+  if (isSettingsSection(active)) {
+    return [
+      { label: "Settings", items: SETTINGS_SECTIONS.map((s) => ({ href: s.href, label: s.label, current: active === s.key })) },
+    ];
+  }
+  if (!ev) {
+    return [
+      {
+        label: "Organization",
+        items: [
+          { href: "/admin", label: "Today", current: active === "today" },
+          { href: "/admin/events", label: "Events", current: active === "events" },
+          { href: "/admin/contacts", label: "Contacts", current: active === "contacts" },
+          { href: "/admin/sponsors", label: "Sponsors", current: active === "sponsors" },
+          { href: "/admin/team", label: "Team", current: active === "team" },
+        ],
+      },
+    ];
+  }
   const e = `/admin/events/${ev.id}`;
   return [
-    { href: e, label: "Overview", current: active === "overview" },
-    { href: `${e}/setup`, label: "Setup", current: active === "setup" },
-    { href: `${e}/cfps`, label: "Call for papers", current: active === "cfp" },
-    { href: `${e}/proposals`, label: "Proposals", current: active === "proposals" },
-    { href: `${e}/review`, label: "Review", current: active === "review" },
-    { href: `${e}/decisions`, label: "Decisions", current: active === "decisions" },
-    { href: `${e}/sessions`, label: "Sessions", current: active === "sessions" },
-    { href: `${e}/roster`, label: "Speakers", current: active === "roster" },
-    { href: `${e}/onboarding`, label: "Onboarding", current: active === "onboarding" },
-    { href: `${e}/files`, label: "Files", current: active === "files" },
-    { href: `${e}/schedule`, label: "Agenda", current: active === "schedule" },
-    { href: `${e}/publications`, label: "Publish", current: active === "publish" },
-    { href: `${e}/sponsorships`, label: "Sponsors", current: active === "sponsors" },
-    { href: `${e}/campaigns`, label: "Messaging", current: active === "campaigns" },
+    {
+      label: "Now",
+      items: [
+        { href: "/admin", label: "Today", current: active === "today", ...count(counts.today, "warn") },
+        { href: e, label: "Overview", current: active === "overview" },
+      ],
+    },
+    {
+      label: "Intake",
+      items: [
+        { href: `${e}/cfps`, label: "Calls for papers", current: active === "cfp", ...count(counts.cfps) },
+        { href: `${e}/proposals`, label: "Proposals", current: active === "proposals", ...count(counts.proposals) },
+      ],
+    },
+    {
+      label: "Decide",
+      items: [
+        { href: `${e}/review`, label: "Review", current: active === "review", ...count(counts.review) },
+        { href: `${e}/decisions`, label: "Decisions", current: active === "decisions", ...count(counts.decisions, "warn") },
+      ],
+    },
+    {
+      label: "Program",
+      items: [
+        { href: `${e}/sessions`, label: "Sessions", current: active === "sessions", ...count(counts.sessions) },
+        { href: `${e}/roster`, label: "Speakers", current: active === "roster" },
+        { href: `${e}/onboarding`, label: "Onboarding", current: active === "onboarding", ...count(counts.onboarding, "danger") },
+        {
+          href: `${e}/schedule`,
+          label: "Agenda",
+          current: active === "schedule",
+          ...(counts.agenda ? { count: counts.agenda } : {}),
+        },
+        {
+          href: `${e}/publications`,
+          label: "Publish",
+          current: active === "publish",
+          ...(counts.publish ? { count: counts.publish } : {}),
+        },
+      ],
+    },
+    {
+      label: "Around it",
+      items: [
+        { href: `${e}/sponsorships`, label: "Sponsors", current: active === "sponsors" },
+        { href: `${e}/campaigns`, label: "Messaging", current: active === "campaigns" },
+        { href: `${e}/files`, label: "Files", current: active === "files" },
+        { href: `${e}/setup`, label: "Setup", current: active === "setup" },
+        { href: "/admin/contacts", label: "Contacts", current: active === "contacts" },
+      ],
+    },
   ];
 }
 
 /**
- * Highlights the item the current path sits under, longest href first, so
- * `/admin/events/:id/proposals` lights up "Events" and not every prefix of it.
+ * Marks the rail item the current path sits under, longest href first, so
+ * `/admin/events/:id/proposals` lights up Proposals and not every prefix of it.
  * Explicit `current` flags win; this only fills in what a screen did not say.
  */
-function markCurrent(path: string, items: NavItem[], stated = false): NavItem[] {
-  // `stated` means the screen named its own tab. If it named one that is not in
-  // this row — the profile, which lives in the account menu — no tab is current,
-  // and guessing from the path would light up the row's shortest prefix.
-  if (stated || items.some((n) => n.current)) return items;
-  let best: NavItem | null = null;
-  for (const n of items) {
-    if (n.external) continue;
-    if (path !== n.href && !path.startsWith(n.href + "/")) continue;
-    if (!best || n.href.length > best.href.length) best = n;
+function markCurrent(path: string, groups: RailGroup[], stated: boolean): RailGroup[] {
+  if (stated || groups.some((g) => g.items.some((i) => i.current))) return groups;
+  let best: RailItem | null = null;
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (item.external) continue;
+      if (path !== item.href && !path.startsWith(item.href + "/")) continue;
+      if (!best || item.href.length > best.href.length) best = item;
+    }
   }
-  return best ? items.map((n) => (n === best ? { ...n, current: true } : n)) : items;
+  if (!best) return groups;
+  const winner = best;
+  return groups.map((g) => ({ ...g, items: g.items.map((i) => (i === winner ? { ...i, current: true } : i)) }));
 }
 
-/** The event every event-scoped admin screen is acting on, stated once. */
-function eventBar(ev: EventRef): SafeHtml {
-  // The dates an organizer reads most often in the product, rendered the way
-  // the public page renders the same pair rather than as raw `YYYY-MM-DD`.
-  // `starts_on`/`ends_on` are calendar dates in the event timezone and are
-  // never converted (11, "Time"), so they are formatted from UTC midnight.
-  const day = (d: string) => formatDateInZone(`${d}T00:00:00Z`, "UTC");
-  return html`<div class="eventbar">
-    <a class="name" href="/admin/events/${ev.id}">${ev.name}</a>
-    ${badge(ev.status)}
-    <span class="meta">${day(ev.starts_on)} – ${day(ev.ends_on)} · <span class="mono">${ev.timezone}</span></span>
-    <span class="spacer"></span>
-    ${externalLink(`/e/${ev.slug}`, "Public page")}
-  </div>`;
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
 }
+
+function who(ctx: RequestContext): string | null {
+  if (!ctx.person) return null;
+  return ctx.person.display_name ?? ctx.person.full_name;
+}
+
+/** The rail's foot: the person, and the way out of the mode they are in. */
+function railFooter(ctx: RequestContext, extra: RailItem[] = []): RailItem[] {
+  const name = who(ctx);
+  const items = [...extra];
+  if (name) items.push({ href: "/portal/profile", label: name, external: true });
+  return items;
+}
+
+/**
+ * `14–16 Apr · 61 days out`, and the timezone under it.
+ *
+ * `starts_on` / `ends_on` are calendar dates in the event's own timezone and are
+ * never converted (11, "Time"), so they are formatted from UTC midnight. "Days
+ * out" is counted the same way, in whole days, because an organizer counting
+ * down does not think in hours.
+ */
+function eventLines(ev: EventRef, now: string): string[] {
+  // `12–14 May`, not `Wed, 12 May 2027 – Fri, 14 May 2027`. The rail is 244px
+  // wide and this line sits under the event's own name, which has already said
+  // which year it is; the long form wrapped to three lines and pushed the
+  // navigation down by a row of chrome.
+  const at = (d: string, opts: Intl.DateTimeFormatOptions) => formatInZone(`${d}T00:00:00Z`, "UTC", opts);
+  const dayOnly: Intl.DateTimeFormatOptions = { day: "numeric" };
+  const dayMonth: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+  const sameMonth = ev.starts_on.slice(0, 7) === ev.ends_on.slice(0, 7);
+  const span =
+    ev.starts_on === ev.ends_on
+      ? at(ev.starts_on, dayMonth)
+      : sameMonth
+        ? `${at(ev.starts_on, dayOnly)}–${at(ev.ends_on, dayMonth)}`
+        : `${at(ev.starts_on, dayMonth)} – ${at(ev.ends_on, dayMonth)}`;
+  const days = Math.round((Date.parse(`${ev.starts_on}T00:00:00Z`) - Date.parse(now)) / 86_400_000);
+  const distance = days > 0 ? `${days} days out` : days === 0 ? "today" : `${Math.abs(days)} days ago`;
+  return [`${span} · ${distance}`, ev.timezone];
+}
+
+/** An event is "live" — the dot — on any day between its first and its last. */
+function isRunning(ev: EventRef, now: string): boolean {
+  const today = now.slice(0, 10);
+  return today >= ev.starts_on && today <= ev.ends_on;
+}
+
+/* -------------------------------------------------------------------------- */
+/* the shells                                                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface ShellOptions {
   title: string;
   event?: EventRef | null;
   active?: string;
   width?: "narrow" | "default" | "wide";
+  /** The breadcrumb, after the event's own name. Defaults to the page title. */
+  crumbs?: Crumb[];
+  /** The one piece of state worth the top bar's right edge. */
+  status?: ConsoleChrome["status"];
+  hints?: KeyHint[];
   /** Opt this screen into live updates — `ui/live.ts`. */
   live?: LiveOptions;
 }
 
 export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtml): SafeHtml {
   // A settings screen is organization-wide even when an event is loaded, so it
-  // neither claims the Events tab nor flies an event's banner.
+  // neither claims an event's phases nor names one in its breadcrumb.
   const ev = isSettingsSection(opts.active ?? "") ? null : (opts.event ?? null);
-  // Which top-level tab an organization-wide screen sits under. Path matching
-  // gets `/admin/contacts/:id` for free but not `/admin/segments` or the ten
-  // settings sections, whose URLs sit under no tab at all — and on a phone the
-  // row is one button labelled with the current tab, so "no tab" now reads as
-  // "Menu" and the answer to "where am I" is gone. An event-scoped screen keeps
-  // deciding by its event: `sponsors` is both an event section and an
-  // organization screen, and two filled tabs is worse than none.
-  const orgTab = ev ? null : (opts.active ?? null);
+  const groups = markCurrent(ctx.url.pathname, adminRail(ev, opts.active ?? "", ctx.rail ?? {}), Boolean(opts.active));
+  const crumbs: Crumb[] = opts.crumbs ?? [
+    ...(ev ? [{ label: ev.name, href: `/admin/events/${ev.id}` }] : [{ label: "Podium", href: "/admin" }]),
+    { label: opts.title },
+  ];
   return page(
     {
       // The event is in the tab title too — admin and the portal are now two
       // open tabs, and "Proposals · Podium" twice over tells you nothing.
       title: ev ? `${opts.title} · ${ev.name}` : opts.title,
       surface: "admin",
-      who: ctx.person ? `${ctx.person.display_name ?? ctx.person.full_name}` : null,
-      // The profile lives in the portal, so reaching it from admin is a mode
-      // switch like any other and gets the same new-tab treatment.
-      profile: { href: "/portal/profile", label: "Profile", external: true },
       width: opts.width,
       flash: ctx.flash,
-      nav: markCurrent(ctx.url.pathname, [
-        // An event-scoped screen belongs to Events however flat its own URL is
-        // (`/admin/proposals/:id` is one), so the event decides the tab.
-        { href: "/admin/events", label: "Events", current: ev ? true : undefined },
-        { href: "/admin/contacts", label: "Contacts", current: orgTab === "contacts" || undefined },
-        { href: "/admin/sponsors", label: "Sponsors", current: orgTab === "sponsors" || undefined },
-        { href: "/admin/team", label: "Team", current: orgTab === "team" || undefined },
-        { href: "/admin/settings", label: "Settings", current: (orgTab !== null && isSettingsSection(orgTab)) || undefined },
-        { href: "/portal", label: "Speaker portal", external: true },
-      ]),
-      banner: ev ? eventBar(ev) : raw(""),
-      subnav: markCurrent(ctx.url.pathname, adminNav(ev, opts.active ?? ""), Boolean(opts.active)),
-      // The room defaults to the event this screen is already on, so a caller
-      // opting in rarely has to name it.
+      console: {
+        home: "/admin",
+        context: ev
+          ? { name: ev.name, href: `/admin/events/${ev.id}`, lines: eventLines(ev, ctx.now), live: isRunning(ev, ctx.now) }
+          : null,
+        groups,
+        footer: railFooter(ctx, [
+          { href: "/admin/events", label: "All events" },
+          { href: "/admin/team", label: "Team" },
+          { href: "/admin/settings", label: "Settings", current: isSettingsSection(opts.active ?? "") || undefined },
+        ]),
+        crumbs,
+        status: opts.status ?? null,
+        hints: opts.hints,
+      },
       live: opts.live ? { eventId: opts.event?.id ?? null, ...opts.live } : undefined,
     },
     body,
   );
 }
 
-export function portalPage(ctx: RequestContext, opts: { title: string; width?: "narrow" | "default" | "wide"; active?: string }, body: SafeHtml): SafeHtml {
-  // One tab for the reader's talks, not three. R13 keeps `Proposal` and
-  // `Session` separate in the model and presents them as one record; a
-  // Dashboard that summarised both plus a Proposals tab and a Sessions tab
-  // holding the same talks was the leak R13 says must not happen.
-  const nav: NavItem[] = [
-    { href: "/portal", label: "My sessions", current: opts.active === "sessions" || opts.active === "proposals" || opts.active === "dashboard" },
-    { href: "/portal/tasks", label: "Tasks", current: opts.active === "tasks" },
+export interface ReviewerShellOptions {
+  title: string;
+  /** The round the reviewer is working in, named in the rail's context card. */
+  round?: { name: string; lines: string[] } | null;
+  active?: "queue" | "submitted" | "declined";
+  counts?: { queue?: number; submitted?: number; declined?: number };
+  crumbs?: Crumb[];
+  hints?: KeyHint[];
+  width?: "narrow" | "default" | "wide";
+}
+
+/**
+ * The reviewer's own shell — the console's language, a rail of its own.
+ *
+ * Deliberately not `adminPage`: a reviewer is not staff (05 blinds them from
+ * their peers, and `live.ts` tags their socket `role:member` for the same
+ * reason), so a rail full of an organizer's phases would be a rail of links
+ * that 403. Deliberately not `portalPage` either, which is what it was: see the
+ * note at the top of this file.
+ */
+export function reviewerPage(ctx: RequestContext, opts: ReviewerShellOptions, body: SafeHtml): SafeHtml {
+  const active = opts.active ?? "queue";
+  const items: RailItem[] = [
+    { href: "/review", label: "My queue", current: active === "queue", ...count(opts.counts?.queue, "warn") },
+    { href: "/review?show=submitted", label: "Submitted", current: active === "submitted", ...count(opts.counts?.submitted) },
+    { href: "/review?show=declined", label: "Declined", current: active === "declined", ...count(opts.counts?.declined) },
   ];
-  // The reviewer surface is part of the portal, not a separate mode: without a
-  // tab, a reviewer could only reach their queue from the email that sent them.
-  if (ctx.canWrite("review.submit")) nav.push({ href: "/review", label: "Reviews", current: opts.active === "reviews" });
-  if (ctx.isStaff()) nav.push({ href: "/admin", label: "Admin", external: true });
   return page(
     {
       title: opts.title,
-      surface: "portal",
-      who: ctx.person ? `${ctx.person.display_name ?? ctx.person.full_name}` : null,
-      profile: { href: "/portal/profile", label: "Profile" },
+      surface: "reviewer",
       width: opts.width,
       flash: ctx.flash,
-      nav: markCurrent(ctx.url.pathname, nav, Boolean(opts.active)),
+      console: {
+        home: "/review",
+        context: opts.round ? { name: opts.round.name, lines: opts.round.lines } : null,
+        groups: [{ items }, { items: [{ href: "/portal", label: "My speaker portal", external: true }] }],
+        footer: railFooter(ctx),
+        crumbs: opts.crumbs ?? [{ label: "Review", href: "/review" }, { label: opts.title }],
+        // Nothing to search: a reviewer's whole world is the queue in front of
+        // them, and a palette over three destinations is a menu pretending to
+        // be a search box.
+        search: false,
+        hints: opts.hints,
+      },
     },
     body,
   );
 }
 
-export function publicPage(ctx: RequestContext, opts: { title: string; event?: EventRef | null; width?: "narrow" | "default" | "wide"; head?: SafeHtml }, body: SafeHtml): SafeHtml {
-  // No "Home" item: the logo is the way home on every surface, and two links
-  // to the same page in one bar is one link too many.
+/**
+ * The speaker portal. One page per talk, in the editorial language.
+ *
+ * The reviewer tab is gone from here. It used to be added for anyone with
+ * `review.submit`, which is how the two surfaces came to share chrome; the way
+ * to a reviewer's queue is now the same as the way to anything else you are not
+ * currently doing — a link that says it is leaving.
+ */
+export function portalPage(
+  ctx: RequestContext,
+  opts: { title: string; width?: "narrow" | "default" | "wide"; active?: string },
+  body: SafeHtml,
+): SafeHtml {
+  // One tab for the reader's talks, not three. R13 keeps `Proposal` and
+  // `Session` separate in the model and presents them as one record; a
+  // Dashboard that summarised both plus a Proposals tab and a Sessions tab
+  // holding the same talks was the leak R13 says must not happen.
+  const nav: NavItem[] = [
+    {
+      href: "/portal",
+      label: "Your talks",
+      current: opts.active === "sessions" || opts.active === "proposals" || opts.active === "dashboard",
+    },
+  ];
+  if (ctx.canWrite("review.submit")) nav.push({ href: "/review", label: "Reviewing", external: true });
+  if (ctx.isStaff()) nav.push({ href: "/admin", label: "Admin", external: true });
+  return page(
+    {
+      title: opts.title,
+      surface: "portal",
+      brand: "Podium",
+      who: who(ctx),
+      profile: { href: "/portal/profile", label: "Profile" },
+      width: opts.width,
+      flash: ctx.flash,
+      nav,
+    },
+    body,
+  );
+}
+
+export function publicPage(
+  ctx: RequestContext,
+  opts: {
+    title: string;
+    event?: EventRef | null;
+    width?: "narrow" | "default" | "wide";
+    head?: SafeHtml;
+    /**
+     * Links only some public pages can offer. "Submit a talk" is the one that
+     * matters: whether a call is open is a query, and the landing page is the
+     * only public screen that has already run it. A bar advertising a closed
+     * call is worse than a bar that leaves the reader to the page that knows.
+     */
+    extraNav?: NavItem[];
+  },
+  body: SafeHtml,
+): SafeHtml {
+  // No "Home" item: the wordmark is the way home on every surface, and two
+  // links to the same page in one bar is one link too many.
   const nav: NavItem[] = opts.event
-    ? markCurrent(ctx.url.pathname, [
-        { href: `/e/${opts.event.slug}`, label: opts.event.name },
+    ? [
         { href: `/e/${opts.event.slug}/schedule`, label: "Schedule" },
         { href: `/e/${opts.event.slug}/speakers`, label: "Speakers" },
-      ])
-    : [];
+        ...(opts.extraNav ?? []),
+      ]
+    : (opts.extraNav ?? []);
   return page(
     {
       title: opts.title,
       surface: "public",
-      who: ctx.person ? `${ctx.person.display_name ?? ctx.person.full_name}` : null,
+      brand: opts.event ? opts.event.name : "Podium",
+      home: opts.event ? `/e/${opts.event.slug}` : "/",
+      who: who(ctx),
       profile: { href: "/portal/profile", label: "Profile" },
-      width: opts.width,
+      width: opts.width ?? "wide",
       flash: ctx.flash,
       nav,
       head: opts.head,
@@ -244,3 +467,4 @@ export function publicPage(ctx: RequestContext, opts: { title: string; event?: E
     body,
   );
 }
+

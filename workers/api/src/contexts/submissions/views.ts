@@ -74,6 +74,14 @@ export interface DashboardProposal {
   /** Only ever `Decision.feedback_for_speaker`, and only once published (INV-04-11). */
   feedback_for_speaker: string | null;
   submitted_at: string | null;
+  /**
+   * When the committee's answer reached this speaker — which is the date the
+   * portal's timeline puts against "Accepted", and the only decision timestamp
+   * a speaker is entitled to. `decided_at` is deliberately not here: a decision
+   * is provisional until it is published (R5), and telling a speaker it was
+   * taken nine days before they heard is not information they can use.
+   */
+  decision_published_at: string | null;
   /** Set once the proposal became a `Session` (R13). The two are one record to its owner. */
   session_id: string | null;
 }
@@ -243,6 +251,7 @@ export async function submitterDashboard(app: AppContext, personId: string): Pro
       is_submitter: str(r.submitter_person_id) === personId,
       feedback_for_speaker: decisionPublished ? strOrNull(r.feedback_for_speaker) : null,
       submitted_at: strOrNull(r.submitted_at),
+      decision_published_at: decisionPublished ? strOrNull(r.decision_published_at) : null,
       session_id: strOrNull(r.session_id),
     });
   }

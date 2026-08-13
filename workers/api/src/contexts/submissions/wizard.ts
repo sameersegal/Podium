@@ -27,6 +27,7 @@ import { nextAction, type EditAffordance, type NextAction } from "@podiumstack/d
 import { cfpFormatOptions, cfpTrackOptions, resolvedOptions, type CfpFormatView, type CfpTrackView } from "../event-config/views.js";
 import { escapeHtml, html, inlineScript, joinHtml, markdown, raw, type SafeHtml } from "../../ui/html.js";
 import { actionForm, badge, card, empty, field, humanise, pageHead, progressBar, stat, table } from "../../ui/layout.js";
+import { plural, Spell } from "../../ui/words.js";
 import type { EventRef } from "../../ui/shell.js";
 import { visibleSteps, editAffordance, allFields } from "./service.js";
 import type {
@@ -500,145 +501,364 @@ function reviewSummary(data: StepPageData): SafeHtml {
 /* -------------------------------------------------------------------------- */
 
 /**
- * `/portal` — one list of the reader's talks.
+ * `/portal` — the speaker's page.
  *
- * It replaced a dashboard that summarised four other screens plus a Proposals
- * tab and a Sessions tab holding the same talks at different points in their
- * lives. R13 is explicit that the `Proposal`/`Session` split "must not leak
- * into the UI as two rows a user has to reconcile", and two tabs was worse than
- * two rows: the same talk appeared in both, and neither said which half was
- * current.
+ * One page about one talk, not a dashboard of cards about several. A speaker
+ * opens this three times a year and always for the same reason: *is there
+ * anything I have to do, and where has my talk got to.* The page answers those
+ * two in that order and puts everything else — the other talks, the profile —
+ * below the fold as one line each.
  *
- * So: one row per talk, one status covering the whole arc, and each row
- * carrying its own outstanding tasks rather than sending the reader to a task
- * list to work out which talk they belong to.
+ * R13 is the shape of it. `Proposal` and `Session` stay separate in the model
+ * and are presented here as one record: the timeline is the arc a single talk
+ * travels, not two rows a reader has to reconcile.
+ *
+ * Three rules:
+ *
+ * - **One primary action on the page.** It lives in the "Do this first" block
+ *   and nowhere else. If a speaker has to choose between two filled buttons,
+ *   the page has failed to say which one matters.
+ * - **A deadline is stated with its consequence.** "Overdue since 10 February"
+ *   is a fact; "· blocks your listing" is the reason anybody should care.
+ * - **Nothing here needs a script** (08, "Degrade gracefully").
  */
 export function portalHomeView(dash: SubmitterDashboard, records: SessionRecord[]): SafeHtml {
-  const loose = dash.tasks.filter((t) => !t.session_id);
-  const needsYou = records.filter((r) => r.tone === "err" || r.tone === "warn").length;
+  if (records.length === 0 && dash.invitations.length === 0) {
+    return html`
+      <p class="eyebrow">Your talks</p>
+      <h1>You have not started a proposal yet</h1>
+      <p class="lede">When you submit one, this page becomes the talk: where it has got to, and what is still waiting on you.</p>
+      <p class="actions"><a class="btn" href="/">Find an open call</a></p>
+    `;
+  }
 
-  return html`${pageHead(
-      "My sessions",
-      "Every talk you have submitted or are speaking at, from first draft to the schedule.",
-      html`<a class="btn" href="/portal/proposals/new">Start a proposal</a>`,
-    )}
-    ${dash.invitations.length ? invitationsCard(dash.invitations) : raw("")}
-    ${needsYou > 0
-      ? html`<p class="notice warn">${needsYou === 1 ? "One session needs something from you." : `${needsYou} sessions need something from you.`}</p>`
+  // The lead is whatever is most urgent. `sessionRecords` already orders them,
+  // so this only pulls a talk that is actually waiting on the reader to the
+  // front of a list that would otherwise be chronological.
+  const ranked = [...records].sort((a, b) => urgencyRank(a) - urgencyRank(b));
+  const lead = ranked[0] ?? null;
+  const others = ranked.slice(1);
+
+  return html`
+    ${dash.invitations.length ? invitationsBlock(dash.invitations) : raw("")}
+    ${lead ? leadTalk(lead) : raw("")}
+    ${others.length ? otherTalks(others) : raw("")}
+    ${profileSection(dash)}
+  `;
+}
+
+/** Waiting on you, then in flight, then finished. */
+function urgencyRank(r: SessionRecord): number {
+  if (r.next_action?.urgency === "err") return 0;
+  if (r.next_action?.urgency === "warn") return 1;
+  if (r.tasks.some((t) => t.overdue)) return 1;
+  if (r.tasks.length > 0) return 2;
+  if (r.stage === "Delivered" || r.tone === "") return 4;
+  return 3;
+}
+
+function leadTalk(r: SessionRecord): SafeHtml {
+  const open = r.tasks.filter((t) => t.status !== "completed" && t.status !== "waived");
+  const done = r.tasks.length - open.length;
+  return html`
+    <p class="eyebrow">${r.event_name}</p>
+    <h1>${r.title}</h1>
+    <p class="lede">${stateLine(r, open.length)}</p>
+
+    ${doThisFirst(r)}
+
+    <section class="section">
+      <div class="section-head"><p class="eyebrow">Where it has got to</p></div>
+      ${arc(r)}
+    </section>
+
+    ${r.tasks.length
+      ? html`<section class="section">
+          <div class="section-head">
+            <p class="eyebrow">What we need from you</p>
+            <span class="spacer"></span>
+            <span class="count">${done} of ${r.tasks.length} done</span>
+          </div>
+          <ul class="tasks">${joinHtml(r.tasks.map((t) => taskLine(t, r.event_timezone)))}</ul>
+        </section>`
       : raw("")}
-    ${records.length
-      ? joinHtml(records.map(recordCard))
-      : card(
-          html`<p class="empty">
-            You have not started a proposal yet.<br /><a class="btn" href="/">Find an open call</a>
-          </p>`,
-        )}
-    ${loose.length ? card(table(["Task", "Event", "Due", "Status"], loose.map(taskRow), ""), "Other tasks") : raw("")}
-    ${card(
-      html`<div class="progress-row">${progressBar(dash.profile.completeness)}<span class="small muted">${dash.profile.completeness}% complete</span></div>
-        <p class="small muted">
-          ${dash.profile.is_listed ? "Listed in the speaker directory." : "Not listed publicly."}
-        </p>
-        <p class="actions"><a class="btn secondary" href="/portal/profile">Edit my profile</a></p>`,
-      "My speaker profile",
-    )}`;
+  `;
 }
 
 /**
- * One talk, as a card rather than a table row: the things a speaker needs from
- * it — where it is, what it is waiting on, when and where it runs, what is
- * still owed — do not fit in five columns, and a table that wraps them is a
- * table nobody reads on a phone.
+ * One sentence saying what the talk is and how much is outstanding. It replaces
+ * a status badge, which named the state without saying what follows from it.
  */
-function recordCard(r: SessionRecord): SafeHtml {
-  // Rendered in the event's zone, never the reader's browser: a speaker in
-  // Berlin reading "09:00" about a San Francisco conference is the one time
-  // display error that makes someone miss their own talk (11, "Time").
-  const when =
-    r.starts_at !== null
-      ? html`<p class="meta">
-          ${formatInZone(r.starts_at, r.event_timezone)}${r.room_name ? ` · ${r.room_name}` : ""}
-          <span class="mono small muted"> ${r.event_timezone}</span>
-        </p>`
-      : raw("");
-  const draftProgress =
-    r.percent_complete !== null && r.proposal?.status === "draft"
-      ? html`<div class="progress-row">${progressBar(r.percent_complete)}<span class="small muted">${r.percent_complete}% complete</span></div>`
-      : raw("");
-
-  return card(
-    html`<div class="record-head">
-        <div class="grow">
-          <h3><a href="${r.href}">${r.title}</a></h3>
-          <p class="small muted">
-            <span class="mono">${r.reference}</span> · ${r.event_name}
-          </p>
-        </div>
-        <span class="badge ${r.tone}">${r.stage}</span>
-      </div>
-      ${when}
-      ${draftProgress}
-      ${r.next_action && r.next_action.label
-        ? html`<p class="${urgencyClass(r.next_action.urgency)}">${r.next_action.label}</p>`
-        : raw("")}
-      ${r.tasks.length
-        ? html`<ul class="record-tasks">
-            ${joinHtml(
-              r.tasks.map(
-                (t) => html`<li class="${t.overdue ? "urgency-err" : ""}">
-                  <a href="/portal/tasks/${t.id}">${t.title}</a>
-                  ${t.is_blocking ? html`<span class="badge warn">blocking</span>` : raw("")}
-                  <span class="small muted"
-                    >${t.due_at ? `due ${formatInZone(t.due_at, r.event_timezone)}` : "no deadline"}${t.overdue ? " · overdue" : ""}</span
-                  >
-                </li>`,
-              ),
-            )}
-          </ul>`
-        : raw("")}
-      <p class="actions">
-        <a class="btn secondary small" href="${r.href}">Open</a>
-        ${r.proposal && r.proposal.edit.editable
-          ? html`<a class="btn secondary small" href="/portal/proposals/${r.proposal.id}">Continue editing</a>`
-          : raw("")}
-        ${r.session && r.proposal ? html`<a class="btn secondary small" href="/portal/proposals/${r.proposal.id}">What was reviewed</a>` : raw("")}
-      </p>`,
-  );
+function stateLine(r: SessionRecord, open: number): string {
+  const shape = [r.session?.status === "cancelled" ? null : r.stage].filter(Boolean).join("");
+  const waiting =
+    open === 0
+      ? "Nothing is waiting on you."
+      : open === 1
+        ? "One thing is waiting on you."
+        : `${Spell(open)} things are waiting on you.`;
+  return `${shape}. ${waiting}`;
 }
 
-function invitationsCard(invitations: DashboardInvitation[]): SafeHtml {
-  return card(
-    table(
-      ["Proposal", "Role", ""],
+/**
+ * The one thing to do, in the only block on the page that carries a filled
+ * button. Absent when there is nothing to do, rather than rendered empty with
+ * an encouraging sentence in it.
+ */
+function doThisFirst(r: SessionRecord): SafeHtml {
+  const action = r.next_action;
+  const awaitingConfirmation = r.session?.status === "pending_confirmation";
+  // When nothing about the talk itself is urgent, the block belongs to the
+  // nearest outstanding task — a speaker with three things owed and no block
+  // here has a page that says "three things are waiting on you" and then
+  // declines to say which one to start with.
+  if (!awaitingConfirmation && (!action?.label || action.urgency === "info")) {
+    const soonest = r.tasks
+      .filter((t) => t.status !== "completed" && t.status !== "waived")
+      .sort((a, b) => (a.due_at ?? "9999").localeCompare(b.due_at ?? "9999"))[0];
+    if (!soonest) return raw("");
+    return html`<div class="do-first">
+      <p class="eyebrow">Do this first</p>
+      <h2>${soonest.title}</h2>
+      <p>
+        ${soonest.overdue && soonest.due_at
+          ? `It was due ${formatInZone(soonest.due_at, r.event_timezone, { day: "numeric", month: "long" })}.`
+          : soonest.due_at
+            ? `It is due ${formatInZone(soonest.due_at, r.event_timezone, { day: "numeric", month: "long" })}.`
+            : "There is no deadline on this one."}
+        ${soonest.is_blocking
+          ? "Until it is done, your session stays off the public schedule."
+          : "It is the next thing the event needs from you."}
+      </p>
+      <div class="actions"><a class="btn accent" href="/portal/tasks/${soonest.id}">Open it</a></div>
+    </div>`;
+  }
+  if (!action?.label) return raw("");
+  return html`<div class="do-first">
+    <p class="eyebrow">Do this first</p>
+    <h2>${awaitingConfirmation ? "Confirm you are still speaking" : action.label}</h2>
+    <p>
+      ${awaitingConfirmation
+        ? action.deadline
+          ? `We need to hear from you by ${formatInZone(action.deadline, r.event_timezone)}. If we do not, the slot is released to somebody on the waitlist.`
+          : "Until you confirm, the slot is held but not yours, and it does not go on the public schedule."
+        : action.label}
+    </p>
+    <div class="actions">
+      <a class="btn accent" href="${r.href}">${awaitingConfirmation ? "Yes, I am speaking" : "Open it"}</a>
+      ${awaitingConfirmation && r.proposal
+        ? html`<a class="btn secondary" href="/portal/proposals/${r.proposal.id}">I need to withdraw</a>`
+        : raw("")}
+    </div>
+  </div>`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* the arc                                                                     */
+/* -------------------------------------------------------------------------- */
+
+interface ArcStep {
+  when: string | null;
+  name: string;
+  detail: string;
+  /**
+   * Whether this step has happened. The *state* is derived from it rather than
+   * declared per step, because "now" has to be exactly one step: two of them
+   * lit at once is a timeline that cannot say where the reader is standing,
+   * which is the only thing a timeline is for.
+   */
+  done: boolean;
+  quote?: string | null;
+}
+
+/**
+ * Submitted → reviewed → accepted → confirm → onboarding → on stage.
+ *
+ * This is R13 made visible: one arc, not a proposal row beside a session row.
+ * Steps whose date this reader is not entitled to simply have no date — the
+ * label still renders, because "reviewed" having happened is the thing the
+ * speaker wants to know, and *when* the committee met is not theirs.
+ */
+function arc(r: SessionRecord): SafeHtml {
+  const p = r.proposal;
+  const s = r.session;
+  const status = p?.status ?? "";
+  const decided = Boolean(p?.decision_published_at) || ["accepted", "waitlisted", "rejected"].includes(status);
+  const accepted = status === "accepted" || Boolean(s);
+  const confirmed = s ? ["confirmed", "scheduled", "published", "delivered"].includes(s.status) : false;
+  const onSchedule = s ? ["scheduled", "published", "delivered"].includes(s.status) : false;
+
+  const tasksDone = r.tasks.length > 0 && r.tasks.every((t) => t.status === "completed" || t.status === "waived");
+
+  const steps: ArcStep[] = [
+    {
+      when: p?.submitted_at ?? null,
+      name: "Submitted",
+      detail: p?.cfp_name ? `To ${p.cfp_name}.` : "Your proposal reached the committee.",
+      done: Boolean(p?.submitted_at),
+    },
+    {
+      when: null,
+      name: "Reviewed",
+      detail: decided ? "The committee read it and scored it." : "The committee is reading it. You will hear when the round closes.",
+      done: decided,
+    },
+    {
+      when: p?.decision_published_at ?? null,
+      name: accepted ? "Accepted" : decided ? "Decided" : "A decision",
+      detail: accepted ? "You have a slot in the program." : decided ? r.stage : "One decision, published to everyone at once.",
+      done: decided,
+      quote: p?.feedback_for_speaker ?? null,
+    },
+    {
+      when: null,
+      name: "Confirm your slot",
+      detail: confirmed ? "You confirmed. The slot is yours." : "Tell us you are still coming, so the slot stops being provisional.",
+      done: confirmed,
+    },
+    {
+      when: null,
+      name: "Onboarding",
+      detail:
+        r.tasks.length === 0
+          ? "Bio, headshot and anything else the event needs from you."
+          : `${r.tasks.filter((t) => t.status === "completed" || t.status === "waived").length} of ${r.tasks.length} done.`,
+      done: tasksDone,
+    },
+    {
+      when: r.starts_at,
+      name: "On stage",
+      detail: r.starts_at
+        ? `${formatInZone(r.starts_at, r.event_timezone)}${r.room_name ? ` · ${r.room_name}` : ""}`
+        : onSchedule
+          ? "On the public schedule."
+          : "Once the schedule is published, your time and room appear here.",
+      done: s?.status === "delivered",
+    },
+  ];
+
+  // Exactly one step is "now": the first one that has not happened. Everything
+  // before it is behind you and everything after it is hollow.
+  const at = steps.findIndex((step) => !step.done);
+  const stateOf = (i: number) => (at === -1 || i < at ? "past" : i === at ? "now" : "future");
+
+  return html`<div class="arc">
+    ${joinHtml(
+      steps.map((step, i) => {
+        const state = stateOf(i);
+        return html`<div class="step ${state}">
+          <span class="when"
+            >${state === "now"
+              ? "now"
+              : step.when
+                ? formatInZone(step.when, r.event_timezone, { day: "numeric", month: "short" })
+                : ""}</span
+          >
+          <span class="track"><span class="dot" aria-hidden="true"></span><span class="line" aria-hidden="true"></span></span>
+          <div class="what">
+            <p class="name">${step.name}</p>
+            <p>${step.detail}</p>
+            ${step.quote ? html`<blockquote>${step.quote}</blockquote>` : raw("")}
+          </div>
+        </div>`;
+      }),
+    )}
+  </div>`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* tasks, other talks, profile                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A task row says what it is, when it is due, and *what happens if it is not*.
+ * "Due 10 February" is a date; "blocks your listing" is the reason to open it.
+ */
+function taskLine(t: DashboardTask, timezone: string): SafeHtml {
+  const done = t.status === "completed" || t.status === "waived";
+  const consequence = t.is_blocking ? " · blocks your listing" : "";
+  const due = done
+    ? t.status === "waived"
+      ? "Waived"
+      : "Done"
+    : t.overdue && t.due_at
+      ? `Overdue since ${formatInZone(t.due_at, timezone, { day: "numeric", month: "long" })}${consequence}`
+      : t.due_at
+        ? `Due ${formatInZone(t.due_at, timezone, { day: "numeric", month: "long" })}${consequence}`
+        : `No deadline${consequence}`;
+  return html`<li class="${done ? "done" : t.overdue ? "overdue" : ""}">
+    <span class="circle" aria-hidden="true">${done ? "✓" : ""}</span>
+    <div class="body">
+      <p class="name">${t.title}</p>
+      <p class="due">${due}</p>
+    </div>
+    <span class="actions"><a class="btn secondary small" href="/portal/tasks/${t.id}">${done ? "View" : "Open"}</a></span>
+  </li>`;
+}
+
+function otherTalks(records: SessionRecord[]): SafeHtml {
+  return html`<section class="section">
+    <div class="section-head"><p class="eyebrow">Your other talks</p></div>
+    <ul class="other-talks">
+      ${joinHtml(
+        records.map(
+          (r) => html`<li>
+            <span class="state">${r.percent_complete !== null && r.proposal?.status === "draft" ? `Draft · ${r.percent_complete}%` : r.stage}</span>
+            <span class="title"><a href="${r.href}">${r.title}</a></span>
+            <span class="nudge">${nudge(r)}</span>
+          </li>`,
+        ),
+      )}
+    </ul>
+  </section>`;
+}
+
+/** The one thing worth saying about a talk that is not the one you are on. */
+function nudge(r: SessionRecord): string {
+  const overdue = r.tasks.filter((t) => t.overdue).length;
+  if (overdue > 0) return `${plural(overdue, "task")} overdue`;
+  if (r.next_action?.urgency === "err" || r.next_action?.urgency === "warn") return r.next_action.label;
+  if (r.starts_at) return formatInZone(r.starts_at, r.event_timezone, { day: "numeric", month: "short" });
+  return r.event_name;
+}
+
+function invitationsBlock(invitations: DashboardInvitation[]): SafeHtml {
+  return html`<div class="do-first">
+    <p class="eyebrow">Do this first</p>
+    <h2>${invitations.length === 1 ? "You have been asked to co-speak" : `${Spell(invitations.length)} people have asked you to co-speak`}</h2>
+    ${joinHtml(
       invitations.map(
-        (i) => html`<tr>
-          <td><strong>${i.title}</strong><br /><span class="small muted">${i.event_name}</span></td>
-          <td>${badge(i.speaker_role)}</td>
-          <td class="right">
+        (i) => html`<p>
+            <strong>${i.title}</strong> — ${i.event_name}${i.invited_by ? `, from ${i.invited_by}` : ""}. Until you accept, you are not
+            listed on it and it does not appear among your talks.
+          </p>
+          <div class="actions">
             <form method="post" action="/portal/proposals/${i.proposal_id}/invitation/accept" class="inline-form">
-              <button type="submit" class="small">Accept</button>
+              <button type="submit" class="accent">Yes, I am speaking</button>
             </form>
             <form method="post" action="/portal/proposals/${i.proposal_id}/invitation/decline" class="inline-form">
-              <button type="submit" class="small secondary">Decline</button>
+              <button type="submit" class="secondary">No, take my name off</button>
             </form>
-          </td>
-        </tr>`,
+          </div>`,
       ),
-      "",
-    ),
-    "Speaking invitations",
-  );
+    )}
+  </div>`;
 }
 
-function taskRow(t: DashboardTask): SafeHtml {
-  return html`<tr>
-    <td><a href="/portal/tasks/${t.id}">${t.title}</a></td>
-    <td>${t.event_name}</td>
-    <td class="${t.overdue ? "urgency-err" : ""}">
-      ${t.due_at ? formatInZone(t.due_at, "UTC") : html`<span class="muted">No deadline</span>`}${t.overdue ? " (overdue)" : ""}
-    </td>
-    <td>${badge(t.status)}</td>
-  </tr>`;
+function profileSection(dash: SubmitterDashboard): SafeHtml {
+  return html`<section class="section">
+    <div class="section-head">
+      <p class="eyebrow">Your profile</p>
+      <span class="spacer"></span>
+      <span class="count">${dash.profile.completeness}% complete</span>
+    </div>
+    <p>
+      ${dash.profile.is_listed
+        ? "Your bio and headshot are what the public speaker page shows."
+        : "You are not listed publicly. Nothing about you appears on the event site."}
+    </p>
+    <p class="actions"><a class="btn secondary" href="/portal/profile">Edit your profile</a></p>
+  </section>`;
 }
 
 function urgencyClass(u: NextAction["urgency"]): string {

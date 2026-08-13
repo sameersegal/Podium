@@ -10,7 +10,7 @@
  * not touched at all.
  *
  * There is no build step. These are ES modules the browser loads directly, the
- * same way `/live.js` and `/app.css` are served — an asset from the edge, no
+ * same way `/live.js` and `/admin.css` are served — an asset from the edge, no
  * bundler, no transpiler, no lockfile of its own. That constraint is what keeps
  * "two UI stacks" (R30's accepted cost) from also meaning two toolchains.
  */

@@ -213,6 +213,129 @@ integration tests drive it with.
   server-rendered side of it.
 - Code enforcing an invariant names it in a comment; its test names it in the title.
 
+### Two design languages
+
+There is no single stylesheet. `PageOptions.surface` picks one of two, in
+`ui/layout.ts::stylesheet()`, and the two share no colour, no typeface and no component:
+
+| Surface | Stylesheet | Language |
+|---|---|---|
+| `admin`, `reviewer` | `public/admin.css` | **The console.** Dark rail, Public Sans + JetBrains Mono, mono numerals, keyboard accelerators. Dense, for the two or three people in it daily. |
+| `portal`, `public`, `auth` | `public/portal.css` | **The program book.** Source Serif 4 + Karla, paper ground, terracotta accent, one job per page. For a speaker three times a year and a reader once. |
+
+Both ship a complete dark palette under `prefers-color-scheme`, not a filter over the light
+one. The console's rail is the one surface that does not move between them: it is already
+the darkest thing in the light theme, and inverting it would leave the page with no fixed
+point. Typefaces are self-hosted in `public/fonts/` (`scripts/fetch-fonts.mjs`, run by hand)
+because the CSP names `'self'` and a public page must not need a third-party origin to
+render.
+
+`public/console.css` still loads after `admin.css` and still only adds. Its opening block
+maps the token names it already used (`--indigo`, `--navy`, `--line`) onto the console
+language's (`--accent`, `--ink`, `--hairline`) — a bridge, not a second palette, so the
+console's own components follow the language including into dark mode.
+
+### What the redesign cost, measured
+
+Profiled against the budgets in [`implementer.md`](../.claude/agents/implementer.md), G.
+Client numbers are Lighthouse's mobile profile (1.6 Mbps, 150 ms RTT, 4× CPU) driven through
+CDP on a cold cache; server numbers are best-of-seven against `wrangler dev` on local D1.
+
+**Client — first render, budget < 1.5 s.** The first cut shipped the font declarations as an
+`@import` inside each stylesheet, which is a serial chain: HTML, then the stylesheet, then
+`fonts.css`, then the typeface. Measured, the first byte of Source Serif 4 was not requested
+until 543 ms and did not arrive until 1492 ms.
+
+| | before | after |
+|---|---|---|
+| `/e/:slug/schedule` load | 1497 ms | **761 ms** |
+| `/e/:slug` load | 1414 ms | **775 ms** |
+| CSS + font bytes | 143 KiB | **73 KiB** |
+| typeface arrives | 1492 ms | **757 ms** |
+
+Two changes did it. The `@import` became a `<link>` in the head beside a `preload` of the two
+faces each language opens with, so five requests that used to chain now leave together
+(`ui/layout.ts::stylesheet()`). And **Source Serif 4 ships without its optical-size axis** —
+`opsz 8..60` costs 119.5 KiB against 49.6 KiB for the roman latin face. That is a stated
+departure from the design handoff, taken on the measurement: optical sizing is a real
+refinement, and it is not worth two-thirds of the first-render budget on the one surface that
+has one. Every surface now loads in 723–861 ms except the console's boot document at 1228 ms,
+which additionally fetches its ES modules and its dashboard.
+
+`first-contentful-paint` came back null on most runs in headless Chromium under CDP
+throttling, so the table reports `load` — a strictly later event, and therefore a
+conservative reading of a first-render budget.
+
+**Server — D1 statements per request.** Every response outside production carries
+`x-podium-d1-queries` (`index.ts::withQueryCount`), and
+`tests/integration/foundation/query-budget.test.ts` holds the hot screens to a ceiling.
+
+| Route | before | after |
+|---|---|---|
+| `/admin` (Today, server-rendered) | 94 | **45** |
+| `GET /v1/events/:id/dashboard` | 90 | **48** (41 with `?sections=today`) |
+| `/admin/events/:id/publications` | 55 | **32** |
+| `/review`, `/portal`, `/e/:slug` | — | 15, 17, 4 |
+
+Four N+1s were the cause and are gone: eleven `COUNT(*) … WHERE status = ?` per table became
+one `GROUP BY`; four statements per review round and one per call for papers became one
+grouped query each; `pendingChanges` loaded the schedule, handed it to `buildSnapshot`, and
+then loaded it again; and that snapshot assembled a full publication payload — speakers,
+profiles, sponsors, tiers, assets — to derive a count it then discarded (`verdictsOnly`).
+
+Two costs remain and neither is a defect. **~11 statements of request context** — org,
+session, person, grants and the five relationship lookups authorization needs — are the floor
+for any signed-in page; `/login` alone costs 11. **~20 statements answer "what is not
+published yet"**: the diff has to read the schedule to be exact, and it is flat in the number
+of sessions rather than N+1. The single-digit budget is reachable only by making one of those
+approximate, which is a product decision rather than an optimisation.
+
+### The rail, and where its counts come from
+
+`ui/shell.ts::adminRail()` replaced a flat row of fourteen section tabs with the event's own
+workflow in five phases. The counts beside each destination load once per admin page view in
+`ui/rail-counts.ts` — one query, in the same pre-router seam `consoleDocument` uses, read off
+`ctx.rail` by a synchronous `adminPage`. `public/console/app.js::railGroups()` is the same
+list for the client-rendered console and takes its counts from the boot payload. **The two
+lists have to agree**: they share URLs, and a reader moving between them must not find the
+navigation rearranged.
+
+Two deliberate departures from the design handoff, both because the prototype assumed a
+screen list this product does not have: there is no **Inbox** (nothing here is one, and the
+slot went to the event's overview), and **Sessions** and **Speakers** are two screens rather
+than the prototype's single "Sessions & speakers".
+
+### The reviewer surface is not the speaker portal
+
+`/review` and `/review/:assignmentId` render through `reviewerPage`, not `portalPage`. They
+used to share the portal's chrome, which made a reviewer's queue a tab of the speaker portal
+— but a reviewer is doing operations work on a deadline, and the two roles are frequently the
+*same person* wearing different hats, so sharing chrome meant the hat was never stated. The
+reviewer now gets the console's language and its keyboard, a rail of its own (`My queue` /
+`Submitted` / `Declined`, which are `?show=` filters on one route), and exactly one quiet
+link back to the portal that says it is leaving.
+
+It is still **server-rendered**, which R30 decided deliberately and for a reason that has not
+changed: reviewers work on tablets and check decisions on phones.
+
+### The keyboard layer
+
+`public/keys.js`, loaded on `admin` and `reviewer` only. ⌘K opens a palette, `J`/`K` move a
+selection through `[data-keylist] [data-keyrow]`, `↵` opens it, `g` then a letter jumps to the
+rail item starting with it, `?` lists the lot.
+
+**The palette searches navigation and actions, not records.** There is no endpoint behind it
+and no query leaves the browser; it reads its contents out of the DOM — the rail is the list
+of destinations, and the page's own action buttons are the list of things you can do here.
+That is what keeps it from drifting from the rail, from offering what the reader may not do
+(the server already decided whether to draw each one), and from needing a second
+implementation for the client-rendered console.
+
+Nothing in it is load-bearing. Every destination it reaches is a link already in the rail, so
+with scripts blocked the console is the same set of pages one click further apart. It builds
+DOM nodes rather than assigning `innerHTML`, so it adds no HTML sink to
+`security-audit`'s baseline.
+
 ### The admin console
 
 R30's client-rendered console, built. It lives in `public/console/` and is served by

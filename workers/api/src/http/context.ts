@@ -56,6 +56,20 @@ export interface RequestContext {
   /** Set by handlers that resolve an event from the path. */
   eventId: string | null;
   /**
+   * What the console rail's counts say, loaded once per admin page view by
+   * `ui/rail-counts.ts` before the router runs.
+   *
+   * It lives on the context rather than being threaded through `adminPage`
+   * because the rail is chrome: a hundred screens would otherwise each have to
+   * know what the rail says about the screen beside it, and ninety-nine of them
+   * would pass nothing. Absent — on every non-admin request, and on any admin
+   * request where the query would not have been worth it — the rail simply
+   * draws no numbers.
+   */
+  rail?: import("../ui/rail-counts.js").RailCounts;
+  /** How many D1 statements this request has prepared so far. See `countingEnv`. */
+  queries: QueryCounter;
+  /**
    * `Organization.default_timezone` — the zone org-level screens render
    * instants in, where no event has narrowed it further (11, "Time": every
    * instant is displayed in a stated zone, never raw).
@@ -204,9 +218,52 @@ export async function loadRelationships(db: D1Db, personId: string): Promise<Rel
   };
 }
 
+/**
+ * Counts the statements one request prepares.
+ *
+ * The performance contract is "D1 queries per request — single digits; an N+1
+ * is a defect, not a slow path", and a budget nobody can read is a budget
+ * nobody keeps. This makes the number observable from a browser and from the
+ * test harness (`tests/integration/foundation/query-budget.test.ts`) instead of
+ * countable only by reading the code and hoping.
+ *
+ * A `Proxy` over the binding rather than a counter inside `D1Db`, because
+ * several `D1Db` instances exist per request — one per `AppContext` — and the
+ * budget is about the request, not about any one of them. `prepare` is the only
+ * door into D1: `select`, `raw`, `batch` and every write go through it.
+ *
+ * The count rides on the environment, so every `AppContext` the request builds
+ * shares it without being told to. Cost is one increment per statement.
+ */
+export interface QueryCounter {
+  count: number;
+}
+
+function countingEnv(env: Env, counter: QueryCounter): Env {
+  const db = new Proxy(env.DB, {
+    get(target, prop) {
+      // `target` as the receiver, not the proxy: a host accessor that reads
+      // `this` would otherwise be handed the wrapper and re-enter this trap.
+      const value = Reflect.get(target, prop, target);
+      if (prop !== "prepare" || typeof value !== "function") {
+        return typeof value === "function" ? value.bind(target) : value;
+      }
+      return (sql: string) => {
+        counter.count++;
+        return (value as D1Database["prepare"]).call(target, sql);
+      };
+    },
+  });
+  return { ...env, DB: db };
+}
+
 export async function buildContext(req: Request, env: Env, waitUntil: (p: Promise<unknown>) => void): Promise<RequestContext> {
   const url = new URL(req.url);
   const now = nowIso();
+  // Wrapped before anything reads: `resolveOrgId` is itself a query, and a
+  // counter that starts after the first one is a counter that is wrong by one.
+  const queries: QueryCounter = { count: 0 };
+  env = countingEnv(env, queries);
   const orgId = await resolveOrgId(env);
   const db = new D1Db(env.DB, orgId);
   const orgRow = orgId ? await db.byId<Row>("organization", orgId) : null;
@@ -285,6 +342,7 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
     eventId: null,
     orgTimezone,
     now,
+    queries,
     waitUntil,
     app(eventId?: string | null) {
       return new AppContext({

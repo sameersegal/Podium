@@ -22,6 +22,7 @@ import {
 import type { ProposalScore } from "@podiumstack/domain/review/scoring.js";
 import { html, raw, type SafeHtml } from "../../ui/html.js";
 import { badge, card, empty, field, humanise, pageHead, progressBar } from "../../ui/layout.js";
+import { plural, spell, Spell } from "../../ui/words.js";
 import { opts } from "./views.js";
 
 /* ========================================================================== */
@@ -40,113 +41,26 @@ export interface ReviewerAssignmentRow {
   meta: string[];
 }
 
-/**
- * `/review` — the reviewer's queue.
- *
- * The screen a committee member opens twenty times during a round, so it is
- * built around the one question they are actually asking: *what do I still owe,
- * and which one is next.* What it replaced answered neither — every assignment
- * in one undifferentiated grid, submitted ones mixed in with outstanding ones,
- * and no way in from the top other than reading every card.
- *
- * Three changes carry it:
- *
- * - **Outstanding first, and separately.** Submitted and declined work is still
- *   reachable, below, collapsed. A queue that shows finished work alongside
- *   unfinished work makes the reader do the filtering.
- * - **One button in.** "Start reviewing" opens the most urgent outstanding
- *   assignment, so the common path costs no reading at all.
- * - **Urgency on the card, not only in the aggregate.** The progress row said
- *   "3 overdue" without saying which three.
- */
-export function reviewerDashboardView(d: { rows: ReviewerAssignmentRow[]; progressByRound: Record<string, ReviewerProgress>; now: string }): SafeHtml {
-  if (d.rows.length === 0) {
-    return html`
-      ${pageHead("My reviews", "Proposals assigned to you across every round you are part of.")}
-      ${card(
-        html`<p>You have no review assignments right now.</p>
-          <p class="small muted">
-            When a chair adds you to a round's reviewer pool and assigns you proposals, they will show up here — one card per proposal,
-            with a due date and a big "Score this proposal" button. Nothing to do in the meantime.
-          </p>`,
-        "Nothing assigned yet",
-      )}
-    `;
-  }
-
-  const outstanding = d.rows.filter((r) => ASSIGNMENT_ACTIONABLE.includes(str(r.assignment.status) as AssignmentStatus));
-  const submitted = d.rows.filter((r) => str(r.assignment.status) === "submitted");
-  const closed = d.rows.filter((r) => !outstanding.includes(r) && !submitted.includes(r));
-  const overdue = outstanding.filter((r) => isOverdue(r, d.now));
-  const next = outstanding[0] ?? null;
-
-  const totals = Object.values(d.progressByRound).reduce(
-    (acc, p) => ({ assigned: acc.assigned + p.assigned, submitted: acc.submitted + p.submitted }),
-    { assigned: 0, submitted: 0 },
-  );
-  const pct = totals.assigned ? Math.round((totals.submitted / totals.assigned) * 100) : 0;
-
-  return html`
-    ${pageHead(
-      "My reviews",
-      "Proposals assigned to you across every round you are part of.",
-      next
-        ? html`<a class="btn" href="/review/${str(next.assignment.id)}">${totals.submitted > 0 ? "Continue reviewing" : "Start reviewing"}</a>`
-        : raw(""),
-    )}
-    ${card(
-      html`<div class="progress-row">
-          ${progressBar(pct)}
-          <span class="small muted">${totals.submitted} of ${totals.assigned} done</span>
-        </div>
-        <p class="small ${overdue.length ? "urgency-err" : "muted"}">
-          ${outstanding.length === 0
-            ? "Everything assigned to you is done."
-            : `${outstanding.length} still to review${overdue.length ? ` · ${overdue.length} overdue` : ""}`}
-        </p>`,
-    )}
-    ${outstanding.length ? roundSections(outstanding, d) : raw("")}
-    ${submitted.length
-      ? html`<details class="disclosure">
-          <summary>${submitted.length} already submitted</summary>
-          <div class="grid two">${submitted.map((r) => assignmentCard(r, d.now))}</div>
-        </details>`
-      : raw("")}
-    ${closed.length
-      ? html`<details class="disclosure">
-          <summary>${closed.length} declined or closed</summary>
-          <div class="grid two">${closed.map((r) => assignmentCard(r, d.now))}</div>
-        </details>`
-      : raw("")}
-  `;
+/** The round a reviewer is working in, as much of it as the queue needs. */
+export interface ReviewerRound {
+  id: string;
+  name: string;
+  anonymity: string;
+  closes_at: string | null;
 }
 
-/** Outstanding work, grouped by the round it belongs to, most urgent round first. */
-function roundSections(rows: ReviewerAssignmentRow[], d: { progressByRound: Record<string, ReviewerProgress>; now: string }): SafeHtml {
-  const byRound = new Map<string, ReviewerAssignmentRow[]>();
-  for (const r of rows) {
-    const key = str(r.assignment.round_id);
-    byRound.set(key, [...(byRound.get(key) ?? []), r]);
-  }
-
-  return html`${[...byRound.entries()].map(([roundId, group]) => {
-    const progress = d.progressByRound[roundId];
-    return html`
-      <h2>${group[0].round_name}</h2>
-      ${progress
-        ? html`<div class="progress-row">
-            ${progressBar(progress.completion_pct)}
-            <span class="small muted"
-              >${progress.submitted} of ${progress.assigned} done${progress.overdue
-                ? html` · <span class="badge err">${progress.overdue} overdue</span>`
-                : raw("")}</span
-            >
-          </div>`
-        : raw("")}
-      <div class="grid two">${group.map((r) => assignmentCard(r, d.now))}</div>
-    `;
-  })}`;
+export interface ReviewerQueueData {
+  rows: ReviewerAssignmentRow[];
+  progressByRound: Record<string, ReviewerProgress>;
+  rounds: ReviewerRound[];
+  /** Declared conflicts, counted — never listed, because the subject is a person. */
+  conflicts: number;
+  /** `queue` · `submitted` · `declined` — which of the three the rail is on. */
+  show: ReviewerQueueFilter;
+  now: string;
 }
+
+export type ReviewerQueueFilter = "queue" | "submitted" | "declined";
 
 const ASSIGNMENT_ACTIONABLE: AssignmentStatus[] = ["assigned", "accepted", "in_progress"];
 
@@ -155,30 +69,208 @@ function isOverdue(r: ReviewerAssignmentRow, now: string): boolean {
   return !!due && due < now && ASSIGNMENT_ACTIONABLE.includes(str(r.assignment.status) as AssignmentStatus);
 }
 
-function assignmentCard(r: ReviewerAssignmentRow, now: string): SafeHtml {
+function isOutstanding(r: ReviewerAssignmentRow): boolean {
+  return ASSIGNMENT_ACTIONABLE.includes(str(r.assignment.status) as AssignmentStatus);
+}
+
+/** Splits the reviewer's assignments the three ways the rail navigates them. */
+export function partitionQueue(rows: ReviewerAssignmentRow[]): Record<ReviewerQueueFilter, ReviewerAssignmentRow[]> {
+  return {
+    queue: rows.filter(isOutstanding),
+    submitted: rows.filter((r) => str(r.assignment.status) === "submitted"),
+    declined: rows.filter((r) => !isOutstanding(r) && str(r.assignment.status) !== "submitted"),
+  };
+}
+
+/**
+ * `/review` — the reviewer's queue.
+ *
+ * The screen a committee member opens twenty times during a round, so it is
+ * built around the one question they are actually asking: *what do I still owe,
+ * and which one is next.*
+ *
+ * It is one list, not a grid of cards. A card per proposal was eleven boxes of
+ * identical shape, and the only thing that varies between two assignments — how
+ * late each one is — was the smallest thing on each card. Here the due date is
+ * the first column, in mono so eleven of them can be compared by running an eye
+ * down the left edge, and it is the only thing that carries colour.
+ *
+ * Submitted and declined work has moved out of the page entirely and into the
+ * rail (`?show=`). A queue that shows finished work alongside unfinished work
+ * makes the reader do the filtering.
+ */
+export function reviewerDashboardView(d: ReviewerQueueData): SafeHtml {
+  const parts = partitionQueue(d.rows);
+  const shown = parts[d.show];
+  const outstanding = parts.queue;
+  const overdue = outstanding.filter((r) => isOverdue(r, d.now));
+  const next = outstanding[0] ?? null;
+
+  if (d.rows.length === 0) {
+    return html`${pageHead("Nothing is assigned to you", "When a chair adds you to a round and assigns you proposals, they arrive here.")}
+      ${card(
+        html`<p class="muted">
+          There is nothing to do in the meantime. You will be emailed when a round opens, and the queue will be waiting for you when you
+          follow the link.
+        </p>`,
+      )}`;
+  }
+
+  const totals = Object.values(d.progressByRound).reduce(
+    (acc, p) => ({ assigned: acc.assigned + p.assigned, submitted: acc.submitted + p.submitted }),
+    { assigned: 0, submitted: 0 },
+  );
+  const pct = totals.assigned ? Math.round((totals.submitted / totals.assigned) * 100) : 0;
+
+  return html`
+    <div class="grid queue-aside">
+      <div class="stack">
+        ${pageHead(
+          queueTitle(d.show, shown.length, overdue.length),
+          queueLede(d),
+          d.show === "queue" && next
+            ? html`<a class="btn" href="/review/${str(next.assignment.id)}">Review the next one</a>`
+            : raw(""),
+        )}
+        ${shown.length === 0
+          ? empty(EMPTY_FOR[d.show])
+          : html`<section class="card rows" data-keylist>${shown.map((r) => queueRow(r, d.now))}</section>`}
+        ${d.show === "queue" ? html`<p class="small muted">${queueFooter(parts)}</p>` : raw("")}
+      </div>
+
+      <div class="stack sticky-aside">
+        ${card(html`<p class="eyebrow">Your progress</p>
+          <p class="big-figure">${totals.submitted}<span class="of">/${totals.assigned}</span></p>
+          ${progressBar(pct)}
+          <p class="small muted" style="margin:10px 0 0">${paceSentence(d, outstanding.length)}</p>`)}
+        ${card(html`<p class="eyebrow">Conflicts</p>
+          <p class="small muted" style="margin:0">${conflictSentence(d.conflicts)}</p>`)}
+      </div>
+    </div>
+  `;
+}
+
+const EMPTY_FOR: Record<ReviewerQueueFilter, string> = {
+  queue: "Everything assigned to you is done.",
+  submitted: "You have not submitted a review in this round yet.",
+  declined: "You have not declined anything.",
+};
+
+/**
+ * "Nine left, three of them late" — the state of the queue, as a sentence, in
+ * the heading. A heading that says "My reviews" is a heading that has spent the
+ * largest type on the page saying which page you are on, which you knew.
+ */
+function queueTitle(show: ReviewerQueueFilter, count: number, late: number): string {
+  if (show === "submitted") return `${Spell(count)} submitted`;
+  if (show === "declined") return `${Spell(count)} declined`;
+  if (count === 0) return "You are done";
+  if (late === 0) return `${Spell(count)} left`;
+  return `${Spell(count)} left, ${spell(late)} of them late`;
+}
+
+/**
+ * What the reviewer will and will not be shown, said before they ask. Anonymity
+ * is a property of the round (R10), so a reviewer sitting in two rounds with
+ * different settings is told the strictest one applies somewhere.
+ */
+function queueLede(d: ReviewerQueueData): string {
+  const kinds = new Set(d.rounds.map((r) => r.anonymity));
+  if (kinds.has("double_blind")) {
+    return kinds.size > 1
+      ? "One of your rounds is double-blind: there you will not see names, affiliations or links."
+      : "Blind review. You will not see names, affiliations or links.";
+  }
+  if (kinds.has("single_blind")) return "Single-blind review. You see the speaker; they do not see you.";
+  return "Open review. Names and affiliations are shown, and yours is shown to the committee.";
+}
+
+function queueFooter(parts: Record<ReviewerQueueFilter, ReviewerAssignmentRow[]>): string {
+  const done = parts.submitted.length;
+  if (done === 0) return "Nothing submitted yet.";
+  return `Plus ${spell(done)} you have already submitted.`;
+}
+
+/**
+ * "At two a day you finish four days before the round closes."
+ *
+ * Two a day is an assumption and is stated as one. The rest is arithmetic
+ * against the round's own close date, which is the number a reviewer is
+ * actually budgeting against — a percentage complete never told anyone whether
+ * they were going to make it.
+ */
+function paceSentence(d: ReviewerQueueData, remaining: number): string {
+  if (remaining === 0) return "Nothing outstanding. Thank you.";
+  const closes = d.rounds.map((r) => r.closes_at).filter((c): c is string => Boolean(c)).sort()[0];
+  if (!closes) return `${plural(remaining, "proposal")} still to score. This round has no closing date.`;
+  const daysLeft = Math.round((Date.parse(closes) - Date.parse(d.now)) / 86_400_000);
+  const daysNeeded = Math.ceil(remaining / 2);
+  const slack = daysLeft - daysNeeded;
+  if (daysLeft < 0) return `The round closed ${plural(Math.abs(daysLeft), "day")} ago and ${plural(remaining, "proposal")} are still open.`;
+  if (slack > 0) return `At two a day you finish ${plural(slack, "day")} before the round closes.`;
+  if (slack === 0) return "At two a day you finish on the day the round closes.";
+  return `At two a day you would miss the close by ${plural(Math.abs(slack), "day")}.`;
+}
+
+/**
+ * Counted, never listed. A conflict's subject is a person or an employer, and
+ * naming which proposals were withheld would leak exactly what withholding them
+ * was for (INV-05-18).
+ */
+function conflictSentence(n: number): string {
+  if (n === 0) return "You have no declared conflicts, so nothing has been withheld from your queue.";
+  if (n === 1) return "One conflict is on file for you. Proposals it touches are withheld from your queue rather than shown and refused.";
+  return `${Spell(n)} conflicts are on file for you. Proposals they touch are withheld from your queue rather than shown and refused.`;
+}
+
+/**
+ * One assignment. The columns are, in order: how late it is, what it is, and the
+ * one verb that moves it.
+ */
+function queueRow(r: ReviewerAssignmentRow, now: string): SafeHtml {
   const status = str(r.assignment.status) as AssignmentStatus;
   const actionable = ASSIGNMENT_ACTIONABLE.includes(status);
   const due = strOrNull(r.assignment.due_at);
   const overdue = isOverdue(r, now);
-  // "in 3 days" rather than a date: a queue is read as distance to a deadline,
-  // and a reviewer holding eleven of these is comparing them to each other.
-  const when = due
-    ? html`<span class="${overdue ? "urgency-err" : "muted"}">${overdue ? "overdue — was due " : "due "}${relativeDays(due, now)}</span>`
-    : html`<span class="muted">no deadline</span>`;
+  const href = `/review/${str(r.assignment.id)}`;
 
-  return card(
-    html`<p class="mono small muted">${r.proposal ? str(r.proposal.reference) : str(r.assignment.proposal_id)}</p>
-      <h3>${r.proposal ? str(r.proposal.title) : "(proposal unavailable)"}</h3>
-      ${r.meta.length ? html`<p class="small muted">${r.meta.join(" · ")}</p>` : raw("")}
-      <p class="small">${badge(status)} · ${when}</p>
-      <p>
-        <a class="btn ${actionable ? "" : "secondary"}" href="/review/${str(r.assignment.id)}"
-          >${status === "submitted" ? "View my review" : actionable ? "Score this proposal" : "Open"}</a
-        >
-      </p>`,
-    undefined,
-    { className: overdue ? "review-overdue" : "" },
-  );
+  // "4 days late" / "due in 2 days" — a queue is read as distance to a
+  // deadline, and a reviewer holding eleven of them is comparing them to each
+  // other rather than to the calendar.
+  //
+  // Work that is finished says when it was finished instead. A due date on a
+  // submitted review is a deadline that no longer applies, sitting in the
+  // column the eye goes to first.
+  const done = strOrNull(r.assignment.submitted_at);
+  const days = due ? Math.round((Date.parse(due) - Date.parse(now)) / 86_400_000) : null;
+  const when =
+    status === "submitted"
+      ? done
+        ? `sent ${relativeDays(done, now)}`
+        : "submitted"
+      : due
+        ? overdue
+          ? `${plural(Math.abs(days ?? 0), "day")} late`
+          : `due ${relativeDays(due, now)}`
+        : "no deadline";
+  const whenClass =
+    status === "submitted" ? "none" : overdue ? "late" : days !== null && days <= 3 ? "soon" : due ? "" : "none";
+
+  // `in_progress` is a scorecard with a draft on it — the one row where the
+  // verb is "finish" rather than "start", so it is the one row that says so.
+  const hasDraft = status === "in_progress";
+
+  return html`<div class="queue-row ${overdue ? "late" : ""}" data-keyrow data-href="${href}">
+    <span class="due ${whenClass}">${when}</span>
+    <div class="body">
+      <p class="title"><a href="${href}">${r.proposal ? str(r.proposal.title) : "(proposal unavailable)"}</a></p>
+      <p class="meta">${[r.proposal ? str(r.proposal.reference) : str(r.assignment.proposal_id), ...r.meta].join(" · ")}</p>
+    </div>
+    ${hasDraft ? html`<span class="chip">draft saved</span>` : raw("")}
+    <a class="btn small ${hasDraft || !actionable ? (actionable ? "" : "secondary") : "secondary"}" href="${href}"
+      >${status === "submitted" ? "View" : hasDraft ? "Finish" : actionable ? "Score" : "Open"}</a
+    >
+  </div>`;
 }
 
 /* ========================================================================== */

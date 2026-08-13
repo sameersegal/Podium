@@ -60,7 +60,10 @@ const PUBLIC_PATHS = (ctx) => [
   `/e/${ctx.event_slug}/schedule.ics`,
   "/login",
   "/signup",
-  "/app.css",
+  "/admin.css",
+  "/portal.css",
+  "/fonts/fonts.css",
+  "/keys.js",
   // `/live/*` is worker-first so the WebSocket upgrade is never answered by
   // the asset router; `/live.js` deliberately is not, so it serves from the
   // edge. A slip that widened that prefix to `/live*` would swallow the

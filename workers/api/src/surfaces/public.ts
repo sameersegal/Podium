@@ -36,11 +36,11 @@ import {
   widgetXml,
   type RenderOptions,
 } from "../contexts/scheduling/widgets.js";
-import { calendarDateInZone, formatDateInZone, formatInZone } from "@podiumstack/domain/shared/time.js";
+import { calendarDateInZone, formatDateInZone, formatInZone, relativeDays } from "@podiumstack/domain/shared/time.js";
 import type { RequestContext } from "../http/context.js";
 import { htmlResponse, json, text } from "../http/responses.js";
 import type { Router } from "../http/router.js";
-import { html, inlineScript, jsonScript, prose, raw, type SafeHtml } from "../ui/html.js";
+import { escapeHtml, html, inlineScript, jsonScript, prose, raw, type SafeHtml } from "../ui/html.js";
 import { card, dayBar, empty, pageHead } from "../ui/layout.js";
 import { publicPage, type EventRef } from "../ui/shell.js";
 
@@ -150,7 +150,18 @@ function registerLandingRoutes(router: Router<RequestContext>): void {
   });
 }
 
-/** Shared by `GET /e/:slug` and `GET /` when exactly one public event exists. */
+/**
+ * `/e/:slug` — the event's front page. Shared with `GET /` when a deployment
+ * has exactly one public event.
+ *
+ * The type is the hero: no gradient, no photograph, no logo band. A reader
+ * arriving here wants three things in this order — when and where it is, what
+ * it is, and how to get to the program — and everything below the fold is
+ * either the story or a fact they came to look up.
+ *
+ * It must render fully with scripts blocked (08, "Degrade gracefully"). Nothing
+ * on it depends on one.
+ */
 export async function renderEventLanding(ctx: RequestContext, row: Row): Promise<SafeHtml> {
   const ref = toRef(row);
   const app = ctx.app();
@@ -160,49 +171,158 @@ export async function renderEventLanding(ctx: RequestContext, row: Row): Promise
     assetUrl(ctx, strOrNull(row.logo_asset_id)),
   ]);
 
-  const openCfps: SafeHtml[] = [];
+  interface OpenCall {
+    slug: string;
+    name: string;
+    status: string;
+    at: string;
+  }
+  const openCalls: OpenCall[] = [];
   for (const c of cfps) {
     const status = await derivedCfpStatus(app, c, row);
     if (status !== "open" && status !== "scheduled") continue;
-    openCfps.push(html`<li>
-      <a href="/e/${ref.slug}/cfp/${str(c.slug)}"><strong>${str(c.name)}</strong></a>
-      — ${status === "open" ? html`closes ${formatInZone(str(c.closes_at), ref.timezone)}` : html`opens ${formatInZone(str(c.opens_at), ref.timezone)}`}
-    </li>`);
+    openCalls.push({
+      slug: str(c.slug),
+      name: str(c.name),
+      status,
+      at: status === "open" ? str(c.closes_at) : str(c.opens_at),
+    });
   }
+  // The call closing soonest is the one the hero offers, because a page with
+  // two "submit" buttons has not decided which deadline matters.
+  const soonest = openCalls.filter((c) => c.status === "open").sort((a, b) => a.at.localeCompare(b.at))[0] ?? null;
 
   const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+  const opening = snapshot
+    ? snapshot.sessions
+        .filter((s) => s.starts_at)
+        .sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at)))
+        .slice(0, 3)
+    : [];
+  const speakerName = (id: string) => snapshot?.speakers.find((sp) => sp.person_id === id)?.display_name ?? null;
+
+  const day = (d: string, opts: Intl.DateTimeFormatOptions) => formatInZone(`${d}T00:00:00Z`, "UTC", opts);
+  const sameMonth = ref.starts_on.slice(0, 7) === ref.ends_on.slice(0, 7);
+  const dates =
+    ref.starts_on === ref.ends_on
+      ? day(ref.starts_on, { day: "numeric", month: "long", year: "numeric" })
+      : sameMonth
+        ? `${day(ref.starts_on, { day: "numeric" })}–${day(ref.ends_on, { day: "numeric", month: "long", year: "numeric" })}`
+        : `${day(ref.starts_on, { day: "numeric", month: "long" })} – ${day(ref.ends_on, { day: "numeric", month: "long", year: "numeric" })}`;
+  const where = venue ? str(venue.name) : null;
 
   return publicPage(
     ctx,
-    { title: ref.name, event: ref },
+    {
+      title: ref.name,
+      event: ref,
+      extraNav: soonest ? [{ href: `/e/${ref.slug}/cfp/${soonest.slug}`, label: "Submit a talk" }] : [],
+    },
     // `.bleed` cancels `main`'s gutter so the hero is a band across the window.
     // It used to open a second `<main>` for the body under it, which is invalid
     // — the shell already opened one — and rendered the hero as a boxed panel
     // floating inside the page rather than as the top of it.
-    html`<section class="hero bleed"><div class="inner">
-        ${logoUrl ? html`<img src="${logoUrl}" alt="${ref.name}" style="height:48px;margin-bottom:1rem">` : raw("")}
-        <h1>${ref.name}</h1>
-        ${row.tagline ? html`<p>${str(row.tagline)}</p>` : raw("")}
-        <p>${formatDateInZone(new Date(`${ref.starts_on}T00:00:00Z`).toISOString(), ref.timezone)} – ${formatDateInZone(new Date(`${ref.ends_on}T00:00:00Z`).toISOString(), ref.timezone)}${venue ? html` · ${str(venue.name)}` : raw("")}</p>
-        <p class="actions">
-          <a class="btn" href="/e/${ref.slug}/schedule">Schedule</a>
-          <a class="btn secondary" href="/e/${ref.slug}/sessions">Sessions</a>
-          <a class="btn secondary" href="/e/${ref.slug}/speakers">Speakers</a>
-          <a class="btn secondary" href="/e/${ref.slug}/gallery">Speaker gallery</a>
-          ${openCfps.length ? html`<a class="btn secondary" href="#cfps">Submit a talk</a>` : raw("")}
-          <a class="btn secondary" href="/login">Sign in</a>
-        </p>
-      </div></section>
-      <div class="grid two">
+    html`<section class="hero bleed">
+        <div class="inner">
+          ${logoUrl ? html`<img src="${logoUrl}" alt="" style="height:40px;margin-bottom:24px">` : raw("")}
+          <p class="eyebrow accent">${[dates, where].filter(Boolean).join(" · ")}</p>
+          <h1>${ref.name}</h1>
+          ${row.tagline ? html`<p class="lede">${str(row.tagline)}</p>` : raw("")}
+          <div class="actions">
+            <a class="btn" href="/e/${ref.slug}/schedule">Read the schedule</a>
+            ${soonest
+              ? html`<a class="btn secondary" href="/e/${ref.slug}/cfp/${soonest.slug}"
+                  >Submit a talk — closes ${formatInZone(soonest.at, ref.timezone, { day: "numeric", month: "short" })}</a
+                >`
+              : raw("")}
+          </div>
+        </div>
+      </section>
+
+      <div class="public-body">
         <div>
-          ${row.description ? card(prose(str(row.description))) : raw("")}
-          ${snapshot
-            ? card(html`<p>${snapshot.sessions.length} sessions across ${snapshot.event.days.length} day${snapshot.event.days.length === 1 ? "" : "s"}.</p>
-                <p class="actions"><a class="btn secondary" href="/e/${ref.slug}/schedule">View the schedule</a><a class="btn secondary" href="/e/${ref.slug}/speakers">Meet the speakers</a></p>`, "Schedule")
+          ${row.description ? html`<div class="prose">${prose(str(row.description))}</div>` : raw("")}
+          ${opening.length
+            ? html`<section class="section">
+                <div class="section-head"><p class="eyebrow">Opening the program</p></div>
+                <ul class="listing">
+                  ${opening.map((s) => {
+                    const names = s.speaker_refs.map(speakerName).filter(Boolean).join(", ");
+                    return html`<li>
+                      <span class="when"
+                        >${s.starts_at ? formatInZone(s.starts_at, ref.timezone, { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }) : ""}</span
+                      >
+                      <div>
+                        ${s.is_sponsored_content
+                          ? html`<span class="sponsored">Sponsored${s.sponsor ? ` — ${s.sponsor.name}` : ""}</span>`
+                          : raw("")}
+                        <p class="title"><a href="/e/${ref.slug}/sessions/${s.session_id}">${s.title}</a></p>
+                        <p class="who">${[names, s.room?.name].filter(Boolean).join(" · ")}</p>
+                      </div>
+                    </li>`;
+                  })}
+                </ul>
+                <p style="margin-top:18px"><a href="/e/${ref.slug}/sessions">All ${snapshot?.sessions.length ?? 0} sessions →</a></p>
+              </section>`
             : raw("")}
         </div>
+
         <div>
-          ${openCfps.length ? card(html`<ul id="cfps" class="notes">${openCfps}</ul>`, "Open calls for proposals") : raw("")}
+          ${openCalls.length
+            ? html`<section>
+                <p class="eyebrow">Open calls</p>
+                <ul class="calls">
+                  ${openCalls.map(
+                    (c) => html`<li>
+                      <p class="name"><a href="/e/${ref.slug}/cfp/${c.slug}">${c.name}</a></p>
+                      <p class="closes ${c === soonest ? "soon" : ""}">
+                        ${c.status === "open" ? "Closes" : "Opens"} ${formatInZone(c.at, ref.timezone, { day: "numeric", month: "long" })}
+                      </p>
+                    </li>`,
+                  )}
+                </ul>
+              </section>`
+            : raw("")}
+
+          <section class="section">
+            <p class="eyebrow">Practical</p>
+            ${
+              // 08, "Every type is also a page on the first-party site": each
+              // widget type has to be reachable by *browsing* from here, not
+              // only by knowing an embed key. This list is where the ones the
+              // hero does not carry live, and
+              // `tests/integration/public/public-surfaces.test.ts` holds it to
+              // that — a redesign that drops one of these links is a redesign
+              // that took a page off the site.
+              raw("")
+            }
+            <dl class="kv">
+              ${venue
+                ? html`<dt>Venue</dt>
+                    <dd>${str(venue.name)}${venue.address ? html`<br>${str(venue.address)}` : raw("")}</dd>`
+                : raw("")}
+              ${snapshot
+                ? html`<dt>Program</dt>
+                    <dd>
+                      <a href="/e/${ref.slug}/schedule">${snapshot.sessions.length} sessions</a> across
+                      ${snapshot.event.days.length} day${snapshot.event.days.length === 1 ? "" : "s"}
+                    </dd>
+                    <dt>Everything else</dt>
+                    <dd>
+                      <a href="/e/${ref.slug}/sessions">Session list</a> · <a href="/e/${ref.slug}/speakers">Speakers</a> ·
+                      <a href="/e/${ref.slug}/gallery">Gallery</a>
+                    </dd>`
+                : raw("")}
+              <dt>Calendar</dt>
+              <dd><a href="/e/${ref.slug}/schedule.ics">Subscribe (.ics)</a></dd>
+              ${snapshot
+                ? html`<dt>Last updated</dt>
+                    <dd>v${snapshot.version} · ${relativeDays(snapshot.published_at, ctx.now)}</dd>`
+                : raw("")}
+              <dt>Times</dt>
+              <dd>${ref.timezone}</dd>
+            </dl>
+          </section>
         </div>
       </div>`,
   );
@@ -243,45 +363,36 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const dayId = ctx.url.searchParams.get("day") ?? dayWithSessions?.id ?? snapshot.event.days[0]?.id ?? null;
     const opts = renderOpts(ref, true);
 
+    const activeDay = snapshot.event.days.find((day) => day.id === dayId) ?? null;
+    const daySessions = [...snapshot.sessions]
+      .filter((s) => s.starts_at)
+      // The day's `date` is a calendar date in the event's timezone;
+      // `starts_at` is an instant. Comparing the two by string slice buckets an
+      // evening session onto the following day.
+      .filter((s) => !activeDay || calendarDateInZone(String(s.starts_at), ref.timezone) === activeDay.date)
+      .sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at)));
+
     return htmlResponse(
       publicPage(
         ctx,
         { title: `Schedule — ${ref.name}`, event: ref, width: "wide", head: jsonScript("podium-schedule-data", snapshot) },
-        html`${pageHead("Schedule", `Published version ${snapshot.version}. All times in ${ref.timezone} — toggle to your local time below.`)}
-          ${scheduleControls(ref, snapshot)}
-          ${daySwitcher(ref, snapshot, dayId)}
-          <div class="grid two">
-            <section>
-              <h2>Itinerary</h2>
-              ${
-                // The day's `date` is a calendar date in the event's timezone;
-                // `starts_at` is an instant. Comparing the two by string slice
-                // buckets an evening session onto the following day.
-                dayId
-                  ? renderItinerary(
-                      {
-                        ...snapshot,
-                        sessions: snapshot.sessions.filter(
-                          (s) =>
-                            s.starts_at &&
-                            calendarDateInZone(s.starts_at, ref.timezone) === snapshot.event.days.find((d) => d.id === dayId)?.date,
-                        ),
-                      },
-                      opts,
-                    )
-                  : renderItinerary(snapshot, opts)
-              }
-            </section>
-            <section>
-              <h2>Grid</h2>
-              ${dayId ? renderAgendaGrid(snapshot, dayId, opts) : empty("No days published yet.")}
-            </section>
+        html`<div class="page-head">
+            <h1>The program</h1>
+            <p class="lede">
+              All times ${ref.timezone}. Star a session to build your own day — it stays in this browser.
+            </p>
+            <div class="actions"><a class="btn secondary" id="podium-ics-link" href="/e/${ref.slug}/schedule.ics">Add to calendar</a></div>
           </div>
+          ${programBar(ref, snapshot, dayId)}
+          ${programList(daySessions, snapshot, ref)}
+          <p class="small muted" style="margin-top:32px">
+            Published version ${snapshot.version} · ${relativeDays(snapshot.published_at, ctx.now)}. Changes are announced here and in the
+            calendar feed.
+          </p>
           ${scheduleClientScript(ref.slug)}`,
       ),
     );
   });
-
   router.get("/e/:eventSlug/sessions/:sessionId", async (_req, ctx, params) => {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
@@ -381,6 +492,104 @@ function daySwitcher(ref: EventRef, snapshot: ScheduleSnapshot, activeDayId: str
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* The program                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The days, and the filters, on one 1px ink rule.
+ *
+ * That rule is the only heavy line in the editorial language, and it is here
+ * because everything below it is one list: the bar says "these are the choices
+ * that change what follows", and nothing else on the page needs to say that.
+ *
+ * The day links are real links to real URLs, so the day you are reading
+ * survives a reload, a share and a browser with scripts off. The facets are
+ * selects, because they are combinable and a row of eleven track links is not
+ * a filter, it is a second navigation.
+ */
+function programBar(ref: EventRef, snapshot: ScheduleSnapshot, activeDayId: string | null): SafeHtml {
+  const days = snapshot.event.days;
+  return html`<nav class="daybar" aria-label="Day">
+    ${days.map(
+      (d) =>
+        html`<a href="/e/${ref.slug}/schedule?day=${d.id}"${d.id === activeDayId ? raw(' aria-current="page"') : raw("")}
+          >${d.label ?? d.date}</a
+        >`,
+    )}
+    <span class="filters">
+      ${barFacet("podium-track", "All tracks", snapshot.tracks)}
+      ${barFacet("podium-room", "All rooms", snapshot.rooms)}
+      <label class="starred-only"><input type="checkbox" id="podium-my-schedule"> Starred only</label>
+      <input id="podium-search" type="search" placeholder="Search" aria-label="Search sessions and speakers">
+    </span>
+  </nav>
+  <p class="sr-only" id="podium-session-count" aria-live="polite"></p>`;
+}
+
+/**
+ * A facet in the day bar. Same contract as `facet` — the id the client script
+ * looks for, and the `data-podium-facet` marker — but without the visible
+ * label, because the empty option already names the axis ("All tracks") and a
+ * label beside it would say it twice.
+ */
+function barFacet(id: string, all: string, options: { id: string; name: string }[]): SafeHtml {
+  if (options.length < 2) return raw("");
+  return html`<select id="${id}" data-podium-facet aria-label="${all}">
+    <option value="">${all}</option>
+    ${options.map((o) => html`<option value="${o.id}">${o.name}</option>`)}
+  </select>`;
+}
+
+/**
+ * One session per row: when it is, what it is, and the star.
+ *
+ * The abstract is on the row rather than behind a disclosure. A reader deciding
+ * between two talks in the same slot is comparing the abstracts, and a page
+ * that makes them open both to do it has made the comparison harder than
+ * scrolling.
+ */
+function programList(sessions: ScheduleSnapshot["sessions"], snapshot: ScheduleSnapshot, ref: EventRef): SafeHtml {
+  if (sessions.length === 0) return empty("Nothing is scheduled on this day yet.");
+  const nameOf = (id: string) => snapshot.speakers.find((sp) => sp.person_id === id)?.display_name ?? null;
+  return html`<ul class="program" data-podium-list>
+    ${sessions.map((s) => {
+      const names = s.speaker_refs.map(nameOf).filter(Boolean) as string[];
+      const abstract = (s.abstract ?? s.description ?? "").trim();
+      const attrs = [
+        `data-session-id="${escapeHtml(s.session_id)}"`,
+        `data-title="${escapeHtml(s.title.toLowerCase())}"`,
+        `data-speakers="${escapeHtml(names.join(", ").toLowerCase())}"`,
+        `data-track="${escapeHtml(s.track?.id ?? "")}"`,
+        `data-format="${escapeHtml(s.format?.id ?? "")}"`,
+        `data-room="${escapeHtml(s.room?.id ?? "")}"`,
+      ].join(" ");
+      return html`${raw(`<li ${attrs}>`)}
+        <div class="when">
+          <span class="start">${s.starts_at ? formatInZone(s.starts_at, ref.timezone, { hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}</span>
+          <span class="length">${[`${s.duration_minutes} min`, s.room?.name].filter(Boolean).join(" · ")}</span>
+        </div>
+        <div class="body">
+          ${
+            // INV-08-7 — a sponsored session discloses it in every format it
+            // appears in. This label is not theme-suppressible and must never
+            // become so.
+            s.is_sponsored_content
+              ? html`<span class="sponsored">Sponsored${s.sponsor ? ` — ${s.sponsor.name}` : ""}</span>`
+              : raw("")
+          }
+          <p class="title"><a href="/e/${ref.slug}/sessions/${s.session_id}">${s.title}</a></p>
+          <p class="who">${[names.join(", "), s.track?.name].filter(Boolean).join(" · ")}</p>
+          ${abstract ? html`<p class="abstract">${abstract}</p>` : raw("")}
+        </div>
+        <button type="button" class="star" data-star-session="${s.session_id}" aria-pressed="false">
+          <span aria-hidden="true">★</span><span class="sr-only">Star ${s.title}</span>
+        </button>
+        ${raw("</li>")}`;
+    })}
+  </ul>`;
+}
+
 /**
  * 08 describes both `speakers_list` and `speaker_gallery` as name-searchable.
  * The control is shared; the script below filters whichever of the two is on
@@ -464,24 +673,40 @@ function scheduleClientScript(eventSlug: string): SafeHtml {
   function setStarred(ids){ try { localStorage.setItem(STORE_KEY, JSON.stringify(ids)); } catch(e){} }
   function cards(){ return Array.prototype.slice.call(document.querySelectorAll("[data-session-id]")); }
 
+  // Two star controls exist: a checkbox on the session cards, and the round
+  // button on the program list. Both carry \`data-star-session\`; only the way
+  // they say "on" differs, so everything below branches once, here.
+  function isOn(el){ return el.tagName === "BUTTON" ? el.getAttribute("aria-pressed") === "true" : !!el.checked; }
+  function setOn(el, on){
+    if (el.tagName === "BUTTON") el.setAttribute("aria-pressed", on ? "true" : "false");
+    else el.checked = on;
+  }
   function syncStars(){
     var ids = starred();
     cards().forEach(function(el){
       var box = el.querySelector("[data-star-session]");
-      if (box) box.checked = ids.indexOf(el.getAttribute("data-session-id")) >= 0;
+      if (box) setOn(box, ids.indexOf(el.getAttribute("data-session-id")) >= 0);
     });
   }
-  document.addEventListener("change", function(e){
-    var box = e.target.closest && e.target.closest("[data-star-session]");
-    if (!box) return;
+  function toggle(box){
     var id = box.getAttribute("data-star-session");
     var ids = starred();
     var i = ids.indexOf(id);
-    if (box.checked && i < 0) ids.push(id);
-    if (!box.checked && i >= 0) ids.splice(i, 1);
+    if (isOn(box) && i < 0) ids.push(id);
+    if (!isOn(box) && i >= 0) ids.splice(i, 1);
     setStarred(ids);
     updateIcsLink();
     applyFilters();
+  }
+  document.addEventListener("change", function(e){
+    var box = e.target.closest && e.target.closest("input[data-star-session]");
+    if (box) toggle(box);
+  });
+  document.addEventListener("click", function(e){
+    var box = e.target.closest && e.target.closest("button[data-star-session]");
+    if (!box) return;
+    setOn(box, !isOn(box));
+    toggle(box);
   });
 
   var search = document.getElementById("podium-search");
@@ -618,7 +843,7 @@ function registerEmbedRoutes(router: Router<RequestContext>): void {
         // under the allowed origins' CSP.
         const frameHeaders = { ...commonHeaders, "content-security-policy": frameAncestorsHeader(embed.allowed_origins) };
         return htmlResponse(
-          html`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"></head>
+          html`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/portal.css"></head>
             <body style="margin:0;padding:.75rem">${renderWidgetHtml(embed.widget_type, filtered, opts, { dayId, sessionId })}</body></html>`,
           { headers: frameHeaders },
         );

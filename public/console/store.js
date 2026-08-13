@@ -16,7 +16,7 @@ import { ApiError } from "./api.js";
 /* Boot                                                                        */
 /* -------------------------------------------------------------------------- */
 
-const EMPTY_BOOT = { person: null, org: null, events: [], event: null, can: {}, can_write: {} };
+const EMPTY_BOOT = { person: null, org: null, events: [], event: null, can: {}, can_write: {}, rail: {}, now: null };
 
 function readBoot() {
   const el = document.getElementById("console-boot");

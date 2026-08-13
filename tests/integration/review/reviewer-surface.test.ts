@@ -232,8 +232,21 @@ describe("the reviewer surface (INV-05-18)", () => {
     const res = await SELF.fetch("http://localhost/review", { headers: { cookie } });
     const body = await res.text();
     // Both are submitted by now, so the queue says so rather than listing them
-    // as work.
+    // as work. Finished work is not on this page at all any more — it lives
+    // behind `?show=submitted` in the rail — so the queue names the count and
+    // sends the reader there rather than rendering both lists at once.
     expect(body).toContain("Everything assigned to you is done.");
-    expect(body).toContain("2 already submitted");
+    expect(body).toContain("Plus two you have already submitted.");
+    expect(body).toContain('href="/review?show=submitted"');
+  });
+
+  it("reaches submitted work through the rail, and shows it there", async () => {
+    const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
+    const res = await SELF.fetch("http://localhost/review?show=submitted", { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Two submitted");
+    // And the outstanding queue is not also rendered underneath it.
+    expect(body).not.toContain("Everything assigned to you is done.");
   });
 });

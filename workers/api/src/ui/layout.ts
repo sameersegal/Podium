@@ -13,18 +13,97 @@ export interface NavItem {
   external?: boolean;
 }
 
+/**
+ * The five surfaces, and the two design languages they fall into.
+ *
+ * `admin` and `reviewer` are the **console**: dense, dark-railed, keyboard-first,
+ * for the two or three people who are in it every day. `portal`, `public` and
+ * `auth` are the **program book**: editorial, serif, one job per page, for a
+ * speaker who visits three times a year and a reader who visits once.
+ *
+ * They share no colour, no typeface and no component. That is a product
+ * decision, not an oversight, and it is why `surface` picks the stylesheet
+ * rather than toggling a class inside one.
+ */
+export type Surface = "admin" | "reviewer" | "portal" | "public" | "auth";
+
+function isConsoleSurface(surface: Surface): boolean {
+  return surface === "admin" || surface === "reviewer";
+}
+
+/** A rail destination: a link, plus the count that says how loud it is. */
+export interface RailItem extends NavItem {
+  count?: string | number | null;
+  /**
+   * What the count means, which is the only thing that colours it. `danger` is
+   * "this is already late", `warn` is "this will be late soon"; everything else
+   * is quiet even when the number is large, because 184 proposals is not a
+   * problem and 7 overdue tasks is.
+   */
+  urgency?: "quiet" | "warn" | "danger";
+}
+
+/** One phase of the event's own workflow, and the destinations inside it. */
+export interface RailGroup {
+  label?: string | null;
+  items: RailItem[];
+}
+
+/** What the rail says you are working on, above the nav. */
+export interface RailContext {
+  name: string;
+  href?: string;
+  /** Up to two lines of mono metadata under the name. */
+  lines?: string[];
+  /** Draws the status dot — the event is running now. */
+  live?: boolean;
+}
+
+export interface Crumb {
+  label: string;
+  href?: string;
+}
+
+/** A keycap hint in the top bar: the keys, and what they do. */
+export interface KeyHint {
+  keys: string[];
+  label: string;
+}
+
+/**
+ * Everything the console shell draws around a screen. A screen supplies it
+ * through `adminPage` / `reviewerPage` and never assembles the chrome itself.
+ */
+export interface ConsoleChrome {
+  /** Where the brand mark goes. */
+  home: string;
+  context?: RailContext | null;
+  groups: RailGroup[];
+  /** Below the rail's own rule: Settings, and the signed-in person. */
+  footer?: RailItem[];
+  crumbs?: Crumb[];
+  /** The one persistent piece of event state worth the top bar's right edge. */
+  status?: { label: string; kind?: "ok" | "warn" | "danger" } | null;
+  /** Draw the ⌘K affordance. */
+  search?: boolean;
+  hints?: KeyHint[];
+}
+
 export interface PageOptions {
   title: string;
-  /** `admin` · `portal` · `public` — drives the top bar. */
-  surface?: "admin" | "portal" | "public" | "auth";
-  subnav?: NavItem[];
+  surface?: Surface;
+  /** The console shell. Required by `admin` and `reviewer`, ignored elsewhere. */
+  console?: ConsoleChrome;
+  /** The editorial bar's links. The console reads its navigation off the rail. */
   nav?: NavItem[];
   who?: string | null;
-  /** Where the account menu's "Profile" points. Defaults to the portal profile. */
+  /** Where the editorial bar's "Profile" points. Defaults to the portal profile. */
   profile?: NavItem;
   /** The brand link. Defaults to the landing page of the current surface. */
   home?: string;
-  /** Rendered between the top bar and the subnav — the admin event bar. */
+  /** The wordmark on an editorial page. The event's own name on a public page. */
+  brand?: string;
+  /** Rendered between the bar and the measure. */
   banner?: SafeHtml;
   width?: "narrow" | "default" | "wide";
   flash?: { kind: "ok" | "err" | "warn" | "info"; message: string } | null;
@@ -43,8 +122,47 @@ const HEAD_ICONS = raw(`
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/app.css">
 `);
+
+/**
+ * The two latin faces each language opens with, preloaded.
+ *
+ * Only `latin`, and only the roman: `latin-ext` and the italics carry their own
+ * `unicode-range` and are fetched on demand by the few pages that need them.
+ * Preloading a face the page never draws is bandwidth taken from one it does.
+ *
+ * `crossorigin` is required even same-origin — a font is always fetched in CORS
+ * mode, and a preload whose mode does not match the real request is downloaded
+ * twice.
+ */
+const PRELOAD: Record<"console" | "editorial", SafeHtml> = {
+  // `html` rather than `raw`: there is nothing to interpolate, so there is no
+  // reason to reach past the escaper and no new entry in the security baseline.
+  console: html`<link rel="preload" href="/fonts/public-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>`,
+  editorial: html`<link rel="preload" href="/fonts/source-serif-4-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/karla-latin.woff2" as="font" type="font/woff2" crossorigin>`,
+};
+
+/**
+ * One stylesheet per language, chosen here so no screen has to know which one
+ * it is on. `app.css` is gone: it was one file describing one look, and there
+ * are now two looks that share nothing.
+ *
+ * The font declarations are a second `<link>` rather than an `@import` inside
+ * the stylesheet, and the faces themselves are preloaded beside it. An
+ * `@import` serialises what should be parallel — stylesheet, then font
+ * declarations, then the font — and measured on a throttled mid-range phone
+ * that chain did not start downloading a typeface until 543 ms in. Three
+ * requests that can all leave with the first one now do.
+ */
+function stylesheet(surface: Surface): SafeHtml {
+  const console = isConsoleSurface(surface);
+  const href = console ? "/admin.css" : "/portal.css";
+  return html`${PRELOAD[console ? "console" : "editorial"]}
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="${href}">`;
+}
 
 /**
  * The behaviour behind every `data-confirm` and `data-back` in the app.
@@ -61,8 +179,21 @@ const HEAD_ICONS = raw(`
  */
 const CONFIRM_SCRIPT = raw(`<script src="/confirm.js" defer></script>`);
 
+/**
+ * The console's keyboard layer — the ⌘K palette, `J`/`K`/`↵` on a list, the
+ * `g`-prefixed jumps and the `?` sheet.
+ *
+ * Loaded only on `admin` and `reviewer`, and deferred, because none of it is
+ * load-bearing: every destination it reaches is a link already in the rail, and
+ * every row it moves between is a link already in the row. With scripts blocked
+ * the console is the same set of pages one click further apart, which is the
+ * only promise an accelerator is allowed to make.
+ */
+const KEYS_SCRIPT = raw(`<script src="/keys.js" defer></script>`);
+
 export function page(opts: PageOptions, body: SafeHtml): SafeHtml {
-  const width = opts.width === "narrow" ? "narrow" : opts.width === "wide" ? "wide" : "";
+  const surface = opts.surface ?? "public";
+  const dense = isConsoleSurface(surface);
   return html`<!doctype html>
 <html lang="en">
 <head>
@@ -70,20 +201,185 @@ export function page(opts: PageOptions, body: SafeHtml): SafeHtml {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${opts.title} · Podium</title>
   ${HEAD_ICONS}
+  ${stylesheet(surface)}
   ${opts.head ?? raw("")}
 </head>
-<body class="${opts.bodyClass ?? ""}">
-  ${topbar(opts)}
-  ${opts.banner ?? raw("")}
-  ${opts.subnav?.length ? subnav(opts.subnav) : raw("")}
-  <main class="${width}">
-    ${opts.flash ? html`<div class="flash ${opts.flash.kind}" role="status">${opts.flash.message}</div>` : raw("")}
-    ${body}
-  </main>
+<body class="${surface} ${opts.bodyClass ?? ""}">
+  ${dense && opts.console ? consoleShell(opts, opts.console, body) : editorialShell(opts, body)}
   ${opts.live ? liveRegion(opts.live) : raw("")}
   ${CONFIRM_SCRIPT}
+  ${dense ? KEYS_SCRIPT : raw("")}
 </body>
 </html>`;
+}
+
+function flashBanner(opts: PageOptions): SafeHtml {
+  if (!opts.flash) return raw("");
+  return html`<div class="flash ${opts.flash.kind}" role="status">${opts.flash.message}</div>`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* the console shell                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A rail count. The number is mono because it is a number you compare against
+ * yesterday's, and it is right-aligned for the same reason.
+ */
+function railCount(item: RailItem): SafeHtml {
+  if (item.count === null || item.count === undefined || item.count === "") return raw("");
+  return html`<span class="count ${item.urgency ?? "quiet"}">${item.count}</span>`;
+}
+
+function railLink(item: RailItem): SafeHtml {
+  const current = item.current ? raw(' aria-current="page"') : raw("");
+  if (item.external) {
+    return html`<a class="rail-link" href="${item.href}" target="_blank" rel="noopener"
+      >${item.label}<span class="ext" aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a
+    >`;
+  }
+  return html`<a class="rail-link" href="${item.href}"${current}><span>${item.label}</span>${railCount(item)}</a>`;
+}
+
+/**
+ * The rail, and the drawer it becomes on a phone.
+ *
+ * It is a `<details>` for the same reason `.navmenu` was: a navigation that
+ * needs a script to open is a navigation that is sometimes not there. Above
+ * `64rem` the stylesheet forces the panel open and the summary stops being a
+ * button and goes back to being the brand — the same markup, unfolded, which is
+ * what keeps one rail from becoming two navigations that can disagree.
+ */
+function rail(c: ConsoleChrome): SafeHtml {
+  return html`<details class="rail">
+    <summary class="rail-brand">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="word">PODIUM</span>
+      <span class="spacer"></span>
+      <span class="toggle" aria-hidden="true">${MENU_ICON}</span>
+      <span class="sr-only">Menu</span>
+    </summary>
+    <div class="rail-body">
+      ${c.context ? railContext(c.context) : raw("")}
+      <nav class="rail-nav" aria-label="Sections">
+        ${c.groups.map(
+          (g) => html`<div class="rail-group">
+            ${g.label ? html`<p class="rail-group-label">${g.label}</p>` : raw("")}
+            ${g.items.map(railLink)}
+          </div>`,
+        )}
+      </nav>
+      ${c.footer?.length ? html`<div class="rail-foot">${c.footer.map(railLink)}</div>` : raw("")}
+    </div>
+  </details>`;
+}
+
+function railContext(ctx: RailContext): SafeHtml {
+  const name = ctx.href
+    ? html`<a class="name" href="${ctx.href}">${ctx.name}</a>`
+    : html`<span class="name">${ctx.name}</span>`;
+  return html`<div class="rail-context">
+    <div class="head">${ctx.live ? html`<span class="dot" aria-hidden="true"></span>` : raw("")}${name}</div>
+    ${(ctx.lines ?? []).map((line) => html`<p>${line}</p>`)}
+  </div>`;
+}
+
+function crumbs(items: Crumb[]): SafeHtml {
+  if (items.length === 0) return raw("");
+  return html`<nav class="crumbs" aria-label="Breadcrumb">
+    ${items.map((c, i) =>
+      html`${i > 0 ? html`<span class="sep" aria-hidden="true">/</span>` : raw("")}${c.href
+        ? html`<a href="${c.href}">${c.label}</a>`
+        : html`<span aria-current="page">${c.label}</span>`}`,
+    )}
+  </nav>`;
+}
+
+/**
+ * The search affordance. A button, not a form: what it opens searches the rail
+ * and the actions on this screen, not the database, so there is nothing to
+ * submit and nowhere to submit it (see `public/keys.js`).
+ *
+ * With scripts blocked it does nothing, and that is the whole cost — every
+ * destination behind it is a link in the rail two inches to the left, which is
+ * why it is drawn at all rather than hidden until a script says otherwise.
+ */
+function searchButton(): SafeHtml {
+  return html`<button type="button" class="omni" data-palette aria-haspopup="dialog">
+    <span class="label">Search proposals, people, sessions</span>
+    ${KEYCAP}
+  </button>`;
+}
+
+/**
+ * The ⌘K keycap, both ways round.
+ *
+ * The server cannot know which keyboard is in front of the reader, and the
+ * console re-renders this button on every redraw — so a script that rewrote the
+ * text once on load produced "Ctrl K⌘K" the moment the console drew it again.
+ * Both labels ship; `public/keys.js` sets `data-platform` on `<html>` once and
+ * the stylesheet hides the wrong one.
+ */
+const KEYCAP = raw(`<kbd><span class="on-mac">\u2318K</span><span class="on-pc">Ctrl K</span></kbd>`);
+
+function keyHints(hints: KeyHint[]): SafeHtml {
+  if (hints.length === 0) return raw("");
+  return html`<p class="hints" data-hints>
+    ${hints.map((h) => html`<span class="hint">${h.keys.map((k) => html`<kbd>${k}</kbd>`)}${h.label}</span>`)}
+  </p>`;
+}
+
+function consoleShell(opts: PageOptions, c: ConsoleChrome, body: SafeHtml): SafeHtml {
+  const width = opts.width === "narrow" ? "narrow" : opts.width === "wide" ? "wide" : "";
+  return html`<div class="frame">
+    ${rail(c)}
+    <div class="workspace">
+      <header class="bar">
+        ${crumbs(c.crumbs ?? [])}
+        <span class="spacer"></span>
+        ${c.search === false ? raw("") : searchButton()}
+        ${keyHints(c.hints ?? [])}
+        ${c.status ? html`<span class="pill ${c.status.kind ?? ""}">${c.status.label}</span>` : raw("")}
+      </header>
+      <main class="${width}">
+        ${flashBanner(opts)}
+        ${body}
+      </main>
+    </div>
+  </div>`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* the editorial shell                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One bar, one measure, one job. No tabs, no subnav and no event banner: a
+ * speaker has one page and a reader has three, and a row of chrome sized for
+ * fourteen sections is what made the old portal read as an admin tool that had
+ * been let out.
+ */
+function editorialShell(opts: PageOptions, body: SafeHtml): SafeHtml {
+  const width = opts.width === "wide" ? "wide" : opts.width === "narrow" ? "narrow" : "";
+  const links = opts.nav ?? [];
+  return html`<header class="sheet-bar">
+    <a class="wordmark" href="${homeHref(opts)}">${opts.brand ?? "Podium"}</a>
+    <span class="spacer"></span>
+    <nav aria-label="Primary">
+      ${links.map(navLink)}
+      ${opts.who
+        ? html`${opts.profile && !opts.profile.external
+              ? html`<a href="${opts.profile.href}">${opts.profile.label}</a>`
+              : raw("")}
+            <form method="post" action="/logout"><button type="submit" class="linky">Sign out</button></form>`
+        : html`<a href="/login">Sign in</a>`}
+    </nav>
+  </header>
+  ${opts.banner ?? raw("")}
+  <main class="${width}">
+    ${flashBanner(opts)}
+    ${body}
+  </main>`;
 }
 
 /** The "leaves this tab" marker. Decorative — the label carries the meaning. */
@@ -94,16 +390,6 @@ const EXTERNAL_ICON = raw(
 /** The collapsed-menu affordance. Decorative — the label carries the meaning. */
 const MENU_ICON = raw(
   `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 4h11"/><path d="M2.5 8h11"/><path d="M2.5 12h11"/></svg>`,
-);
-
-/**
- * Stands in for the account name once the bar is too narrow to spend a third of
- * itself on it. Decorative: the name stays in the summary as text, hidden the
- * way `.sr-only` hides things, so the button is still called by the person's
- * name when it is read aloud.
- */
-const USER_ICON = raw(
-  `<svg width="17" height="17" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="5.3" r="2.7"/><path d="M2.9 13.5a5.1 5.1 0 0 1 10.2 0"/></svg>`,
 );
 
 /** A link that opens in a new tab, announced as such rather than only drawn. */
@@ -129,68 +415,6 @@ function homeHref(opts: PageOptions): string {
   if (opts.surface === "admin") return "/admin";
   if (opts.surface === "portal") return "/portal";
   return "/";
-}
-
-/**
- * The primary tabs, behind one button on a small screen. Six tabs, a logo and
- * an account menu do not fit on a phone, and letting them wrap spent three rows
- * of chrome before the page began. A `<details>`, like the account menu, so it
- * opens with scripts blocked (08, "Degrade gracefully"); `app.css` unfolds it
- * back into a row once the row fits.
- *
- * Collapsed, it is labelled with the tab you are on rather than the word
- * "Menu" — the same reason the section menu names its section. A row of tabs
- * says where you are by which one is filled in; a button that says "Menu"
- * throws that away exactly where there is least room to work it out again.
- */
-function primaryNav(items: NavItem[]): SafeHtml {
-  const current = items.find((n) => n.current);
-  return html`<details class="navmenu">
-    <summary>${MENU_ICON}${current ? html`<span class="sr-only">Menu: </span><span>${current.label}</span>` : html`<span>Menu</span>`}</summary>
-    <nav class="tabs" aria-label="Primary">${items.map(navLink)}</nav>
-  </details>`;
-}
-
-function topbar(opts: PageOptions): SafeHtml {
-  const nav = opts.nav ?? defaultNav(opts.surface ?? "public");
-  const profile = opts.profile ?? { href: "/portal/profile", label: "Profile" };
-  return html`<header class="topbar">
-    <a class="brand" href="${homeHref(opts)}"><img src="/podium-logo-horizontal-light.png" alt="Podium"></a>
-    ${nav.length ? primaryNav(nav) : raw("")}
-    <span class="spacer"></span>
-    ${opts.who
-      ? html`<details class="usermenu">
-          <summary aria-haspopup="menu">${USER_ICON}<span class="who">${opts.who}</span></summary>
-          <div class="menu" role="menu">
-            <p class="menu-head">${opts.who}</p>
-            ${profile.external
-              ? externalLink(profile.href, profile.label)
-              : html`<a href="${profile.href}">${profile.label}</a>`}
-            <form method="post" action="/logout"><button class="secondary small" type="submit">Sign out</button></form>
-          </div>
-        </details>`
-      : html`<a href="/login">Sign in</a>`}
-  </header>`;
-}
-
-/**
- * The section row, collapsed the same way and for the same reason — an event
- * has fourteen sections, which wrapped to four rows on a phone. The summary
- * names the section you are in, so the collapsed state still answers "where am
- * I" rather than only "there is a menu here".
- */
-function subnav(items: NavItem[]): SafeHtml {
-  const current = items.find((n) => n.current);
-  return html`<details class="subnav">
-    <summary><span class="sr-only">Section: </span>${current ? current.label : "Sections"}</summary>
-    <nav aria-label="Sections">${items.map(navLink)}</nav>
-  </details>`;
-}
-
-function defaultNav(surface: PageOptions["surface"]): NavItem[] {
-  if (surface === "admin") return [{ href: "/portal", label: "Speaker portal", external: true }];
-  if (surface === "portal") return [{ href: "/portal", label: "My dashboard" }];
-  return [];
 }
 
 /* -------------------------------------------------------------------------- */

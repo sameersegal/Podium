@@ -1,8 +1,8 @@
 /* Podium — the admin console (R30).
  *
- * Loaded after `app.css` and additive to it. Every token here comes from
- * `app.css`; nothing in this file redefines one, and nothing in it restyles a
- * component `app.css` already owns. That is what makes `app.css` the shared
+ * Loaded after `admin.css` and additive to it. Every colour here comes from
+ * `admin.css`; nothing in this file invents one, and nothing in it restyles a
+ * component `admin.css` already owns. That is what makes `admin.css` the shared
  * artifact R30 chose instead of a component library imported twice: a card in
  * the console and a card on a server-rendered screen are the same card, and a
  * change to either lands in one place.
@@ -12,6 +12,77 @@
  * three columns. All of it is prefixed `console-`, so a class in the markup can
  * be traced to one of the two stylesheets by reading it.
  */
+
+/*
+ * The names this file already used, pointed at the console language's tokens.
+ *
+ * `app.css` had one palette for the whole product and named it after what it
+ * was — `--indigo`, `--navy`, `--line`. The console language names tokens after
+ * what they are *for* — `--accent`, `--ink`, `--hairline` — because there are
+ * now two palettes and only the job survives the difference.
+ *
+ * This block is a bridge, not a second palette: every value on the right is a
+ * token from `admin.css`, so the console's own components change colour when
+ * the language does, including in dark mode. Retiring it means renaming the
+ * uses below, which is a mechanical change worth doing the next time this file
+ * is opened for another reason.
+ */
+:root {
+  --indigo: var(--accent);
+  --indigo-dark: var(--accent-text);
+  --indigo-soft: var(--accent-wash);
+  --indigo-line: var(--accent-line);
+  --navy: var(--ink);
+  --card: var(--surface);
+  --line: var(--hairline);
+  --line-2: var(--hairline-soft);
+  --err: var(--danger);
+  --err-soft: var(--danger-wash);
+  --err-line: var(--danger-line);
+  --warn-soft: var(--warn-wash);
+  --ok-soft: var(--ok-wash);
+
+  --radius-sm: var(--r-md);
+  --radius: var(--r-lg);
+  --radius-lg: var(--r-xl);
+  --radius-pill: var(--r-pill);
+  --ring: 0 0 0 3px var(--accent-wash);
+
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 15.5px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+}
+
+/*
+ * The console's `card()` helper wraps its title in `.head`, where the
+ * server-rendered `card()` renders a bare `<h2>`. Both mean "the row above the
+ * card's body", so both get the console language's card header: a mono eyebrow
+ * and a hairline under it.
+ */
+.card > .head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: 0 0 14px;
+  margin: 0 0 var(--sp-4);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.card > .head > h2 {
+  margin: 0;
+  flex: 1;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.card > .head .actions { flex: none; }
 
 /* ---------- boot ---------- */
 
@@ -24,18 +95,6 @@
   font-size: var(--fs-md);
 }
 
-body.console .topbar .console-who {
-  color: #e0e7ff;
-  font-size: var(--fs-md);
-  font-weight: 500;
-  max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-@media (max-width: 48rem) {
-  body.console .topbar .console-who { display: none; }
-}
 
 .console-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .console-refreshing { color: var(--muted); font-size: var(--fs-sm); }

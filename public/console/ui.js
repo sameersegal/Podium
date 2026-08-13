@@ -2,14 +2,14 @@
  * The console's component vocabulary.
  *
  * These are the same components `workers/api/src/ui/layout.ts` renders on the
- * server, against the same class names, because R30 chose `public/app.css` as
- * the shared artifact rather than a component library imported twice. A screen
- * that is half-ported therefore looks like one product: the server's `card` and
- * this `card` are the same card.
+ * server, against the same class names, because R30 chose one stylesheet —
+ * `public/admin.css` — as the shared artifact rather than a component library
+ * imported twice. A screen that is half-ported therefore looks like one
+ * product: the server's `card` and this `card` are the same card.
  *
  * Anything genuinely new to the console — the drawer, the toast stack, the
  * drag affordances, the dashboard's charts — is styled in `public/console.css`,
- * which loads after `app.css` and adds rather than overrides.
+ * which loads after `admin.css` and adds rather than overrides.
  */
 
 import { h, cx } from "./kit.js";
@@ -26,6 +26,28 @@ export function humanise(value) {
 
 export function pluralise(n, one, many) {
   return n === 1 ? one : many || one + "s";
+}
+
+/** `1 thing` / `2 things` — the count and the word, where callers want both. */
+export function plural(n, one, many) {
+  return n + " " + pluralise(n, one, many);
+}
+
+const WORDS = [
+  "Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+  "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty",
+];
+
+/**
+ * Small numbers, spelled, for the start of a sentence — the mirror of
+ * `workers/api/src/ui/words.ts`, so the console and the server-rendered screen
+ * that share a URL also share their headings.
+ *
+ * Only ever in prose. Every *value* on these screens stays a numeral in the
+ * mono face, because those are read by comparison.
+ */
+export function spell(n) {
+  return Number.isInteger(n) && n >= 0 && n <= 20 ? WORDS[n] : String(n);
 }
 
 /** Calendar dates are never converted to a zone (11, "Time"). */
@@ -278,6 +300,7 @@ export const icons = {
   eye: () => icon(["M1.8 8S4.3 3.8 8 3.8 14.2 8 14.2 8 11.7 12.2 8 12.2 1.8 8 1.8 8Z", { tag: "circle", attrs: { cx: 8, cy: 8, r: 1.8 } }]),
   settings: () => icon([{ tag: "circle", attrs: { cx: 8, cy: 8, r: 2.2 } }, "M8 1.6v1.6M8 12.8v1.6M14.4 8h-1.6M3.2 8H1.6M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1M12.5 12.5l-1.1-1.1M4.6 4.6 3.5 3.5"]),
   filter: () => icon(["M2.5 4h11", "M4.5 8h7", "M6.5 12h3"]),
+  menu: () => icon(["M2.5 4h11", "M2.5 8h11", "M2.5 12h11"]),
   lock: () => icon([{ tag: "rect", attrs: { x: 3.5, y: 7, width: 9, height: 6.5, rx: 1.5 } }, "M5.8 7V5.2a2.2 2.2 0 0 1 4.4 0V7"]),
   people: () => icon([{ tag: "circle", attrs: { cx: 6, cy: 5.5, r: 2.3 } }, "M1.8 13a4.2 4.2 0 0 1 8.4 0", "M10.6 3.6a2.3 2.3 0 0 1 0 4.4", "M11.6 9.6a4.2 4.2 0 0 1 2.6 3.4"]),
 };

@@ -18,7 +18,7 @@ import { boot, drawer, closeDrawer, toasts, dismissToast } from "./store.js";
 import { chrome } from "./chrome.js";
 import { route, match, location, navigate, start } from "./router.js";
 import { connect } from "./live.js";
-import { icons, formatDate } from "./ui.js";
+import { icons } from "./ui.js";
 
 import { dashboard } from "./views/dashboard.js";
 import { formBuilder } from "./views/form-builder.js";
@@ -50,94 +50,233 @@ route("/admin/cfps/:cfpId/form", formBuilder);
 /* Chrome                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** The primary tabs, mirroring `adminPage` in `ui/shell.ts`. */
-function topbar() {
-  const ev = boot.event;
-  const tabs = [
-    { href: "/admin/events", label: "Events", current: Boolean(ev) },
-    { href: "/admin/contacts", label: "Contacts" },
-    { href: "/admin/sponsors", label: "Sponsors" },
-    { href: "/admin/team", label: "Team" },
-    { href: "/admin/settings", label: "Settings" },
-  ];
-  return h(
-    "div",
-    { class: "topbar" },
-    h("a", { class: "brand", href: "/admin" }, h("img", { src: "/podium-logo-horizontal-light.png", alt: "Podium" })),
-    h(
-      "nav",
-      { class: "tabs", "aria-label": "Sections" },
-      tabs.map((t) =>
-        h("a", { key: t.href, href: t.href, "aria-current": t.current ? "page" : null }, t.label),
-      ),
-    ),
-    h("span", { class: "spacer" }),
-    h("a", { href: "/portal", target: "_blank", rel: "noopener" }, "Speaker portal"),
-    boot.person
-      ? h("span", { class: "console-who" }, boot.person.display_name || boot.person.full_name)
-      : null,
-    // Signing out is a POST, as it is on every server-rendered screen: a
-    // sign-out reachable by GET is one a prefetch or a link scanner can fire.
-    h(
-      "form",
-      { method: "post", action: "/logout" },
-      h("button", { type: "submit", class: "secondary small" }, "Sign out"),
-    ),
-  );
-}
+/* -------------------------------------------------------------------------- */
+/* The rail                                                                    */
+/* -------------------------------------------------------------------------- */
 
-function eventbar() {
+/**
+ * The event's own workflow, in the order it happens — the same five groups
+ * `adminRail` builds in `ui/shell.ts`, because the console and the
+ * server-rendered screens share URLs and a reader moving between them must not
+ * find the navigation rearranged underneath.
+ *
+ * If you change a group here, change it there. The two lists are short, they
+ * are both in view when either is edited, and a generated third copy would be
+ * a build step this console exists to avoid.
+ */
+function railGroups(active) {
   const ev = boot.event;
-  if (!ev) return null;
-  return h(
-    "div",
-    { class: "eventbar" },
-    h("a", { class: "name", href: "/admin/events/" + ev.id }, ev.name),
-    h("span", { class: "badge" }, ev.status),
-    h(
-      "span",
-      { class: "meta" },
-      formatDate(ev.starts_on) + " – " + formatDate(ev.ends_on) + " · ",
-      h("span", { class: "mono" }, ev.timezone),
-    ),
-    h("span", { class: "spacer" }),
-    h("a", { href: "/e/" + ev.slug, target: "_blank", rel: "noopener" }, "Public page"),
-  );
-}
+  const counts = boot.rail || {};
+  const n = (value, urgency) => (value ? { count: value, urgency: urgency || "quiet" } : {});
 
-/** The event sections, mirroring `adminNav`. Ported screens navigate in place. */
-function subnav(active) {
-  const ev = boot.event;
-  if (!ev) return null;
+  if (!ev) {
+    return [
+      {
+        label: "Organization",
+        items: [
+          { href: "/admin", label: "Today", key: "today" },
+          { href: "/admin/events", label: "Events", key: "events" },
+          { href: "/admin/contacts", label: "Contacts", key: "contacts" },
+          { href: "/admin/sponsors", label: "Sponsors", key: "sponsors" },
+          { href: "/admin/team", label: "Team", key: "team" },
+        ],
+      },
+    ];
+  }
+
   const base = "/admin/events/" + ev.id;
-  const items = [
-    { href: base, label: "Overview", key: "overview" },
-    { href: base + "/setup", label: "Setup", key: "setup" },
-    { href: base + "/cfps", label: "Call for papers", key: "cfp" },
-    { href: base + "/proposals", label: "Proposals", key: "proposals" },
-    { href: base + "/review", label: "Review", key: "review" },
-    { href: base + "/decisions", label: "Decisions", key: "decisions" },
-    { href: base + "/sessions", label: "Sessions", key: "sessions" },
-    { href: base + "/roster", label: "Speakers", key: "roster" },
-    { href: base + "/onboarding", label: "Onboarding", key: "onboarding" },
-    { href: base + "/files", label: "Files", key: "files" },
-    { href: base + "/schedule", label: "Agenda", key: "schedule" },
-    { href: base + "/publications", label: "Publish", key: "publish" },
-    { href: base + "/sponsorships", label: "Sponsors", key: "sponsors" },
-    { href: base + "/campaigns", label: "Messaging", key: "campaigns" },
+  return [
+    {
+      label: "Now",
+      items: [
+        Object.assign({ href: "/admin", label: "Today", key: "today" }, n(counts.today, "warn")),
+        { href: base, label: "Overview", key: "overview" },
+      ],
+    },
+    {
+      label: "Intake",
+      items: [
+        Object.assign({ href: base + "/cfps", label: "Calls for papers", key: "cfp" }, n(counts.cfps)),
+        Object.assign({ href: base + "/proposals", label: "Proposals", key: "proposals" }, n(counts.proposals)),
+      ],
+    },
+    {
+      label: "Decide",
+      items: [
+        Object.assign({ href: base + "/review", label: "Review", key: "review" }, n(counts.review)),
+        Object.assign({ href: base + "/decisions", label: "Decisions", key: "decisions" }, n(counts.decisions, "warn")),
+      ],
+    },
+    {
+      label: "Program",
+      items: [
+        Object.assign({ href: base + "/sessions", label: "Sessions", key: "sessions" }, n(counts.sessions)),
+        { href: base + "/roster", label: "Speakers", key: "roster" },
+        Object.assign({ href: base + "/onboarding", label: "Onboarding", key: "onboarding" }, n(counts.onboarding, "danger")),
+        Object.assign({ href: base + "/schedule", label: "Agenda", key: "schedule" }, n(counts.agenda)),
+        Object.assign({ href: base + "/publications", label: "Publish", key: "publish" }, n(counts.publish)),
+      ],
+    },
+    {
+      label: "Around it",
+      items: [
+        { href: base + "/sponsorships", label: "Sponsors", key: "sponsors" },
+        { href: base + "/campaigns", label: "Messaging", key: "campaigns" },
+        { href: base + "/files", label: "Files", key: "files" },
+        { href: base + "/setup", label: "Setup", key: "setup" },
+        { href: "/admin/contacts", label: "Contacts", key: "contacts" },
+      ],
+    },
   ];
-  const current = items.find((i) => i.key === active);
+}
+
+function railLink(item, active) {
+  return h(
+    "a",
+    {
+      key: item.key + item.href,
+      class: "rail-link",
+      href: item.href,
+      target: item.external ? "_blank" : null,
+      rel: item.external ? "noopener" : null,
+      "aria-current": item.key === active ? "page" : null,
+    },
+    h("span", null, item.label),
+    item.count ? h("span", { class: "count " + (item.urgency || "quiet") }, String(item.count)) : null,
+    item.external ? h("span", { class: "ext", "aria-hidden": "true" }, "↗") : null,
+  );
+}
+
+/**
+ * `12–14 May · 272 days out`, and the timezone under it. Same two lines the
+ * server-rendered rail draws, computed the same way: `starts_on` is a calendar
+ * date in the event's own zone and is never converted (11, "Time").
+ */
+function eventLines(ev) {
+  const at = (iso, opts) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", Object.assign({ timeZone: "UTC" }, opts));
+  const sameMonth = ev.starts_on.slice(0, 7) === ev.ends_on.slice(0, 7);
+  const span =
+    ev.starts_on === ev.ends_on
+      ? at(ev.starts_on, { day: "numeric", month: "short" })
+      : sameMonth
+        ? at(ev.starts_on, { day: "numeric" }) + "–" + at(ev.ends_on, { day: "numeric", month: "short" })
+        : at(ev.starts_on, { day: "numeric", month: "short" }) + " – " + at(ev.ends_on, { day: "numeric", month: "short" });
+  const days = Math.round((Date.parse(ev.starts_on + "T00:00:00Z") - Date.parse(boot.now || new Date().toISOString())) / 86400000);
+  const distance = days > 0 ? days + " days out" : days === 0 ? "today" : Math.abs(days) + " days ago";
+  return [span + " · " + distance, ev.timezone];
+}
+
+function rail(active) {
+  const ev = boot.event;
+  const today = (boot.now || "").slice(0, 10);
+  const running = ev ? today >= ev.starts_on && today <= ev.ends_on : false;
   return h(
     "details",
-    { class: "subnav", open: false },
-    h("summary", null, current ? current.label : "Menu"),
+    { class: "rail" },
     h(
-      "nav",
-      { "aria-label": "Event sections" },
-      items.map((i) =>
-        h("a", { key: i.key, href: i.href, "aria-current": i.key === active ? "page" : null }, i.label),
+      "summary",
+      { class: "rail-brand" },
+      h("span", { class: "mark", "aria-hidden": "true" }),
+      h("span", { class: "word" }, "PODIUM"),
+      h("span", { class: "spacer" }),
+      h("span", { class: "toggle", "aria-hidden": "true" }, icons.menu ? icons.menu() : "≡"),
+      h("span", { class: "sr-only" }, "Menu"),
+    ),
+    h(
+      "div",
+      { class: "rail-body" },
+      ev
+        ? h(
+            "div",
+            { class: "rail-context" },
+            h(
+              "div",
+              { class: "head" },
+              running ? h("span", { class: "dot", "aria-hidden": "true" }) : null,
+              h("a", { class: "name", href: "/admin/events/" + ev.id }, ev.name),
+            ),
+            eventLines(ev).map((line, i) => h("p", { key: i }, line)),
+          )
+        : null,
+      h(
+        "nav",
+        { class: "rail-nav", "aria-label": "Sections" },
+        railGroups(active).map((g, i) =>
+          h(
+            "div",
+            { key: g.label || i, class: "rail-group" },
+            g.label ? h("p", { class: "rail-group-label" }, g.label) : null,
+            g.items.map((item) => railLink(item, active)),
+          ),
+        ),
+      ),
+      h(
+        "div",
+        { class: "rail-foot" },
+        railLink({ href: "/admin/events", label: "All events", key: "events" }, active),
+        railLink({ href: "/admin/team", label: "Team", key: "team" }, active),
+        railLink({ href: "/admin/settings", label: "Settings", key: "settings" }, active),
+        boot.person
+          ? railLink(
+              {
+                href: "/portal/profile",
+                label: boot.person.display_name || boot.person.full_name,
+                key: "me",
+                external: true,
+              },
+              active,
+            )
+          : null,
+        // Signing out is a POST, as it is on every server-rendered screen: a
+        // sign-out reachable by GET is one a prefetch or a link scanner can fire.
+        h(
+          "form",
+          { method: "post", action: "/logout", class: "rail-signout" },
+          h("button", { type: "submit", class: "ghost small" }, "Sign out"),
+        ),
       ),
     ),
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* The top bar                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function bar() {
+  const ev = boot.event;
+  const crumbs = [];
+  if (ev) crumbs.push({ label: ev.name, href: "/admin/events/" + ev.id });
+  crumbs.push({ label: chrome.title || "Admin" });
+  return h(
+    "header",
+    { class: "bar" },
+    h(
+      "nav",
+      { class: "crumbs", "aria-label": "Breadcrumb" },
+      crumbs.map((c, i) => [
+        i > 0 ? h("span", { key: "s" + i, class: "sep", "aria-hidden": "true" }, "/") : null,
+        c.href
+          ? h("a", { key: "c" + i, href: c.href }, c.label)
+          : h("span", { key: "c" + i, "aria-current": "page" }, c.label),
+      ]),
+    ),
+    h("span", { class: "spacer" }),
+    // The palette lives in `public/keys.js`, which is loaded on both surfaces
+    // and finds this button by its attribute rather than by an import.
+    h(
+      "button",
+      { type: "button", class: "omni", "data-palette": "", "aria-haspopup": "dialog" },
+      h("span", { class: "label" }, "Search proposals, people, sessions"),
+      h("kbd", null, h("span", { class: "on-mac" }, "⌘K"), h("span", { class: "on-pc" }, "Ctrl K")),
+    ),
+    ev
+      ? h(
+          "a",
+          { class: "pill", href: "/e/" + ev.slug, target: "_blank", rel: "noopener" },
+          "Public page ↗",
+        )
+      : null,
   );
 }
 
@@ -202,26 +341,25 @@ function shell() {
   const hit = match(location.pathname);
   return h(
     "div",
-    { class: "console-root" },
-    topbar(),
-    eventbar(),
-    subnav(chrome.section),
+    { class: "frame" },
+    rail(chrome.section),
     h(
-      "main",
-      { class: "wide" },
-      hit
-        ? hit.view(hit.params)
-        : h(
-            "div",
-            { class: "card" },
-            h("h1", null, "Not part of the console yet"),
-            h(
-              "p",
-              { class: "lede" },
-              "This screen is still server-rendered. Reload to open it.",
+      "div",
+      { class: "workspace" },
+      bar(),
+      h(
+        "main",
+        null,
+        hit
+          ? hit.view(hit.params)
+          : h(
+              "div",
+              { class: "card" },
+              h("h1", null, "Not part of the console yet"),
+              h("p", { class: "lede" }, "This screen is still server-rendered. Reload to open it."),
+              h("p", null, h("a", { href: location.pathname, "data-native": "true" }, "Open it")),
             ),
-            h("p", null, h("a", { href: location.pathname, "data-native": "true" }, "Open it")),
-          ),
+      ),
     ),
     drawerView(),
     toastStack(),

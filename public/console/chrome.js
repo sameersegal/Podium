@@ -11,10 +11,14 @@
 
 import { boot } from "./store.js";
 
-export const chrome = { section: "overview" };
+export const chrome = { section: "overview", title: "Admin" };
 
 export function setChrome(options) {
   if (options.section) chrome.section = options.section;
+  // Kept, not only spent on `document.title`: the top bar's breadcrumb names
+  // the screen, and reading it back off the document title would mean parsing a
+  // string this function had just assembled.
+  if (options.title) chrome.title = options.title;
   const suffix = boot.event ? " · " + boot.event.name : "";
   const title = (options.title ? options.title + suffix : "Admin") + " · Podium";
   if (document.title !== title) document.title = title;

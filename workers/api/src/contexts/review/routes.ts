@@ -32,7 +32,7 @@ import type {
 import { isTerminalAssignment, type OverallScale, type RoundScope } from "@podiumstack/domain/review/types.js";
 import { reviewerIdentityVisible } from "@podiumstack/domain/review/anonymity.js";
 import { notFound, validationError } from "@podiumstack/domain/shared/errors.js";
-import { zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
+import { relativeDays, zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
 import { expectedVersion, staleWriteRedirect } from "../../http/concurrency.js";
 import { flashCookie, requirePersonalAuthorship, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
@@ -40,7 +40,7 @@ import { htmlResponse, json, redirect, text } from "../../http/responses.js";
 import type { Router } from "../../http/router.js";
 import { html, type SafeHtml } from "../../ui/html.js";
 import { humanise, pageHead } from "../../ui/layout.js";
-import { adminPage, loadEvent, portalPage, type EventRef } from "../../ui/shell.js";
+import { adminPage, loadEvent, reviewerPage, type EventRef } from "../../ui/shell.js";
 import { personDisplayName } from "../identity/service.js";
 import {
   addComment,
@@ -127,7 +127,15 @@ import {
   type AiReviewView,
   type HumanReviewView,
 } from "./views.js";
-import { overrideScorecardForm, reviewerAssignmentView, reviewerDashboardView, type ReviewerAssignmentRow } from "./reviewer-views.js";
+import {
+  overrideScorecardForm,
+  partitionQueue,
+  reviewerAssignmentView,
+  reviewerDashboardView,
+  type ReviewerAssignmentRow,
+  type ReviewerQueueFilter,
+  type ReviewerRound,
+} from "./reviewer-views.js";
 
 const OK = (message: string) => ({ "set-cookie": flashCookie("ok", message) });
 const WARN = (message: string) => ({ "set-cookie": flashCookie("warn", message) });
@@ -373,6 +381,36 @@ async function outstandingQueue(app: AppContext, personId: string): Promise<stri
   return rows.map((r) => str(r.id));
 }
 
+const SHOW_TITLES: Record<ReviewerQueueFilter, string> = {
+  queue: "My queue",
+  submitted: "Submitted",
+  declined: "Declined",
+};
+
+function queueFilter(value: string | null): ReviewerQueueFilter {
+  return value === "submitted" || value === "declined" ? value : "queue";
+}
+
+/**
+ * What the rail says the reviewer is working on. One round is named; several
+ * are counted, because a rail that lists three round names has become a second
+ * navigation.
+ */
+function railRound(rounds: ReviewerRound[], now: string): { name: string; lines: string[] } | null {
+  if (rounds.length === 0) return null;
+  if (rounds.length > 1) {
+    return { name: `${rounds.length} open rounds`, lines: [rounds.map((r) => r.name).join(" · ")] };
+  }
+  const round = rounds[0];
+  const parts: string[] = [];
+  if (round.closes_at) parts.push(`closes ${relativeDays(round.closes_at, now)}`);
+  // `double-blind`, not `Double blind`: it is a compound adjective, and the
+  // rail is the one place this word appears in running text rather than as a
+  // field value.
+  parts.push(round.anonymity.replace(/_/g, "-"));
+  return { name: round.name, lines: [parts.join(" · ")] };
+}
+
 function registerReviewerRoutes(router: Router<RequestContext>): void {
   router.get("/review", async (_req, ctx) => {
     const person = ctx.requirePerson();
@@ -409,11 +447,46 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
     const roundIds = [...new Set(assignmentRows.map((r) => str(r.round_id)))];
     const progressByRound: Record<string, Awaited<ReturnType<typeof progressForReviewer>>> = {};
     for (const roundId of roundIds) progressByRound[roundId] = await progressForReviewer(app, roundId, person.id);
+
+    // The rounds themselves, for the rail's context card and the pace sentence:
+    // a reviewer budgets against the date the round shuts, not against a
+    // percentage. Anonymity comes with them because it decides what the queue
+    // is allowed to promise the reader they will not see (R10).
+    const rounds: ReviewerRound[] = [];
+    for (const roundId of roundIds) {
+      const row = await app.db.byId<Row>("review_round", roundId);
+      if (row) {
+        rounds.push({
+          id: roundId,
+          name: str(row.name),
+          anonymity: str(row.anonymity),
+          closes_at: strOrNull(row.closes_at),
+        });
+      }
+    }
+
+    // Counted, never listed — the subject of a conflict is a person, and this
+    // number is only ever rendered as "n are on file for you" (INV-05-18).
+    const conflicts = rows.length
+      ? (await app.db.select<Row>("conflict_of_interest", { reviewer_person_id: person.id })).length
+      : 0;
+
+    const show = queueFilter(ctx.url.searchParams.get("show"));
+    const parts = partitionQueue(rows);
     return htmlResponse(
-      portalPage(
+      reviewerPage(
         ctx,
-        { title: "My reviews", width: "wide", active: "reviews" },
-        reviewerDashboardView({ rows, progressByRound, now: ctx.now }),
+        {
+          title: SHOW_TITLES[show],
+          round: railRound(rounds, ctx.now),
+          active: show,
+          counts: { queue: parts.queue.length, submitted: parts.submitted.length, declined: parts.declined.length },
+          hints: [
+            { keys: ["J", "K"], label: "move" },
+            { keys: ["↵"], label: "open" },
+          ],
+        },
+        reviewerDashboardView({ rows, progressByRound, rounds, conflicts, show, now: ctx.now }),
       ),
     );
   });
@@ -455,9 +528,17 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
     const position = at >= 0 ? { index: at, total: queue.length, previous: queue[at - 1] ?? null, next: queue[at + 1] ?? null } : null;
 
     return htmlResponse(
-      portalPage(
+      reviewerPage(
         ctx,
-        { title: proposal.title, width: "wide", active: "reviews" },
+        {
+          title: proposal.title,
+          round: railRound(
+            [{ id: round.id, name: round.name, anonymity: round.anonymity, closes_at: round.closes_at ?? null }],
+            ctx.now,
+          ),
+          active: "queue",
+          crumbs: [{ label: "Review", href: "/review" }, { label: round.name, href: "/review" }, { label: proposal.title }],
+        },
         reviewerAssignmentView({
           assignment,
           roundName: round.name,
