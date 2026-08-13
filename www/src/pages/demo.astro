@@ -2,21 +2,31 @@
 import Base from "../layouts/Base.astro";
 import PageHead from "../components/PageHead.astro";
 import Shot from "../components/Shot.astro";
-import { APP_URL, DEMO_PERSONAS, GITHUB_URL } from "../consts";
+import { APP_URL, DEMO_PERSONAS, GITHUB_URL, SIGN_IN_URL } from "../consts";
 
 /*
  * The page the rest of the site points at, and the one that has to work.
  *
- * It used to lead with the hosted instance and print these sign-ins as its
- * credentials. On the day this was rewritten they did not work there:
- * `POST /login` as sbek-organizer@example.com returns "That email and password
- * did not match", and `/e/devflow-conf-2027` 404s, so the deployment is not
- * carrying this seed. A call to action that dead-ends on a login form is the
- * single worst thing a page like this can do, so the page now leads with the
- * route that is checkable from the repository — `npm run dev`, and the seed
- * personas in `scripts/seed.mjs` — and says plainly what the hosted instance
- * currently is. Put the hosted route back at the top when signing into it
- * works; the sign-ins are the same ones.
+ * For a while it led with `npm run dev` rather than the hosted instance, because
+ * the hosted instance was not carrying the seed: `POST /login` came back "That
+ * email and password did not match" and `/e/devflow-conf-2027` 404d. A call to
+ * action that dead-ends on a login form is the single worst thing a page like
+ * this can do, so the page led with the route that was checkable instead.
+ *
+ * app.podiumstack.com now serves the seeded DevFlow Conf 2027 org and all three
+ * sign-ins below reach their surfaces on it, so the hosted route leads again —
+ * a reader who wants to see the product should not have to install anything.
+ * The local route keeps its place directly underneath, because it is the one
+ * that stays true when the hosted instance is chewed up or down.
+ *
+ * Two things this page must not claim, both of which it used to:
+ *   - that the seed installs no email provider. It installs Resend, active. The
+ *     difference is the key: locally there is none unless you put one in
+ *     `.dev.vars`, so a message is composed, recorded and fails at the provider.
+ *     On the hosted instance the key is real and mail genuinely leaves — to
+ *     `@devflowconf.example`, a reserved domain nobody receives.
+ *   - that the hosted database is reset. Nothing resets it. It is shared and
+ *     writable by anyone holding the sign-ins below, which is everyone.
  *
  * Ordered by who is most likely to be reading: the chair first, then the two
  * roles they will want to show a colleague.
@@ -41,37 +51,54 @@ const TOUR = [
   },
   {
     title: "Look at the outbox",
-    body: "Every message sent or attempted, with its template, recipient and status. The seed installs no email provider, so every message is composed, recorded and stopped — which is how you rehearse an announcement to four hundred speakers.",
+    body: "Every message sent or attempted, with its template, recipient and status — the rendered body is stored before the provider is ever called, so you can rehearse an announcement to four hundred speakers and read exactly what each of them would get.",
   },
 ];
 ---
 
 <Base
   title="Try it"
-  description="Run a conference already mid-flight on your own laptop in one command — proposals in every state, a review round with real scores, sponsors part-way through their entitlements and an agenda with genuine conflicts. Sign-ins on the page."
+  description="Sign in to a conference already mid-flight at app.podiumstack.com, or run the same one on your laptop in one command — proposals in every state, a review round with real scores, sponsors part-way through their entitlements and an agenda with genuine conflicts. Sign-ins on the page."
 >
   <PageHead
     eyebrow="Try it"
-    title="Run a conference that is halfway through its year."
-    lede="One command resets a local database, seeds DevFlow Conf 2027 and serves it on port 8787. Proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with conflicts. No form, no card, no trial clock."
+    title="Sign in to a conference that is halfway through its year."
+    lede="DevFlow Conf 2027 is running at app.podiumstack.com with the sign-ins printed on this page. Proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with conflicts. No form, no card, no trial clock."
   />
 
   <section>
     <div class="wrap">
-      <span class="eyebrow">Four minutes</span>
-      <h2>Clone it and go.</h2>
+      <span class="eyebrow">Thirty seconds</span>
+      <h2>Sign in and start clicking.</h2>
       <p class="sub">
-        The seed ships with the source, so the conference you are looking at is the one the
-        screenshots on this site were taken from.
+        The conference running at app.podiumstack.com is the one the seed in this repository
+        builds, which is the one the screenshots on this site were taken from.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href={SIGN_IN_URL}>Open the hosted demo →</a>
+      </div>
+      <p>
+        Pick a role from the table below. Nothing is read-only: you are signing in as a real
+        organizer of a real event, and everything you change stays changed.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Four minutes</span>
+      <h2>Or run the whole thing on your laptop.</h2>
+      <p class="sub">
+        Same seed, same conference, nobody else in it. This is also the version to use if the
+        hosted one is busy or someone has already rearranged the agenda.
       </p>
       <pre class="term"><code>git clone https://github.com/sameersegal/Podium
 cd Podium
 npm install
 npm run dev</code></pre>
       <p>
-        Then open <code>http://localhost:8787/login</code> and sign in as whoever you want to be.
-        No Cloudflare account is involved: the database, the queues and the object store all run
-        on your machine.
+        Then open <code>http://localhost:8787/login</code> with the same sign-ins. No Cloudflare
+        account is involved: the database, the queues and the object store all run on your machine.
       </p>
     </div>
   </section>
@@ -110,10 +137,11 @@ npm run dev</code></pre>
       </div>
       <div class="notice">
         <p>
-          <strong>There is a hosted instance at <a href={APP_URL}>app.podiumstack.com</a>, and it
-          is not carrying this seed today.</strong> These sign-ins are the local ones. When it is
-          seeded again they are the same three, on the same conference. Sending you to a login you
-          cannot pass would be the one thing this site is not for.
+          <strong>These work on <a href={APP_URL}>app.podiumstack.com</a> and on your own copy,
+          and they are public on purpose.</strong> Which means the hosted one is shared: everybody
+          reading this page has the organizer's password, nothing resets it on a schedule, and
+          whatever state you find it in is what the last visitor left. If you want a conference
+          that is only yours, that is the four-minute route above.
         </p>
       </div>
     </div>
@@ -156,11 +184,14 @@ npm run dev</code></pre>
       <div class="feature">
         <div class="copy">
           <span class="eyebrow">While it is running</span>
-          <h3>Point it at your own provider and watch mail leave.</h3>
+          <h3>Give it a key and watch mail actually leave.</h3>
           <p>
-            The seed installs no email provider, so every acceptance and reminder is composed and
-            recorded and never sent. Install Resend with your own key and the same messages go out
-            for real. It is the only way to try the integrations, and it costs nothing.
+            The seed installs Resend already, active and set as the default — what it does not ship
+            is a key, because credentials never live in a seed. So locally every acceptance and
+            reminder is rendered, stored and then fails at the provider, which you can read in the
+            outbox. Put your own <code>RESEND_API_KEY</code> in <code>.dev.vars</code> and the same
+            messages go out for real. It costs nothing and it is the only honest way to try the
+            integrations.
           </p>
           <p class="jump"><a href={GITHUB_URL}>The repository, and the rest of the setup →</a></p>
         </div>

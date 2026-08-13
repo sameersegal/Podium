@@ -6,19 +6,27 @@
  * product is a list, and a list with nothing in it teaches you nothing about
  * whether the product works. The seed ships one live event mid-flight —
  * proposals in every state, a review round with real scores, accepted sessions
- * with onboarding under way, and a placed agenda — plus one archived prior
- * edition so the cross-event speaker directory has something to say.
+ * with onboarding under way, and a placed agenda — and the edition before it,
+ * DevFlow Conf 2026, delivered in full: a closed call, fifteen talks over three
+ * days, the speakers who gave them, and the agenda they ran on. A conference
+ * tool with no past is missing half its questions.
  *
  * Passwords are seeded because R23 says so: password login is on in the
  * shipped default seed, since a deployment nobody can sign into is worse than
  * the marginal risk of password auth on a conference tool.
  *
+ * It writes two things: the SQL, applied here, and the seeded images, which
+ * `scripts/seed-assets.mjs` puts into R2 once the Worker is running.
+ *
  * Usage:  node scripts/seed.mjs [--out seed.sql] [--print]
  */
 
-import { writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import path from "node:path";
 import { argon2id } from "@noble/hashes/argon2.js";
+import { avatarPng, wordmarkPng } from "./lib/placeholder-image.mjs";
 
 /* -------------------------------------------------------------------------- */
 /* deterministic ids                                                           */
@@ -175,8 +183,8 @@ const people = [
   {
     key: "jordan",
     name: "Jordan Alvarez",
-    email: "sbek-organizer@example.com",
-    password: "SbekTest!2027-org",
+    email: "organizer@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Programme Director",
     company: "DevFlow Events",
     bio: "Jordan runs the DevFlow Conf programme and has chaired developer-tooling tracks since 2019.",
@@ -184,8 +192,8 @@ const people = [
   {
     key: "priya",
     name: "Priya Raman",
-    email: "sbek-speaker@example.com",
-    password: "SbekTest!2027-spk",
+    email: "speaker@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Principal Engineer",
     company: "Latticework Systems",
     bio: "Priya Raman is a Principal Engineer at Latticework Systems where she leads the build-tooling platform team. She previously maintained the open-source task runner 'gantry' and has spoken at over a dozen developer conferences on build systems, CI reliability, and developer productivity metrics.",
@@ -197,8 +205,8 @@ const people = [
   {
     key: "marcus",
     name: "Marcus Okafor",
-    email: "sbek-speaker2@example.com",
-    password: "SbekTest!2027-spk2",
+    email: "cospeaker@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Staff Developer Advocate",
     company: "Cloudreach Labs",
     bio: "Marcus Okafor is a Staff Developer Advocate at Cloudreach Labs focused on AI agents in production. He writes the newsletter 'Agents Weekly' and co-organizes the SF AI Tinkerers meetup.",
@@ -206,8 +214,8 @@ const people = [
   {
     key: "sam",
     name: "Sam Whitfield",
-    email: "sbek-reviewer@example.com",
-    password: "SbekTest!2027-rev",
+    email: "reviewer@devflowconf.example",
+    password: "PodiumDemo2027!",
     title: "Principal Engineer",
     company: "Northwind Data",
     bio: "Sam reviews for several developer conferences and works on distributed storage.",
@@ -216,7 +224,7 @@ const people = [
     key: "riley",
     name: "Riley Chen",
     email: "riley.chen@devflowconf.example",
-    password: "SbekTest!2027-org",
+    password: "PodiumDemo2027!",
     title: "Speaker Operations",
     company: "DevFlow Events",
     bio: "Riley looks after speakers from acceptance to the green room.",
@@ -225,7 +233,7 @@ const people = [
     key: "morgan",
     name: "Morgan Diaz",
     email: "morgan.diaz@devflowconf.example",
-    password: "SbekTest!2027-org",
+    password: "PodiumDemo2027!",
     title: "Partnerships",
     company: "DevFlow Events",
     bio: "Morgan looks after sponsor relationships and their sessions.",
@@ -241,6 +249,18 @@ const people = [
   { key: "nadia", name: "Nadia Haddad", email: "nadia.haddad@vela.example", title: "VP Engineering", company: "Vela", bio: "Spoke at DevFlow Conf 2026 on platform migrations." },
   { key: "omar", name: "Omar Reyes", email: "omar.reyes@ferrolabs.example", title: "Developer Relations", company: "Ferro Labs", bio: "Sponsor contact and occasional speaker." },
   { key: "hannah", name: "Hannah Weiss", email: "hannah.weiss@keelworks.example", title: "Marketing Lead", company: "Keelworks", bio: "Sponsor contact for Keelworks." },
+  // Spoke at the 2026 edition and not (yet) at 2027. They are the reason the
+  // speaker directory is worth opening: a cross-event history where everyone
+  // also appears in the current event teaches nothing about what the directory
+  // is for, which is finding the person you had two years ago.
+  { key: "greta", name: "Greta Lindqvist", email: "greta.lindqvist@alderwood.example", title: "CTO", company: "Alderwood", bio: "Has kept the same monolith in production, and profitable, for fifteen years." },
+  { key: "yusuf", name: "Yusuf Demir", email: "yusuf.demir@tidewater.example", title: "Staff Engineer", company: "Tidewater", bio: "Works on release engineering and the unglamorous parts of shipping daily." },
+  { key: "mei", name: "Mei-Ling Zhou", email: "meiling.zhou@cobaltgrid.example", title: "Principal SRE", company: "Cobalt Grid", bio: "Runs observability for a fleet large enough that the telemetry bill is a design constraint." },
+  { key: "santiago", name: "Santiago Ferreira", email: "santiago.ferreira@vantagefoundry.example", title: "Developer Experience Lead", company: "Vantage Foundry", bio: "Looks after a monorepo forty teams commit to." },
+  { key: "ingrid", name: "Ingrid Solberg", email: "ingrid.solberg@fjordline.example", title: "Head of Data Platform", company: "Fjordline", bio: "Builds the data platform the models upstairs are only as good as." },
+  { key: "olu", name: "Olu Adeyemi", email: "olu.adeyemi@kestrelhealth.example", title: "Engineering Director", company: "Kestrel Health", bio: "Ships machine learning into clinical workflows, where being wrong is expensive." },
+  { key: "hana", name: "Hana Kobayashi", email: "hana.kobayashi@silverline.example", title: "Compiler Engineer", company: "Silverline", bio: "Writes compilers and, lately, the WebAssembly they target." },
+  { key: "pavel", name: "Pavel Horak", email: "pavel.horak@meridianfreight.example", title: "Infrastructure Architect", company: "Meridian Freight", bio: "Serves search and retrieval for a logistics network that never stops moving." },
 ];
 
 const P = {};
@@ -373,6 +393,10 @@ insert("venue", {
   map_url: "https://maps.example/moscone-west",
   timezone: TZ,
 });
+// `Venue.event_id` says which event owns the row; `Event.venue_id` is what the
+// public page and the publication snapshot read. Both, or the seeded event has
+// rooms in a venue it does not admit to having.
+statements.push(`UPDATE event SET venue_id = ${q(VENUE)} WHERE id = ${q(EVENT)};`);
 
 const ROOMS = {};
 [
@@ -1760,24 +1784,6 @@ rosterRows.forEach((r, i) => {
   });
 });
 
-// Prior edition, so the directory has cross-event history to show.
-["nadia", "dana", "aisha"].forEach((key) => {
-  insert("event_participant", {
-    id: id("epa_", `${key}-2026`),
-    org_id: ORG,
-    event_id: PRIOR_EVENT,
-    person_id: P[key],
-    kind: "speaker",
-    status: "confirmed",
-    source: "decision",
-    portal_access: "active",
-    custom_field_values: "{}",
-    added_by_person_id: P.jordan,
-    created_at: "2026-02-01T00:00:00.000Z",
-    updated_at: "2026-02-01T00:00:00.000Z",
-  });
-});
-
 insert("person_note", {
   id: id("pnt_", "nadia-1"),
   org_id: ORG,
@@ -1795,6 +1801,737 @@ insert("person_note", {
   body: "Strong design perspective, which the DX track is short of. Shortlist for a keynote next year if the waitlisted talk goes well.",
   author_person_id: P.jordan,
   created_at: daysFromNow(-3),
+});
+
+/* -------------------------------------------------------------------------- */
+/* the prior edition — DevFlow Conf 2026, delivered                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The 2026 edition, in full: its own venue, rooms, days, tracks, formats and
+ * call, eighteen proposals, fifteen delivered sessions on a placed agenda, and
+ * the recordings.
+ *
+ * It used to be an event row and three roster entries, which was enough for the
+ * speaker directory to say "spoke in 2026" and nothing else. That made every
+ * screen that reaches backwards — the directory, a person's speaking history,
+ * the archived event's public schedule — look broken rather than empty, and it
+ * left the most ordinary organizer question of all ("what did we run last
+ * year?") with no answer to give.
+ *
+ * Everything here is in the past tense on purpose. Sessions are `delivered`,
+ * the state a scheduled job puts them in once the placement's end time passes
+ * (06, "Lifecycle"); placements are `locked`; the call is closed; the decisions
+ * were published a year ago. Nothing about this edition is relative to today,
+ * because a conference that already happened does not move.
+ */
+
+const PRIOR_CODE = "DFC26";
+let refSeq26 = 0;
+const nextRef26 = () => `${PRIOR_CODE}-${String(++refSeq26).padStart(4, "0")}`;
+
+const CFP_OPENED_26 = "2025-11-03T17:00:00.000Z";
+const CFP_CLOSED_26 = "2026-01-30T07:59:00.000Z";
+const DECIDED_26 = "2026-02-20T18:00:00.000Z";
+const PUBLISHED_26 = "2026-02-23T17:00:00.000Z";
+const PROGRAMME_26 = "2026-03-30T17:00:00.000Z";
+const EVENT_DAYS_26 = ["2026-05-13", "2026-05-14", "2026-05-15"];
+
+/** 2026's event days, event-local, as UTC. PDT is UTC-7 in May, as in 2027. */
+const dayAt26 = (dayIndex, hh, mm = 0) => {
+  const d = new Date(`${EVENT_DAYS_26[dayIndex]}T00:00:00Z`);
+  d.setUTCHours(hh + 7, mm, 0, 0);
+  return d.toISOString();
+};
+
+const VENUE_26 = id("ven_", "moscone-2026");
+insert("venue", {
+  id: VENUE_26,
+  event_id: PRIOR_EVENT,
+  name: "Moscone West",
+  address: "800 Howard St, San Francisco, CA 94103",
+  map_url: "https://maps.example/moscone-west",
+  timezone: TZ,
+});
+statements.push(`UPDATE event SET venue_id = ${q(VENUE_26)} WHERE id = ${q(PRIOR_EVENT)};`);
+
+const ROOMS_26 = {};
+[
+  { key: "main", name: "Main Stage", capacity: 900, floor: "Level 1", av: ["projector", "confidence_monitor", "stage_mics", "recording", "livestream"] },
+  { key: "r2a", name: "Room 2A", capacity: 240, floor: "Level 2", av: ["projector", "stage_mics", "recording"] },
+  { key: "r2b", name: "Room 2B", capacity: 240, floor: "Level 2", av: ["projector", "stage_mics", "recording"] },
+].forEach((room, i) => {
+  ROOMS_26[room.key] = id("rom_", `${room.key}-2026`);
+  insert("room", {
+    id: ROOMS_26[room.key],
+    venue_id: VENUE_26,
+    event_id: PRIOR_EVENT,
+    name: room.name,
+    slug: room.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    capacity: room.capacity,
+    floor: room.floor,
+    av_capabilities: JSON.stringify(room.av),
+    sort_order: i,
+    is_public: 1,
+  });
+});
+
+const DAYS_26 = {};
+EVENT_DAYS_26.forEach((date, i) => {
+  DAYS_26[i] = id("day_", date);
+  insert("event_day", {
+    id: DAYS_26[i],
+    event_id: PRIOR_EVENT,
+    date,
+    label: `Day ${i + 1}`,
+    sort_order: i,
+    is_public: 1,
+  });
+});
+
+// Same three tracks, one year earlier — a returning conference keeps its
+// tracks, and the rows are per-event, so these are genuinely different records
+// with the same names. That is what makes the cross-event comparison honest.
+const TRACKS_26 = {};
+[
+  { key: "ai", name: "AI Engineering", color: "#6366F1", target: 5, description: "Shipping software that uses models, and models that ship software." },
+  { key: "infra", name: "Platform & Infra", color: "#0EA5E9", target: 5, description: "Build systems, CI, deployment, and the platforms underneath them." },
+  { key: "dx", name: "Developer Experience", color: "#10B981", target: 5, description: "Docs, tooling, onboarding, and the daily loop." },
+].forEach((track, i) => {
+  TRACKS_26[track.key] = id("trk_", `${track.key}-2026`);
+  insert("track", {
+    id: TRACKS_26[track.key],
+    event_id: PRIOR_EVENT,
+    name: track.name,
+    slug: track.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    description: track.description,
+    color: track.color,
+    sort_order: i,
+    target_session_count: track.target,
+    is_public: 1,
+  });
+});
+
+const FORMATS_26 = {};
+[
+  { key: "keynote", name: "Keynote (45 min)", minutes: 45, max_speakers: 2, origins: ["invited", "cfp"], review: false },
+  { key: "talk", name: "Talk (30 min)", minutes: 30, max_speakers: 2, origins: ["cfp", "invited"], review: true },
+].forEach((fmt, i) => {
+  FORMATS_26[fmt.key] = id("fmt_", `${fmt.key}-2026`);
+  insert("session_format", {
+    id: FORMATS_26[fmt.key],
+    event_id: PRIOR_EVENT,
+    name: fmt.name,
+    slug: fmt.key,
+    description: null,
+    default_duration_minutes: fmt.minutes,
+    min_duration_minutes: null,
+    max_duration_minutes: null,
+    max_speakers: fmt.max_speakers,
+    eligible_origins: JSON.stringify(fmt.origins),
+    requires_review: fmt.review ? 1 : 0,
+    requires_recording_consent: 1,
+    capacity_policy: "open",
+    sort_order: i,
+    is_public: 1,
+  });
+});
+
+const CFP_26 = id("cfp_", "main-2026");
+const FORM_26 = id("frm_", "main-2026-v1");
+
+insert("call_for_proposals", {
+  id: CFP_26,
+  event_id: PRIOR_EVENT,
+  name: "DevFlow Conf 2026 Call for Papers",
+  slug: "main",
+  audience: "public",
+  intro_markdown:
+    "## Speak at DevFlow Conf 2026\n\nThis call has closed. Thank you to everyone who submitted — we read 214 proposals and had room for fifteen.\n\nThe 2027 call opens in the autumn.",
+  guidelines_url: "https://devflowconf.example/speaking",
+  opens_at: CFP_OPENED_26,
+  closes_at: CFP_CLOSED_26,
+  grace_period_minutes: 30,
+  late_submission_policy: "allow_with_flag",
+  max_proposals_per_person: 3,
+  allow_edit_after_submit: 1,
+  withdraw_allowed_until: "always",
+  active_form_id: FORM_26,
+  notify_on_submit: 1,
+  published_at: CFP_OPENED_26,
+  created_at: "2025-10-20T17:00:00.000Z",
+  updated_at: DECIDED_26,
+});
+
+insert("submission_form", {
+  id: FORM_26,
+  cfp_id: CFP_26,
+  version: 1,
+  status: "published",
+  published_at: CFP_OPENED_26,
+  notes: "The 2026 form, archived with its call.",
+  created_at: "2025-10-20T17:00:00.000Z",
+});
+
+const STEPS_26 = {};
+[
+  { key: "your-details", title: "About you", description: "Who is giving this talk." },
+  { key: "the-talk", title: "About your talk", description: "This is what the programme committee reads." },
+  { key: "review-and-submit", title: "Review and submit", description: "Check everything before you send it." },
+].forEach((step, i) => {
+  STEPS_26[step.key] = id("stp_", `${step.key}-2026`);
+  insert("form_step", {
+    id: STEPS_26[step.key],
+    form_id: FORM_26,
+    key: step.key,
+    title: step.title,
+    description: step.description,
+    sort_order: i,
+    is_optional: 0,
+  });
+});
+
+// The same field keys as the 2027 form, which is what lets an answer written in
+// 2026 still read as an answer to the same question two editions later.
+const FIELDS_26 = {};
+[
+  { step: "your-details", key: "speakers", label: "Speakers", type: "speaker_list", maps_to: "speakers", audience: "public", required: true },
+  { step: "your-details", key: "speaker_bio", label: "Speaker bio", type: "long_text", audience: "public", required: true, identifies_speaker: true },
+  { step: "the-talk", key: "title", label: "Session title", type: "short_text", maps_to: "title", audience: "public", required: true },
+  { step: "the-talk", key: "abstract", label: "Abstract", type: "long_text", maps_to: "abstract", audience: "public", required: true },
+  { step: "the-talk", key: "track", label: "Track", type: "track_picker", maps_to: "track", audience: "public", required: true },
+  { step: "the-talk", key: "format", label: "Session format", type: "format_picker", maps_to: "format", audience: "public", required: true },
+  { step: "the-talk", key: "recording_consent", label: "May we record and publish this session?", type: "consent", maps_to: "recording_consent", audience: "organizer_only", required: true },
+].forEach((f, i) => {
+  FIELDS_26[f.key] = id("fld_", `${f.key}-2026`);
+  insert("form_field", {
+    id: FIELDS_26[f.key],
+    step_id: STEPS_26[f.step],
+    form_id: FORM_26,
+    key: f.key,
+    label: f.label,
+    help_text: null,
+    placeholder: null,
+    type: f.type,
+    options: null,
+    is_required: f.required ? 1 : 0,
+    validation: null,
+    visible_when: null,
+    maps_to: f.maps_to ?? "none",
+    audience: f.audience,
+    pii: 0,
+    identifies_speaker: f.identifies_speaker ? 1 : 0,
+    sort_order: i,
+  });
+});
+
+["ai", "infra", "dx"].forEach((key, i) => {
+  insert("cfp_track_option", { id: id("cto_", `2026-${key}`), cfp_id: CFP_26, track_id: TRACKS_26[key], is_available: 1, sort_order: i });
+});
+["keynote", "talk"].forEach((key, i) => {
+  insert("cfp_format_option", { id: id("cfo_", `2026-${key}`), cfp_id: CFP_26, session_format_id: FORMATS_26[key], is_available: 1, closes_at_override: null, sort_order: i });
+});
+
+/**
+ * Five sessions a day across three days, five in each track — the shape a
+ * two-room-plus-main-stage conference actually has, rather than a list that
+ * happens to add up. Day one opens with `speaker@devflowconf.example`'s
+ * keynote, which is the talk her 2027 self is invited back on the strength of.
+ */
+const programme26 = [
+  {
+    key: "k1",
+    title: "Ten Thousand Builds a Day: Making CI Boring on Purpose",
+    speaker: "priya",
+    track: "dx",
+    format: "keynote",
+    level: "all",
+    day: 0,
+    hour: 9,
+    minute: 0,
+    room: "main",
+    abstract:
+      "Latticework runs ten thousand builds a day and nobody watches them. Getting there took three years, one deleted queueing system, and a rule we now apply to everything: if a failure needs a human to interpret it, it is not finished. This keynote is the rule, the three times it was wrong, and what a boring pipeline costs to keep boring.",
+  },
+  {
+    key: "t1",
+    title: "Moving a Platform Without Moving the Teams",
+    speaker: "nadia",
+    track: "infra",
+    format: "talk",
+    level: "intermediate",
+    day: 0,
+    hour: 10,
+    minute: 15,
+    room: "r2a",
+    abstract:
+      "Vela migrated four hundred services onto a new platform over eighteen months without a freeze and without a migration team. The trick was making the new path cheaper than the old one for the person doing the work that week, and never once asking a team to migrate as a favour.",
+  },
+  {
+    key: "t2",
+    title: "What We Learned Letting a Model Write the Boilerplate",
+    speaker: "marcus",
+    track: "ai",
+    format: "talk",
+    level: "beginner",
+    day: 0,
+    hour: 10,
+    minute: 15,
+    room: "r2b",
+    abstract:
+      "A year of code generation confined to the parts of the codebase nobody enjoys: adapters, fixtures, migrations, tests for pure functions. What it was good at, where the review burden ate the gain, and the one category of change we stopped allowing it near.",
+  },
+  {
+    key: "t3",
+    title: "The Observability Bill Nobody Read",
+    speaker: "mei",
+    track: "infra",
+    format: "talk",
+    level: "intermediate",
+    day: 0,
+    hour: 11,
+    minute: 15,
+    room: "r2a",
+    abstract:
+      "Cobalt Grid's telemetry cost more than the compute it was watching. This is the audit that found it, the four cardinality decisions responsible for most of it, and the sampling policy that cut the bill by seventy per cent without losing a single incident's worth of detail.",
+  },
+  {
+    key: "t4",
+    title: "Shipping a Compiler to the Browser",
+    speaker: "hana",
+    track: "dx",
+    format: "talk",
+    level: "advanced",
+    day: 0,
+    hour: 11,
+    minute: 15,
+    room: "r2b",
+    abstract:
+      "Compiling our compiler to WebAssembly turned a twelve-second round trip into an editor that answers as you type. The talk covers what had to change in the compiler, what WebAssembly still makes hard, and how we kept one implementation rather than acquiring a second one.",
+  },
+  {
+    key: "k2",
+    title: "Fifteen Years of the Same Monolith",
+    speaker: "greta",
+    track: "infra",
+    format: "keynote",
+    level: "all",
+    day: 1,
+    hour: 9,
+    minute: 0,
+    room: "main",
+    abstract:
+      "Alderwood never split the monolith, and it is the most profitable system the company has. A keynote about the decisions that kept it habitable — module boundaries enforced in CI, a test suite treated as a product, and a standing refusal to adopt anything before the second team asks for it.",
+  },
+  {
+    key: "t5",
+    title: "Onboarding an Engineer in a Day",
+    speaker: "dana",
+    track: "dx",
+    format: "talk",
+    level: "intermediate",
+    day: 1,
+    hour: 10,
+    minute: 15,
+    room: "r2a",
+    abstract:
+      "Substrate measured the gap between a new hire's start date and their first merged change, then spent a quarter closing it. Most of the win was not tooling: it was deleting the seventeen documents that disagreed with each other about how to run the app locally.",
+  },
+  {
+    key: "t6",
+    title: "Fine-Tuning Was the Wrong Answer Three Times",
+    speaker: "kenji",
+    track: "ai",
+    format: "talk",
+    level: "advanced",
+    day: 1,
+    hour: 10,
+    minute: 15,
+    room: "r2b",
+    abstract:
+      "Three projects where fine-tuning was the obvious move and the wrong one, with the numbers that showed it. Retrieval beat it, then prompt structure beat it, then a smaller model with a better evaluation set beat it. The fourth project fine-tuned, and this is how we knew that one was different.",
+  },
+  {
+    key: "t7",
+    title: "Release Trains That Nobody Has to Drive",
+    speaker: "yusuf",
+    track: "infra",
+    format: "talk",
+    level: "intermediate",
+    day: 1,
+    hour: 11,
+    minute: 15,
+    room: "r2a",
+    abstract:
+      "Tidewater ships daily from a shared trunk with no release manager and no cut meeting. The talk walks through the automation that replaced both, what happens when the train has to stop, and why the rollback path gets exercised on purpose every week.",
+  },
+  {
+    key: "t8",
+    title: "One Repository, Forty Teams",
+    speaker: "santiago",
+    track: "dx",
+    format: "talk",
+    level: "intermediate",
+    day: 1,
+    hour: 11,
+    minute: 15,
+    room: "r2b",
+    abstract:
+      "What actually breaks in a monorepo at forty teams: ownership, review latency, and a CI graph nobody can hold in their head. Vantage Foundry's answers to each, including the one policy — no cross-team import without a declared interface — that did more than all the tooling combined.",
+  },
+  {
+    key: "k3",
+    title: "The Data Platform Under the Model",
+    speaker: "ingrid",
+    track: "ai",
+    format: "keynote",
+    level: "all",
+    day: 2,
+    hour: 9,
+    minute: 0,
+    room: "main",
+    abstract:
+      "Every model in production is a thin layer over a data platform somebody has to keep correct. A keynote about the unglamorous half: lineage that survives a schema change, backfills that do not lie, and why the freshness guarantee is the one number the model team should be reading.",
+  },
+  {
+    key: "t9",
+    title: "Two Years Without a Sev1: What Actually Changed",
+    speaker: "tom",
+    track: "infra",
+    format: "talk",
+    level: "intermediate",
+    day: 2,
+    hour: 10,
+    minute: 15,
+    room: "r2a",
+    abstract:
+      "Quanta went two years without a severity-one incident, and it was not because the estate got simpler. A talk about the four habits that did it — fewer knobs, ruthless defaults, a change calendar with teeth, and treating near-misses as the real signal — with the numbers behind each.",
+  },
+  {
+    key: "t10",
+    title: "Evaluating Model Output When There Is No Right Answer",
+    speaker: "olu",
+    track: "ai",
+    format: "talk",
+    level: "advanced",
+    day: 2,
+    hour: 10,
+    minute: 15,
+    room: "r2b",
+    abstract:
+      "In clinical summarisation there is no gold answer to score against, and accuracy is the wrong question anyway. How Kestrel Health built an evaluation set clinicians agreed with, what inter-rater disagreement told us about the task, and the failure modes that only ever showed up in review.",
+  },
+  {
+    key: "t11",
+    title: "Retrieval Without the Vector Database",
+    speaker: "pavel",
+    track: "ai",
+    format: "talk",
+    level: "intermediate",
+    day: 2,
+    hour: 11,
+    minute: 15,
+    room: "r2a",
+    abstract:
+      "Meridian Freight's retrieval runs on the search index it already had. The talk compares it against the vector database it replaced on the same traffic — recall, latency, cost and the operational surface — and is honest about the two query shapes where the vector store still wins.",
+  },
+  {
+    key: "t12",
+    title: "The Metrics We Stopped Collecting",
+    speaker: "aisha",
+    track: "dx",
+    format: "talk",
+    level: "all",
+    day: 2,
+    hour: 11,
+    minute: 15,
+    room: "r2b",
+    abstract:
+      "Finch House deleted two thirds of its engineering metrics and got better at the job. Which ones went, what replaced them, and how to tell the difference between a measure that informs a decision and one that exists because it was easy to collect.",
+  },
+];
+
+/** The three that did not make it, so the archive has an outcome to explain. */
+const declined26 = [
+  {
+    key: "d1",
+    title: "Rewriting the Build in a Weekend",
+    speaker: "chris",
+    track: "infra",
+    format: "talk",
+    status: "rejected",
+    abstract:
+      "A weekend rewrite of a legacy build, start to finish, with the commits. What broke on Monday and how much of the plan survived contact with the rest of the team.",
+    feedback:
+      "The committee was not convinced the weekend framing generalises — the interesting part is the Monday, and the proposal spends one line on it. Please do submit again with that part expanded.",
+  },
+  {
+    key: "d2",
+    title: "Design Reviews for Command-Line Tools",
+    speaker: "lena",
+    track: "dx",
+    format: "talk",
+    status: "rejected",
+    abstract:
+      "A working method for reviewing the design of tools that have no interface to look at: flag naming, error text, exit codes, and what a good default actually is.",
+    feedback:
+      "Strong idea, and close. We had two design talks and room for one. We would like to see this again next year — it lost to a talk with more worked examples, not to a better idea.",
+  },
+  {
+    key: "d3",
+    title: "Editors Are Databases Now",
+    speaker: "ravi",
+    track: "dx",
+    format: "talk",
+    status: "withdrawn",
+    abstract:
+      "Modern editors keep an incrementally maintained view over your codebase, which is a database with a strange query language. What follows from taking that seriously.",
+    withdrawn_reason: "Withdrew in February — could not travel that month.",
+  },
+];
+
+const SESSIONS_26 = {};
+
+for (const p of programme26) {
+  const pid = id("prp_", `${p.key}-2026`);
+  const sid = id("ses_", `${p.key}-2026`);
+  SESSIONS_26[p.key] = sid;
+  const reference = nextRef26();
+  const submittedAt = "2026-01-12T17:00:00.000Z";
+  const minutes = p.format === "keynote" ? 45 : 30;
+  const person = people.find((x) => x.key === p.speaker);
+
+  insert("proposal", {
+    id: pid,
+    org_id: ORG,
+    event_id: PRIOR_EVENT,
+    cfp_id: CFP_26,
+    form_id: FORM_26,
+    reference,
+    origin: "cfp",
+    submitter_person_id: P[p.speaker],
+    title: p.title,
+    abstract: p.abstract,
+    session_format_id: FORMATS_26[p.format],
+    requested_duration_minutes: null,
+    track_id: TRACKS_26[p.track],
+    audience_level: p.level,
+    keywords: JSON.stringify([]),
+    language: "en",
+    recording_consent: "granted",
+    status: "accepted",
+    is_late: 0,
+    submitted_at: submittedAt,
+    last_activity_at: PUBLISHED_26,
+    decision_id: id("dec_", `${p.key}-2026`),
+    session_id: sid,
+    created_at: "2026-01-05T17:00:00.000Z",
+    updated_at: PUBLISHED_26,
+  });
+
+  insert("proposal_speaker", {
+    id: id("psp_", `${p.key}-2026`),
+    proposal_id: pid,
+    person_id: P[p.speaker],
+    speaker_role: "primary",
+    sort_order: 0,
+    participation_status: "accepted",
+    added_by_person_id: P[p.speaker],
+    added_at: submittedAt,
+  });
+
+  [
+    ["title", p.title],
+    ["abstract", p.abstract],
+    ["track", TRACKS_26[p.track]],
+    ["format", FORMATS_26[p.format]],
+    ["speakers", [P[p.speaker]]],
+    ["speaker_bio", person?.bio ?? ""],
+    ["recording_consent", "granted"],
+  ].forEach(([key, value]) => {
+    insert("proposal_answer", {
+      id: id("pan_", `${p.key}-2026-${key}`),
+      proposal_id: pid,
+      field_key: key,
+      form_field_id: FIELDS_26[key],
+      value: JSON.stringify(value),
+      answered_at: submittedAt,
+    });
+  });
+
+  // `round_id` is null: 05 allows a desk decision, and the 2026 round's
+  // reviews are not what this edition is here to demonstrate — the delivered
+  // programme is.
+  insert("decision", {
+    id: id("dec_", `${p.key}-2026`),
+    proposal_id: pid,
+    round_id: null,
+    outcome: "accept",
+    assigned_track_id: TRACKS_26[p.track],
+    assigned_format_id: FORMATS_26[p.format],
+    assigned_duration_minutes: minutes,
+    conditions: null,
+    feedback_for_speaker: "Delighted to have this. The committee singled out how concrete it is.",
+    rationale: "Committee consensus.",
+    decided_by_person_id: P.jordan,
+    decided_at: DECIDED_26,
+    status: "published",
+    published_at: PUBLISHED_26,
+    confirmation_deadline: "2026-03-06T07:59:00.000Z",
+  });
+
+  insert("session", {
+    id: sid,
+    org_id: ORG,
+    event_id: PRIOR_EVENT,
+    proposal_id: pid,
+    reference,
+    origin: "cfp",
+    title: p.title,
+    abstract: p.abstract,
+    session_format_id: FORMATS_26[p.format],
+    track_id: TRACKS_26[p.track],
+    duration_minutes: minutes,
+    audience_level: p.level,
+    keywords: JSON.stringify([]),
+    language: "en",
+    recording_consent: "granted",
+    recording_url: `https://devflowconf.example/2026/watch/${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+    status: "delivered",
+    content_status: "approved",
+    content_approved_by_person_id: P.riley,
+    content_approved_at: PROGRAMME_26,
+    visibility: "public",
+    published_at: PROGRAMME_26,
+    created_at: PUBLISHED_26,
+    updated_at: dayAt26(p.day, 18),
+  });
+
+  insert("session_speaker", {
+    id: id("ssp_", `${p.key}-2026`),
+    session_id: sid,
+    person_id: P[p.speaker],
+    speaker_role: "primary",
+    sort_order: 0,
+    confirmation_status: "confirmed",
+    confirmed_at: "2026-02-25T17:00:00.000Z",
+    is_public: 1,
+    attendance_mode: "in_person",
+    added_at: PUBLISHED_26,
+  });
+
+  insert("session_revision", {
+    id: id("srv_", `${p.key}-2026-1`),
+    session_id: sid,
+    revision_number: 1,
+    changed_by_person_id: P.jordan,
+    change_kind: "decision_import",
+    diff: "{}",
+    snapshot: JSON.stringify({ title: p.title, abstract: p.abstract }),
+    created_at: PUBLISHED_26,
+  });
+
+  // INV-06-6: the placement's length equals the session's duration.
+  const starts = dayAt26(p.day, p.hour, p.minute);
+  insert("placement", {
+    id: id("plc_", `${p.key}-2026`),
+    event_id: PRIOR_EVENT,
+    session_id: sid,
+    room_id: ROOMS_26[p.room],
+    event_day_id: DAYS_26[p.day],
+    starts_at: starts,
+    ends_at: new Date(new Date(starts).getTime() + minutes * 60000).toISOString(),
+    setup_minutes: 0,
+    teardown_minutes: 0,
+    status: "locked",
+    is_public: 1,
+    placed_by_person_id: P.riley,
+    created_at: PROGRAMME_26,
+    updated_at: PROGRAMME_26,
+  });
+}
+
+for (const p of declined26) {
+  const pid = id("prp_", `${p.key}-2026`);
+  const submittedAt = "2026-01-20T17:00:00.000Z";
+  const rejected = p.status === "rejected";
+
+  insert("proposal", {
+    id: pid,
+    org_id: ORG,
+    event_id: PRIOR_EVENT,
+    cfp_id: CFP_26,
+    form_id: FORM_26,
+    reference: nextRef26(),
+    origin: "cfp",
+    submitter_person_id: P[p.speaker],
+    title: p.title,
+    abstract: p.abstract,
+    session_format_id: FORMATS_26[p.format],
+    track_id: TRACKS_26[p.track],
+    audience_level: "all",
+    keywords: JSON.stringify([]),
+    language: "en",
+    recording_consent: "granted",
+    status: p.status,
+    is_late: 0,
+    submitted_at: submittedAt,
+    last_activity_at: rejected ? PUBLISHED_26 : "2026-02-11T17:00:00.000Z",
+    decision_id: rejected ? id("dec_", `${p.key}-2026`) : null,
+    withdrawn_reason: p.withdrawn_reason ?? null,
+    created_at: "2026-01-18T17:00:00.000Z",
+    updated_at: rejected ? PUBLISHED_26 : "2026-02-11T17:00:00.000Z",
+  });
+
+  insert("proposal_speaker", {
+    id: id("psp_", `${p.key}-2026`),
+    proposal_id: pid,
+    person_id: P[p.speaker],
+    speaker_role: "primary",
+    sort_order: 0,
+    participation_status: "accepted",
+    added_by_person_id: P[p.speaker],
+    added_at: submittedAt,
+  });
+
+  if (rejected) {
+    insert("decision", {
+      id: id("dec_", `${p.key}-2026`),
+      proposal_id: pid,
+      round_id: null,
+      outcome: "reject",
+      assigned_track_id: null,
+      assigned_format_id: null,
+      assigned_duration_minutes: null,
+      conditions: null,
+      feedback_for_speaker: p.feedback,
+      rationale: "Committee consensus.",
+      decided_by_person_id: P.jordan,
+      decided_at: DECIDED_26,
+      status: "published",
+      published_at: PUBLISHED_26,
+      confirmation_deadline: null,
+    });
+  }
+}
+
+// The roster of the edition that happened: everyone who stood on a stage.
+[...new Set(programme26.map((p) => p.speaker))].forEach((key) => {
+  insert("event_participant", {
+    id: id("epa_", `${key}-2026`),
+    org_id: ORG,
+    event_id: PRIOR_EVENT,
+    person_id: P[key],
+    kind: "speaker",
+    status: "confirmed",
+    source: "decision",
+    portal_access: "active",
+    portal_invited_at: PUBLISHED_26,
+    custom_field_values: "{}",
+    added_by_person_id: P.jordan,
+    created_at: PUBLISHED_26,
+    updated_at: dayAt26(2, 18),
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -2019,11 +2756,114 @@ accepted.forEach((p, i) => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* assets — rows here, bytes in R2                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Headshots and logos, as `Asset` rows whose bytes really are in the bucket.
+ *
+ * The rows are written the way the upload path would write them: the same
+ * `slot_key` (`person:…:headshot`, `sponsor:…:logo`), and the same
+ * `storage_key` shape `org/slot/version/filename` that `uploadAssetDirect`
+ * derives, so nothing downstream can tell a seeded file from an uploaded one.
+ * `scan_status = clean` because INV-11-3 keeps an unscanned file off every
+ * public surface, and a demo whose speaker gallery is empty pending a virus
+ * scan that will never run is not demonstrating the rule, it is tripping over
+ * it.
+ *
+ * The bytes cannot be written from SQL — R2 has no SQL surface — so the images
+ * are generated here, written next to `seed.sql`, and pushed into the bucket by
+ * `scripts/seed-assets.mjs` through the running Worker. Sizes and checksums are
+ * taken from the actual bytes: `/assets/:id` sends `content-length` from the
+ * row, so a row that disagrees with its object serves a truncated image.
+ */
+
+const assetFiles = [];
+
+function seedAsset({ key, slot, filename, bytes, purpose, uploadedBy }) {
+  const assetId = id("ast_", key);
+  const storageKey = `${ORG}/${slot.replace(/:/g, "/")}/1/${filename}`;
+  insert("asset", {
+    id: assetId,
+    org_id: ORG,
+    storage_key: storageKey,
+    filename,
+    content_type: "image/png",
+    size_bytes: bytes.length,
+    checksum: createHash("sha256").update(bytes).digest("hex"),
+    width: null,
+    height: null,
+    scan_status: "clean",
+    visibility: "public",
+    uploaded_by_person_id: uploadedBy,
+    purpose,
+    expires_at: null,
+    slot_key: slot,
+    version: 1,
+    supersedes_asset_id: null,
+    created_at: daysFromNow(-30),
+    deleted_at: null,
+  });
+  assetFiles.push({ id: assetId, filename: `${assetId}.png`, storage_key: storageKey, bytes });
+  return assetId;
+}
+
+// Everyone the public might see. Staff are the exception rather than an
+// oversight: nothing renders an organizer's face, and a headshot the product
+// never shows is a file with no story attached.
+people
+  .filter((person) => person.company !== "DevFlow Events")
+  .forEach((person) => {
+    const assetId = seedAsset({
+      key: `headshot-${person.key}`,
+      slot: `person:${P[person.key]}:headshot`,
+      filename: `${person.key}-headshot.png`,
+      bytes: avatarPng(person.name, person.key),
+      purpose: "headshot",
+      uploadedBy: P[person.key],
+    });
+    statements.push(
+      `UPDATE speaker_profile SET headshot_asset_id = ${q(assetId)}, updated_at = ${q(now)} WHERE id = ${q(id("spk_", person.key))};`,
+    );
+  });
+
+[
+  { key: "logo-2027", event: EVENT, label: "DevFlow 27", filename: "devflow-conf-2027-logo.png" },
+  { key: "logo-2026", event: PRIOR_EVENT, label: "DevFlow 26", filename: "devflow-conf-2026-logo.png" },
+].forEach((logo) => {
+  const assetId = seedAsset({
+    key: logo.key,
+    slot: `event:${logo.event}:logo`,
+    filename: logo.filename,
+    bytes: wordmarkPng(logo.label, logo.key),
+    purpose: "logo",
+    uploadedBy: P.jordan,
+  });
+  statements.push(`UPDATE event SET logo_asset_id = ${q(assetId)} WHERE id = ${q(logo.event)};`);
+});
+
+[
+  { key: "ferro", label: "Ferro Labs" },
+  { key: "keelworks", label: "Keelworks" },
+  { key: "brightpath", label: "Brightpath" },
+].forEach((sponsor) => {
+  const assetId = seedAsset({
+    key: `logo-${sponsor.key}`,
+    slot: `sponsor:${SPONSORS[sponsor.key]}:logo`,
+    filename: `${sponsor.key}-logo.png`,
+    bytes: wordmarkPng(sponsor.label, `sponsor-${sponsor.key}`),
+    purpose: "logo",
+    uploadedBy: P.morgan,
+  });
+  statements.push(`UPDATE sponsor SET logo_asset_id = ${q(assetId)}, updated_at = ${q(now)} WHERE id = ${q(SPONSORS[sponsor.key])};`);
+});
+
+/* -------------------------------------------------------------------------- */
 /* reference counter                                                           */
 /* -------------------------------------------------------------------------- */
 
 insert("event_reference_counter", { event_id: EVENT, event_code: EVENT_CODE, next_value: refSeq + 1 });
-insert("event_reference_counter", { event_id: PRIOR_EVENT, event_code: "DFC26", next_value: 1 });
+insert("event_reference_counter", { event_id: PRIOR_EVENT, event_code: PRIOR_CODE, next_value: refSeq26 + 1 });
 
 /* -------------------------------------------------------------------------- */
 /* write it out                                                                */
@@ -2033,25 +2873,52 @@ const sql = ["PRAGMA defer_foreign_keys = true;", ...statements].join("\n");
 const outIndex = process.argv.indexOf("--out");
 const outFile = outIndex >= 0 ? process.argv[outIndex + 1] : ".wrangler/seed.sql";
 
+/**
+ * The images go next to the SQL, keyed by asset id, with a manifest listing
+ * what belongs where. `scripts/seed-assets.mjs` reads exactly this and needs to
+ * know nothing else about the seed.
+ */
+const assetDir = path.join(path.dirname(outFile), "seed-assets");
+const manifestFile = path.join(path.dirname(outFile), "seed-assets.json");
+
 if (process.argv.includes("--print")) {
   console.log(sql);
 } else {
   await writeFile(outFile, sql, "utf8");
   console.log(`wrote ${statements.length} statements to ${outFile}`);
+
+  await rm(assetDir, { recursive: true, force: true });
+  await mkdir(assetDir, { recursive: true });
+  for (const asset of assetFiles) await writeFile(path.join(assetDir, asset.filename), asset.bytes);
+  await writeFile(
+    manifestFile,
+    JSON.stringify(
+      { dir: assetDir, assets: assetFiles.map(({ id, filename, storage_key }) => ({ id, filename, storage_key })) },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  console.log(`wrote ${assetFiles.length} images to ${assetDir}`);
+
   execFileSync("npx", ["wrangler", "d1", "execute", "podium", "--local", `--file=${outFile}`, "-y"], {
     stdio: "inherit",
   });
   console.log(`
-Seeded DevFlow Conf 2027.
+Seeded DevFlow Conf 2027, and DevFlow Conf 2026 delivered before it.
 
-  Organizer / chair   sbek-organizer@example.com   SbekTest!2027-org
-  Speaker             sbek-speaker@example.com     SbekTest!2027-spk
-  Second speaker      sbek-speaker2@example.com    SbekTest!2027-spk2
-  Reviewer            sbek-reviewer@example.com    SbekTest!2027-rev
+  Organizer / chair   organizer@devflowconf.example   PodiumDemo2027!
+  Speaker             speaker@devflowconf.example     PodiumDemo2027!
+  Second speaker      cospeaker@devflowconf.example   PodiumDemo2027!
+  Reviewer            reviewer@devflowconf.example    PodiumDemo2027!
 
   Admin      http://localhost:8787/admin
   Portal     http://localhost:8787/portal
   Reviewer   http://localhost:8787/review
   Public     http://localhost:8787/e/devflow-conf-2027
+  Last year  http://localhost:8787/e/devflow-conf-2026
+
+  The seeded images are not in the bucket yet — \`npm run dev\` pushes them
+  (scripts/seed-assets.mjs) once the Worker is up.
 `);
 }

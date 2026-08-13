@@ -1042,7 +1042,7 @@ table.matrix.creds td:last-child { min-width: 15rem; }
 
 /* ---------- credentials ----------
    `word-break: break-all` fitted these into the column and broke them
-   mid-address — "sbek-organ / izer@examp / le.com" — which is unreadable and
+   mid-address — "organizer@ / devflowco / nf.example" — which is unreadable and
    worse than unreadable to copy by hand. They stay whole and the table scrolls
    inside its own box instead, which it already does for the same reason. */
 .cred { font: 400 14px/1.6 var(--font-mono); letter-spacing: 0.01em; white-space: nowrap; color: var(--text-1); }

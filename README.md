@@ -86,22 +86,28 @@ whatever you have already entered.
 
 The seed ships one live event mid-flight — DevFlow Conf 2027, with proposals in every state,
 a review round with real scores, accepted sessions with onboarding under way, and a placed
-agenda — plus an archived prior edition so the cross-event speaker directory has something
-to say. An empty shell teaches you nothing about whether the product works.
+agenda — and the edition before it, DevFlow Conf 2026, delivered: a closed call, fifteen
+talks over three days, their speakers, their recordings and the archived agenda they ran on.
+An empty shell teaches you nothing about whether the product works, and neither does a
+conference with no history behind it.
+
+Headshots and logos are real files: the seed generates them, `npm run dev` puts them in R2,
+and every one you see on a speaker page is served by `/assets/:id` out of the bucket.
 
 Sign in with any of these ([R23](docs/domain/13-open-questions.md): password login is on in
 the shipped seed, because a deployment nobody can sign into is worse than the marginal risk):
 
 | Persona | Email | Password |
 |---|---|---|
-| Organizer / program chair | `sbek-organizer@example.com` | `SbekTest!2027-org` |
-| Speaker | `sbek-speaker@example.com` | `SbekTest!2027-spk` |
-| Second speaker | `sbek-speaker2@example.com` | `SbekTest!2027-spk2` |
-| Reviewer | `sbek-reviewer@example.com` | `SbekTest!2027-rev` |
+| Organizer / program chair | `organizer@devflowconf.example` | `PodiumDemo2027!` |
+| Speaker | `speaker@devflowconf.example` | `PodiumDemo2027!` |
+| Second speaker | `cospeaker@devflowconf.example` | `PodiumDemo2027!` |
+| Reviewer | `reviewer@devflowconf.example` | `PodiumDemo2027!` |
 
 | Surface | Where |
 |---|---|
 | Public event and schedule | `/e/devflow-conf-2027` |
+| Last year's, delivered | `/e/devflow-conf-2026` |
 | Public call for proposals | `/e/devflow-conf-2027/cfp/main` |
 | Speaker / submitter portal | `/portal` |
 | Reviewer queue | `/review` |

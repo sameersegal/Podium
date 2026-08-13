@@ -96,11 +96,10 @@
       "response-content-type|workers/api/src/contexts/content/routes.ts|headers: { \"content-type\": safeServeContentType(str(asset.content_type)), \"content-disposition\": `attachment; "
     ],
     "secret-literal": [
-      "secret-literal|scripts/dev.mjs|password = <17 chars>",
-      "secret-literal|scripts/perf-console.mjs|password = <17 chars>",
-      "secret-literal|scripts/seed.mjs|password = <17 chars>",
-      "secret-literal|scripts/seed.mjs|password = <18 chars>",
-      "secret-literal|scripts/smoke.mjs|password = <17 chars>"
+      "secret-literal|scripts/dev.mjs|password = <15 chars>",
+      "secret-literal|scripts/perf-console.mjs|password = <15 chars>",
+      "secret-literal|scripts/seed.mjs|password = <15 chars>",
+      "secret-literal|scripts/smoke.mjs|password = <15 chars>"
     ]
   }
 }

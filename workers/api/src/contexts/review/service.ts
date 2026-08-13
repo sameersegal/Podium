@@ -1778,8 +1778,11 @@ export interface DecisionInput {
  * days, in meetings, changing their minds. Nothing reaches a speaker until the
  * chair publishes."
  *
- * INV-05-11 — `outcome = accept` requires `has_quorum`, unless the chair
- * records an explicit `quorum_waived_reason` on the decision.
+ * INV-05-11 bites at publish, not here (R32): a provisional accept is the
+ * chair's leaning, and triage is the activity that happens *before* the reviews
+ * are all in — so recording one below quorum is allowed and publishing it is
+ * not. `quorum_waived_reason` is still accepted here, because the chair records
+ * it while they are looking at the proposal rather than at the publish batch.
  */
 export async function recordDecision(app: AppContext, input: DecisionInput): Promise<string> {
   const proposal = await app.db.byId<Row>("proposal", input.proposal_id);
@@ -1793,25 +1796,6 @@ export async function recordDecision(app: AppContext, input: DecisionInput): Pro
   // outright, not merely logged (05, "Fairness rules made explicit").
   await assertNoConflict(app, eventId, decidedBy, input.proposal_id);
 
-  if (input.outcome === "accept") {
-    const roundId = input.round_id ?? (await latestRoundFor(app, input.proposal_id));
-    const score = roundId ? await proposalScoreFor(app, roundId, input.proposal_id) : null;
-    // INV-05-17: an AI review never satisfies quorum, so this is a human count.
-    if (score && !score.has_quorum && !input.quorum_waived_reason?.trim()) {
-      throw invariantError(
-        "INV-05-11",
-        "quorum_not_met",
-        `This proposal has ${score.human_review_count} of ${score.target_reviews_per_proposal} human reviews. Accepting it needs a recorded reason for waiving quorum.`,
-        {
-          proposal_id: input.proposal_id,
-          human_review_count: score.human_review_count,
-          ai_review_count: score.ai_review_count,
-          target_reviews_per_proposal: score.target_reviews_per_proposal,
-        },
-      );
-    }
-  }
-
   // A provisional decision is edited in place — `provisional → provisional` is
   // drawn on the diagram. A published one is superseded by the new record.
   const existing = await app.db.select<Row>("decision", { proposal_id: input.proposal_id });
@@ -1819,17 +1803,24 @@ export async function recordDecision(app: AppContext, input: DecisionInput): Pro
 
   if (current && str(current.status) === "provisional") {
     assertDecisionTransition("provisional", "provisional");
+    // A field the caller did not mention keeps the value it had; only an
+    // explicit null clears it. The decision form sends every field, so
+    // emptying a box there still empties the column — but moving a proposal
+    // between the queues sends nothing except the outcome, and that must not
+    // silently discard the confirmation deadline or a recorded reason for
+    // going ahead below quorum.
+    const kept = <T>(given: T | undefined, held: unknown): T | null => (given === undefined ? ((held ?? null) as T | null) : (given ?? null));
     await app.db.update("decision", str(current.id), {
       round_id: input.round_id ?? current.round_id ?? null,
       outcome: input.outcome,
-      assigned_track_id: input.assigned_track_id ?? null,
-      assigned_format_id: input.assigned_format_id ?? null,
-      assigned_duration_minutes: input.assigned_duration_minutes ?? null,
-      conditions: input.conditions ?? null,
-      feedback_for_speaker: input.feedback_for_speaker ?? null,
-      rationale: input.rationale ?? null,
-      confirmation_deadline: input.confirmation_deadline ?? null,
-      quorum_waived_reason: input.quorum_waived_reason ?? null,
+      assigned_track_id: kept(input.assigned_track_id, current.assigned_track_id),
+      assigned_format_id: kept(input.assigned_format_id, current.assigned_format_id),
+      assigned_duration_minutes: kept(input.assigned_duration_minutes, current.assigned_duration_minutes),
+      conditions: kept(input.conditions, current.conditions),
+      feedback_for_speaker: kept(input.feedback_for_speaker, current.feedback_for_speaker),
+      rationale: kept(input.rationale, current.rationale),
+      confirmation_deadline: kept(input.confirmation_deadline, current.confirmation_deadline),
+      quorum_waived_reason: kept(input.quorum_waived_reason, current.quorum_waived_reason),
       decided_by_person_id: decidedBy,
       decided_at: app.now(),
     });
@@ -1963,7 +1954,7 @@ export async function previewPublish(
       also_notified: others,
       template_key: DECISION_TEMPLATE[str(decision.outcome) as DecisionOutcome],
       subject: `${str(event.name)}: your session "${str(proposal.title)}"`,
-      blocked: publishBlockedReason(decision, proposal, app.now()),
+      blocked: await publishBlockedReason(app, decision, proposal, app.now()),
     });
   }
   return out;
@@ -1973,8 +1964,14 @@ export async function previewPublish(
  * INV-05-9 — a `Decision` may only be `published` when `Proposal.status` allows
  * it and, for `outcome = accept`, `confirmation_deadline` is set and in the
  * future.
+ *
+ * INV-05-11 — and, for `outcome = accept`, the proposal has quorum or the chair
+ * has recorded a reason for waiving it. This is checked here rather than when
+ * the outcome is recorded (R32): leaning towards an acceptance is triage, which
+ * happens before the reviews are in; telling the speaker is the act that needs
+ * the reviews behind it.
  */
-function publishBlockedReason(decision: Row, proposal: Row, now: string): string | null {
+async function publishBlockedReason(app: AppContext, decision: Row, proposal: Row, now: string): Promise<string | null> {
   const status = str(decision.status) as DecisionStatus;
   if (status === "published") return "Already published — publishing again sends nothing."; // INV-05-10
   if (status === "superseded") return "Superseded by a later decision.";
@@ -1987,6 +1984,15 @@ function publishBlockedReason(decision: Row, proposal: Row, now: string): string
     const deadline = strOrNull(decision.confirmation_deadline);
     if (!deadline) return "An acceptance needs a confirmation deadline before it can be published.";
     if (deadline <= now) return "The confirmation deadline is in the past.";
+
+    if (!strOrNull(decision.quorum_waived_reason)?.trim()) {
+      const roundId = strOrNull(decision.round_id) ?? (await latestRoundFor(app, str(proposal.id)));
+      // INV-05-17: an AI review never satisfies quorum, so this is a human count.
+      const score = roundId ? await proposalScoreFor(app, roundId, str(proposal.id)) : null;
+      if (score && !score.has_quorum) {
+        return `This proposal has ${score.human_review_count} of ${score.target_reviews_per_proposal} reviews. Accepting it needs a recorded reason for going ahead with fewer.`;
+      }
+    }
   }
   return null;
 }
@@ -2026,7 +2032,7 @@ export async function publishDecisions(
       skipped.push({ decision_id: decisionId, reason: "That decision belongs to another event." });
       continue;
     }
-    const blocked = publishBlockedReason(decision, proposal, now);
+    const blocked = await publishBlockedReason(app, decision, proposal, now);
     if (blocked) {
       skipped.push({ decision_id: decisionId, reason: blocked });
       continue;

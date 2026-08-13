@@ -15,6 +15,7 @@
 import { spawn, execFileSync } from "node:child_process";
 import { networkInterfaces } from "node:os";
 import process from "node:process";
+import { pushSeededAssets } from "./seed-assets.mjs";
 
 function flag(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -52,7 +53,7 @@ function lanAddress() {
   return null;
 }
 
-const ORGANIZER = { email: "sbek-organizer@example.com", password: "SbekTest!2027-org" };
+const ORGANIZER = { email: "organizer@devflowconf.example", password: "PodiumDemo2027!" };
 
 function run(command, args) {
   execFileSync(command, args, { stdio: "inherit" });
@@ -113,13 +114,21 @@ async function publishSeededSchedule() {
   const existing = await (await fetch(`${BASE}/dev/status`, { headers: { cookie } })).json();
   if ((existing.counts?.schedule_publication ?? 0) > 0) return { ok: true, why: "already published" };
 
-  const res = await fetch(`${BASE}/admin/events/${ids.event_id}/publications`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", cookie },
-    body: new URLSearchParams({ note: "Initial publication of the seeded programme." }),
-    redirect: "manual",
-  });
-  return res.status === 303 ? { ok: true } : { ok: false, why: `publish returned ${res.status}` };
+  // Both editions. The archived one needs it as much as the active one: its
+  // agenda, its speakers and its ICS feed all read the `live` publication and
+  // nothing else, so an unpublished 2026 is a conference that visibly did not
+  // happen.
+  const events = ids.events?.length ? ids.events : [{ id: ids.event_id, slug: ids.event_slug }];
+  for (const event of events) {
+    const res = await fetch(`${BASE}/admin/events/${event.id}/publications`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie },
+      body: new URLSearchParams({ note: "Initial publication of the seeded programme." }),
+      redirect: "manual",
+    });
+    if (res.status !== 303) return { ok: false, why: `publishing ${event.slug} returned ${res.status}` };
+  }
+  return { ok: true };
 }
 
 if (await waitForReady()) {
@@ -135,11 +144,22 @@ if (await waitForReady()) {
 // that has never been published is exactly the case that leaves every public
 // surface correctly, and confusingly, empty.
 if (await waitForReady()) {
+  // Same reasoning for the images, one step earlier: the seed wrote `asset`
+  // rows and the files, but only a running Worker can put bytes in the bucket.
+  // Headshots and logos are published content, so this belongs before the
+  // publish rather than after it.
+  try {
+    const assets = await pushSeededAssets({ base: BASE });
+    if (!assets.ok) console.log(`\n⚠️   Seeded images not pushed (${assets.why}). Run node scripts/seed-assets.mjs.\n`);
+  } catch (err) {
+    console.log(`\n⚠️   Seeded images not pushed (${err}). Run node scripts/seed-assets.mjs.\n`);
+  }
+
   try {
     const outcome = await publishSeededSchedule();
     console.log(
       outcome.ok
-        ? `\n📅  Seeded schedule published — ${PUBLIC_BASE_URL}/e/devflow-conf-2027/schedule\n`
+        ? `\n📅  Seeded schedules published — ${PUBLIC_BASE_URL}/e/devflow-conf-2027/schedule\n    and last year's — ${PUBLIC_BASE_URL}/e/devflow-conf-2026/schedule\n`
         : `\n⚠️   Seeded schedule not published (${outcome.why}). Publish it from ${BASE}/admin.\n`,
     );
   } catch (err) {

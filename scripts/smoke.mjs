@@ -14,9 +14,9 @@ const verbose = args.includes("--verbose");
 
 const PERSONAS = {
   anonymous: null,
-  organizer: { email: "sbek-organizer@example.com", password: "SbekTest!2027-org" },
-  speaker: { email: "sbek-speaker@example.com", password: "SbekTest!2027-spk" },
-  reviewer: { email: "sbek-reviewer@example.com", password: "SbekTest!2027-rev" },
+  organizer: { email: "organizer@devflowconf.example", password: "PodiumDemo2027!" },
+  speaker: { email: "speaker@devflowconf.example", password: "PodiumDemo2027!" },
+  reviewer: { email: "reviewer@devflowconf.example", password: "PodiumDemo2027!" },
 };
 
 async function signIn(creds) {

@@ -151,9 +151,9 @@ Keep these green. They are the contract, not a formality:
   `AppContext` and never flushes it — the silent failure it catches is a write that lands
   while every reaction that should have followed it never runs.
 
-**Nothing is open.** All thirty questions in
+**Nothing is open.** All thirty-two questions in
 [`13-open-questions.md`](docs/domain/13-open-questions.md) are decided and recorded as
-R1–R30; read the rationale there before reopening any of it.
+R1–R32; read the rationale there before reopening any of it.
 
 The decisions that most shape the code, and how each one landed:
 

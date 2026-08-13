@@ -26,6 +26,25 @@ export const ISSUES_URL = `${GITHUB_URL}/issues`;
 export const SOCIAL_HANDLE = "@podiumstack";
 export const SOCIAL_URL = "https://x.com/podiumstack";
 
+/**
+ * PostHog. The key is checked in on purpose: a project API key is a write-only
+ * ingest key, it is published in the page source of every site that uses one,
+ * and it cannot read an event, a person or a query. Treating it as a secret
+ * would buy nothing and cost a deploy-time variable somebody eventually forgets
+ * to set.
+ *
+ * `POSTHOG_HOSTS` is what keeps it from being a nuisance. Analytics runs on the
+ * two hostnames this site is actually served on and nowhere else, so
+ * `astro dev`, a preview build and anybody's clone of this repository send
+ * nothing — the check happens before the library is fetched, so they do not
+ * even download it. Add a hostname here and it starts reporting.
+ *
+ * `src/components/Analytics.astro` holds the configuration and the reasoning.
+ */
+export const POSTHOG_KEY = "phc_pXnRKchKbq3UDi5aAuwBYc7XE6fH9w2opibssrUKTZHK";
+export const POSTHOG_HOST = "https://us.i.posthog.com";
+export const POSTHOG_HOSTS = ["podiumstack.com", "www.podiumstack.com"];
+
 export const SITE_TITLE = "Podium";
 export const SITE_DESCRIPTION =
   "Run your conference program from your own Cloudflare account. Podium handles the call for proposals, review, sponsor sessions, speaker onboarding and the schedule your site embeds. MIT-licensed, and the only bill is your hosting.";
@@ -80,30 +99,34 @@ export const STATS = {
 } as const;
 
 /**
- * The demo sign-ins, copied from `README.md`. These are seed personas on a
- * database that is reset, not people — publishing them is the point, since a
- * "see it running" link that lands on a login form nobody can pass is a dead
- * end dressed up as a call to action.
+ * The demo sign-ins, copied from `README.md`. These are seed personas, not
+ * people — publishing them is the point, since a "see it running" link that
+ * lands on a login form nobody can pass is a dead end dressed up as a call to
+ * action.
+ *
+ * They work on the hosted instance as well as locally. Nothing resets the
+ * hosted database, so it is shared mutable state and `/demo` says so rather
+ * than implying a fresh conference per visitor.
  */
 export const DEMO_PERSONAS = [
   {
     role: "Organizer / program chair",
-    email: "sbek-organizer@example.com",
-    password: "SbekTest!2027-org",
+    email: "organizer@devflowconf.example",
+    password: "PodiumDemo2027!",
     lands: "/admin",
     sees: "Every event, the proposal board, the agenda, sponsors and the publish queue.",
   },
   {
     role: "Reviewer",
-    email: "sbek-reviewer@example.com",
-    password: "SbekTest!2027-rev",
+    email: "reviewer@devflowconf.example",
+    password: "PodiumDemo2027!",
     lands: "/review",
     sees: "A queue of assigned proposals, a rubric, and the ones a conflict blocks.",
   },
   {
     role: "Speaker",
-    email: "sbek-speaker@example.com",
-    password: "SbekTest!2027-spk",
+    email: "speaker@devflowconf.example",
+    password: "PodiumDemo2027!",
     lands: "/portal",
     sees: "One accepted talk, its room and time, and what is still outstanding.",
   },

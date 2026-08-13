@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import Analytics from "../components/Analytics.astro";
 import {
   APP_URL,
   DOMAIN_MODEL_URL,
@@ -89,11 +90,16 @@ const isCurrent = (href: string) => path === href || path.startsWith(`${href}/`)
     <meta name="twitter:site" content={SOCIAL_HANDLE} />
     <meta name="twitter:creator" content={SOCIAL_HANDLE} />
 
-    {/* There is no script on this site, here or anywhere else, and the build
-        output is checked for it. The scroll reveal that used to live here hid
-        every section until an IntersectionObserver put it back — content that
-        needs JavaScript to become visible can fail to appear, and did, for
-        anyone who blocked it. */}
+    {/* One script, and it is analytics. Nothing a reader needs runs in the
+        browser: the scroll reveal that used to live here hid every section
+        until an IntersectionObserver put it back, and content that needs
+        JavaScript to become visible can fail to appear, and did, for anyone who
+        blocked it. That rule did not move — what moved is "zero scripts", which
+        was a proxy for it. Analytics.astro explains what it loads, why it is
+        cookieless and what that costs. Anything added beside it has to clear
+        the same bar: the page is complete before it runs, and complete if it
+        never does. */}
+    <Analytics />
   </head>
 
   <body>

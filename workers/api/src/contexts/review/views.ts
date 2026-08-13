@@ -793,35 +793,113 @@ export interface DecisionRowView {
   proposal: Row;
   decision: Row | null;
   hasQuorum: boolean;
+  /** How far through the reviews this proposal is. Null before any round reaches it. */
+  reviews: { done: number; target: number } | null;
 }
 
+/**
+ * The chair's working buckets. A provisional decision is the outcome they are
+ * leaning towards rather than one they have taken, so the set of them splits
+ * into "headed for acceptance" and "headed for rejection" — which is the shape
+ * the work actually has, and what a single flat table of every undecided
+ * proposal was hiding.
+ *
+ * These buckets are a projection of `Decision.outcome` over the provisional
+ * decisions, never states of their own: `Proposal.status` is downstream of
+ * `Decision` (05, "The accept and reject queues"), and a second pair of
+ * near-miss proposal statuses beside `accepted` would be the same fact in two
+ * places, free to disagree.
+ */
+const DECISION_QUEUES: { key: string; title: string; lede: string }[] = [
+  { key: "accept", title: "Accept queue", lede: "Headed for acceptance. Nobody has been told — publishing is what tells them." },
+  { key: "waitlist", title: "Waitlist", lede: "Kept in reserve. A waitlisted talk is promoted by deciding again, not automatically." },
+  { key: "reject", title: "Reject queue", lede: "Headed for rejection. Nothing is sent until you publish." },
+  { key: "request_changes", title: "Going back for changes", lede: "The submitter is asked to revise and resubmit." },
+  { key: "", title: "Not looked at yet", lede: "No leaning recorded. Put each one in a list — you can move it as often as you like." },
+  { key: "published", title: "Already told", lede: "The speaker has had this decision. Changing it means deciding again." },
+];
+
 export function decisionsListView(d: { event: EventRef; rows: DecisionRowView[]; tracks: Row[]; formats: Row[]; canWrite: boolean }): SafeHtml {
-  const rows = d.rows.map(
-    (r) => html`<tr>
-      <td><a href="/admin/proposals/${str(r.proposal.id)}/decision"><strong>${str(r.proposal.reference)}</strong></a><br><span class="small muted">${str(r.proposal.title)}</span></td>
-      <td>${r.hasQuorum ? badge("has quorum", "ok") : badge("short of quorum", "warn")}</td>
-      <td>${r.decision ? badge(str(r.decision.outcome)) : html`<span class="muted">none</span>`}</td>
-      <td>${r.decision ? badge(str(r.decision.status), str(r.decision.status) === "published" ? "ok" : "warn") : raw("")}</td>
-      <td class="right">
-        ${d.canWrite
-          ? html`<form method="post" action="/admin/events/${d.event.id}/decisions" class="inline-grid">
-              <input type="hidden" name="proposal_id" value="${str(r.proposal.id)}">
-              <select name="outcome">
-                <option value="">— set outcome —</option>
-                ${DECISION_OUTCOME.map((o) => html`<option value="${o}"${r.decision && str(r.decision.outcome) === o ? raw(" selected") : raw("")}>${humanise(o)}</option>`)}
-              </select>
-              <input type="datetime-local" name="confirmation_deadline" placeholder="confirm by">
-              <input type="text" name="quorum_waived_reason" placeholder="reason to waive quorum, if needed">
-              <button type="submit" class="small">Record</button>
-            </form>`
-          : raw("")}
-      </td>
-    </tr>`,
-  );
+  const bucketOf = (r: DecisionRowView): string => {
+    if (!r.decision) return "";
+    return str(r.decision.status) === "published" ? "published" : str(r.decision.outcome);
+  };
+
+  const sections = DECISION_QUEUES.map((q) => {
+    const rows = d.rows.filter((r) => bucketOf(r) === q.key);
+    if (rows.length === 0) return raw("");
+    return html`
+      <section class="stack" style="gap:var(--sp-2)">
+        <div class="card-head">
+          <h2>${q.title}</h2>
+          <span class="spacer"></span>
+          <p class="note">${rows.length}</p>
+        </div>
+        <p class="small muted" style="margin:0">${q.lede}</p>
+        <section class="card rows">${rows.map((r) => decisionQueueRow(d, r, q.key))}</section>
+      </section>
+    `;
+  });
+
+  const anyRows = d.rows.length > 0;
   return html`
-    ${pageHead("Decisions", "Provisional until published. Nothing reaches a speaker until you publish, as a deliberate batch.", html`<a class="btn secondary" href="/admin/events/${d.event.id}/decisions/publish">Review and publish</a>`)}
-    ${table(["Proposal", "Quorum", "Outcome", "Status", ""], rows, "Nothing to decide yet.")}
+    ${pageHead(
+      "Decisions",
+      "A list is a leaning, not a decision. Nothing reaches a speaker until you publish, as a deliberate batch.",
+      html`<a class="btn secondary" href="/admin/events/${d.event.id}/decisions/publish">Review and publish</a>`,
+    )}
+    ${anyRows ? html`<div class="stack">${sections}</div>` : empty("Nothing to decide yet.")}
   `;
+}
+
+/** The verb on each button: where this proposal would move, not what it is. */
+const QUEUE_VERB: Record<string, string> = {
+  accept: "Accept",
+  waitlist: "Waitlist",
+  reject: "Reject",
+  request_changes: "Ask for changes",
+};
+
+function decisionQueueRow(d: { event: EventRef; canWrite: boolean }, r: DecisionRowView, bucket: string): SafeHtml {
+  const href = `/admin/proposals/${str(r.proposal.id)}/decision`;
+
+  // How far through the reviews, in the column the eye reaches first. Short of
+  // quorum only reads as a problem in the accept queue, because that is the
+  // only queue where it stops the publish (INV-05-11) — and only where a round
+  // actually reached the proposal, since a proposal no round covers has no
+  // quorum to be short of and publishes without one.
+  const counts = r.reviews;
+  const shortForAccept = bucket === "accept" && counts !== null && !r.hasQuorum;
+  const reviewsLabel = counts ? `${counts.done}/${counts.target}` : "no round";
+  const reviewsClass = !counts ? "none" : shortForAccept ? "late" : r.hasQuorum ? "" : "soon";
+
+  // A published decision is not re-sorted by a click. Superseding one tells the
+  // speaker again, so it happens on the decision form where the chair can see
+  // what they are about to send, not in a list of buttons.
+  const moves = bucket === "published" ? [] : Object.keys(QUEUE_VERB).filter((o) => o !== bucket);
+
+  return html`<div class="queue-row">
+    <span class="due ${reviewsClass}" title="${counts ? `${counts.done} of ${counts.target} reviews in` : "Not assigned to a review round yet"}"
+      >${reviewsLabel}</span
+    >
+    <div class="body">
+      <p class="title"><a href="${href}">${str(r.proposal.title)}</a></p>
+      <p class="meta">${str(r.proposal.reference)}${shortForAccept ? " · short of quorum" : ""}</p>
+    </div>
+    ${shortForAccept ? html`<span class="chip">needs a reason to publish</span>` : raw("")}
+    ${d.canWrite && moves.length > 0
+      ? html`<form method="post" action="/admin/events/${d.event.id}/decisions" class="queue-actions">
+          <input type="hidden" name="proposal_id" value="${str(r.proposal.id)}">
+          ${moves.map(
+            (o) =>
+              html`<button type="submit" name="outcome" value="${o}" class="btn small secondary" aria-label="${QUEUE_VERB[o]}: ${str(r.proposal.title)}">
+                ${QUEUE_VERB[o]}
+              </button>`,
+          )}
+        </form>`
+      : raw("")}
+    <a class="btn small secondary" href="${href}">Open</a>
+  </div>`;
 }
 
 export function decisionFormView(d: { event: EventRef; proposal: Row; decision: Row | null; tracks: Row[]; formats: Row[]; hasQuorum: boolean; canWrite: boolean }): SafeHtml {

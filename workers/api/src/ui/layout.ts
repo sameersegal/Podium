@@ -57,6 +57,11 @@ export interface RailContext {
   lines?: string[];
   /** Draws the status dot — the event is running now. */
   live?: boolean;
+  /**
+   * The other events this rail can be pointed at. Given them, the name becomes
+   * a switcher; given none, it stays a link to the event's own overview.
+   */
+  switchTo?: { id: string; name: string; status: string; current?: boolean }[];
 }
 
 export interface Crumb {
@@ -280,14 +285,60 @@ function rail(c: ConsoleChrome): SafeHtml {
   </details>`;
 }
 
+/**
+ * What the rail is pointed at, and — when there is more than one — the way to
+ * point it somewhere else.
+ *
+ * A `<details>`, like every other menu in this product, so it opens with
+ * scripts blocked. Each row is an ordinary link, which is what makes
+ * middle-click, ⌘-click and "open in a new tab" work without being
+ * implemented; the explicit ↗ beside each one is for the reader who wants a
+ * second event open side by side and should not have to know the shortcut.
+ */
 function railContext(ctx: RailContext): SafeHtml {
-  const name = ctx.href
-    ? html`<a class="name" href="${ctx.href}">${ctx.name}</a>`
-    : html`<span class="name">${ctx.name}</span>`;
-  return html`<div class="rail-context">
-    <div class="head">${ctx.live ? html`<span class="dot" aria-hidden="true"></span>` : raw("")}${name}</div>
-    ${(ctx.lines ?? []).map((line) => html`<p>${line}</p>`)}
-  </div>`;
+  const dot = ctx.live ? html`<span class="dot" aria-hidden="true"></span>` : raw("");
+  const others = ctx.switchTo ?? [];
+
+  if (others.length < 2) {
+    const name = ctx.href
+      ? html`<a class="name" href="${ctx.href}">${ctx.name}</a>`
+      : html`<span class="name">${ctx.name}</span>`;
+    return html`<div class="rail-context">
+      <div class="head">${dot}${name}</div>
+      ${(ctx.lines ?? []).map((line) => html`<p>${line}</p>`)}
+    </div>`;
+  }
+
+  return html`<details class="rail-context switcher">
+    ${
+      // The dates live *inside* the summary, not after it. A closed `<details>`
+      // hides everything that is not its summary, so a card that kept them
+      // outside lost "14–16 Apr · 61 days out" the moment the menu was shut —
+      // which is every moment but one.
+      raw("")
+    }
+    <summary>
+      <span class="head">${dot}<span class="name">${ctx.name}</span>
+        <span class="caret" aria-hidden="true">▾</span>
+        <span class="sr-only">Switch event</span>
+      </span>
+      ${(ctx.lines ?? []).map((line) => html`<p>${line}</p>`)}
+    </summary>
+    <div class="event-menu">
+      <p class="rail-group-label">Switch to</p>
+      ${others.map(
+        (e) => html`<span class="event-row${e.current ? " current" : ""}">
+          <a href="/admin/events/${e.id}"${e.current ? raw(' aria-current="true"') : raw("")}>
+            <span class="n">${e.name}</span><span class="s">${e.status}</span>
+          </a>
+          <a class="tab" href="/admin/events/${e.id}" target="_blank" rel="noopener" title="Open in a new tab"
+            >↗<span class="sr-only">Open ${e.name} in a new tab</span></a
+          >
+        </span>`,
+      )}
+      <a class="all" href="/admin/events">All events</a>
+    </div>
+  </details>`;
 }
 
 function crumbs(items: Crumb[]): SafeHtml {

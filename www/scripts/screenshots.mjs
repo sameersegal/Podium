@@ -35,9 +35,9 @@ const SCALE = 1.5;
 const PHONE_WIDTH = 390;
 
 const PERSONAS = {
-  organizer: { email: "sbek-organizer@example.com", password: "SbekTest!2027-org" },
-  speaker: { email: "sbek-speaker2@example.com", password: "SbekTest!2027-spk2" },
-  reviewer: { email: "sbek-reviewer@example.com", password: "SbekTest!2027-rev" },
+  organizer: { email: "organizer@devflowconf.example", password: "PodiumDemo2027!" },
+  speaker: { email: "cospeaker@devflowconf.example", password: "PodiumDemo2027!" },
+  reviewer: { email: "reviewer@devflowconf.example", password: "PodiumDemo2027!" },
 };
 
 const res = await fetch(`${base}/dev/ids`);
