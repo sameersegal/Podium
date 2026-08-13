@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
 import { DOMAIN_MODEL_URL, GITHUB_URL, IMPLEMENTATION_URL, STATS } from "../consts";
@@ -132,10 +133,10 @@ const ACCESS = [
       not a security claim at all. The lede makes the argument this page needs.
       The strip now appears once, on /fork. */}
 
-  <section>
+  <section id="personal-data">
     <div class="wrap">
       <span class="eyebrow">Personal data</span>
-      <h2>Redaction is the default, not a feature.</h2>
+      <h2>Redaction is the default, not a feature.<Anchor for="personal-data" label="Redaction is the default, not a feature" /></h2>
       <p class="sub">
         Adding a field means deciding whether it is personal data before it can ship. That is a rule
         with a check behind it.
@@ -153,10 +154,10 @@ const ACCESS = [
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="subject-rights">
     <div class="wrap">
       <span class="eyebrow">Subject rights</span>
-      <h2>Export and erasure are features, not a support process.</h2>
+      <h2>Export and erasure are features, not a support process.<Anchor for="subject-rights" label="Export and erasure are features, not a support process" /></h2>
       <p class="sub">
         A speaker asking to be removed should not cost you an afternoon and a query you write by
         hand.
@@ -174,10 +175,10 @@ const ACCESS = [
     </div>
   </section>
 
-  <section>
+  <section id="access">
     <div class="wrap">
       <span class="eyebrow">Access control</span>
-      <h2>Six properties the rest of it rests on.</h2>
+      <h2>Six properties the rest of it rests on.<Anchor for="access" label="Six properties the rest of it rests on" /></h2>
       <div class="grid-hair three">
         {
           ACCESS.map((a) => (
@@ -192,10 +193,10 @@ const ACCESS = [
     </div>
   </section>
 
-  <section>
+  <section id="disclosed">
     <div class="wrap">
       <span class="eyebrow">Disclosed</span>
-      <h2>What a review found, and where it stopped.</h2>
+      <h2>What a review found, and where it stopped.<Anchor for="disclosed" label="What a review found, and where it stopped" /></h2>
       <p class="sub">
         Nobody had read this product as a whole for security until August 2026. The review was
         internal: our own people on our own code, not an outside audit. It found six defects, all

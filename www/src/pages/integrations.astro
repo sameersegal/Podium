@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
@@ -49,12 +50,12 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
     <Logos dark items={CONNECTS_TO} claim="Adapters you can install today" />
   </PageHead>
 
-  <section>
+  <section id="how">
     <div class="wrap">
       <div class="feature">
         <div class="copy">
           <span class="eyebrow">How it works</span>
-          <h3>Install it, name the secret, make it the default.</h3>
+          <h3>Install it, name the secret, make it the default.<Anchor for="how" label="Install it, name the secret, make it the default" /></h3>
           <p>
             Each integration declares the settings it needs and one credential. You give Podium
             the <em>name</em> of a secret and it resolves it at call time, so the credential is
@@ -76,10 +77,10 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="shipped">
     <div class="wrap">
       <span class="eyebrow">Shipped today</span>
-      <h2>Six capabilities with an adapter you can install now.</h2>
+      <h2>Six capabilities with an adapter you can install now.<Anchor for="shipped" label="Six capabilities with an adapter you can install now" /></h2>
       <p class="sub">
         The contract under each is the interesting part. Each is the smallest thing a provider
         could satisfy, so the widest set of providers can.
@@ -114,12 +115,12 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
     </div>
   </section>
 
-  <section>
+  <section id="sync">
     <div class="wrap">
       <div class="feature flip">
         <div class="copy">
           <span class="eyebrow">Two-way sync, in detail</span>
-          <h3>The spreadsheet your team keeps anyway, made live.</h3>
+          <h3>The spreadsheet your team keeps anyway, made live.<Anchor for="sync" label="The spreadsheet your team keeps anyway, made live" /></h3>
           <p>
             Organizers keep a spreadsheet regardless. It holds the columns this tool will never
             have — <em>hotel booked?</em>, <em>swag size</em>, <em>legal cleared the recording</em>
@@ -152,10 +153,10 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
     </div>
   </section>
 
-  <section>
+  <section id="always-on">
     <div class="wrap">
       <span class="eyebrow">Always on</span>
-      <h2>You get this without installing anything.</h2>
+      <h2>You get this without installing anything.<Anchor for="always-on" label="You get this without installing anything" /></h2>
       <p class="sub">
         {STATS.events} named events, {STATS.scopes} API scopes, and a public schedule your CDN can
         cache. This part is not a plugin.
@@ -174,10 +175,10 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="agents">
     <div class="wrap">
       <span class="eyebrow">Built for an agent to drive</span>
-      <h2>The caller might not be a person.</h2>
+      <h2>The caller might not be a person.<Anchor for="agents" label="The caller might not be a person" /></h2>
       <p class="sub">
         A conference team is increasingly one organizer and the agent they work through. The
         management surface is one versioned API, {STATS.endpoints} endpoints with the agenda grid
@@ -219,10 +220,10 @@ import { API_DOC_URL, DOMAIN_MODEL_URL, STATS } from "../consts";
     </div>
   </section>
 
-  <section>
+  <section id="not-built">
     <div class="wrap">
       <span class="eyebrow">Not built yet</span>
-      <h2>Specified, with no adapter shipped.</h2>
+      <h2>Specified, with no adapter shipped.<Anchor for="not-built" label="Specified, with no adapter shipped" /></h2>
       <p class="sub">
         The contracts exist and the install screen knows about them. Nobody has written the
         provider yet. They are listed so the catalogue above can be read as complete.

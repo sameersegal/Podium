@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import Logos from "../components/Logos.astro";
 import PageHead from "../components/PageHead.astro";
@@ -114,10 +115,10 @@ const COMMANDS = [
     </div>
   </PageHead>
 
-  <section>
+  <section id="guardrails">
     <div class="wrap">
       <span class="eyebrow">Why a change here survives</span>
-      <h2>Three things you inherit with the checkout.</h2>
+      <h2>Three things you inherit with the checkout.<Anchor for="guardrails" label="Three things you inherit with the checkout" /></h2>
       <p class="sub">
         Each one stops an agent, ours or yours, quietly inventing behaviour nobody asked for.
       </p>
@@ -135,10 +136,10 @@ const COMMANDS = [
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="checks">
     <div class="wrap">
       <span class="eyebrow">Before you ship your change</span>
-      <h2>Five commands say whether you broke it.</h2>
+      <h2>Five commands say whether you broke it.<Anchor for="checks" label="Five commands say whether you broke it" /></h2>
       <p class="sub">
         None of them needs a Cloudflare account. The first four also gate the deploy, so a change
         that fails one on your laptop would have failed ours.
@@ -167,10 +168,10 @@ const COMMANDS = [
     </div>
   </section>
 
-  <section>
+  <section id="taking-on">
     <div class="wrap">
       <span class="eyebrow">What you are taking on</span>
-      <h2>A change you make is a merge you own.</h2>
+      <h2>A change you make is a merge you own.<Anchor for="taking-on" label="A change you make is a merge you own" /></h2>
       <p class="sub">
         This is the part that decides whether you regret the fork in eighteen months.
       </p>
@@ -216,10 +217,10 @@ const COMMANDS = [
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="plugin">
     <div class="wrap">
       <span class="eyebrow">Operating an instance</span>
-      <h2>The repository is also a Claude Code plugin.</h2>
+      <h2>The repository is also a Claude Code plugin.<Anchor for="plugin" label="The repository is also a Claude Code plugin" /></h2>
       <p class="sub">
         Eight skills over the management API, and a CLI with no dependencies. Add the repository as
         a marketplace, then install it.
@@ -254,10 +255,10 @@ const COMMANDS = [
     </div>
   </section>
 
-  <section>
+  <section id="boundary">
     <div class="wrap">
       <span class="eyebrow">The boundary</span>
-      <h2>What an agent still cannot do here.</h2>
+      <h2>What an agent still cannot do here.<Anchor for="boundary" label="What an agent still cannot do here" /></h2>
       <p class="sub">
         The plugin above hands an agent the map to a running instance. It is not an assistant that
         runs your call for proposals.

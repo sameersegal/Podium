@@ -1,0 +1,42 @@
+---
+/**
+ * The link that gives a section of a page its own address.
+ *
+ * The pages here are long and the arguments on them are separable: the bill is
+ * one thing, what a speaker notices when you switch is another, and either may
+ * be worth pointing somebody at without the eleven screens above it. So every
+ * section carries an `id` and every section heading carries this, which is how
+ * a reader gets the URL without reading the source.
+ *
+ * Invisible until the heading is hovered or this link is focused. It is a
+ * device for the person who wants it and it is not part of the page otherwise;
+ * a hash beside every heading, permanently, is a documentation site.
+ *
+ * **An id is a URL.** Once a section has been linked to from outside, renaming
+ * its id breaks that link silently — a fragment never reaches the server, so
+ * `public/_redirects` cannot save it the way it saves a renamed page. Add ids;
+ * do not rewrite them. Restructuring a page that drops a section is the one
+ * case where a link legitimately dies, and it still costs somebody the click.
+ *
+ * `npm --prefix www run links` prints every one of them against the built site,
+ * which is where the address you paste into a post comes from.
+ */
+interface Props {
+  /** The id of the section this heading opens. */
+  for: string;
+  /**
+   * The heading this sits in, so a screen reader hears which section the link
+   * addresses rather than "link to this section" six times a page. Repeating
+   * the heading text is the cost; there is no way for a component to read the
+   * element it was slotted into.
+   */
+  label?: string;
+}
+
+const { for: target, label } = Astro.props;
+const name = label ? `Link to “${label}”` : "Link to this section";
+---
+
+<a class="anchor" href={`#${target}`} aria-label={name} title="Link to this section">
+  <span aria-hidden="true">#</span>
+</a>

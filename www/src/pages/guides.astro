@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
 import { GITHUB_URL } from "../consts";
@@ -51,10 +52,10 @@ const GUIDES = [
     </div>
   </PageHead>
 
-  <section>
+  <section id="guides">
     <div class="wrap">
       <span class="eyebrow">Two of them</span>
-      <h2>Written from the repository, not from memory.</h2>
+      <h2>Written from the repository, not from memory.<Anchor for="guides" label="Written from the repository, not from memory" /></h2>
       <p class="sub">
         Every command below exists in the source you are about to clone. Every setting named is
         one you can go and look at. Where nobody has run something in public, the guide says so

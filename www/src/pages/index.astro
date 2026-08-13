@@ -1,6 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import Agent from "../components/Agent.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import Logos from "../components/Logos.astro";
 import Pillars from "../components/Pillars.astro";
@@ -135,12 +136,12 @@ const terms = [
     </div>
   </section>
 
-  <section>
+  <section id="move">
     <div class="wrap">
       <div class="split">
         <div>
           <span class="eyebrow">The move</span>
-          <h2>Leave in three steps.</h2>
+          <h2>Leave in three steps.<Anchor for="move" label="Leave in three steps" /></h2>
           <p class="sub">
             Deploying is two commands. What costs you is the part that does not come across.
           </p>
@@ -198,10 +199,10 @@ const terms = [
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="questions">
     <div class="wrap">
       <span class="eyebrow">Sound familiar?</span>
-      <h2>The six questions you cannot answer from a spreadsheet.</h2>
+      <h2>The six questions you cannot answer from a spreadsheet.<Anchor for="questions" label="The six questions you cannot answer from a spreadsheet" /></h2>
       <p class="sub">
         Every one is somebody waiting on you. Podium answers all six from one record of the
         program.
@@ -236,12 +237,12 @@ const terms = [
     one. The assisted placement in the product is a constraint solver, not a
     model, and is deliberately not mentioned in this section for that reason.
   */}
-  <section>
+  <section id="agents">
     <div class="wrap">
       <div class="split">
         <div>
           <span class="eyebrow">Built with agents</span>
-          <h2>A codebase a model can read, and change.</h2>
+          <h2>A codebase a model can read, and change.<Anchor for="agents" label="A codebase a model can read, and change" /></h2>
           {/* `.lede` and not `.sub`: this is the first of four paragraphs of
               argument, and `.sub` puts 48px under itself for the grid that
               usually follows a section heading. Here that gap fell in the
@@ -280,10 +281,10 @@ const terms = [
     </div>
   </section>
 
-  <section>
+  <section id="screens">
     <div class="wrap">
       <span class="eyebrow">What it looks like</span>
-      <h2>Three of them, on the running product.</h2>
+      <h2>Three of them, on the running product.<Anchor for="screens" label="Three of them, on the running product" /></h2>
       <p class="sub">
         Photographs of Podium against its own seeded conference. The other three are on the
         features page.
@@ -358,10 +359,10 @@ const terms = [
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="connects">
     <div class="wrap">
       <span class="eyebrow">It talks to the rest of your stack</span>
-      <h2>Keep your email provider, your spreadsheet and your site.</h2>
+      <h2>Keep your email provider, your spreadsheet and your site.<Anchor for="connects" label="Keep your email provider, your spreadsheet and your site" /></h2>
       <p class="sub">
         Podium sends through <strong>Resend</strong> or <strong>SendGrid</strong>, posts into
         <strong>Slack</strong>, and mirrors the program two ways into <strong>Airtable</strong>.
@@ -421,12 +422,12 @@ const terms = [
     </p>
   </Pillars>
 
-  <section>
+  <section id="limits">
     <div class="wrap">
       <div class="split">
         <div>
           <span class="eyebrow">Before you decide</span>
-          <h2>It is not the right tool for every conference.</h2>
+          <h2>It is not the right tool for every conference.<Anchor for="limits" label="It is not the right tool for every conference" /></h2>
           <p class="sub">
             Podium does no attendee registration, no badging and no ticketing, and there is no hosted
             tier, so somebody deploys it. If that rules it out, the switching page names what to buy

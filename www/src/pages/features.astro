@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
 import Shot from "../components/Shot.astro";
@@ -60,9 +61,9 @@ const alsoInTheBox = [
 
   <section>
     <div class="wrap">
-      <div class="feature">
+      <div class="feature" id="cfp">
         <div class="copy">
-          <h3>A call for proposals people can finish.</h3>
+          <h3>A call for proposals people can finish.<Anchor for="cfp" label="A call for proposals people can finish" /></h3>
           <p>
             Multi-step forms with your own fields, and drafts a submitter can leave and come back
             to. One board shows every proposal, its state and its reviews at once, filterable and
@@ -78,9 +79,9 @@ const alsoInTheBox = [
         />
       </div>
 
-      <div class="feature flip">
+      <div class="feature flip" id="review">
         <div class="copy">
-          <h3>Review that holds up when someone asks.</h3>
+          <h3>Review that holds up when someone asks.<Anchor for="review" label="Review that holds up when someone asks" /></h3>
           <p>
             Reviewers get a queue, a rubric and a progress bar. Not a shared sheet with a hundred
             rows. A reviewer who submitted, is credited on, or has declared a conflict with a
@@ -103,9 +104,9 @@ const alsoInTheBox = [
         />
       </div>
 
-      <div class="feature">
+      <div class="feature" id="decisions">
         <div class="copy">
-          <h3>Decide as a batch. Tell everyone at once.</h3>
+          <h3>Decide as a batch. Tell everyone at once.<Anchor for="decisions" label="Decide as a batch. Tell everyone at once" /></h3>
           <p>
             Outcomes stay provisional until you publish them. Nothing reaches a speaker early, and
             nobody finds out from a friend.
@@ -123,9 +124,9 @@ const alsoInTheBox = [
         />
       </div>
 
-      <div class="feature flip">
+      <div class="feature flip" id="onboarding">
         <div class="copy">
-          <h3>Stop chasing people for bios.</h3>
+          <h3>Stop chasing people for bios.<Anchor for="onboarding" label="Stop chasing people for bios" /></h3>
           <p>
             Say once what an accepted speaker owes you: headshot, bio, slides, code of conduct, AV
             requirements. Podium tracks every one, for every session and every sponsor, and sends
@@ -146,9 +147,9 @@ const alsoInTheBox = [
         />
       </div>
 
-      <div class="feature">
+      <div class="feature" id="sponsors">
         <div class="copy">
-          <h3>Sponsor sessions are not an afterthought.</h3>
+          <h3>Sponsor sessions are not an afterthought.<Anchor for="sponsors" label="Sponsor sessions are not an afterthought" /></h3>
           <p>
             A sponsor session is paid for, not selected. It still needs content review, the same
             onboarding and the same slot on the schedule. Most CFP tools model the call for
@@ -168,9 +169,9 @@ const alsoInTheBox = [
         />
       </div>
 
-      <div class="feature flip">
+      <div class="feature flip" id="schedule">
         <div class="copy">
-          <h3>A schedule that cannot quietly break.</h3>
+          <h3>A schedule that cannot quietly break.<Anchor for="schedule" label="A schedule that cannot quietly break" /></h3>
           <p>
             Place sessions into rooms and times and Podium recomputes conflicts on every change: a
             double-booked room, a speaker in two places, a session whose onboarding is not done. It
@@ -193,10 +194,10 @@ const alsoInTheBox = [
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="speakers">
     <div class="wrap">
       <span class="eyebrow">The other side of it</span>
-      <h2>Speakers get one place to look.</h2>
+      <h2>Speakers get one place to look.<Anchor for="speakers" label="Speakers get one place to look" /></h2>
       <p class="sub">
         Where their proposal stands, what they were accepted for, when and where it is, and what
         they still owe you. They keep their own profile, and it is what appears on the public
@@ -226,10 +227,10 @@ const alsoInTheBox = [
     </div>
   </section>
 
-  <section>
+  <section id="also">
     <div class="wrap">
       <span class="eyebrow">Also in the box</span>
-      <h2>And the parts nobody demos.</h2>
+      <h2>And the parts nobody demos.<Anchor for="also" label="And the parts nobody demos" /></h2>
       <p class="sub">
         None of these wins a bake-off. Between them they are most of what makes the last three
         weeks survivable.

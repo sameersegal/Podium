@@ -326,6 +326,12 @@ one sentence should be split or deleted.
 - **A new page changes the sitemap and the footer in the same commit.**
 - **URLs are permanent.** Renaming one means a redirect in `www/public/_redirects`, never a silent
   404. That file explains its own syntax and rule ordering at the top; read it first.
+- **A section id is a URL too, and nothing can redirect it.** Every section carries one and every
+  section heading carries the `Anchor` component, because the arguments on these pages are
+  separable and a post should land on the one it is about. A fragment never reaches the server, so
+  renaming an id breaks every link to it silently. Add ids; do not rewrite them. `npm --prefix www
+  run links` prints the catalogue against the built site and `-- --check` fails on a section with
+  no address, a duplicate id, or an anchor pointing at nothing.
 
 ## H) Taste
 

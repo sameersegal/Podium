@@ -1,5 +1,6 @@
 ---
 import Base from "../../layouts/Base.astro";
+import Anchor from "../../components/Anchor.astro";
 import Cta from "../../components/Cta.astro";
 import PageHead from "../../components/PageHead.astro";
 import Shot from "../../components/Shot.astro";
@@ -125,10 +126,10 @@ const BITES = [
     </div>
   </PageHead>
 
-  <section>
+  <section id="resources">
     <div class="wrap">
       <span class="eyebrow">Before the first command</span>
-      <h2>Four things get created, and you own them.</h2>
+      <h2>Four things get created, and you own them.<Anchor for="resources" label="Four things get created, and you own them" /></h2>
       <p class="sub">
         A Cloudflare account on the paid Workers plan, a hostname whose DNS Cloudflare already
         answers for, and Node. That is the entire prerequisite list.
@@ -176,10 +177,10 @@ npx wrangler queues create podium-dlq</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="deploy">
     <div class="wrap">
       <span class="eyebrow">The deploy</span>
-      <h2>Set three variables, then run two commands.</h2>
+      <h2>Set three variables, then run two commands.<Anchor for="deploy" label="Set three variables, then run two commands" /></h2>
       <p class="sub">
         There are no account ids anywhere in the repository you cloned. Production configuration
         is generated at deploy time from what you export, which is why your first deploy cannot
@@ -229,10 +230,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="first-run">
     <div class="wrap">
       <span class="eyebrow">First run</span>
-      <h2>Open the setup screen before anyone else does.</h2>
+      <h2>Open the setup screen before anyone else does.<Anchor for="first-run" label="Open the setup screen before anyone else does" /></h2>
       <p class="sub">
         Nothing seeds the organization. A freshly migrated deployment has no accounts in it at all,
         and every path sends you to the same place until one exists.
@@ -261,10 +262,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="choices">
     <div class="wrap">
       <span class="eyebrow">The parts that bite</span>
-      <h2>Four choices you make once and live with.</h2>
+      <h2>Four choices you make once and live with.<Anchor for="choices" label="Four choices you make once and live with" /></h2>
       <p class="sub">
         Two of them have already gone wrong on a real deployment of this software, on dates you can
         go and read. They are here so they do not go wrong on yours.
@@ -292,10 +293,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="checks">
     <div class="wrap">
       <span class="eyebrow">Once it answers</span>
-      <h2>Five checks, in the order they fail.</h2>
+      <h2>Five checks, in the order they fail.<Anchor for="checks" label="Five checks, in the order they fail" /></h2>
       <ol class="steps">
         <li>
           <h3>The sign-in page answers</h3>
@@ -349,10 +350,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="provider">
     <div class="wrap">
       <span class="eyebrow">Connecting a provider</span>
-      <h2>Store the key, then name the key.</h2>
+      <h2>Store the key, then name the key.<Anchor for="provider" label="Store the key, then name the key" /></h2>
       <p class="sub">
         Email, chat and spreadsheet sync all install the same way, and the field that trips people
         up is the same field every time.
@@ -379,10 +380,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="bill">
     <div class="wrap">
       <span class="eyebrow">The bill</span>
-      <h2>One fixed line, and the rest is metered.</h2>
+      <h2>One fixed line, and the rest is metered.<Anchor for="bill" label="One fixed line, and the rest is metered" /></h2>
       <div class="prose">
         <p>
           The software is free and the licence cannot be revoked. Workers Paid starts at five

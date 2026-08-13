@@ -1,4 +1,5 @@
 ---
+import Anchor from "./Anchor.astro";
 import { GITHUB_URL } from "../consts";
 
 /**
@@ -7,6 +8,11 @@ import { GITHUB_URL } from "../consts";
  * whatever the page's reader is most likely to want next — the source for an
  * engineer, the cost for a budget holder — and the primary never changes,
  * because two primary actions is none.
+ *
+ * Its id is `try` on every page, which is the one deep link that means the same
+ * thing everywhere: podiumstack.com/pricing#try lands on the ask at the foot of
+ * the pricing argument, and /compare#try on the ask at the foot of the
+ * switching one.
  */
 interface Props {
   heading: string;
@@ -19,9 +25,9 @@ interface Props {
 const { heading, sub, secondaryHref = GITHUB_URL, secondaryLabel = "Get the source" } = Astro.props;
 ---
 
-<section class="band cta">
+<section class="band cta" id="try">
   <div class="wrap">
-    <h2>{heading}</h2>
+    <h2>{heading}<Anchor for="try" label={heading} /></h2>
     <p class="sub">{sub}</p>
     <div class="actions">
       <a class="btn primary" href="/demo">Run the demo</a>

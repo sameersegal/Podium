@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
 import {
@@ -49,10 +50,10 @@ import {
     lede={`Four things decide whether this is survivable: what comes out of the tool you are leaving, what goes into this one, what has no equivalent here, and what your speakers notice. Claims about anyone else's product were checked against their own pages in ${CHECKED}.`}
   />
 
-  <section>
+  <section id="moves">
     <div class="wrap">
       <span class="eyebrow">What moves</span>
-      <h2>Two things import cleanly. Four do not move at all.</h2>
+      <h2>Two things import cleanly. Four do not move at all.<Anchor for="moves" label="Two things import cleanly. Four do not move at all" /></h2>
       <p class="sub">
         A CSV creates people and the event roster. For the rest the honest answer is that last year
         stays where it is.
@@ -92,10 +93,10 @@ import {
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="speakers">
     <div class="wrap">
       <span class="eyebrow">What your speakers notice</span>
-      <h2>They did not choose any of this.</h2>
+      <h2>They did not choose any of this.<Anchor for="speakers" label="They did not choose any of this" /></h2>
       <p class="sub">
         Four things change for the two hundred people who never see an admin screen. One of them is
         a real loss.
@@ -114,10 +115,10 @@ import {
     </div>
   </section>
 
-  <section>
+  <section id="who">
     <div class="wrap">
       <span class="eyebrow">Who each is for</span>
-      <h2>Start here and you may not need the rest.</h2>
+      <h2>Start here and you may not need the rest.<Anchor for="who" label="Start here and you may not need the rest" /></h2>
       <div class="grid-hair three">
         {
           AUDIENCES.map((a) => (
@@ -137,10 +138,10 @@ import {
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="structural">
     <div class="wrap">
       <span class="eyebrow">The structural difference</span>
-      <h2>Everything below holds whatever ships next.</h2>
+      <h2>Everything below holds whatever ships next.<Anchor for="structural" label="Everything below holds whatever ships next" /></h2>
       <p class="sub">
         There is no feature matrix here. It would mean asserting from the outside what two
         proprietary products do, and it would be stale the day either ships a release. These rows
@@ -188,10 +189,10 @@ import {
     </div>
   </section>
 
-  <section>
+  <section id="where-they-win">
     <div class="wrap">
       <span class="eyebrow">Where they win</span>
-      <h2>Five things the incumbents do better, today.</h2>
+      <h2>Five things the incumbents do better, today.<Anchor for="where-they-win" label="Five things the incumbents do better, today" /></h2>
       <p class="sub">None of these is fixable by writing a better sentence about it.</p>
       {/* Five cards over three columns: the last one takes the slack, or the
           grid draws a card-sized hole in its own hairlines. */}
@@ -208,10 +209,10 @@ import {
     </div>
   </section>
 
-  <section>
+  <section id="not-for-you">
     <div class="wrap">
       <span class="eyebrow">Be honest with yourself</span>
-      <h2>Do not pick Podium if any of these is true.</h2>
+      <h2>Do not pick Podium if any of these is true.<Anchor for="not-for-you" label="Do not pick Podium if any of these is true" /></h2>
       <p class="sub">
         Better to find this out here than in February. If two or more land, buy something hosted
         and enjoy your conference.

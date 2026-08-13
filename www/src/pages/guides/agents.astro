@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import Agent from "../../components/Agent.astro";
+import Anchor from "../../components/Anchor.astro";
 import Cta from "../../components/Cta.astro";
 import PageHead from "../../components/PageHead.astro";
 import Shot from "../../components/Shot.astro";
@@ -133,10 +134,10 @@ const RUN = [
     </div>
   </PageHead>
 
-  <section>
+  <section id="install">
     <div class="wrap">
       <span class="eyebrow">Two commands and a file</span>
-      <h2>Install it, then point it at your instance.</h2>
+      <h2>Install it, then point it at your instance.<Anchor for="install" label="Install it, then point it at your instance" /></h2>
       <p class="sub">
         The repository is itself a plugin marketplace. Add it, install from it, and nothing else is
         downloaded.
@@ -162,10 +163,10 @@ PODIUM_API_TOKEN=…</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="key">
     <div class="wrap">
       <span class="eyebrow">The key</span>
-      <h2>Give it the reach the job needs.</h2>
+      <h2>Give it the reach the job needs.<Anchor for="key" label="Give it the reach the job needs" /></h2>
       <p class="sub">
         A key reaches exactly what its scopes name. There is no role behind it quietly widening the
         answer, and no key of any kind can mint another key.
@@ -225,12 +226,12 @@ PODIUM_API_TOKEN=…</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="run">
     <div class="wrap">
       <div class="split">
         <div>
           <span class="eyebrow">A run, in full</span>
-          <h2>Chasing the tasks holding the agenda shut.</h2>
+          <h2>Chasing the tasks holding the agenda shut.<Anchor for="run" label="Chasing the tasks holding the agenda shut" /></h2>
           <p class="lede">
             Four calls against the demo conference. It read what was pending, found the two sessions
             that could not go live, counted the tasks behind them and reminded one speaker.
@@ -258,10 +259,10 @@ PODIUM_API_TOKEN=…</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="skills">
     <div class="wrap">
       <span class="eyebrow">Eight skills</span>
-      <h2>What you ask, and what it goes and does.</h2>
+      <h2>What you ask, and what it goes and does.<Anchor for="skills" label="What you ask, and what it goes and does" /></h2>
       <p class="sub">
         Skills load by task, so an agent reading the review pile is not also carrying the sponsor
         vocabulary. The one it always reads first covers scopes, redaction, paging, retries and what
@@ -301,10 +302,10 @@ PODIUM_API_TOKEN=…</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="boundary">
     <div class="wrap">
       <span class="eyebrow">The boundary</span>
-      <h2>Three things no key is allowed to do.</h2>
+      <h2>Three things no key is allowed to do.<Anchor for="boundary" label="Three things no key is allowed to do" /></h2>
       <p class="sub">
         Not a gap to route around. The refusal names the rule, and the right answer to an operator
         is who has to do it instead.
@@ -349,10 +350,10 @@ PODIUM_API_TOKEN=…</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="retries">
     <div class="wrap">
       <span class="eyebrow">Why a retry is safe</span>
-      <h2>Four properties that keep a caller honest.</h2>
+      <h2>Four properties that keep a caller honest.<Anchor for="retries" label="Four properties that keep a caller honest" /></h2>
       <div class="two-col">
         <div>
           <h3>What the API does</h3>

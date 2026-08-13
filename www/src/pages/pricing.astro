@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import Cta from "../components/Cta.astro";
 import PageHead from "../components/PageHead.astro";
 import { GITHUB_URL, LICENSE_URL } from "../consts";
@@ -109,10 +110,10 @@ const FAQ = [
     </div>
   </PageHead>
 
-  <section>
+  <section id="bill">
     <div class="wrap">
       <span class="eyebrow">The bill, itemised</span>
-      <h2>Five lines, one of which is fixed.</h2>
+      <h2>Five lines, one of which is fixed.<Anchor for="bill" label="Five lines, one of which is fixed" /></h2>
       {/* A receipt, not a matrix. It was a three-column comparison table with
           the money column carrying the accent rule that means "this column is
           ours" — and there is nobody else in this table to be ours against. */}
@@ -144,10 +145,10 @@ const FAQ = [
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="deploying">
     <div class="wrap">
       <span class="eyebrow">What deploying involves</span>
-      <h2>Four resources, one secret, two commands.</h2>
+      <h2>Four resources, one secret, two commands.<Anchor for="deploying" label="Four resources, one secret, two commands" /></h2>
       <p class="sub">
         Not a caveat. It is the reason the first line of that bill is zero.
       </p>
@@ -177,10 +178,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="not-money">
     <div class="wrap">
       <span class="eyebrow">The other half of the price</span>
-      <h2>What it costs you that is not money.</h2>
+      <h2>What it costs you that is not money.<Anchor for="not-money" label="What it costs you that is not money" /></h2>
       <p class="sub">
         This is where an open-source tool is genuinely more expensive than a hosted one. Pretending
         otherwise wastes your afternoon and ours.
@@ -199,10 +200,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="never-pay">
     <div class="wrap">
       <span class="eyebrow">What you never pay for</span>
-      <h2>Things that are line items elsewhere.</h2>
+      <h2>Things that are line items elsewhere.<Anchor for="never-pay" label="Things that are line items elsewhere" /></h2>
       <div class="two-col">
         <ul class="ticks">
           <li>Extra speakers, proposals, reviewers or committee members</li>
@@ -220,10 +221,10 @@ npm run deploy</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="faq">
     <div class="wrap">
       <span class="eyebrow">Questions people actually ask</span>
-      <h2>The ones that come up in the second meeting.</h2>
+      <h2>The ones that come up in the second meeting.<Anchor for="faq" label="The ones that come up in the second meeting" /></h2>
       <div class="faq">
         {
           FAQ.map((f) => (

@@ -1,5 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
+import Anchor from "../components/Anchor.astro";
 import PageHead from "../components/PageHead.astro";
 import Shot from "../components/Shot.astro";
 import { APP_URL, DEMO_PERSONAS, GITHUB_URL, SIGN_IN_URL } from "../consts";
@@ -66,10 +67,10 @@ const TOUR = [
     lede="DevFlow Conf 2027 is running at app.podiumstack.com with the sign-ins printed on this page. Proposals in every state, a review round with real scores, sponsors part-way through their entitlements, an agenda with conflicts. No form, no card, no trial clock."
   />
 
-  <section>
+  <section id="hosted">
     <div class="wrap">
       <span class="eyebrow">Thirty seconds</span>
-      <h2>Sign in and start clicking.</h2>
+      <h2>Sign in and start clicking.<Anchor for="hosted" label="Sign in and start clicking" /></h2>
       <p class="sub">
         The conference running at app.podiumstack.com is the one the seed in this repository
         builds, which is the one the screenshots on this site were taken from.
@@ -84,10 +85,10 @@ const TOUR = [
     </div>
   </section>
 
-  <section>
+  <section id="local">
     <div class="wrap">
       <span class="eyebrow">Four minutes</span>
-      <h2>Or run the whole thing on your laptop.</h2>
+      <h2>Or run the whole thing on your laptop.<Anchor for="local" label="Or run the whole thing on your laptop" /></h2>
       <p class="sub">
         Same seed, same conference, nobody else in it. This is also the version to use if the
         hosted one is busy or someone has already rearranged the agenda.
@@ -103,10 +104,10 @@ npm run dev</code></pre>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="signins">
     <div class="wrap">
       <span class="eyebrow">Sign-ins</span>
-      <h2>Three roles. Same conference, three different products.</h2>
+      <h2>Three roles. Same conference, three different products.<Anchor for="signins" label="Three roles. Same conference, three different products" /></h2>
       <p class="sub">
         What each person may see is worked out per request. Signing in as the speaker is the only
         honest way to find out what a speaker sees.
@@ -147,10 +148,10 @@ npm run dev</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="tour">
     <div class="wrap">
       <span class="eyebrow">Fifteen minutes</span>
-      <h2>Five things worth trying, in the order they prove something.</h2>
+      <h2>Five things worth trying, in the order they prove something.<Anchor for="tour" label="Five things worth trying, in the order they prove something" /></h2>
       <p class="sub">Every one is a claim made elsewhere on this site. Go and check them.</p>
       <ol class="steps">
         {
@@ -179,12 +180,12 @@ npm run dev</code></pre>
     </div>
   </section>
 
-  <section>
+  <section id="mail">
     <div class="wrap">
       <div class="feature">
         <div class="copy">
           <span class="eyebrow">While it is running</span>
-          <h3>Give it a key and watch mail actually leave.</h3>
+          <h3>Give it a key and watch mail actually leave.<Anchor for="mail" label="Give it a key and watch mail actually leave" /></h3>
           <p>
             The seed installs Resend already, active and set as the default — what it does not ship
             is a key, because credentials never live in a seed. So locally every acceptance and
@@ -205,9 +206,9 @@ npm run dev</code></pre>
     </div>
   </section>
 
-  <section class="band cta">
+  <section class="band cta" id="feedback">
     <div class="wrap">
-      <h2>Found something that does not hold up?</h2>
+      <h2>Found something that does not hold up?<Anchor for="feedback" label="Found something that does not hold up?" /></h2>
       <p class="sub">
         Every claim on this site should be checkable in that seed. If one is not, that is a bug in
         the site or the product, and both live in the same repository.

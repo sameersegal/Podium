@@ -153,6 +153,21 @@
   --gutter: 40px;
   --measure: 1200px;
 
+  /* How far a deep link stops short of the top of the window, so the sticky
+     header does not sit on the thing it just scrolled to.
+
+     Measured rather than guessed, because the header is not one height: it is
+     73px wherever the nav fits beside the brand, 157px at 390px where the six
+     labels wrap onto two rows, and 201px at 320px where they take three. This
+     is the wrapped case and the media query below is the other one.
+
+     It clears the tallest of those outright rather than counting on the
+     section padding under it, because a screenshot row on /features has no
+     padding — its heading is the first thing in the box, and at 320px it
+     arrived 33px underneath the header when this value was tuned to the
+     390px case. */
+  --anchor-offset: 212px;
+
   /* ---------- radius ----------
      A 6px corner reads as engineered where an 18px one reads as friendly, and
      this product is sold on rigour. */
@@ -403,6 +418,50 @@ section { padding: var(--section-y) 0; }
 section > .wrap h2 { font-size: var(--heading-1); font-weight: 300; line-height: 1.08; letter-spacing: -0.02em; max-width: 20ch; }
 section > .wrap .sub { color: var(--text-2); font-size: 18px; line-height: 1.6; max-width: 56ch; margin-bottom: var(--s-7); }
 .lede { font-size: 18px; line-height: 1.6; color: var(--text-2); max-width: 56ch; }
+
+/* ---------- deep links ----------
+   Every section on this site has an address, because the arguments on these
+   pages are separable — the bill, what a speaker notices, where the incumbents
+   win — and any one of them may be worth pointing somebody at on its own.
+   `src/components/Anchor.astro` carries the rule that goes with it: an id is a
+   URL and is never rewritten.
+
+   The hash is invisible until you go looking for it, which is the whole design.
+   It appears when the heading is hovered, and when the link itself takes focus,
+   so a keyboard reader can reach what a mouse reader can. Where there is no
+   hover to give — a phone, a tablet — it sits at a quarter opacity instead of
+   being unreachable, which is quiet enough to read past and solid enough to
+   long-press. */
+:where(section, .feature)[id] { scroll-margin-top: var(--anchor-offset); }
+
+/* The width the nav stops wrapping at, which is where the header loses two
+   thirds of its height. Same breakpoint as the topbar's own rule. */
+@media (min-width: 56rem) {
+  :root { --anchor-offset: 84px; }
+}
+
+.anchor {
+  margin-left: 0.3em;
+  font-family: var(--font-mono);
+  font-size: 0.55em;
+  font-weight: 400;
+  line-height: 1;
+  /* `--text-3` rather than the `--text-4` this started on: at 0.55em the glyph
+     is small type, and only this token is documented as clearing 4.5:1 on every
+     ground the site puts a section on. */
+  color: var(--text-3);
+  text-decoration: none;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity var(--dur-hover) var(--ease), color var(--dur-hover) var(--ease);
+}
+:is(h1, h2, h3, h4):hover > .anchor,
+.anchor:focus-visible { opacity: 1; }
+.anchor:hover { color: var(--violet-text); }
+
+@media (hover: none) {
+  .anchor { opacity: 0.25; }
+}
 
 /* Several paragraphs of argument standing on their own in a section — no card,
    no grid, no `.sub`. A bare `p` inherits the 1200px wrap, which is about 120

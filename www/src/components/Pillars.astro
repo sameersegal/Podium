@@ -1,4 +1,5 @@
 ---
+import Anchor from "./Anchor.astro";
 import { PILLARS } from "../data/pillars";
 
 /**
@@ -31,10 +32,10 @@ const {
 } = Astro.props;
 ---
 
-<section class="pillars-band">
+<section class="pillars-band" id="pillars">
   <div class="wrap">
     <span class="eyebrow">{eyebrow}</span>
-    <h2>{heading}</h2>
+    <h2>{heading}<Anchor for="pillars" label={heading} /></h2>
     {sub && <p class="sub">{sub}</p>}
 
     <div class="grid-hair three">

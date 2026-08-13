@@ -10,6 +10,7 @@
     "build": "astro build",
     "preview": "wrangler dev",
     "screenshots": "node scripts/screenshots.mjs",
+    "links": "node scripts/deep-links.mjs",
     "deploy": "astro build && wrangler deploy"
   },
   "devDependencies": {
