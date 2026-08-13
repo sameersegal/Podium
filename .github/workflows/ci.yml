@@ -99,6 +99,13 @@ jobs:
     needs: changes
     if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
+    # A healthy run of this job is about two minutes. The cap is not a
+    # performance budget — it is the backstop for a wedged run, which without
+    # one is billed at GitHub's six-hour default before anyone is told the run
+    # is dead. Thirty minutes clears the integration step's own worst case
+    # (five 4-minute attempts, below) plus every other step, so this only ever
+    # fires on something the retry did not anticipate.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -130,8 +137,65 @@ jobs:
 
       # @cloudflare/vitest-pool-workers runs workerd locally against real
       # bindings; still no account credentials needed.
+      #
+      # Retried, and retried in this specific shape, because the pool has a
+      # startup race we cannot fix from here. A large minority of full-suite
+      # runs die with
+      #
+      #   EnvironmentTeardownError: [vitest-worker]: Closing rpc while
+      #   "resolve" was pending
+      #
+      # raised as an uncaught exception inside workerd: an environment is torn
+      # down while module resolution is still in flight, and the run then
+      # wedges forever — no summary, no exit, no failure. That last part is
+      # why this needs handling at all; a wedge is indistinguishable from a
+      # slow run until the job timeout fires.
+      #
+      # It is not this suite's doing, and the failure scales with the number
+      # of test files rather than with anything in them. What was measured:
+      # a one-file run is clean 6/6 in ten seconds, an 11-file shard wedges,
+      # and the full 44-file suite fails somewhere between half and three
+      # quarters of attempts. None of upgrading the pool to 0.21.2,
+      # serialising with `--no-file-parallelism`, sharding into quarters, or
+      # clearing leaked state between runs changes that. Every wedge observed
+      # landed during collection, before a single test had run.
+      #
+      # So the retry keys on the distinction that matters: `timeout` reports a
+      # wedge as 124, and only 124 is retried. A genuine test failure has some
+      # other non-zero status and fails the build on the first attempt, which
+      # is what keeps this from quietly papering over a real red test.
+      #
+      # Five attempts, because three is not enough at the observed rate: at
+      # the measured one-in-three-to-one-in-four success per attempt, three
+      # attempts still leaves roughly a 30% chance of a spurious red, and five
+      # brings that to the low teens. Four minutes each is many times over a
+      # healthy run here, which takes well under a minute on CI hardware.
+      #
+      # This is a compromise, not a cure — a spurious red is still possible.
+      # The fix belongs upstream in @cloudflare/vitest-pool-workers; this only
+      # stops the bug costing six hours and a blocked deploy each time it
+      # fires.
       - name: Integration tests
-        run: npm run test:integration
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3 4 5; do
+            timeout 240 npm run test:integration && exit 0
+            status=$?
+            if [ "$status" -ne 124 ]; then
+              echo "Integration tests failed (exit $status) — a real failure, not the pool wedge."
+              exit "$status"
+            fi
+            echo "::warning::Integration run $attempt wedged in vitest-pool-workers startup; retrying."
+            # `timeout` kills vitest but not the workerd children it spawned:
+            # they reparent to init and keep running. Measured, they survive
+            # and accumulate, so without this each retry starts dirtier than
+            # the attempt before it.
+            pkill -x workerd 2>/dev/null || true
+            rm -rf /tmp/miniflare* 2>/dev/null || true
+            sleep 2
+          done
+          echo "Integration tests wedged on all 5 attempts."
+          exit 1
 
       # CLAUDE.md: the domain model is the specification, and a change that
       # lands in code without landing in docs/domain/ is an incomplete commit.
