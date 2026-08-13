@@ -21,6 +21,8 @@
  * printed on the page. Anyone editing this file updates it or removes the claim.
  */
 
+import { STATS } from "../consts";
+
 export const CHECKED = "August 2026";
 
 export const SESSIONIZE_URL = "https://sessionize.com/pricing";
@@ -187,7 +189,7 @@ export const WHERE_THEY_WIN = [
   },
   {
     title: "Years of conferences behind them",
-    body: "Sessionize has run thousands of events. Podium has run its own seed. You get a full test suite and a written specification instead of a decade of edge cases somebody else already found. If that trade sounds bad, it should.",
+    body: `Sessionize has run thousands of events, and a decade of edge cases somebody else already hit is worth something you cannot write down. Podium answers with ${STATS.tests} tests and a specification that predates the code. That is the trade, and it is the one to weigh hardest.`,
   },
   {
     title: "Somebody to call",

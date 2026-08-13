@@ -77,7 +77,7 @@ const FAQ = [
   },
   {
     q: "Will the price change once we depend on it?",
-    a: "There is no price to change. The licence is irrevocable for the version you have, so the worst case is that development stops and you keep running the copy you deployed.",
+    a: "There is no price to change. The MIT grant on the version you hold is irrevocable, so no decision anyone makes here later can reach the copy running in your account.",
   },
   {
     q: "Do we pay more as the CFP grows?",
@@ -210,9 +210,12 @@ npm run deploy</code></pre>
           <li>Additional team seats or admin users</li>
           <li>The API, the webhooks, or a higher rate limit on either</li>
         </ul>
+        {/* "Single sign-on, when the adapter exists" was the fourth item here.
+            A list of things you never pay for is the wrong place to price
+            something nobody has built — /integrations lists SSO under
+            "specified, with no adapter shipped", which is where it belongs. */}
         <ul class="ticks">
           <li>Getting your own data back out</li>
-          <li>Single sign-on, when the adapter exists</li>
           <li>A feature held back for a higher tier — there are no tiers</li>
           <li>An activation code per conference occurrence</li>
         </ul>

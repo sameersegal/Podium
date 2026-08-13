@@ -197,10 +197,10 @@ const ACCESS = [
       <span class="eyebrow">Disclosed</span>
       <h2>What a review found, and where it stopped.</h2>
       <p class="sub">
-        Nobody had read this product as a whole for security until August 2026. The review was
-        internal: our own people on our own code, not an outside audit. It found six defects, all
-        fixed, the five below each with the test that would have caught it. It was also a first
-        pass. Two areas were counted and never read.
+        The first whole-codebase security review ran in August 2026. It was internal: our own
+        people on our own code, not an outside audit. It found six defects, all fixed, the five
+        below each with the test that would have caught it. It was also a first pass, and two areas
+        it counted are still waiting to be read.
       </p>
       <ul class="ticks">
         <li>
@@ -253,18 +253,28 @@ const ACCESS = [
           under "Work the lanes". Update the count, or delete the paragraph, if
           `npm run security:semgrep` stops reporting thirty-six. */}
       <div class="prose">
-        <h3>Two areas the review never read</h3>
+        <h3>Two areas the review has not reached</h3>
         <p>
           Scoping to your organization happens once, in the layer every query is meant to go
-          through. Thirty-six go around it and answer for their own scoping. They were counted.
-          Nobody read them one at a time, and one missed scope there is one conference reading
-          another's data.
+          through. Thirty-six go around it and answer for their own scoping. They were counted and
+          pinned in August 2026, so a thirty-seventh fails the build rather than waiting for the
+          next review. What has not happened is a read of those thirty-six one at a time, and a
+          missed scope in one of them would be one conference reading another's data.
         </p>
         <p>
           Holding a permission is not the same as owning the record you point it at. A handler that
           checks "may this person edit proposals" and then trusts the id in the URL passes review.
           Nobody has walked the routes where permission comes from a relationship: a speaker on
-          their own session, a sponsor contact on their own account. No tool finds this one.
+          their own session, a sponsor contact on their own account. No scanner finds this class of
+          defect; it takes somebody reading routes.
+        </p>
+        {/* Both areas are lane one of the standing audit named below, so a
+            scheduled read is a fact rather than an intention and this sentence
+            may ship. Delete it the day that audit closes them, and put the two
+            paragraphs above into the past tense the way the hashing block is. */}
+        <p>
+          Both are the first thing the next audit picks up. When that read closes them, this section
+          says so in the past tense, as the paragraph above it now does.
         </p>
         <p>
           Separate work on API keys found two more authorization defects after that pass closed. A

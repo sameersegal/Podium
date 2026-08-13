@@ -145,13 +145,11 @@ const terms = [
             Deploying is two commands. What costs you is the part that does not come across.
           </p>
 
-          <div class="notice" data-label="Note">
-            <p>
-              <strong>Nobody has publicly moved a live conference onto this yet.</strong> The import
-              is built and tested; the first migration off a commercial tool is still ahead of us.
-              If it is yours, the issue tracker is where it goes.
-            </p>
-          </div>
+          {/* The migration caveat used to sit here as well as on /compare. It
+              belongs there: that reader is pricing the move and needs it. Here
+              it was the second thing on the page, above any reason to want the
+              product, and the same limit stated twice reads as a third claim
+              nobody wrote — that this is not ready. One caveat, one home. */}
 
           <div class="kpis">
             <div class="kpi"><b>$0</b><span>to licence, for every event you will ever run</span></div>
@@ -257,10 +255,13 @@ const terms = [
             server and no OpenAPI document; the API was built for a machine to call, and the
             specification was written for one to read.
           </p>
+          {/* The upgrade caveat lives on /fork, under "the unflattering half",
+              where the reader is deciding whether to fork. Repeating it here
+              cost the paragraph its point without telling anyone anything the
+              linked page does not. */}
           <p>
             MIT-licensed, so the fork is yours. It inherits the document and the check that fails
-            when the code disagrees with it. A change you make is a merge you own, and nobody has
-            run that upgrade in public yet.
+            when the code disagrees with it. A change you make is a merge you own.
           </p>
           <p>
             The first-pass AI review is built and off. Switch it on and its scores sit beside your
