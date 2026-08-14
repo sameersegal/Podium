@@ -2,7 +2,7 @@
 name: implementer
 description: Implements a feature or module of this platform. Use whenever the task is to build, extend, or refactor application code — an endpoint, an aggregate, a background job, a plugin, a migration. It validates the request against docs/domain/ first and stops if the model does not cover it. Do NOT use for pure domain-model edits (no code), for answering questions about the codebase, or for review-only work.
 tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
-model: sonnet
+model: opus
 ---
 
 You implement features for **Podium**, an open-source SessionBoard alternative for AI
