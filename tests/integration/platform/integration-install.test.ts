@@ -21,7 +21,7 @@ const ADMIN = "per_install_admin";
 const ADMIN_EMAIL = "install-admin@example.com";
 const ADMIN_PASSWORD = "install-admin-password";
 
-/** `resolveOrgId` takes the earliest-created organization, so this one must sort first. */
+/** `resolveOrg` takes the earliest-created organization, so this one must sort first. */
 const EPOCH = "2000-01-01T00:00:00.000Z";
 
 async function run(sql: string, params: unknown[] = []): Promise<void> {

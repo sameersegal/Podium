@@ -14,10 +14,13 @@ import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
  *
  * Two costs sit under every number here and neither is the screen's:
  *
- * - **~11 statements of request context.** `buildContext` resolves the org,
+ * - **~10 statements of request context.** `buildContext` resolves the org,
  *   the session, the person, their grants and the five relationship lookups
  *   that authorization needs, before any route runs. `/login` — a form and
- *   nothing else — costs 11. That is the floor for any signed-in page.
+ *   nothing else — costs 10. That is the floor for any signed-in page. It was
+ *   11 until `resolveOrg` stopped reading the org's id and then the row that
+ *   id identifies; every number in this file is one lower for that reason and
+ *   no other.
  * - **~20 statements to answer "what is not published yet".** `pendingChanges`
  *   diffs the working schedule against the live snapshot, which means reading
  *   the schedule. It is flat in the number of sessions rather than N+1, and it

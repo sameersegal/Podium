@@ -22,7 +22,7 @@ const EVENT = "evt_inbound_test";
 const PERSON = "per_inbound_test";
 const now = () => new Date().toISOString();
 
-/** `resolveOrgId` takes the earliest-created organization, so this one must sort first. */
+/** `resolveOrg` takes the earliest-created organization, so this one must sort first. */
 const EPOCH = "2000-01-01T00:00:00.000Z";
 
 async function seed() {

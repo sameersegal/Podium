@@ -40,7 +40,7 @@ export default {
       const ctx = await buildContext(req, env, (p) => execCtx.waitUntil(p));
 
       // 01, "First-run setup": nothing seeds the one Organization a
-      // deployment needs, so `resolveOrgId` (inside `buildContext`, fresh
+      // deployment needs, so `resolveOrg` (inside `buildContext`, fresh
       // every request — never cached) resolving to "" means there is nowhere
       // for any other route to scope its reads or writes. Send everything but
       // the setup screen itself there, rather than letting every surface fail

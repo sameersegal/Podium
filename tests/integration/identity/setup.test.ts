@@ -8,7 +8,7 @@ import { str, type Row } from "@podiumstack/data/db.js";
  * `tests/integration/setup.ts` applies every migration from scratch before
  * this file's tests run, so `organization` starts with zero rows — the state a
  * freshly deployed instance is actually in, migrations applied and nothing
- * seeded (`resolveOrgId` in `http/context.ts` resolving to "").
+ * seeded (`resolveOrg` in `http/context.ts` resolving to null).
  *
  * Storage isolation in `@cloudflare/vitest-pool-workers` is per test *file*,
  * not per `describe` — so the tests below run in file order, on purpose: the

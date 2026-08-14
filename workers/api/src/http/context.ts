@@ -165,10 +165,26 @@ export function flashCookie(kind: "ok" | "err" | "warn" | "info", message: strin
   return setCookie(FLASH_COOKIE, JSON.stringify({ kind, message }), { maxAge: 30 });
 }
 
-/** The single org of this deployment (01, "Tenancy": one Organization per deployment). */
-export async function resolveOrgId(env: Env): Promise<string> {
-  const row = await env.DB.prepare("SELECT id FROM organization ORDER BY created_at LIMIT 1").first<{ id: string }>();
-  return row?.id ?? "";
+/**
+ * The single org of this deployment (01, "Tenancy": one Organization per
+ * deployment), resolved in one statement.
+ *
+ * Returns the row rather than the id because every request needs both — the id
+ * to scope every query (INV-11-1) and `default_timezone` to render every date.
+ * Reading the id and then reading the row that id identifies was two
+ * round-trips for one row, paid by every request in the system; `ORDER BY
+ * created_at LIMIT 1` is itself the definition of which org that is, so the
+ * second lookup could only ever return the row the first one had already
+ * found.
+ *
+ * Still resolved fresh per request and never cached. `/setup` turns "no org"
+ * into "an org" exactly once in a deployment's life, and a cached miss would
+ * make that transition need a restart to become visible — see `index.ts`,
+ * which sends every route but `/setup` to the setup screen while this returns
+ * null.
+ */
+export async function resolveOrg(env: Env): Promise<Row | null> {
+  return await env.DB.prepare("SELECT * FROM organization ORDER BY created_at LIMIT 1").first<Row>();
 }
 
 async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null> {
@@ -270,13 +286,13 @@ function countingEnv(env: Env, counter: QueryCounter): Env {
 export async function buildContext(req: Request, env: Env, waitUntil: (p: Promise<unknown>) => void): Promise<RequestContext> {
   const url = new URL(req.url);
   const now = nowIso();
-  // Wrapped before anything reads: `resolveOrgId` is itself a query, and a
+  // Wrapped before anything reads: `resolveOrg` is itself a query, and a
   // counter that starts after the first one is a counter that is wrong by one.
   const queries: QueryCounter = { count: 0 };
   env = countingEnv(env, queries);
-  const orgId = await resolveOrgId(env);
+  const orgRow = await resolveOrg(env);
+  const orgId = str(orgRow?.id);
   const db = new D1Db(env.DB, orgId);
-  const orgRow = orgId ? await db.byId<Row>("organization", orgId) : null;
   const orgTimezone = str(orgRow?.default_timezone, "UTC");
 
   let person: PersonView | null = null;

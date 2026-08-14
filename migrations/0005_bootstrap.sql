@@ -10,7 +10,7 @@
 -- cannot both win — the loser's INSERT fails immediately, before it creates
 -- an Organization, a Person, an AuthIdentity or a RoleGrant. The GET/POST
 -- `/setup` refusal once an Organization exists (checked fresh against the
--- database on every request, per `resolveOrgId`) is the friendly front door;
+-- database on every request, per `resolveOrg`) is the friendly front door;
 -- this constraint is the lock that makes the door actually hold.
 --
 -- Purely additive: one new table, nothing changed or dropped on any existing

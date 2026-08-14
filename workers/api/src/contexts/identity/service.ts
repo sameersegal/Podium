@@ -83,7 +83,7 @@ function isBootstrapLockConflict(err: unknown): boolean {
  *
  * SECURITY (INV-01-16): this runs with no principal and creates an
  * administrator. The route MUST refuse the request before calling this when
- * `resolveOrgId` already finds a row — but that check and this function's
+ * `resolveOrg` already finds a row — but that check and this function's
  * first write are not the same statement, so the real backstop against two
  * concurrent requests both bootstrapping the deployment is `bootstrap_state`:
  * its primary key holds exactly one value, and claiming it is deliberately

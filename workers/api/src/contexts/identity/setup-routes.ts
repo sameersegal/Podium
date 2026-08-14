@@ -9,7 +9,7 @@
  * SECURITY: this runs with no principal and creates an administrator, so both
  * routes refuse — on every method — the instant an `Organization` row exists,
  * checked fresh against the database on every request via `ctx.orgId`
- * (`resolveOrgId` in `http/context.ts`, called once per request in
+ * (`resolveOrg` in `http/context.ts`, called once per request in
  * `buildContext`, never cached). The actual race-proof backstop is
  * `bootstrap_state`'s single-row primary key, claimed inside
  * `setupOrganization` before anything else is written — see the comment
