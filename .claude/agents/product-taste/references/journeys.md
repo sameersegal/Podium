@@ -19,9 +19,15 @@ supported reset, and you never touch the database by hand.
 Check it came up seeded before walking: `curl -s localhost:8787/dev/ids` returns the event and
 its slug. If it does not, the walk is against an empty product and every finding is worthless.
 
-`walk.mjs` needs Playwright, which is a dev dependency of the repository root, and a Chromium.
-It uses the one Playwright provides; where a machine already has one at a different build,
-point at it with `PODIUM_CHROMIUM`.
+You reach the product through the Playwright MCP server and nothing else. It is configured in
+[`.mcp.json`](../../../../.mcp.json) at the repository root and starts with the session, so
+there is nothing to install by hand — but if its tools are not in your tool list, **stop and
+say so**. A walk done any other way is not a walk.
+
+The server downloads its own Chromium on first run. On a machine that already has one at a
+different build — a container, a CI image — add `--executable-path <path to chrome>` to the
+`args` in `.mcp.json` rather than letting it fetch a second copy. Everything a walk produces
+lands in `.walk/`, which is git-ignored.
 
 ## The fixture world
 

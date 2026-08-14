@@ -79,6 +79,12 @@ It is the only agent here that may not read the code while it works. Knowing wha
 *meant* to do makes it impossible to see that the screen never said so, which is the thing
 being measured. It changes nothing — it has no `Edit` tool — and it never fixes what it finds.
 
+It reaches the product only through the Playwright MCP server in
+[`.mcp.json`](.mcp.json), and may not write a driver script of any kind. That is the same rule
+again in a different place: a snapshot of the page is the only thing there is to click, so
+there is nothing to write a selector against until it has looked, which is exactly where a
+first-time user stands. A script would let it skip the looking.
+
 The first walk is in [`docs/taste/`](docs/taste/README.md) and scored one star: a speaker who
 leaves mid-form and comes back on another device cannot reach their own draft from any screen,
 and the portal describes that draft as both `Draft` and `Submitted` on the same page. Both are
