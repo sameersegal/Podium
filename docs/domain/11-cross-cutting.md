@@ -483,6 +483,13 @@ derived column fails while somebody is looking at it (INV-09-17).
   document — `text/html`, `application/xhtml+xml`, any XML, any JavaScript, or
   `image/svg+xml`. Such a file is served as opaque bytes for download, never rendered
   inline on the application's origin.
+- **INV-11-16** An `O` (own) grade authorises one record, so it is only evaluable against a
+  target that names one. A capability check whose target scopes a *collection* — an event, a
+  track — is satisfied only by `read` or better; an `O` grade against it authorises nothing.
+  The same rule governs PII: `own` covers a person's own contact details, never every
+  address in the set. Without it the `O` cells of the matrix above invert on every list
+  endpoint — a speaker read every proposal in the event, carrying more PII than a `reviewer`,
+  who holds no `pii.read` grade at all.
 
 ## Emitted events
 

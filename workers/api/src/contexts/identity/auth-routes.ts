@@ -133,7 +133,6 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
     const email = normaliseEmail(input.str("email"));
     const existing = await app.db.first("person", { email });
     if (existing) {
-      const person = await getPerson(app, str(existing.id));
       const identity = await app.db.first("auth_identity", { provider: "password", subject: email });
       if (identity) {
         // Signing up with an email that already has a password is almost always
@@ -158,18 +157,24 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
           "set-cookie": flashCookie("info", "You already have an account with that email — sign in instead."),
         });
       }
-      // A placeholder person named on a proposal now claims their account.
-      await setPassword(app, person.id, input.str("password"));
-      await app.db.update("person", person.id, {
-        full_name: input.str("full_name") || str(person.full_name),
-        is_placeholder: 0,
-        status: "active",
-        updated_at: app.now(),
-      });
-      const token = await startSession(app, person.id);
-      await app.flush();
-      return redirect(safeNext(input.str("next"), "/portal"), 303, {
-        "set-cookie": setCookie(SESSION_COOKIE, token, { maxAge: 60 * 60 * 24 * 30 }),
+      // INV-01-19. The person exists but has no password yet — a placeholder named on a
+      // proposal, an invited reviewer, an imported contact. This branch used to
+      // let the request set a password on that account and sign in, which meant
+      // anyone who knew an email address could take over the person behind it,
+      // inheriting every role grant, proposal and session they held. Knowing an
+      // address is not proof of holding it, so it cannot be what claims an
+      // account: an `Invitation` token is (INV-01-7), and INV-01-15 guarantees
+      // one is always retrievable on screen, so this closes no door that was
+      // not already open at `/invite/:token`.
+      //
+      // The refusal deliberately matches the wrong-password reply above, so
+      // that this branch is not a sharper account-existence oracle than the one
+      // that surface already is.
+      return redirect("/login", 303, {
+        "set-cookie": flashCookie(
+          "info",
+          "You already have an account with that email — sign in, or use the invitation link you were sent.",
+        ),
       });
     }
 

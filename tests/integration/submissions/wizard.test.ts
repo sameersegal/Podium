@@ -554,3 +554,49 @@ describe("admin proposal queue — PII redaction (INV-09-5 / INV-11-4)", () => {
     });
   });
 });
+
+/**
+ * INV-11-16 — an `O` grade authorises a record, not a collection.
+ *
+ * `/v1/proposals` passes a target naming only the event, which is the whole
+ * point of a list. The matrix grades `speaker` as `O` there, and the check
+ * accepted `own`, so any speaker with a session anywhere read every proposal in
+ * the event — reference, title, abstract, `coi_disclosure`, and each
+ * submitter's address, which a `reviewer` is correctly refused because
+ * `pii.read` grants them nothing. The `O` cell inverted into more access than
+ * the roles above it.
+ *
+ * Both halves are asserted, because the fix is only correct if it keeps the
+ * access `own` exists to give.
+ */
+describe("own access does not authorise a collection (INV-11-16)", () => {
+  it("refuses a speaker the event-wide proposal list", async () => {
+    const speaker = await signIn(SPEAKER_EMAIL, SPEAKER_PASSWORD);
+    const res = await SELF.fetch(`http://localhost/v1/proposals?event_id=${EVENT}`, {
+      headers: { cookie: speaker, accept: "application/json" },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("still admits that speaker to their own proposal", async () => {
+    const row = await env.DB.prepare("SELECT proposal_id FROM proposal_speaker WHERE person_id = ? LIMIT 1")
+      .bind(SPEAKER)
+      .first<{ proposal_id: string }>();
+    expect(row?.proposal_id).toBeTruthy();
+    const speaker = await signIn(SPEAKER_EMAIL, SPEAKER_PASSWORD);
+    const res = await SELF.fetch(`http://localhost/v1/proposals/${row?.proposal_id}`, {
+      headers: { cookie: speaker, accept: "application/json" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("leaves the list where it was for staff", async () => {
+    const owner = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
+    const res = await SELF.fetch(`http://localhost/v1/proposals?event_id=${EVENT}`, {
+      headers: { cookie: owner, accept: "application/json" },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: unknown[] };
+    expect(body.data.length).toBeGreaterThan(0);
+  });
+});
