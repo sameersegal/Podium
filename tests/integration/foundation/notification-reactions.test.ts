@@ -32,12 +32,12 @@ async function seed() {
     ORG, "Notif Org", "notif-org", "UTC", "a@b.example", "{}", now, now,
   );
   await q(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    EVENT, ORG, "Notif Event", "notif-event", "UTC", "2027-05-12", "2027-05-14", "in_person", "active", "public", "{}", now, now,
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    EVENT, "Notif Event", "notif-event", "UTC", "2027-05-12", "2027-05-14", "in_person", "active", "public", "{}", now, now,
   );
   await q(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    PERSON, ORG, "notif-speaker@example.com", "Nora Tiff", "active", 0, now, now,
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    PERSON, "notif-speaker@example.com", "Nora Tiff", "active", 0, now, now,
   );
   await q(
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, audience, opens_at, closes_at, grace_period_minutes, late_submission_policy, allow_edit_after_submit, withdraw_allowed_until, notify_on_submit, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -48,8 +48,8 @@ async function seed() {
     FORMAT, EVENT, "Talk (30 min)", "talk", 30, 2, '["cfp"]', 1, 0, "open", 0, 1,
   );
   await q(
-    "INSERT OR IGNORE INTO proposal (id, org_id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, session_format_id, title, abstract, status, is_late, last_activity_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    PROPOSAL, ORG, EVENT, CFP, "frm_notif", "NT27-0001", "cfp", PERSON, FORMAT, "A great talk", "About great things", "submitted", 0, now, now, now,
+    "INSERT OR IGNORE INTO proposal (id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, session_format_id, title, abstract, status, is_late, last_activity_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    PROPOSAL, EVENT, CFP, "frm_notif", "NT27-0001", "cfp", PERSON, FORMAT, "A great talk", "About great things", "submitted", 0, now, now, now,
   );
   await q(
     "INSERT OR IGNORE INTO proposal_speaker (id, proposal_id, person_id, speaker_role, sort_order, participation_status, added_by_person_id, added_at) VALUES (?,?,?,?,?,?,?,?)",

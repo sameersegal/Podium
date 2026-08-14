@@ -78,7 +78,7 @@ export function registerLiveRoutes(router: Router<RequestContext>): void {
     const since = url.searchParams.get("since");
     if (since) params.set("since", since);
 
-    return roomStub(ctx.env, roomKey(ctx.orgId, eventId)).fetch(
+    return roomStub(ctx.env, roomKey(eventId)).fetch(
       `https://room.internal/subscribe?${params}`,
       // The upgrade header has to survive the hop, or the object cannot tell
       // a subscribe from a poke.
@@ -91,8 +91,8 @@ export function registerLiveRoutes(router: Router<RequestContext>): void {
  * Called on sign-out. A session that has ended must not keep a channel open,
  * even one that says as little as this one does.
  */
-export async function closeSocketsFor(env: Env, orgId: string, personId: string): Promise<void> {
-  await kickFromRoom(env, orgId, null, personId);
+export async function closeSocketsFor(env: Env, personId: string): Promise<void> {
+  await kickFromRoom(env, null, personId);
 }
 
 function roomStub(env: Env, key: string): { fetch: typeof fetch } {

@@ -54,7 +54,6 @@ export async function createImport(app: AppContext, input: CreateImportInput): P
   const mapping = autoMapColumns(parsed.headers, input.subject);
   await app.db.insert("bulk_import", {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? null,
     subject: input.subject,
     source_asset_id: str(asset.id),
@@ -206,7 +205,6 @@ async function applyPersonFields(app: AppContext, mapped: Record<string, string>
     personId = mintId("Person");
     await app.db.insert("person", {
       id: personId,
-      org_id: app.orgId,
       email,
       full_name: mapped.full_name || email,
       display_name: mapped.display_name ?? null,
@@ -246,7 +244,6 @@ async function applyPersonFields(app: AppContext, mapped: Record<string, string>
       await app.db.insert("speaker_profile", {
         id: mintId("SpeakerProfile"),
         person_id: personId,
-        org_id: app.orgId,
         visibility: JSON.stringify({}),
         is_listed: 1,
         ...patch,

@@ -40,9 +40,8 @@ async function seed(): Promise<void> {
     EPOCH,
     EPOCH,
   ]);
-  await run("INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)", [
+  await run("INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)", [
     ADMIN,
-    ORG,
     ADMIN_EMAIL,
     "Install Admin",
     "active",
@@ -60,9 +59,8 @@ async function seed(): Promise<void> {
     ADMIN_EMAIL,
     now,
   ]);
-  await run("INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)", [
+  await run("INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)", [
     "rg_install_admin",
-    ORG,
     ADMIN,
     "owner",
     "org",
@@ -124,15 +122,14 @@ describe("installing an email integration through the admin console", () => {
     });
     expect(res.status).toBe(303);
 
-    const row = await env.DB.prepare("SELECT config, secret_ref FROM integration WHERE org_id = ? AND plugin_key = 'email.sendgrid'")
-      .bind(ORG)
+    const row = await env.DB.prepare("SELECT config, secret_ref FROM integration WHERE plugin_key = 'email.sendgrid'")
       .first<Record<string, unknown>>();
     expect(JSON.parse(String(row?.config))).toEqual({ from_email: "hello@example.com", from_name: "Podium" });
     expect(row?.secret_ref).toBe("SENDGRID_API_KEY");
   });
 
   it("edits config after install without losing keys the plugin does not declare", async () => {
-    const before = await env.DB.prepare("SELECT id FROM integration WHERE org_id = ? AND plugin_key = 'email.sendgrid'").bind(ORG).first<Record<string, unknown>>();
+    const before = await env.DB.prepare("SELECT id FROM integration WHERE plugin_key = 'email.sendgrid'").first<Record<string, unknown>>();
     const id = String(before?.id);
     // A key only `POST /v1/integrations` could have set.
     await run("UPDATE integration SET config = ? WHERE id = ?", [JSON.stringify({ from_email: "hello@example.com", from_name: "Podium", ip_pool: "transactional" }), id]);
@@ -161,12 +158,12 @@ describe("installing an email integration through the admin console", () => {
     // otherwise pass this test while proving nothing about INV-09-3.
     expect(res.status).toBe(422);
     expect(await res.text()).toContain("credential");
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM integration WHERE org_id = ? AND plugin_key = 'email.resend'").bind(ORG).first<Record<string, unknown>>();
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM integration WHERE plugin_key = 'email.resend'").first<Record<string, unknown>>();
     expect(Number(row?.n)).toBe(0);
   });
 
   it("shows the signed inbound webhook URL on an email integration's page", async () => {
-    const row = await env.DB.prepare("SELECT id FROM integration WHERE org_id = ? AND plugin_key = 'email.sendgrid'").bind(ORG).first<Record<string, unknown>>();
+    const row = await env.DB.prepare("SELECT id FROM integration WHERE plugin_key = 'email.sendgrid'").first<Record<string, unknown>>();
     const res = await SELF.fetch(`http://localhost/admin/integrations/${String(row?.id)}`, { headers: { cookie } });
     expect(res.status).toBe(200);
     const body = await res.text();

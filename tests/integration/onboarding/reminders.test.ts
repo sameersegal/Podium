@@ -31,9 +31,9 @@ const now = () => new Date().toISOString();
 
 async function seedPerson(id: string) {
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, timezone, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, timezone, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
   )
-    .bind(id, ORG, `${id}@example.com`, "Remy Assignee", "active", 0, "UTC", now(), now())
+    .bind(id, `${id}@example.com`, "Remy Assignee", "active", 0, "UTC", now(), now())
     .run();
 }
 
@@ -44,9 +44,9 @@ async function seed() {
     .bind(ORG, "Onboarding Reminders Org", "ob-remind-org", "UTC", "a@b.example", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(EVENT, ORG, "Reminders Conf", "ob-remind-conf", "UTC", "2028-06-01", "2028-06-02", "in_person", "active", "public", "{}", now(), now())
+    .bind(EVENT, "Reminders Conf", "ob-remind-conf", "UTC", "2028-06-01", "2028-06-02", "in_person", "active", "public", "{}", now(), now())
     .run();
   await seedPerson(ASSIGNEE_1);
   await seedPerson(ASSIGNEE_2);
@@ -56,14 +56,11 @@ async function seed() {
 async function makeTaskInstance(id: string, assignee: string) {
   await env.DB.prepare(
     `INSERT INTO task_instance
-       (id, org_id, event_id, definition_id, definition_version, definition_key, title, requirement_type, config,
-        subject_type, subject_id, assignee_person_id, status, is_blocking, is_required, requires_review,
-        due_at, reminder_count, created_at, updated_at, row_version)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       (id, event_id, definition_id, definition_version, definition_key, title, requirement_type, config, subject_type, subject_id, assignee_person_id, status, is_blocking, is_required, requires_review, due_at, reminder_count, created_at, updated_at, row_version)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   )
     .bind(
       id,
-      ORG,
       EVENT,
       "tdf_ob_remind",
       1,
@@ -117,9 +114,8 @@ describe("onboarding task reminders actually reach the delivery queue", () => {
     expect(result.sent).toBe(1);
 
     expect(sendMock).toHaveBeenCalledTimes(1);
-    const [message] = sendMock.mock.calls[0] as [{ kind: string; notification_id: string; org_id: string }];
+    const [message] = sendMock.mock.calls[0] as [{ kind: string; notification_id: string }];
     expect(message.kind).toBe("notification");
-    expect(message.org_id).toBe(ORG);
 
     const row = await env.DB.prepare("SELECT * FROM notification_delivery WHERE id = ?").bind(message.notification_id).first<Record<string, unknown>>();
     expect(row).toBeTruthy();

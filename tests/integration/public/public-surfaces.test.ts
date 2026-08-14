@@ -35,8 +35,8 @@ async function seed() {
     [ORG, "Pub Org", "pub-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, tagline, description, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Pub Conf", EVENT_SLUG, "Talks worth flying for.", "A conference about publishing schedules.", "UTC", "2027-11-01", "2027-11-01", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, tagline, description, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Pub Conf", EVENT_SLUG, "Talks worth flying for.", "A conference about publishing schedules.", "UTC", "2027-11-01", "2027-11-01", "in_person", "active", "public", "{}", now, now],
   );
   await run("INSERT OR IGNORE INTO venue (id, event_id, name) VALUES (?,?,?)", [VENUE, EVENT, "Main Hall"]);
   await run(
@@ -56,27 +56,27 @@ async function seed() {
   );
 
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [CHAIR, ORG, CHAIR_EMAIL, "Chair Person", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [CHAIR, CHAIR_EMAIL, "Chair Person", "active", 0, now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [SPEAKER, ORG, "pub-speaker@example.com", "Ada Speaker", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [SPEAKER, "pub-speaker@example.com", "Ada Speaker", "active", 0, now, now],
   );
   await run(
     "INSERT OR IGNORE INTO auth_identity (id, person_id, provider, subject, credential_hash, credential_updated_at, email_at_provider, created_at) VALUES (?,?,?,?,?,?,?,?)",
     ["aid_pub_chair", CHAIR, "password", CHAIR_EMAIL, hashPassword(CHAIR_PASSWORD), now, CHAIR_EMAIL, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_pub_chair", ORG, CHAIR, "program_chair", "event", EVENT, CHAIR, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_pub_chair", CHAIR, "program_chair", "event", EVENT, CHAIR, now],
   );
 
   await run(
     `INSERT OR IGNORE INTO session
-      (id, org_id, event_id, reference, origin, title, abstract, session_format_id, track_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [SESSION, ORG, EVENT, "T-0001", "cfp", "Publishing at Scale", "How the snapshot model keeps the embed fast.", FORMAT, TRACK, 30, "confirmed", "approved", "public", now, now],
+      (id, event_id, reference, origin, title, abstract, session_format_id, track_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [SESSION, EVENT, "T-0001", "cfp", "Publishing at Scale", "How the snapshot model keeps the embed fast.", FORMAT, TRACK, 30, "confirmed", "approved", "public", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO session_speaker (id, session_id, person_id, speaker_role, confirmation_status, is_public, added_at) VALUES (?,?,?,?,?,?,?)",
@@ -347,13 +347,13 @@ describe("home — one event renders its landing page; several render a list", (
   it("with two public events, GET / lists them instead of picking one", async () => {
     const now = new Date().toISOString();
     await run(
-      "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      [EVENT2, ORG, "Second Pub Conf", EVENT2_SLUG, "UTC", "2027-12-01", "2027-12-01", "in_person", "active", "public", "{}", now, now],
+      "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      [EVENT2, "Second Pub Conf", EVENT2_SLUG, "UTC", "2027-12-01", "2027-12-01", "in_person", "active", "public", "{}", now, now],
     );
     // A draft event, even though public, has no public surface at all.
     await run(
-      "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      [DRAFT_EVENT, ORG, "Unlaunched Conf", "unlaunched-conf", "UTC", "2028-01-01", "2028-01-01", "in_person", "draft", "public", "{}", now, now],
+      "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      [DRAFT_EVENT, "Unlaunched Conf", "unlaunched-conf", "UTC", "2028-01-01", "2028-01-01", "in_person", "draft", "public", "{}", now, now],
     );
 
     const res = await SELF.fetch("http://localhost/", { redirect: "manual" });

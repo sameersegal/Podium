@@ -234,7 +234,7 @@ export const PLATFORM_REACTIONS: Reaction[] = [
         // stay live until its lifetime cap — this closes it now and makes the
         // client reconnect through the authorized route.
         const personId = str((ev.data as Record<string, unknown>).person_id);
-        if (personId) await kickFromRoom(env, ev.org_id, ev.event_id ?? null, personId);
+        if (personId) await kickFromRoom(env, ev.event_id ?? null, personId);
         return;
       }
       await pokeRooms(env, [ev]);
@@ -287,7 +287,7 @@ export const PLATFORM_REACTIONS: Reaction[] = [
       if (touched.size > 0) {
         for (const mapping of await activeMappings(app)) {
           if (touched.has(str(mapping.subject))) {
-            await schedulePush(env, ev.org_id, str(mapping.id), "event");
+            await schedulePush(env, str(mapping.id), "event");
           }
         }
       }
@@ -308,7 +308,7 @@ export const PLATFORM_REACTIONS: Reaction[] = [
     name: "platform.sync_erasure",
     types: ["person.deactivated"],
     async handle(ev, env) {
-      await scheduleErase(env, ev.org_id, ev.subject.id);
+      await scheduleErase(env, ev.subject.id);
     },
   },
 ];

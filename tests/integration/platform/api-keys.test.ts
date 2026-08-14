@@ -23,14 +23,14 @@ async function seed() {
     .bind(ORG, "API Key Test Org", "apikey-test-org", "UTC", "test@example.com", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(EVENT, ORG, "API Key Test Conf", "apikey-test-conf", "UTC", "2028-07-01", "2028-07-02", "in_person", "active", "public", "{}", now(), now())
+    .bind(EVENT, "API Key Test Conf", "apikey-test-conf", "UTC", "2028-07-01", "2028-07-02", "in_person", "active", "public", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(PERSON, ORG, "secret-address@example.com", "Piña Person", "active", 0, now(), now())
+    .bind(PERSON, "secret-address@example.com", "Piña Person", "active", 0, now(), now())
     .run();
 }
 

@@ -111,10 +111,9 @@ async function main() {
     const submitted = new Date(Date.parse(row.submitted_at || now) + i * 60_000).toISOString();
 
     lines.push(
-      `INSERT INTO proposal (id, org_id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, title, abstract, session_format_id, track_id, audience_level, keywords, language, recording_consent, status, is_late, submitted_at, last_activity_at, created_at, updated_at) VALUES (` +
+      `INSERT INTO proposal (id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, title, abstract, session_format_id, track_id, audience_level, keywords, language, recording_consent, status, is_late, submitted_at, last_activity_at, created_at, updated_at) VALUES (` +
         [
           sql(id),
-          sql(row.org_id),
           sql(row.event_id),
           sql(row.cfp_id),
           sql(row.form_id),

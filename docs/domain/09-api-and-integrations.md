@@ -107,7 +107,6 @@ second place for the anonymity and validation rules to be got wrong.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `key_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `name` | `string` | Y | "Marketing site", "Airtable sync" |
 | `prefix` | `string` | Y | first 8 chars, shown in the UI for identification |
 | `secret_hash` | `string` | Y | the secret is displayed once and never stored (INV-09-1) |
@@ -143,7 +142,6 @@ titles and times, not personal data, and the default should reflect that.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `whk_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | null = all events |
 | `name` | `string` | Y | |
 | `url` | `string` | Y | absolute https (INV-09-2) |
@@ -187,7 +185,6 @@ one or more capability contracts; the core calls the contract.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `itg_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | |
 | `plugin_key` | `string` | Y | `email.resend`, `email.sendgrid`, `chat.slack`, `crm.hubspot`, `calendar.google`, `analytics.ai_evaluator`, `sync.airtable` |
 | `capability` | `enum(email, sms, chat, calendar, crm, storage, video, analytics, identity, ticketing, sync)` | Y | |
@@ -375,7 +372,6 @@ system hearing its own echo, and is dropped without a write, an event, or a run 
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `smp_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `integration_id` | `ref(Integration)` | Y | must hold the `sync` capability |
 | `event_id` | `ref(Event)` | N | required for an event-scoped subject, null for an org-scoped one |
 | `subject` | `enum(proposal, session, person, speaker_profile, event_participant, sponsor, sponsorship, entitlement, placement, decision, prospect_card)` | Y | what this table mirrors. `Review` is deliberately absent — see INV-09-23 |
@@ -400,7 +396,6 @@ system hearing its own echo, and is dropped without a write, an event, or a run 
 | ExternalRecordLink field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `xrl_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `mapping_id` | `ref(SyncMapping)` | Y | |
 | `subject_type` / `subject_id` | | Y | the Podium record |
 | `external_id` | `string` | N | null until the first push succeeds |
@@ -430,7 +425,6 @@ stateDiagram-v2
 | SyncRun field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `syr_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `mapping_id` | `ref(SyncMapping)` | Y | |
 | `direction` | `enum(push, pull)` | Y | |
 | `trigger` | `enum(event, cron, inbound, manual)` | Y | what started it, so a runaway loop is legible |
@@ -479,7 +473,7 @@ guess.
 | NotificationTemplate field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ntp_` |
-| `org_id` / `event_id` | `ref(...)` | Y/N | event templates override org ones |
+| `event_id` | `ref(Event)` | N | null = the deployment-wide template; an event's own overrides it |
 | `key` | `string` | Y | `proposal.accepted`, `task.reminder`, `schedule.changed` |
 | `channel` | `enum(email, chat)` | Y | |
 | `subject` | `string` | N | |
@@ -544,7 +538,7 @@ person who sent it is the only one who knows.
 | Campaign field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `cmp_` |
-| `org_id` / `event_id` | `ref(...)` | Y/N | event-scoped for speaker comms, org-scoped for sourcing outreach |
+| `event_id` | `ref(Event)` | N | set for speaker comms, null for sourcing outreach |
 | `name` | `string` | Y | internal label |
 | `channel` | `enum(email, chat)` | Y | |
 | `template_id` | `ref(NotificationTemplate)` | N | null for a one-off composed message |

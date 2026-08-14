@@ -38,20 +38,20 @@ async function seed(): Promise<void> {
     [ORG, "Concurrency Org", "concurrency-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Concurrency Conf", "concurrency-conf", "UTC", "2027-09-01", "2027-09-03", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Concurrency Conf", "concurrency-conf", "UTC", "2027-09-01", "2027-09-03", "in_person", "active", "public", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [ADMIN, ORG, ADMIN_EMAIL, "Ada Admin", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [ADMIN, ADMIN_EMAIL, "Ada Admin", "active", 0, now, now],
   );
   await run(
     "INSERT OR IGNORE INTO auth_identity (id, person_id, provider, subject, credential_hash, credential_updated_at, email_at_provider, created_at) VALUES (?,?,?,?,?,?,?,?)",
     [`aid_${ADMIN}`, ADMIN, "password", ADMIN_EMAIL, hashPassword(ADMIN_PASSWORD), now, ADMIN_EMAIL, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_conc_admin", ORG, ADMIN, "admin", "org", ORG, ADMIN, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_conc_admin", ADMIN, "admin", "org", ORG, ADMIN, now],
   );
   await run(
     `INSERT OR IGNORE INTO call_for_proposals
@@ -66,9 +66,9 @@ async function seed(): Promise<void> {
   );
   await run(
     `INSERT OR IGNORE INTO session
-       (id, org_id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [SESSION, ORG, EVENT, "T-9001", "cfp", "Original title", "An abstract.", FORMAT, 30, "confirmed", "draft", "public", now, now],
+       (id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [SESSION, EVENT, "T-9001", "cfp", "Original title", "An abstract.", FORMAT, 30, "confirmed", "draft", "public", now, now],
   );
 }
 

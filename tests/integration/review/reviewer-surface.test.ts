@@ -44,8 +44,8 @@ async function seed() {
     [ORG, "Revsurf Org", "revsurf-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Revsurf Conf", "revsurf-conf", "UTC", "2027-06-01", "2027-06-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Revsurf Conf", "revsurf-conf", "UTC", "2027-06-01", "2027-06-02", "in_person", "active", "public", "{}", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, opens_at, closes_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -58,8 +58,8 @@ async function seed() {
     [SUBMITTER_PERSON, "revsurf-submitter@example.com", "Sub Mitter"],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, ORG, email, name, "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [id, email, name, "active", 0, now, now],
     );
   }
 
@@ -69,12 +69,12 @@ async function seed() {
   );
 
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_revsurf_reviewer", ORG, REVIEWER_PERSON, "reviewer", "event", EVENT, SUBMITTER_PERSON, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_revsurf_reviewer", REVIEWER_PERSON, "reviewer", "event", EVENT, SUBMITTER_PERSON, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_revsurf_other", ORG, OTHER_REVIEWER_PERSON, "reviewer", "event", EVENT, SUBMITTER_PERSON, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_revsurf_other", OTHER_REVIEWER_PERSON, "reviewer", "event", EVENT, SUBMITTER_PERSON, now],
   );
 
   await run(
@@ -109,9 +109,9 @@ async function seed() {
   ]) {
     await run(
       `INSERT OR IGNORE INTO proposal
-         (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, ORG, EVENT, CFP, "frm_revsurf", ref, SUBMITTER_PERSON, title, "An abstract.", "in_review", now, now, now, 1],
+         (id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, EVENT, CFP, "frm_revsurf", ref, SUBMITTER_PERSON, title, "An abstract.", "in_review", now, now, now, 1],
     );
   }
 

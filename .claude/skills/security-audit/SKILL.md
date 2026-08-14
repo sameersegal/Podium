@@ -48,7 +48,7 @@ outside a safe default, so the review never begins by rediscovering them:
 | `html-unescaped` | `raw()` with a non-literal argument — HTML that skipped `escapeHtml`. |
 | `client-html-sink` | `innerHTML` / `eval` in `public/`. |
 | `sql-interpolated` | SQL assembled by interpolation rather than bound parameters. |
-| `sql-unscoped` | `db.raw()` / `rawRun()` naming no `org_id` — these bypass `buildWhere`, so INV-11-1 and INV-11-2 are the caller's job. |
+| `sql-unscoped` | `db.raw()` / `rawRun()` reading a soft-deletable table without naming `deleted_at` — these bypass `buildWhere`, so INV-11-2 is the caller's job. (INV-11-1 no longer applies: R9 was amended and entities carry no `org_id`.) |
 | `cookie-attributes` | Hand-assembled `Set-Cookie` strings and which flags they omit. |
 | `security-headers` | Hardening headers the codebase never sets anywhere. |
 | `redirect-dynamic` | `redirect()` to a variable — open-redirect candidates. |

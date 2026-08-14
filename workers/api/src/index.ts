@@ -59,7 +59,7 @@ export default {
       }
 
       if (isMutating(req.method)) {
-        const replay = await replayIfSeen(env, ctx.orgId, req);
+        const replay = await replayIfSeen(env, req);
         if (replay) return await withSecurityHeaders(req, replay);
       }
 
@@ -97,7 +97,7 @@ export default {
         res.headers.append("set-cookie", clearCookie(FLASH_COOKIE));
       }
 
-      if (isMutating(req.method)) res = await remember(env, ctx.orgId, req, res);
+      if (isMutating(req.method)) res = await remember(env, req, res);
       return await withSecurityHeaders(req, withQueryCount(res, ctx));
     } catch (err) {
       // The error paths need the headers too — an error page is still a page,

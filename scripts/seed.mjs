@@ -106,7 +106,7 @@ function q(value) {
 }
 
 /**
- * Three tables carry neither `org_id` nor `id` — they are keyed by what they
+ * Three tables carry no `id` of their own — they are keyed by what they
  * hang off. Everything else the seed writes is covered by the two general rules
  * in `insert`, and a fourth such table trips the error there rather than being
  * silently left behind.
@@ -122,10 +122,10 @@ const seededTables = new Map();
 
 function insert(table, row) {
   if (!seededTables.has(table)) {
-    const key = TEARDOWN_KEY[table] ?? (row.org_id !== undefined ? "org_id" : row.id !== undefined ? "id" : null);
+    const key = TEARDOWN_KEY[table] ?? (row.id !== undefined ? "id" : null);
     if (!key) {
       throw new Error(
-        `seed: cannot work out how to delete rows from \`${table}\` — it has no org_id and no id. ` +
+        `seed: cannot work out how to delete rows from \`${table}\` — it has no id. ` +
           `Add it to TEARDOWN_KEY with the column that points at a seeded row, or a re-seed will leave its rows behind.`,
       );
     }
@@ -157,9 +157,9 @@ const runtimeSweeps = () => [
   ["published_session", `publication_id IN (SELECT id FROM schedule_publication WHERE ${MARKED("event_id")})`],
   ["published_speaker", `publication_id IN (SELECT id FROM schedule_publication WHERE ${MARKED("event_id")})`],
   ["schedule_diff_entry", `publication_id IN (SELECT id FROM schedule_publication WHERE ${MARKED("event_id")})`],
-  ["campaign_recipient", `campaign_id IN (SELECT id FROM campaign WHERE org_id = ${q(ORG)})`],
-  ["bulk_import_row", `import_id IN (SELECT id FROM bulk_import WHERE org_id = ${q(ORG)})`],
-  ["webhook_delivery", `webhook_id IN (SELECT id FROM webhook WHERE org_id = ${q(ORG)})`],
+  ["campaign_recipient", "1 = 1"],
+  ["bulk_import_row", "1 = 1"],
+  ["webhook_delivery", "1 = 1"],
 
   // Children of seeded rows — the parent's id carries the marker directly.
   ["asset_comment", MARKED("asset_id")],
@@ -176,7 +176,10 @@ const runtimeSweeps = () => [
   ["schedule_conflict", MARKED("event_id")],
   ["schedule_publication", MARKED("event_id")],
 
-  // Everything else the app writes with an `org_id`, after the children above.
+  // Everything else the app writes at runtime, after the children above. These
+  // were swept by `org_id = ORG` until migration 0011 dropped the column; with
+  // one Organization per deployment (INV-01-16) that predicate always matched
+  // every row, so "all of them" is the same sweep and not a wider one.
   ...[
     "api_key",
     "audit_log",
@@ -194,7 +197,7 @@ const runtimeSweeps = () => [
     "sync_mapping",
     "sync_run",
     "webhook",
-  ].map((table) => [table, `org_id = ${q(ORG)}`]),
+  ].map((table) => [table, "1 = 1"]),
 ];
 
 
@@ -223,7 +226,7 @@ function teardown() {
   const out = runtimeSweeps().map(([table, where]) => `DELETE FROM ${table} WHERE ${where};`);
   // Reverse insertion order, so children go before the parents they reference.
   for (const [table, key] of [...seededTables].reverse()) {
-    out.push(`DELETE FROM ${table} WHERE ${key === "org_id" ? `org_id = ${q(ORG)}` : MARKED(key)};`);
+    out.push(`DELETE FROM ${table} WHERE ${MARKED(key)};`);
   }
   return out;
 }
@@ -429,7 +432,6 @@ for (const person of people) {
   P[person.key] = id("per_", person.key);
   insert("person", {
     id: P[person.key],
-    org_id: ORG,
     email: person.email,
     email_verified_at: person.password ? now : null,
     full_name: person.name,
@@ -462,7 +464,6 @@ for (const person of people) {
   insert("speaker_profile", {
     id: profileId,
     person_id: P[person.key],
-    org_id: ORG,
     headline: `${person.title}, ${person.company}`,
     job_title: person.title,
     company: person.company,
@@ -503,7 +504,6 @@ const PRIOR_EVENT = id("evt_", "devflow-2026");
 
 insert("event", {
   id: EVENT,
-  org_id: ORG,
   name: "DevFlow Conf 2027",
   slug: "devflow-conf-2027",
   edition: "2027",
@@ -528,7 +528,6 @@ insert("event", {
 
 insert("event", {
   id: PRIOR_EVENT,
-  org_id: ORG,
   name: "DevFlow Conf 2026",
   slug: "devflow-conf-2026",
   edition: "2026",
@@ -660,7 +659,6 @@ const grants = [
 grants.forEach((g, i) => {
   insert("role_grant", {
     id: id("grt_", `${g.person}-${g.role}-${i}`),
-    org_id: ORG,
     person_id: P[g.person],
     role: g.role,
     scope_type: g.scope_type,
@@ -1019,7 +1017,6 @@ const ENTITLEMENTS = {};
   SPONSORS[sponsor.key] = id("spo_", sponsor.key);
   insert("sponsor", {
     id: SPONSORS[sponsor.key],
-    org_id: ORG,
     name: sponsor.name,
     display_name: sponsor.name,
     slug: sponsor.key,
@@ -1373,7 +1370,6 @@ for (const p of proposalDefs) {
   const submittedAt = submitted ? daysFromNow(-20 + proposalDefs.indexOf(p)) : null;
   insert("proposal", {
     id: pid,
-    org_id: ORG,
     event_id: EVENT,
     cfp_id: CFP,
     form_id: FORM,
@@ -1596,7 +1592,6 @@ accepted.forEach((p, i) => {
   const pending = i >= accepted.length - 2;
   insert("session", {
     id: sid,
-    org_id: ORG,
     event_id: EVENT,
     proposal_id: PROPOSALS[p.key],
     reference: `${EVENT_CODE}-${String(proposalDefs.indexOf(p) + 1).padStart(4, "0")}`,
@@ -1648,7 +1643,6 @@ accepted.forEach((p, i) => {
 const SPONSOR_PROPOSAL = id("prp_", "ferro-session");
 insert("proposal", {
   id: SPONSOR_PROPOSAL,
-  org_id: ORG,
   event_id: EVENT,
   cfp_id: SPONSOR_CFP,
   form_id: SPONSOR_FORM,
@@ -1675,7 +1669,6 @@ insert("proposal", {
 const SPONSOR_SESSION = id("ses_", "ferro-session");
 insert("session", {
   id: SPONSOR_SESSION,
-  org_id: ORG,
   event_id: EVENT,
   proposal_id: SPONSOR_PROPOSAL,
   reference: `${EVENT_CODE}-0100`,
@@ -1708,7 +1701,6 @@ ORG_ITEMS.forEach((item, i) => {
   SESSIONS[item.key] = sid;
   insert("session", {
     id: sid,
-    org_id: ORG,
     event_id: EVENT,
     reference: `${EVENT_CODE}-9${String(i).padStart(3, "0")}`,
     origin: "organizer",
@@ -1851,7 +1843,6 @@ confirmedSessions.forEach((p, si) => {
         : daysFromNow(-4 + t.due.offset_days);
     insert("task_instance", {
       id: id("tsk_", `${p.key}-${t.key}`),
-      org_id: ORG,
       event_id: EVENT,
       definition_id: id("tdf_", t.key),
       definition_version: 1,
@@ -1885,7 +1876,6 @@ confirmedSessions.forEach((p, si) => {
 // exists to chase.
 insert("task_instance", {
   id: id("tsk_", "ferro-nominate"),
-  org_id: ORG,
   event_id: EVENT,
   definition_id: id("tdf_", "nominate-speaker"),
   definition_version: 1,
@@ -1930,7 +1920,6 @@ rosterRows.forEach((r, i) => {
   seenRoster.add(r.person);
   insert("event_participant", {
     id: id("epa_", `${r.person}-2027`),
-    org_id: ORG,
     event_id: EVENT,
     person_id: P[r.person],
     kind: r.kind,
@@ -1947,7 +1936,6 @@ rosterRows.forEach((r, i) => {
 
 insert("person_note", {
   id: id("pnt_", "nadia-1"),
-  org_id: ORG,
   person_id: P.nadia,
   event_id: null,
   body: "Excellent on stage in 2026 — the platform migration talk still gets quoted. Was unavailable for 2027 in January; said to ask again in the autumn.",
@@ -1956,7 +1944,6 @@ insert("person_note", {
 });
 insert("person_note", {
   id: id("pnt_", "lena-1"),
-  org_id: ORG,
   person_id: P.lena,
   event_id: EVENT,
   body: "Strong design perspective, which the DX track is short of. Shortlist for a keynote next year if the waitlisted talk goes well.",
@@ -2464,7 +2451,6 @@ for (const p of programme26) {
 
   insert("proposal", {
     id: pid,
-    org_id: ORG,
     event_id: PRIOR_EVENT,
     cfp_id: CFP_26,
     form_id: FORM_26,
@@ -2543,7 +2529,6 @@ for (const p of programme26) {
 
   insert("session", {
     id: sid,
-    org_id: ORG,
     event_id: PRIOR_EVENT,
     proposal_id: pid,
     reference,
@@ -2619,7 +2604,6 @@ for (const p of declined26) {
 
   insert("proposal", {
     id: pid,
-    org_id: ORG,
     event_id: PRIOR_EVENT,
     cfp_id: CFP_26,
     form_id: FORM_26,
@@ -2680,7 +2664,6 @@ for (const p of declined26) {
 [...new Set(programme26.map((p) => p.speaker))].forEach((key) => {
   insert("event_participant", {
     id: id("epa_", `${key}-2026`),
-    org_id: ORG,
     event_id: PRIOR_EVENT,
     person_id: P[key],
     kind: "speaker",
@@ -2701,7 +2684,6 @@ for (const p of declined26) {
 
 insert("contact_segment", {
   id: id("seg_", "returning"),
-  org_id: ORG,
   name: "Spoke at a previous edition",
   description: "Everyone who has given a session at any DevFlow Conf.",
   kind: "dynamic",
@@ -2713,7 +2695,6 @@ insert("contact_segment", {
 });
 insert("contact_segment", {
   id: id("seg_", "keynote-shortlist"),
-  org_id: ORG,
   name: "2028 keynote shortlist",
   description: "A decision somebody made, not a query — it must not gain a name because a tag changed.",
   kind: "static",
@@ -2727,7 +2708,6 @@ insert("contact_segment", {
 const PIPELINE = id("pip_", "2028-keynotes");
 insert("sourcing_pipeline", {
   id: PIPELINE,
-  org_id: ORG,
   event_id: null,
   name: "DevFlow Conf 2028 keynotes",
   status: "active",
@@ -2824,7 +2804,6 @@ const STAGES = {};
  */
 insert("integration", {
   id: id("itg_", "resend"),
-  org_id: ORG,
   event_id: null,
   plugin_key: "email.resend",
   capability: "email",
@@ -2861,7 +2840,6 @@ const templates = [
 templates.forEach((t, i) => {
   insert("notification_template", {
     id: id("ntp_", t.key),
-    org_id: ORG,
     event_id: null,
     key: t.key,
     channel: "email",
@@ -2878,7 +2856,6 @@ templates.forEach((t, i) => {
 accepted.forEach((p, i) => {
   insert("notification_delivery", {
     id: id("ntd_", `accept-${p.key}`),
-    org_id: ORG,
     event_id: EVENT,
     template_key: "proposal.accepted",
     template_version: 1,
@@ -2950,7 +2927,6 @@ function seedAsset({ key, slot, filename, bytes, purpose, uploadedBy }) {
   const storageKey = `${ORG}/${slot.replace(/:/g, "/")}/1/${filename}`;
   insert("asset", {
     id: assetId,
-    org_id: ORG,
     storage_key: storageKey,
     filename,
     content_type: "image/png",

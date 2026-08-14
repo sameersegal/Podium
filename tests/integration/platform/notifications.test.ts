@@ -25,14 +25,14 @@ async function seed() {
     .bind(ORG, "Notif Test Org", "notif-test-org", "UTC", "test@example.com", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(EVENT, ORG, "Notif Test Conf", "notif-test-conf", "UTC", "2028-06-01", "2028-06-02", "in_person", "active", "public", "{}", now(), now())
+    .bind(EVENT, "Notif Test Conf", "notif-test-conf", "UTC", "2028-06-01", "2028-06-02", "in_person", "active", "public", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(PERSON, ORG, "recipient@example.com", "Reci P. Ient", "active", 0, now(), now())
+    .bind(PERSON, "recipient@example.com", "Reci P. Ient", "active", 0, now(), now())
     .run();
 }
 

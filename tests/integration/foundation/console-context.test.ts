@@ -51,8 +51,8 @@ async function seed() {
     [EVENT, "Console Conf 2027", "console-conf-2027", "2027-05-01"],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      [id, ORG, name, slug, "UTC", starts, starts, "in_person", "active", "public", "{}", now, now],
+      "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      [id, name, slug, "UTC", starts, starts, "in_person", "active", "public", "{}", now, now],
     );
   }
   await run(
@@ -65,9 +65,9 @@ async function seed() {
   );
   await run(
     `INSERT OR IGNORE INTO proposal
-       (id, org_id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, title, abstract, status, is_late, submitted_at, last_activity_at, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [PROPOSAL, ORG, EVENT, CFP, FORM, "CON-0001", "cfp", CHAIR, "A talk", "An abstract.", "submitted", 0, now, now, now, now],
+       (id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, title, abstract, status, is_late, submitted_at, last_activity_at, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [PROPOSAL, EVENT, CFP, FORM, "CON-0001", "cfp", CHAIR, "A talk", "An abstract.", "submitted", 0, now, now, now, now],
   );
 
   for (const [id, email, password] of [
@@ -75,8 +75,8 @@ async function seed() {
     [OUTSIDER, OUTSIDER_EMAIL, OUTSIDER_PASSWORD],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, ORG, email, "Console Person", "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [id, email, "Console Person", "active", 0, now, now],
     );
     await run(
       "INSERT OR IGNORE INTO auth_identity (id, person_id, provider, subject, credential_hash, credential_updated_at, email_at_provider, created_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -85,12 +85,12 @@ async function seed() {
   }
   // The chair is a chair of the newer event only; the outsider holds nothing.
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_console_chair", ORG, CHAIR, "program_chair", "event", EVENT, CHAIR, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_console_chair", CHAIR, "program_chair", "event", EVENT, CHAIR, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_console_chair_org", ORG, CHAIR, "organizer", "org", ORG, CHAIR, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_console_chair_org", CHAIR, "organizer", "org", ORG, CHAIR, now],
   );
 }
 

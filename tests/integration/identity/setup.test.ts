@@ -113,7 +113,6 @@ describe("POST /setup — success path", () => {
 
     const person = await env.DB.prepare("SELECT * FROM person WHERE email = ?").bind("ada@example.com").first<Row>();
     expect(person).toBeTruthy();
-    expect(str(person!.org_id)).toBe(str(org!.id));
     expect(str(person!.status)).toBe("active");
 
     const identity = await env.DB.prepare("SELECT * FROM auth_identity WHERE person_id = ? AND provider = 'password'").bind(person!.id).first<Row>();

@@ -7,15 +7,21 @@
 
 import type { Env } from "@podiumstack/data/context.js";
 
+/**
+ * Internal plumbing between our own producer and consumer — unlike
+ * `DomainEvent`, nothing outside this Worker ever sees one. It carried an
+ * `org_id` until R9 was amended; the consumer now resolves the deployment's one
+ * Organization itself (`soleOrgId`), so a producer has nothing to thread.
+ */
 export type DeliveryMessage =
-  | { kind: "webhook"; delivery_id: string; webhook_id: string; org_id: string; event_id: string }
-  | { kind: "notification"; notification_id: string; org_id: string }
-  | { kind: "campaign"; campaign_id: string; org_id: string }
+  | { kind: "webhook"; delivery_id: string; webhook_id: string; event_id: string }
+  | { kind: "notification"; notification_id: string }
+  | { kind: "campaign"; campaign_id: string }
   // Two-way sync (09). The reaction only marks links dirty; the provider call
   // happens here, so batching, rate limits and retries stay in the queue.
-  | { kind: "sync_push"; mapping_id: string; org_id: string; trigger: SyncRunTrigger }
-  | { kind: "sync_pull"; mapping_id: string; org_id: string; trigger: SyncRunTrigger }
-  | { kind: "sync_erase"; person_id: string; org_id: string };
+  | { kind: "sync_push"; mapping_id: string; trigger: SyncRunTrigger }
+  | { kind: "sync_pull"; mapping_id: string; trigger: SyncRunTrigger }
+  | { kind: "sync_erase"; person_id: string };
 
 import type { SyncRunTrigger } from "@podiumstack/domain/platform/sync.js";
 import { deliverWebhook, deliverNotification, sendCampaign } from "../contexts/platform/delivery.js";

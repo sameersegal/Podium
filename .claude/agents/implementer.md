@@ -177,8 +177,8 @@ invented synonyms, no `utils.ts` accumulating domain rules.
   `// INV-03-3: a sponsor session may not exceed the entitlement quantity`.
 - ULIDs with the documented typed prefix (`prp_`, `ses_`, `ast_`, …) — a session id passed
   where a proposal id belongs is a validation error, not a mystery.
-- Every query is org-scoped (INV-11-1) and excludes soft-deleted rows (INV-11-2), enforced once
-  in the data layer, not per endpoint.
+- Every query excludes soft-deleted rows (INV-11-2), enforced once in the data layer, not per
+  endpoint. There is no org scoping to add: R9 was amended and entities carry no `org_id`.
 - Derived (`D`) fields are computed at read time, never writable (INV-11-6). No stored counters.
 - PII redaction is default-on (INV-09-5, INV-11-4); a new field means deciding its
   classification and adding it to the table in `11-cross-cutting.md` if it is personal data.

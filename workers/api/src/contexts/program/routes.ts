@@ -466,7 +466,6 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
 function sessionJson(row: Row, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: str(row.id),
-    org_id: str(row.org_id),
     event_id: str(row.event_id),
     proposal_id: strOrNull(row.proposal_id),
     reference: str(row.reference),
@@ -503,8 +502,8 @@ function registerManagementApi(router: Router<RequestContext>): void {
     ctx.requireRead("session.manage", { event_id: eventId });
     const app = ctx.app(eventId);
     const { limit, cursor } = pageRequest(ctx.url);
-    const params: unknown[] = [ctx.orgId];
-    let sql = "SELECT * FROM session WHERE org_id = ? AND deleted_at IS NULL";
+    const params: unknown[] = [];
+    let sql = "SELECT * FROM session WHERE deleted_at IS NULL";
     if (eventId) {
       sql += " AND event_id = ?";
       params.push(eventId);

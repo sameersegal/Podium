@@ -26,7 +26,7 @@ erDiagram
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `prp_` |
-| `org_id` / `event_id` | `ref(...)` | Y | denormalised for scoping and indexing |
+| `event_id` | `ref(Event)` | Y | denormalised for indexing |
 | `cfp_id` | `ref(CallForProposals)` | Y | |
 | `form_id` | `ref(SubmissionForm)` | Y | the version this proposal is answered against (INV-04-1) |
 | `reference` | `string` | Y | human-facing short code, e.g. `WF26-0142`; unique per event (INV-04-2) |

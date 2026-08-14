@@ -32,7 +32,7 @@ function storageKeyFor(orgId: string, slotKey: string, version: number, filename
 }
 
 async function assetsInSlot(app: AppContext, slotKey: string): Promise<Row[]> {
-  return app.db.raw<Row>("SELECT * FROM asset WHERE org_id = ? AND slot_key = ?", [app.orgId, slotKey]);
+  return app.db.raw<Row>("SELECT * FROM asset WHERE slot_key = ?", [slotKey]);
 }
 
 export interface CreatedAsset {
@@ -68,7 +68,6 @@ async function recordAsset(app: AppContext, facts: AssetFacts): Promise<CreatedA
   const id = newId("Asset");
   const row: Row = {
     id,
-    org_id: app.orgId,
     storage_key: facts.storage_key,
     filename: facts.filename,
     content_type: facts.content_type,

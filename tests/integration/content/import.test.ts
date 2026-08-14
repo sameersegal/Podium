@@ -19,9 +19,9 @@ async function seed() {
     .bind(ORG, "Import Test Org", "import-test-org", "UTC", "test@example.com", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind("per_import_operator", ORG, "operator@example.com", "Ivy Operator", "active", 0, now(), now())
+    .bind("per_import_operator", "operator@example.com", "Ivy Operator", "active", 0, now(), now())
     .run();
 }
 
@@ -36,7 +36,7 @@ function appFor() {
 }
 
 async function personCount(): Promise<number> {
-  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM person WHERE org_id = ?").bind(ORG).first<{ n: number }>();
+  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM person").bind().first<{ n: number }>();
   return row?.n ?? 0;
 }
 

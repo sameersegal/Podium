@@ -13,7 +13,7 @@
  * when it was scheduled.
  */
 
-import type { Env } from "@podiumstack/data/context.js";
+import type { AppContext, Env } from "@podiumstack/data/context.js";
 import { str, type Row } from "@podiumstack/data/db.js";
 import type { SyncRunTrigger } from "@podiumstack/domain/platform/sync.js";
 
@@ -30,8 +30,8 @@ import { erasePersonEverywhere, getMapping, runPull, runPush, syncContext } from
 export const PUSH_DEBOUNCE_SECONDS = 20;
 
 /** Enqueue a debounced push for one mapping, ignoring a queue that is unavailable. */
-export async function schedulePush(env: Env, orgId: string, mappingId: string, trigger: SyncRunTrigger): Promise<void> {
-  const message: DeliveryMessage = { kind: "sync_push", mapping_id: mappingId, org_id: orgId, trigger };
+export async function schedulePush(env: Env, mappingId: string, trigger: SyncRunTrigger): Promise<void> {
+  const message: DeliveryMessage = { kind: "sync_push", mapping_id: mappingId, trigger };
   try {
     await env.DELIVERY_QUEUE.send(message, { delaySeconds: PUSH_DEBOUNCE_SECONDS });
   } catch (err) {
@@ -41,8 +41,8 @@ export async function schedulePush(env: Env, orgId: string, mappingId: string, t
   }
 }
 
-export async function schedulePull(env: Env, orgId: string, mappingId: string, trigger: SyncRunTrigger): Promise<void> {
-  const message: DeliveryMessage = { kind: "sync_pull", mapping_id: mappingId, org_id: orgId, trigger };
+export async function schedulePull(env: Env, mappingId: string, trigger: SyncRunTrigger): Promise<void> {
+  const message: DeliveryMessage = { kind: "sync_pull", mapping_id: mappingId, trigger };
   try {
     await env.DELIVERY_QUEUE.send(message);
   } catch (err) {
@@ -50,8 +50,8 @@ export async function schedulePull(env: Env, orgId: string, mappingId: string, t
   }
 }
 
-export async function scheduleErase(env: Env, orgId: string, personId: string): Promise<void> {
-  const message: DeliveryMessage = { kind: "sync_erase", person_id: personId, org_id: orgId };
+export async function scheduleErase(env: Env, personId: string): Promise<void> {
+  const message: DeliveryMessage = { kind: "sync_erase", person_id: personId };
   try {
     await env.DELIVERY_QUEUE.send(message);
   } catch (err) {
@@ -63,7 +63,7 @@ export async function scheduleErase(env: Env, orgId: string, personId: string): 
 }
 
 export async function deliverSyncPush(env: Env, msg: Extract<DeliveryMessage, { kind: "sync_push" }>): Promise<void> {
-  const app = syncContext(env, msg.org_id, null);
+  const app = await syncContext(env, null);
   const mapping = await loadActiveMapping(app, msg.mapping_id);
   if (!mapping) return;
   app.eventId = str(mapping.event_id) || null;
@@ -74,23 +74,23 @@ export async function deliverSyncPush(env: Env, msg: Extract<DeliveryMessage, { 
 export async function deliverSyncPull(env: Env, msg: Extract<DeliveryMessage, { kind: "sync_pull" }>): Promise<void> {
   // Built with the `system` actor first, only to read the mapping; the run
   // itself gets a context attributed to the integration (INV-09-20).
-  const reader = syncContext(env, msg.org_id, null);
+  const reader = await syncContext(env, null);
   const mapping = await loadActiveMapping(reader, msg.mapping_id);
   if (!mapping) return;
 
   const integration = await reader.db.byId<Row>("integration", str(mapping.integration_id));
-  const app = syncContext(env, msg.org_id, str(mapping.event_id) || null, { integration });
+  const app = await syncContext(env, str(mapping.event_id) || null, { integration });
   await runPull(app, mapping, msg.trigger);
   await app.flush();
 
   // A pull that accepted anything left those links `pending_push`, so Podium's
   // stored value — not the spreadsheet's proposal — goes back out.
   const dirty = await app.db.count("external_record_link", { mapping_id: str(mapping.id), status: "pending_push" });
-  if (dirty > 0) await schedulePush(env, msg.org_id, str(mapping.id), "event");
+  if (dirty > 0) await schedulePush(env, str(mapping.id), "event");
 }
 
 export async function deliverSyncErase(env: Env, msg: Extract<DeliveryMessage, { kind: "sync_erase" }>): Promise<void> {
-  const app = syncContext(env, msg.org_id, null);
+  const app = await syncContext(env, null);
   const result = await erasePersonEverywhere(app, msg.person_id);
   await app.flush();
   if (result.failed > 0) {
@@ -99,7 +99,7 @@ export async function deliverSyncErase(env: Env, msg: Extract<DeliveryMessage, {
   }
 }
 
-async function loadActiveMapping(app: ReturnType<typeof syncContext>, mappingId: string): Promise<Row | null> {
+async function loadActiveMapping(app: AppContext, mappingId: string): Promise<Row | null> {
   let mapping: Row;
   try {
     mapping = await getMapping(app, mappingId);

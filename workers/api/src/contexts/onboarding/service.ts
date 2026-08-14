@@ -815,7 +815,7 @@ export async function deliverReminders(app: AppContext, candidates: ReminderCand
       status: "queued",
       created_at: now,
     });
-    const message: DeliveryMessage = { kind: "notification", notification_id: notificationId, org_id: app.orgId };
+    const message: DeliveryMessage = { kind: "notification", notification_id: notificationId };
     try {
       await app.env.DELIVERY_QUEUE.send(message);
     } catch (err) {
@@ -868,8 +868,8 @@ export async function scheduledReminderCandidates(app: AppContext): Promise<Remi
     `SELECT ti.id AS instance_id, trr.id AS rule_id, trr.offset_days AS offset_days, trr.only_if_status AS only_if_status
        FROM task_reminder_rule trr
        JOIN task_instance ti ON ti.definition_id = trr.definition_id
-      WHERE ti.org_id = ? AND ti.due_at IS NOT NULL AND ti.status NOT IN ('completed','waived','cancelled')`,
-    [app.orgId],
+      WHERE ti.due_at IS NOT NULL AND ti.status NOT IN ('completed','waived','cancelled')`,
+    [],
   );
   const out: ReminderCandidate[] = [];
   for (const p of pairs) {
@@ -924,9 +924,8 @@ export async function storeTaskUpload(app: AppContext, taskId: string, file: Fil
   // became version 1 all over again. The slot is the subject plus the
   // definition key, so re-submitting any file supersedes the last one.
   const slotKey = buildSlotKey(str(t.subject_type), str(t.subject_id), str(t.definition_key));
-  const prior = await app.db.raw<Row>("SELECT id, version FROM asset WHERE slot_key = ? AND org_id = ? ORDER BY version DESC LIMIT 1", [
+  const prior = await app.db.raw<Row>("SELECT id, version FROM asset WHERE slot_key = ? ORDER BY version DESC LIMIT 1", [
     slotKey,
-    app.orgId,
   ]);
   const version = num(prior[0]?.version, 0) + 1;
   const id = newId("Asset");
@@ -934,7 +933,6 @@ export async function storeTaskUpload(app: AppContext, taskId: string, file: Fil
   await app.env.ASSETS_BUCKET.put(storageKey, buffer, { httpMetadata: { contentType } });
   await app.db.insert("asset", {
     id,
-    org_id: app.orgId,
     storage_key: storageKey,
     filename,
     content_type: contentType,

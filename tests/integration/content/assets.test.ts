@@ -21,9 +21,9 @@ async function seed() {
     .bind(ORG, "Asset Test Org", "asset-test-org", "UTC", "test@example.com", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(PERSON, ORG, "uploader@example.com", "Ann Uploader", "active", 0, now(), now())
+    .bind(PERSON, "uploader@example.com", "Ann Uploader", "active", 0, now(), now())
     .run();
 }
 

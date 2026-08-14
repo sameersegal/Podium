@@ -197,7 +197,7 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     const resolution = input.str("resolution", "keep_podium") === "accept_external" ? "accept_external" : "keep_podium";
     const link = await resolveConflict(app, params.linkId, resolution);
     await app.flush();
-    await schedulePush(ctx.env, app.orgId, str(link.mapping_id), "manual");
+    await schedulePush(ctx.env, str(link.mapping_id), "manual");
     return redirect("/admin/sync", 303, OK(resolution === "keep_podium" ? "Podium's value will be pushed back." : "Cleared. The next sync will re-read it."));
   });
 
@@ -268,7 +268,7 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     });
     const created = await backfillMapping(app, mapping);
     await app.flush();
-    await schedulePush(ctx.env, app.orgId, str(mapping.id), "manual");
+    await schedulePush(ctx.env, str(mapping.id), "manual");
     return redirect(`/admin/sync/${str(mapping.id)}`, 303, OK(`Mapped. ${created} record(s) queued for the first push.`));
   });
 
@@ -399,7 +399,7 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
       Number(input.str("row_version", "")) || null,
     );
     await app.flush();
-    await schedulePush(ctx.env, app.orgId, params.mappingId, "manual");
+    await schedulePush(ctx.env, params.mappingId, "manual");
     return redirect(`/admin/sync/${params.mappingId}`, 303, OK("Saved. Every linked record will be pushed again."));
   });
 
@@ -409,7 +409,7 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     const mapping = await getMapping(app, params.mappingId);
     const queued = await backfillMapping(app, mapping);
     await app.flush();
-    await schedulePush(ctx.env, app.orgId, params.mappingId, "manual");
+    await schedulePush(ctx.env, params.mappingId, "manual");
     return redirect(`/admin/sync/${params.mappingId}`, 303, OK(`Queued${queued > 0 ? ` — ${queued} record(s) waiting` : ""}.`));
   });
 
@@ -433,7 +433,7 @@ function registerAdminRoutes(router: Router<RequestContext>): void {
     if (writableFields(str(mapping.subject)).length === 0) {
       return redirect(`/admin/sync/${params.mappingId}`, 303, WARN("Nothing on this mapping is accepted back, so there is nothing to pull."));
     }
-    await schedulePull(ctx.env, app.orgId, params.mappingId, "manual");
+    await schedulePull(ctx.env, params.mappingId, "manual");
     return redirect(`/admin/sync/${params.mappingId}`, 303, OK("Reading the table now."));
   });
 }
@@ -572,7 +572,7 @@ function registerSyncApi(router: Router<RequestContext>): void {
     });
     await backfillMapping(app, mapping);
     await app.flush();
-    await schedulePush(ctx.env, app.orgId, str(mapping.id), "manual");
+    await schedulePush(ctx.env, str(mapping.id), "manual");
     return json(mappingJson(mapping), { status: 201 });
   });
 
@@ -620,7 +620,7 @@ function registerSyncApi(router: Router<RequestContext>): void {
     const app = ctx.app();
     const queued = await backfillMapping(app, await getMapping(app, params.id));
     await app.flush();
-    await schedulePush(ctx.env, app.orgId, params.id, "manual");
+    await schedulePush(ctx.env, params.id, "manual");
     return json({ queued }, { status: 202 });
   });
 
@@ -639,7 +639,7 @@ function registerSyncApi(router: Router<RequestContext>): void {
     if (writableFields(str(mapping.subject)).length === 0) {
       return json({ error: "subject_is_push_only", invariant: "INV-09-23" }, { status: 422 });
     }
-    await schedulePull(ctx.env, app.orgId, params.id, "manual");
+    await schedulePull(ctx.env, params.id, "manual");
     return json({ scheduled: true }, { status: 202 });
   });
 
@@ -655,7 +655,7 @@ function registerSyncApi(router: Router<RequestContext>): void {
     const resolution = body.resolution === "accept_external" ? "accept_external" : "keep_podium";
     const link = await resolveConflict(app, params.linkId, resolution);
     await app.flush();
-    await schedulePush(ctx.env, app.orgId, str(link.mapping_id), "manual");
+    await schedulePush(ctx.env, str(link.mapping_id), "manual");
     return json(linkJson(link));
   });
 

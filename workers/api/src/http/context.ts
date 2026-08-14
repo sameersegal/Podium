@@ -6,7 +6,7 @@
  * management UI), an API key (management API), or nothing (public surfaces).
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { AppContext, soleOrg, type Env } from "@podiumstack/data/context.js";
 import { bool, D1Db, parseJson, str, type Row } from "@podiumstack/data/db.js";
 import { hashToken } from "@podiumstack/domain/identity/credentials.js";
 import type { Actor } from "@podiumstack/domain/events/envelope.js";
@@ -33,7 +33,6 @@ export const FLASH_COOKIE = "podium_flash";
 
 export interface PersonView {
   id: string;
-  org_id: string;
   full_name: string;
   display_name: string | null;
   email: string;
@@ -166,25 +165,20 @@ export function flashCookie(kind: "ok" | "err" | "warn" | "info", message: strin
 }
 
 /**
- * The single org of this deployment (01, "Tenancy": one Organization per
- * deployment), resolved in one statement.
+ * The single org of this deployment (01, "Tenancy"), on the request path.
  *
- * Returns the row rather than the id because every request needs both — the id
- * to scope every query (INV-11-1) and `default_timezone` to render every date.
- * Reading the id and then reading the row that id identifies was two
- * round-trips for one row, paid by every request in the system; `ORDER BY
- * created_at LIMIT 1` is itself the definition of which org that is, so the
- * second lookup could only ever return the row the first one had already
- * found.
+ * Returns the row rather than the id because a request needs both — the org's
+ * `default_timezone` to render every date, and its id for the `org_id` every
+ * domain event envelope carries. It scopes nothing: since migration 0011 there
+ * is no `org_id` column left to scope by.
  *
- * Still resolved fresh per request and never cached. `/setup` turns "no org"
- * into "an org" exactly once in a deployment's life, and a cached miss would
- * make that transition need a restart to become visible — see `index.ts`,
- * which sends every route but `/setup` to the setup screen while this returns
- * null.
+ * Resolved fresh per request and never cached. `/setup` turns "no org" into "an
+ * org" exactly once in a deployment's life, and a cached miss would make that
+ * transition need a restart to become visible — see `index.ts`, which sends
+ * every route but `/setup` to the setup screen while this returns null.
  */
 export async function resolveOrg(env: Env): Promise<Row | null> {
-  return await env.DB.prepare("SELECT * FROM organization ORDER BY created_at LIMIT 1").first<Row>();
+  return await soleOrg(env);
 }
 
 async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null> {
@@ -194,7 +188,6 @@ async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null
   if (row.merged_into_person_id) return loadPerson(db, str(row.merged_into_person_id));
   return {
     id: str(row.id),
-    org_id: str(row.org_id),
     full_name: str(row.full_name),
     display_name: row.display_name ? str(row.display_name) : null,
     email: str(row.email),
@@ -292,7 +285,7 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
   env = countingEnv(env, queries);
   const orgRow = await resolveOrg(env);
   const orgId = str(orgRow?.id);
-  const db = new D1Db(env.DB, orgId);
+  const db = new D1Db(env.DB);
   const orgTimezone = str(orgRow?.default_timezone, "UTC");
 
   let person: PersonView | null = null;

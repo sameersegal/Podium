@@ -47,7 +47,7 @@ await app.flush();               // persists the event log + audit, then publish
 
 | Rule | Where |
 |---|---|
-| INV-11-1 org scoping, INV-11-2 soft delete | `packages/data/src/db.ts` |
+| INV-11-2 soft delete (INV-11-1 no longer scopes — R9) | `packages/data/src/db.ts` |
 | INV-09-7 idempotency replay | `workers/api/src/http/idempotency.ts` |
 | Authorization matrix, INV-11-7 | `packages/domain/src/shared/authorization.ts` |
 | INV-09-5 / INV-11-4 PII redaction | `packages/domain/src/shared/pii.ts` |

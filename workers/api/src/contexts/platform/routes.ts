@@ -1253,8 +1253,8 @@ function registerAuditRoutes(router: Router<RequestContext>): void {
     const app = ctx.app();
     const cursor = ctx.url.searchParams.get("cursor");
     const limit = 50;
-    const params: unknown[] = [app.orgId];
-    let sql = "SELECT * FROM audit_log WHERE org_id = ?";
+    const params: unknown[] = [];
+    let sql = "SELECT * FROM audit_log ";
     if (cursor) {
       sql += " AND id < ?";
       params.push(cursor);
@@ -1515,7 +1515,7 @@ function registerInboundWebhookRoutes(router: Router<RequestContext>): void {
       for (const mapping of await activeMappings(app, params.id)) {
         if (wanted && !wanted.includes(str(mapping.external_table_id))) continue;
         if (writableFields(str(mapping.subject)).length === 0) continue; // push-only (INV-09-23)
-        await schedulePull(ctx.env, app.orgId, str(mapping.id), "inbound");
+        await schedulePull(ctx.env, str(mapping.id), "inbound");
         scheduled++;
       }
       return json({ received: scheduled });

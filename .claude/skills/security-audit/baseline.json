@@ -44,28 +44,7 @@
       "sql-interpolated|packages/data/src/db.ts|await this.d1.prepare(`DELETE FROM ${table}${sql}`).bind(...params).run();",
       "sql-interpolated|workers/api/src/contexts/identity/service.ts|await ctx.db.rawRun(`UPDATE OR IGNORE ${table} SET ${column} = ? WHERE ${column} = ?`, [surviving.id, loser.id"
     ],
-    "sql-unscoped": [
-      "sql-unscoped|workers/api/src/consumers/cron.ts|await db.rawRun(",
-      "sql-unscoped|workers/api/src/consumers/dispatch.ts|await db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/content/import.ts|await app.db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/content/import.ts|await app.db.rawRun(\"DELETE FROM bulk_import_row WHERE import_id = ?\", [id]);",
-      "sql-unscoped|workers/api/src/contexts/content/import.ts|await app.db.rawRun(\"UPDATE bulk_import_row SET outcome = 'error', message = ? WHERE import_id = ? AND row_num",
-      "sql-unscoped|workers/api/src/contexts/content/import.ts|await app.db.rawRun(\"UPDATE bulk_import_row SET outcome = ?, entity_id = ? WHERE import_id = ? AND row_number ",
-      "sql-unscoped|workers/api/src/contexts/identity/service.ts|await ctx.db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/identity/service.ts|await ctx.db.rawRun(\"DELETE FROM person_merge_candidate WHERE person_id = ? OR candidate_person_id = ?\", [lose",
-      "sql-unscoped|workers/api/src/contexts/identity/service.ts|await ctx.db.rawRun(\"UPDATE role_grant SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL\", [now, p",
-      "sql-unscoped|workers/api/src/contexts/identity/service.ts|await ctx.db.rawRun(`UPDATE OR IGNORE ${table} SET ${column} = ? WHERE ${column} = ?`, [surviving.id, loser.id",
-      "sql-unscoped|workers/api/src/contexts/onboarding/materialise.ts|await app.db.rawRun(\"UPDATE task_instance SET assignee_person_id = ?, updated_at = ? WHERE id = ? AND assignee",
-      "sql-unscoped|workers/api/src/contexts/platform/campaigns.ts|await app.db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/platform/campaigns.ts|await app.db.rawRun(\"UPDATE campaign_recipient SET status = ?, suppressed_reason = ? WHERE campaign_id = ? AND",
-      "sql-unscoped|workers/api/src/contexts/platform/delivery.ts|await app.db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/platform/delivery.ts|await app.db.rawRun(\"UPDATE webhook_delivery SET status = 'skipped' WHERE id = ?\", [msg.delivery_id]);",
-      "sql-unscoped|workers/api/src/contexts/platform/sync.ts|await app.db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/program/service.ts|await app.db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/program/service.ts|await app.db.rawRun(\"UPDATE event_reference_counter SET next_value = next_value + 1 WHERE event_id = ?\", [even",
-      "sql-unscoped|workers/api/src/contexts/review/service.ts|await app.db.rawRun(",
-      "sql-unscoped|workers/api/src/contexts/submissions/service.ts|await app.db.rawRun("
-    ],
+    "sql-unscoped": [],
     "cookie-attributes": [],
     "security-headers": [],
     "redirect-dynamic": [
@@ -86,7 +65,7 @@
       "outbound-fetch|workers/api/src/durable/room.ts|override async fetch(req: Request): Promise<Response> {",
       "outbound-fetch|workers/api/src/durable/schedule.ts|async fetch(req: Request): Promise<Response> {",
       "outbound-fetch|workers/api/src/index.ts|async fetch(req: Request, env: Env, execCtx: ExecutionContext): Promise<Response> {",
-      "outbound-fetch|workers/api/src/surfaces/live.ts|return roomStub(ctx.env, roomKey(ctx.orgId, eventId)).fetch(",
+      "outbound-fetch|workers/api/src/surfaces/live.ts|return roomStub(ctx.env, roomKey(eventId)).fetch(",
       "outbound-fetch|workers/api/src/surfaces/public.ts|fetch(url, { headers: { accept: \"text/html\" } })"
     ],
     "response-content-type": [

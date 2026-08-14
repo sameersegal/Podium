@@ -37,8 +37,8 @@ beforeAll(async () => {
     [ORG, "Claim Org", "claim-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Claim Conf", "claim-conf", "UTC", "2027-05-01", "2027-05-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Claim Conf", "claim-conf", "UTC", "2027-05-01", "2027-05-02", "in_person", "active", "public", "{}", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO track (id, event_id, name, slug, sort_order, is_public) VALUES (?,?,?,?,?,?)",
@@ -47,12 +47,12 @@ beforeAll(async () => {
   // Invited, never signed in, and holding a grant — the state the claim branch
   // treated as an invitation to set a password.
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [VICTIM, ORG, VICTIM_EMAIL, "Real Person", "invited", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [VICTIM, VICTIM_EMAIL, "Real Person", "invited", 0, now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    [`grt_${VICTIM}`, ORG, VICTIM, "track_lead", "track", TRACK, VICTIM, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    [`grt_${VICTIM}`, VICTIM, "track_lead", "track", TRACK, VICTIM, now],
   );
 });
 

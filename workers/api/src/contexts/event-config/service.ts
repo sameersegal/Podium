@@ -97,7 +97,6 @@ export async function cursorPage(
   table: string,
   opts: {
     where?: Record<string, string>;
-    orgScoped: boolean;
     softDelete: boolean;
     cursor?: string | null;
     limit?: number;
@@ -106,10 +105,6 @@ export async function cursorPage(
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   const clauses: string[] = [];
   const params: unknown[] = [];
-  if (opts.orgScoped) {
-    clauses.push("org_id = ?"); // INV-11-1
-    params.push(app.orgId);
-  }
   if (opts.softDelete) clauses.push("deleted_at IS NULL"); // INV-11-2
   for (const [k, v] of Object.entries(opts.where ?? {})) {
     clauses.push(`${k} = ?`);
@@ -155,7 +150,6 @@ export async function createEvent(app: AppContext, input: CreateEventInput): Pro
   const now = app.now();
   const row: Row = {
     id,
-    org_id: app.orgId,
     name: input.name.trim(),
     slug: await uniqueSlug(app, "event", {}, input.slug || input.name),
     edition: input.edition ?? null,

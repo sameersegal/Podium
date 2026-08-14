@@ -60,10 +60,7 @@ const DEFAULT_MAX_DEPTH = 25;
  */
 export async function drain(env: Env, seed: DomainEvent[], opts: { maxDepth?: number } = {}): Promise<DrainResult> {
   const maxDepth = opts.maxDepth ?? DEFAULT_MAX_DEPTH;
-  // Unscoped by org: causation_id is a ULID, globally unique, so there is
-  // nothing for org-scoping to protect here — the same posture `replay.ts`
-  // and `dead-letter.ts` take for their own cross-org, operational queries.
-  const db = new D1Db(env.DB, "");
+  const db = new D1Db(env.DB);
 
   const seen = new Set<string>();
   const events: DomainEvent[] = [];

@@ -73,7 +73,7 @@ export function isDue(lastRunAt: string | null, everyMinutes: number, nowMs: num
  */
 export async function runScheduled(env: Env, scheduledTime: number): Promise<Record<string, number>> {
   const now = new Date(scheduledTime).toISOString();
-  const db = new D1Db(env.DB, "");
+  const db = new D1Db(env.DB);
   const rows = await db.raw<{ name: string; last_run_at: string }>("SELECT name, last_run_at FROM cron_job_run");
   const lastRun = new Map(rows.map((r) => [r.name, r.last_run_at]));
 

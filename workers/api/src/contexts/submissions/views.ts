@@ -145,12 +145,12 @@ export async function submitterDashboard(app: AppContext, personId: string): Pro
          JOIN event e ON e.id = p.event_id
          JOIN call_for_proposals c ON c.id = p.cfp_id
     LEFT JOIN decision d ON d.id = p.decision_id
-        WHERE p.org_id = ? AND p.deleted_at IS NULL
+        WHERE p.deleted_at IS NULL
           AND (p.submitter_person_id = ?
                OR p.id IN (SELECT proposal_id FROM proposal_speaker
                             WHERE person_id = ? AND participation_status != 'removed'))
         ORDER BY p.created_at DESC`,
-      [app.orgId, personId, personId],
+      [personId, personId],
     ),
     app.db.raw<Row>(
       `SELECT ps.proposal_id, ps.speaker_role, ps.added_at, ps.added_by_person_id,
@@ -159,9 +159,9 @@ export async function submitterDashboard(app: AppContext, personId: string): Pro
          JOIN proposal p ON p.id = ps.proposal_id AND p.deleted_at IS NULL
          JOIN event e ON e.id = p.event_id
     LEFT JOIN person inviter ON inviter.id = ps.added_by_person_id
-        WHERE ps.person_id = ? AND ps.participation_status = 'pending' AND p.org_id = ?
+        WHERE ps.person_id = ? AND ps.participation_status = 'pending'
         ORDER BY ps.added_at DESC`,
-      [personId, app.orgId],
+      [personId],
     ),
     app.db.raw<Row>(
       `SELECT s.id, s.reference, s.title, s.status, e.name AS event_name, e.timezone AS event_timezone,
@@ -171,24 +171,24 @@ export async function submitterDashboard(app: AppContext, personId: string): Pro
          JOIN event e ON e.id = s.event_id
     LEFT JOIN placement pl ON pl.session_id = s.id
     LEFT JOIN room r ON r.id = pl.room_id
-        WHERE ss.person_id = ? AND s.org_id = ? AND ss.confirmation_status != 'replaced'
+        WHERE ss.person_id = ? AND ss.confirmation_status != 'replaced'
         ORDER BY pl.starts_at`,
-      [personId, app.orgId],
+      [personId],
     ),
     app.db.raw<Row>(
       `SELECT t.id, t.title, t.status, t.due_at, t.is_blocking, t.session_id, e.name AS event_name
          FROM task_instance t
          JOIN event e ON e.id = t.event_id
-        WHERE t.org_id = ? AND t.assignee_person_id = ?
+        WHERE t.assignee_person_id = ?
           AND t.status NOT IN ('completed','waived','cancelled')`,
-      [app.orgId, personId],
+      [personId],
     ),
-    app.db.raw<Row>("SELECT * FROM speaker_profile WHERE org_id = ? AND person_id = ?", [app.orgId, personId]),
+    app.db.raw<Row>("SELECT * FROM speaker_profile WHERE person_id = ?", [personId]),
     app.db.raw<Row>(
       `SELECT l.is_public FROM profile_link l
          JOIN speaker_profile sp ON sp.id = l.speaker_profile_id
-        WHERE sp.org_id = ? AND sp.person_id = ?`,
-      [app.orgId, personId],
+        WHERE sp.person_id = ?`,
+      [personId],
     ),
   ]);
 
@@ -636,8 +636,8 @@ export async function proposalQueue(
   eventId: string,
   filters: QueueFilters,
 ): Promise<{ rows: QueueRow[]; next_cursor: string | null; total: number }> {
-  const where: string[] = ["p.org_id = ?", "p.event_id = ?", "p.deleted_at IS NULL"];
-  const params: unknown[] = [app.orgId, eventId];
+  const where: string[] = ["p.event_id = ?", "p.deleted_at IS NULL"];
+  const params: unknown[] = [eventId];
 
   const inClause = (column: string, values: string[] | undefined) => {
     if (!values || values.length === 0) return;
@@ -701,11 +701,11 @@ export async function myProposals(app: AppContext, personId: string): Promise<Ro
   return app.db.raw<Row>(
     `SELECT p.*, e.name AS event_name, e.timezone AS event_timezone
        FROM proposal p JOIN event e ON e.id = p.event_id
-      WHERE p.org_id = ? AND p.deleted_at IS NULL
+      WHERE p.deleted_at IS NULL
         AND (p.submitter_person_id = ?
              OR p.id IN (SELECT proposal_id FROM proposal_speaker WHERE person_id = ? AND participation_status != 'removed'))
       ORDER BY p.created_at DESC`,
-    [app.orgId, personId, personId],
+    [personId, personId],
   );
 }
 
@@ -715,9 +715,9 @@ export async function openCallsFor(app: AppContext, personId: string | null, isS
     `SELECT c.*, e.name AS event_name, e.slug AS event_slug, e.status AS event_status, e.timezone AS event_timezone
        FROM call_for_proposals c
        JOIN event e ON e.id = c.event_id
-      WHERE c.deleted_at IS NULL AND e.deleted_at IS NULL AND e.org_id = ?
+      WHERE c.deleted_at IS NULL AND e.deleted_at IS NULL
       ORDER BY c.closes_at`,
-    [app.orgId],
+    [],
   );
   const now = app.now();
   const sponsorIds = personId
@@ -757,8 +757,8 @@ export async function openCallsFor(app: AppContext, personId: string | null, isS
       const invited = personId
         ? await app.db.raw<{ n: number }>(
             `SELECT COUNT(*) AS n FROM invitation
-              WHERE org_id = ? AND person_id = ? AND context_type = 'event' AND context_id = ? AND status IN ('pending','accepted')`,
-            [app.orgId, personId, str(c.event_id)],
+              WHERE person_id = ? AND context_type = 'event' AND context_id = ? AND status IN ('pending','accepted')`,
+            [personId, str(c.event_id)],
           )
         : [];
       if (num(invited[0]?.n, 0) === 0) continue;
@@ -781,8 +781,7 @@ export async function submittableEntitlements(
        JOIN sponsorship sp ON sp.sponsor_id = s.id AND sp.event_id = ? AND sp.status = 'confirmed'
        JOIN entitlement en ON en.sponsorship_id = sp.id
       WHERE sc.person_id = ? AND sc.status = 'active' AND sc.can_submit_sessions = 1
-        AND (sc.event_id IS NULL OR sc.event_id = ?)
-        AND s.org_id = ?`,
-    [eventId, personId, eventId, app.orgId],
+        AND (sc.event_id IS NULL OR sc.event_id = ?)`,
+    [eventId, personId, eventId],
   );
 }

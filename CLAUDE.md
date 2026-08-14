@@ -115,7 +115,7 @@ describe, so it happens the same way every time:
   tenancy, sessions, rendering, uploads, CSRF, SSRF, PII exposure. Its
   [`attack_surface.py`](.claude/skills/security-audit/scripts/attack_surface.py) inventories
   every route with the guard in front of it and every deliberate escape from a safe default
-  (`raw()` past the escaper, `db.raw()` past the org-scoping), and `--check` fails on
+  (`raw()` past the escaper, `db.raw()` past the soft-delete filter), and `--check` fails on
   anything new since the last accepted baseline. Its
   [`rules/podium.yml`](.claude/skills/security-audit/rules/podium.yml) is a Semgrep ruleset
   for the same sinks — stock rulesets score zero here, because nothing in this app looks
