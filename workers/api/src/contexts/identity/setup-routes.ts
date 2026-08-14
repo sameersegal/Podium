@@ -17,6 +17,7 @@
  */
 
 import { DomainError, invariantError } from "@podiumstack/domain/shared/errors.js";
+import { timezoneOptions } from "@podiumstack/domain/shared/time.js";
 import { setCookie, SESSION_COOKIE, type RequestContext } from "../../http/context.js";
 import { readInput } from "../../http/input.js";
 import { htmlResponse, redirect } from "../../http/responses.js";
@@ -74,9 +75,11 @@ function setupFormBody(values: SetupFormValues, error?: string | null): SafeHtml
       ${field({
         name: "default_timezone",
         label: "Default timezone",
+        type: "select",
         required: true,
+        options: timezoneOptions(values.default_timezone || "UTC"),
         value: values.default_timezone || "UTC",
-        help: "IANA name, e.g. America/New_York or Europe/London. The default for every event you create.",
+        help: "The default for every event you create.",
       })}
       ${field({
         name: "contact_email",

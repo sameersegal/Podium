@@ -46,6 +46,7 @@ import {
 } from "@podiumstack/domain/event-config/types.js";
 import { DomainError, illegalTransition, invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
 import { newId, slugify } from "@podiumstack/domain/shared/ids.js";
+import { isValidTimezone } from "@podiumstack/domain/shared/time.js";
 import { builderForm, cfpFormatOptions, cfpRow, derivedCfpStatus, eventRow, loadFormSpec, loadPublishedForm, proposalCount } from "./views.js";
 
 /* -------------------------------------------------------------------------- */
@@ -146,8 +147,13 @@ export interface CreateEventInput {
 
 export async function createEvent(app: AppContext, input: CreateEventInput): Promise<Row> {
   if (!input.name.trim()) fail("invalid_event", "An event needs a name.");
-  // INV-02-1
+  // INV-02-1. Presence is not enough: this string is the one every instant on
+  // the event is rendered through, so a zone ICU does not know produces a
+  // schedule that is silently wrong rather than a form that refuses. It is
+  // chosen from `timezoneOptions()` on both surfaces; anything else did not
+  // come from a form.
   if (!input.timezone.trim()) fail("invalid_event", "An event needs a timezone — every time on its schedule and deadlines is shown in it.");
+  if (!isValidTimezone(input.timezone)) fail("invalid_event", `"${input.timezone}" is not a timezone this system knows. Choose one from the list.`);
   if (!input.starts_on || !input.ends_on) fail("invalid_event", "An event needs a start and an end date.");
   if (input.ends_on < input.starts_on) fail("invalid_event", "The event cannot end before it starts.");
 
@@ -225,6 +231,11 @@ export async function updateEvent(
     if (String(value ?? "") === String(event[f] ?? "")) continue;
     update[f] = value ?? null;
     before[f] = event[f] ?? null;
+  }
+  // INV-02-1, as on create. Editing the timezone re-renders every instant on
+  // the event, so an unknown one here breaks a schedule that was working.
+  if (update.timezone !== undefined && !isValidTimezone(str(update.timezone))) {
+    fail("invalid_event", `"${str(update.timezone)}" is not a timezone this system knows. Choose one from the list.`);
   }
   // INV-11-6: `status` is a transition, never a field write; slug is immutable
   // once public (INV-11-8).
@@ -565,6 +576,11 @@ export async function upsertVenue(app: AppContext, eventId: string, input: Venue
   const existing = venueId
     ? await app.db.byId<Row>("venue", venueId)
     : await app.db.first<Row>("venue", { event_id: eventId });
+  // A venue in another zone to its event is the case this field exists for, so
+  // a wrong one here is as consequential as a wrong one on the event.
+  if (input.timezone && !isValidTimezone(input.timezone)) {
+    fail("invalid_venue", `"${input.timezone}" is not a timezone this system knows. Choose one from the list.`);
+  }
   const values: Row = {
     name: input.name.trim(),
     address: input.address ?? null,

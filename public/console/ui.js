@@ -397,3 +397,38 @@ export const FIELD_GLYPH = {
   duration_picker: "⏱",
   consent: "✓",
 };
+
+/**
+ * Every IANA zone this browser knows, sorted, shaped as `field({type:"select"})`
+ * options.
+ *
+ * The mirror of `timezoneOptions()` in `packages/domain/src/shared/time.ts`.
+ * `public/console/` imports nothing from `packages/`, so the two are separate
+ * copies of the same four lines — but they are copies of a *derivation*, not of
+ * a list, so they read the same ICU database and cannot drift the way two
+ * hand-maintained tables of zone names would.
+ *
+ * `timezone` decides how every instant on an event renders (INV-02-1). Typed,
+ * it is wrong in a way whose only symptom is a schedule an hour out; chosen, it
+ * cannot be.
+ */
+export function timezoneOptions(current) {
+  const zones = new Set(typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []);
+  // ICU returns canonical names only, so `UTC` — this product's own default for
+  // a new organization — is not among them.
+  zones.add("UTC");
+  // And a stored value that is valid but not canonical (`Asia/Calcutta`,
+  // `US/Pacific`) has to stay selectable, or opening the drawer to change the
+  // tagline silently drops the timezone.
+  if (current && isValidZone(current)) zones.add(current);
+  return [...zones].sort().map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }));
+}
+
+function isValidZone(tz) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}

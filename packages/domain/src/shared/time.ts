@@ -47,10 +47,42 @@ export function overlaps(aStart: Instant, aEnd: Instant, bStart: Instant, bEnd: 
 }
 
 /**
- * `Event.timezone` is free text elsewhere in the model (validated for
- * presence only), but `Organization.default_timezone` is set once, at
- * first-run setup, with nobody around afterwards to notice a typo — every
- * event created from then on inherits it. Worth the one extra check here.
+ * Every IANA zone this runtime knows, sorted. The list comes from ICU rather
+ * than from a table here, because a checked-in copy is wrong the first time a
+ * country moves its clocks and nobody remembers this file exists.
+ *
+ * It exists so that a timezone can be *chosen* rather than typed. `timezone`
+ * decides how every instant on an event is rendered (INV-02-1), and it was a
+ * free-text box on all five screens that set one — so `Europe/Berlín`, or a
+ * space on the end, produced an event whose times were all silently wrong and
+ * whose only symptom was a schedule an hour out.
+ *
+ * `Intl.supportedValuesOf` is ES2022 and present in workerd (measured: 418
+ * zones). The fallback keeps a form usable rather than empty if that ever
+ * stops being true, and `isValidTimezone` still guards the write either way.
+ */
+export function timezoneOptions(current?: string | null): { value: string; label: string }[] {
+  const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
+  const zones = new Set<string>(typeof supported === "function" ? supported("timeZone") : []);
+  // ICU returns *canonical* zone names, which excludes `UTC` — and `UTC` is
+  // this product's own default for a new organization, so a list without it
+  // would render the setup form with its default unselectable.
+  zones.add("UTC");
+  // A stored value that is valid but not canonical — `Asia/Calcutta`,
+  // `US/Pacific`, anything seeded or imported before a rename — must stay
+  // selectable, or opening the form to change something else silently drops the
+  // timezone. A dropdown that cannot show the current value is worse than the
+  // text box it replaced.
+  if (current && isValidTimezone(current)) zones.add(current);
+  return [...zones].sort().map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }));
+}
+
+/**
+ * `Organization.default_timezone` is set once, at first-run setup, with nobody
+ * around afterwards to notice a typo — every event created from then on
+ * inherits it. `Event.timezone` and `Venue.timezone` are checked with this too:
+ * they are chosen from `timezoneOptions()` on screen, and a value that did not
+ * come from that list has no business reaching the column.
  */
 export function isValidTimezone(tz: string): boolean {
   if (!tz.trim()) return false;

@@ -51,7 +51,7 @@ import {
 } from "@podiumstack/domain/event-config/types.js";
 import { notFound } from "@podiumstack/domain/shared/errors.js";
 import { slugify } from "@podiumstack/domain/shared/ids.js";
-import { calendarDateInZone, formatInZone, formatTimeInZone, zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
+import { calendarDateInZone, formatInZone, formatTimeInZone, timezoneOptions, zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
 import { expectedVersion, staleWriteRedirect, versionField } from "../../http/concurrency.js";
 import { flashCookie, type RequestContext } from "../../http/context.js";
 import { readInput, type Input } from "../../http/input.js";
@@ -579,9 +579,11 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
             ${field({
               name: "timezone",
               label: "Timezone",
+              type: "select",
               required: true,
+              options: timezoneOptions(source ? str(source.timezone) : null),
               value: source ? str(source.timezone) : "America/Los_Angeles",
-              help: "IANA name. This is the timezone every schedule time is displayed in.",
+              help: "This is the timezone every schedule time is displayed in.",
             })}
             ${field({ name: "starts_on", label: "First day", type: "date", required: true })}
             ${field({ name: "ends_on", label: "Last day", type: "date", required: true })}
@@ -694,7 +696,7 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
               ${field({ name: "edition", label: "Edition", value: str(row.edition) })}
               ${field({ name: "tagline", label: "Tagline", value: str(row.tagline) })}
               ${field({ name: "description", label: "Description", type: "textarea", rows: 5, value: str(row.description), help: "Markdown." })}
-              ${field({ name: "timezone", label: "Timezone", required: true, value: str(row.timezone), help: "Every time shown for this event is rendered here." })}
+              ${field({ name: "timezone", label: "Timezone", type: "select", required: true, options: timezoneOptions(str(row.timezone)), value: str(row.timezone), help: "Every time shown for this event is rendered here." })}
               ${field({ name: "starts_on", label: "First day", type: "date", required: true, value: str(row.starts_on) })}
               ${field({ name: "ends_on", label: "Last day", type: "date", required: true, value: str(row.ends_on) })}
               ${field({ name: "mode", label: "Mode", type: "select", required: true, value: str(row.mode), options: opts(EVENT_MODE) })}
@@ -1200,7 +1202,7 @@ function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], tracks: Row
             ${field({ name: "name", label: "Venue name", required: true, value: venue ? str(venue.name) : "" })}
             ${field({ name: "address", label: "Address", type: "textarea", rows: 2, value: venue ? str(venue.address) : "" })}
             ${field({ name: "map_url", label: "Map URL", type: "url", value: venue ? str(venue.map_url) : "" })}
-            ${field({ name: "timezone", label: "Timezone", value: venue ? str(venue.timezone) : "", help: `Defaults to the event timezone (${ev.timezone}).` })}
+            ${field({ name: "timezone", label: "Timezone", type: "select", options: timezoneOptions(venue ? str(venue.timezone) : null), value: venue ? str(venue.timezone) : "", help: `Leave unchosen to use the event timezone (${ev.timezone}).` })}
             <button type="submit">${venue ? "Save venue" : "Add venue"}</button>
           </form>`
         : venue

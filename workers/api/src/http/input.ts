@@ -1,8 +1,18 @@
 /** Request body parsing shared by the HTML forms and the JSON API. */
 
+import { validationError } from "@podiumstack/domain/shared/errors.js";
+
 export interface Input {
   get(name: string): string | null;
   str(name: string, fallback?: string): string;
+  /**
+   * A value that must be one of `allowed`, refused with a field error when it
+   * is not. Forms express "unanswered" as the empty string — every required
+   * `select` carries an empty first option so that they can — so an unanswered
+   * enum arrives here as `""` and is refused by the same check that refuses a
+   * misspelled one, rather than being cast into the column.
+   */
+  member<T extends string>(name: string, allowed: readonly T[], question: string): T;
   optional(name: string): string | null;
   int(name: string, fallback?: number | null): number | null;
   bool(name: string): boolean;
@@ -44,6 +54,11 @@ export async function readInput(req: Request): Promise<Input> {
     get,
     has: (name) => values[name] !== undefined,
     str: (name, fallback = "") => (get(name) ?? fallback).trim(),
+    member: (name, allowed, question) => {
+      const v = (get(name) ?? "").trim();
+      if ((allowed as readonly string[]).includes(v)) return v as typeof allowed[number];
+      throw validationError(`${question}`, [{ field_key: name, message: question }]);
+    },
     optional: (name) => {
       const v = get(name);
       return v === null || v.trim() === "" ? null : v.trim();

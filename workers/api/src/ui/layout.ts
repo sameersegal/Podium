@@ -650,10 +650,18 @@ export function field(o: FieldOptions): SafeHtml {
   } else if (o.type === "select") {
     control = html`<select id="${id}" name="${o.name}"${req}${extra}>
       ${
-        // A required select validated on the server still needs an empty first
-        // option, or the browser preselects option one and "did not answer"
-        // becomes indistinguishable from "chose the first track".
-        o.required && o.validate !== false ? raw("") : html`<option value="">${o.required ? "— choose —" : "— none —"}</option>`
+        // A required select still needs an empty first option, or the browser
+        // preselects option one and "did not answer" becomes indistinguishable
+        // from "chose the first track" — which is how a reviewer who never
+        // opened the dropdown submitted `strong_accept`, and a reviewer
+        // declining an assignment recorded a permanent conflict of interest.
+        //
+        // It also makes `required` work: a select whose every option carries a
+        // non-empty value satisfies the constraint no matter what, so the
+        // attribute was inert on exactly the fields that asked for it. The
+        // empty option is what the browser refuses to submit, and what the
+        // server sees as unanswered when validation is its job instead.
+        html`<option value="">${o.required ? "— choose —" : "— none —"}</option>`
       }
       ${(o.options ?? []).map(
         (opt) =>

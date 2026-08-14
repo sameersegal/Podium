@@ -29,7 +29,7 @@ import type {
   ReviewFlag,
   RoundAnonymity,
 } from "@podiumstack/domain/review/types.js";
-import { isTerminalAssignment, type OverallScale, type RoundScope } from "@podiumstack/domain/review/types.js";
+import { DECLINE_REASON, isTerminalAssignment, type OverallScale, type RoundScope } from "@podiumstack/domain/review/types.js";
 import { reviewerIdentityVisible } from "@podiumstack/domain/review/anonymity.js";
 import { notFound, validationError } from "@podiumstack/domain/shared/errors.js";
 import { relativeDays, zonedDateTimeToInstant } from "@podiumstack/domain/shared/time.js";
@@ -504,7 +504,12 @@ function registerReviewerRoutes(router: Router<RequestContext>): void {
     const app = ctx.app();
     await requireOwnAssignment(app, person.id, params.assignmentId);
     const input = await readInput(req);
-    await declineAssignment(app, params.assignmentId, input.str("reason") as DeclineReason, input.optional("note"));
+    // Checked rather than cast: `conflict_of_interest` writes a permanent
+    // `ConflictOfInterest` that INV-05-4 uses to bar this reviewer from this
+    // proposal in every later round, and no reviewer-facing route removes one.
+    // A decline reason is not a field to take on trust from the request.
+    const reason = input.member("reason", DECLINE_REASON, "Choose why you cannot review this one.");
+    await declineAssignment(app, params.assignmentId, reason, input.optional("note"));
     await app.flush();
     return redirect("/review", 303, OK("Assignment declined."));
   });
@@ -558,11 +563,8 @@ function registerReviewerApi(router: Router<RequestContext>): void {
     const app = ctx.app();
     await requireOwnAssignment(app, person.id, params.assignmentId);
     const input = await readInput(req);
-    const reason = input.optional("reason");
-    if (!reason) {
-      throw validationError("A reason is required.", [{ field_key: "reason", message: "Why are you declining this one?" }]);
-    }
-    await declineAssignment(app, params.assignmentId, reason as DeclineReason, input.optional("note"));
+    const reason = input.member("reason", DECLINE_REASON, "Why are you declining this one?");
+    await declineAssignment(app, params.assignmentId, reason, input.optional("note"));
     await app.flush();
     return json({ id: params.assignmentId, status: "declined" });
   });

@@ -22,7 +22,7 @@ import { api, unwrap } from "../api.js";
 import { canWrite, resource, reload, openDrawer, closeDrawer, toast, reportError } from "../store.js";
 import { onChange } from "../live.js";
 import { setChrome } from "../chrome.js";
-import { badge, button, card, empty, field, formatDate, formatDateTime, humanise, notice, pageHead, pluralise, relativeDays, stat, stats } from "../ui.js";
+import { badge, button, card, empty, field, formatDate, formatDateTime, humanise, notice, pageHead, pluralise, relativeDays, stat, stats, timezoneOptions } from "../ui.js";
 
 let liveBound = null;
 
@@ -160,7 +160,20 @@ function openSettings(eventId) {
         field({ name: "edition", label: "Edition", value: value("edition"), oninput: set("edition") }),
         field({ name: "tagline", label: "Tagline", value: value("tagline"), oninput: set("tagline") }),
         field({ name: "description", label: "Description", type: "textarea", rows: 5, help: "Markdown.", value: value("description"), oninput: set("description") }),
-        field({ name: "timezone", label: "Timezone", required: true, help: "Every time shown for this event is rendered here.", value: value("timezone"), oninput: set("timezone") }),
+        // Chosen, not typed. `timezone` decides how every instant on the event
+        // renders (INV-02-1), and a typed one is wrong in a way whose only
+        // symptom is a schedule an hour out. Same list as the server-rendered
+        // form, from the same ICU data, so the two surfaces cannot disagree.
+        field({
+          name: "timezone",
+          label: "Timezone",
+          type: "select",
+          required: true,
+          options: timezoneOptions(value("timezone")),
+          help: "Every time shown for this event is rendered here.",
+          value: value("timezone"),
+          onchange: set("timezone"),
+        }),
         h(
           "div",
           { class: "console-row-2" },
