@@ -44,6 +44,15 @@ export interface SetupOrganizationInput {
   org_slug?: string | null;
   default_timezone: string;
   contact_email: string;
+  /**
+   * `Organization.postal_address` (01) — required here even though the
+   * column is nullable: this is the one moment the operator's attention is
+   * guaranteed, and the field is what makes the outbound email footer
+   * CAN-SPAM-compliant (09, "Conference-first rendering and audience"). The
+   * column stays nullable for the Organization rows this migration ran
+   * against, not for new ones.
+   */
+  postal_address: string;
   owner_full_name: string;
   owner_email: string;
   owner_password: string;
@@ -113,6 +122,14 @@ export async function setupOrganization(env: Env, input: SetupOrganizationInput)
     throw new DomainError({ code: "invalid_timezone", message: `"${input.default_timezone}" is not a recognised IANA timezone.`, status: 422 });
   }
 
+  // The column is nullable (an existing deployment's Organization row may
+  // predate the field) but the field on this screen is not: bootstrap is the
+  // one moment the operator's attention is guaranteed, and the footer needs it.
+  const postalAddress = input.postal_address.trim();
+  if (!postalAddress) {
+    throw new DomainError({ code: "invalid_postal_address", message: "A mailing address is required — it appears in every email this deployment sends.", status: 422 });
+  }
+
   const ownerName = input.owner_full_name.trim();
   if (!ownerName) throw new DomainError({ code: "invalid_person", message: "Your name is required.", status: 422 });
 
@@ -156,6 +173,7 @@ export async function setupOrganization(env: Env, input: SetupOrganizationInput)
       logo_asset_id: null,
       default_timezone: timezone,
       contact_email: contactEmail,
+      postal_address: postalAddress,
       // Deliberately no `auth` key: leaving it unset lets `passwordLoginEnabled`
       // fall through to its dynamic default — on, because a brand-new
       // deployment has no `email` integration (R23) — rather than baking in an

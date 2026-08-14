@@ -211,6 +211,13 @@ integration tests drive it with.
   exception and is client-rendered over `/v1`; see R30 in
   [`13`](domain/13-open-questions.md) for where the line falls and why `/review` sits on the
   server-rendered side of it.
+- Every transactional email — system-triggered and campaign alike — is wrapped by
+  `ui/email-layout.ts`, ported from `docs/design/emails/` (09, "Conference-first rendering
+  and audience"): the event or organization owns the header and voice, Podium is a one-line
+  footer credit, and the per-`template_key` `audience` picks the header label and the
+  footer's permission-reason line. `contexts/platform/notifications.ts`'s `attemptSend` and
+  `previewTemplate` are its only two callers, so what an organizer previews is what a
+  recipient gets.
 - Code enforcing an invariant names it in a comment; its test names it in the title.
 
 ### Two design languages

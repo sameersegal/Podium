@@ -14,14 +14,22 @@ import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/dat
 import { hmacSha256Hex } from "@podiumstack/domain/identity/credentials.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
 import { invariantError, notFound } from "@podiumstack/domain/shared/errors.js";
-import { markdown } from "../../ui/html.js";
+import { AUDIENCE_LABEL, permissionReasonFor, renderEmailLayout, resolveEmailAccent } from "../../ui/email-layout.js";
 import {
   categoryOf,
   decideSuppression,
   type SuppressionEntry,
 } from "@podiumstack/domain/platform/suppression.js";
 import { assertTemplateBody, renderTemplate, toPlainText, flattenVariables } from "@podiumstack/domain/platform/rendering.js";
-import { DEFAULT_TEMPLATES, declaredVariables, isTransactionalTemplate, templateSpec } from "@podiumstack/domain/platform/templates.js";
+import {
+  DEFAULT_TEMPLATES,
+  declaredVariables,
+  invitationAudience,
+  isTransactionalTemplate,
+  templateAudience,
+  templateSpec,
+  type TemplateAudience,
+} from "@podiumstack/domain/platform/templates.js";
 import { DELIVERY_STATUS_RANK, NOTIFICATION_CHANNELS, quietHoursDecision, type NotificationChannel } from "@podiumstack/domain/platform/types.js";
 import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { hasActiveEmailIntegration, resolvePlugin } from "./service.js";
@@ -145,6 +153,26 @@ export async function verifyUnsubscribeSignature(env: Env, email: string, catego
 }
 
 /**
+ * RFC 8058 one-click unsubscribe headers — added on exactly the same
+ * non-transactional sends, from the same signed link, as the footer's
+ * unsubscribe control (`isTransactionalDelivery`). A transactional send
+ * carries neither: INV-09-10 makes both inoperative there, and a header a
+ * mail client may act on with no confirmation step must not exist on a
+ * message the recipient is meant to keep receiving.
+ *
+ * No `mailto:` variant: RFC 8058's one-click form requires the https link,
+ * and a `mailto:` pointing at an inbox nothing processes would be a worse
+ * promise than offering none.
+ */
+export async function oneClickUnsubscribeHeaders(env: Env, email: string, category: string): Promise<Record<string, string>> {
+  const url = await unsubscribeUrl(env, email, category);
+  return {
+    "List-Unsubscribe": `<${url}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
+/**
  * The URL an email provider posts delivery events back to, for one installed
  * `Integration` — 09, `email`: `handle_inbound_webhook(payload)`.
  *
@@ -228,6 +256,15 @@ export interface WriteNotificationInput {
   subject_id: string;
   subject: string;
   rendered_body: string;
+  /**
+   * Not persisted — `notification_delivery` has no such column. Whether a
+   * *sent* delivery counts as transactional is re-derived at send time by
+   * `isTransactionalDelivery`, from the row's own `campaign_id` and
+   * `template_key`, so a caller's belief here can never drift from what
+   * `attemptSend` actually decides. Kept as a required parameter so every
+   * call site still states its intent at the call, even though the value
+   * itself is discarded.
+   */
   transactional: boolean;
   campaign_id?: string | null;
 }
@@ -294,6 +331,97 @@ export interface SendOutcome {
   suppressed_reason?: string | null;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Conference-first email rendering — 09, "Notifications"                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Whether one delivery counts as transactional — the single determination
+ * both `decideSuppression` (INV-09-10) and the footer's unsubscribe link
+ * read, so the two can never disagree.
+ *
+ * A `campaign_id` forces `false` regardless of `template_key`: "A campaign is
+ * not a decision notification, and INV-09-10's exemption is deliberately not
+ * extended to it" (09, "Campaigns") — even when an organizer composed the
+ * campaign from a `NotificationTemplate` whose own key is transactional
+ * (`proposal.accepted` reused as a one-off announcement, for example). A
+ * campaign is what `campaign_id` on the row says it is, not what the key it
+ * borrowed its wording from happens to be.
+ */
+export function isTransactionalDelivery(row: { campaign_id?: string | null; template_key?: string | null }): boolean {
+  if (row.campaign_id) return false;
+  return row.template_key ? isTransactionalTemplate(row.template_key) : false;
+}
+
+/**
+ * `invitation.sent` is the one key whose audience is not fixed by its key
+ * alone (`invitationAudience`, 09). Every other key, and every campaign, is
+ * `templateAudience`'s job — a campaign derives from the audience it was
+ * actually sent to, which is the closest thing to a real answer a one-off
+ * message (no `template_key`) has.
+ */
+async function audienceForNotification(app: AppContext, row: Row): Promise<TemplateAudience> {
+  const templateKey = strOrNull(row.template_key);
+  if (templateKey === "invitation.sent" && str(row.subject_type) === "invitation") {
+    const invitation = await app.db.byId<Row>("invitation", str(row.subject_id));
+    return invitationAudience(invitation ? str(invitation.kind) : null);
+  }
+  if (templateKey) return templateAudience(templateKey);
+  const campaignId = strOrNull(row.campaign_id);
+  if (campaignId) {
+    const campaign = await app.db.byId<Row>("campaign", campaignId);
+    const criteria = campaign ? parseJson<{ kind?: string }>(campaign.audience, {}) : {};
+    if (criteria.kind === "sponsor_contacts") return "sponsors";
+    if (criteria.kind === "reviewers") return "reviewers";
+  }
+  return templateAudience(null); // "speakers" — the team-appropriate default for an organizer-composed message
+}
+
+/**
+ * Wraps a rendered body in the shared email shell (`ui/email-layout.ts`) —
+ * conference-first branding: the event or organization owns the header and
+ * voice, Podium is a one-line footer credit. Used by both the real send
+ * (`attemptSend`) and the compose-time preview (`previewTemplate`), so what
+ * an organizer previews is what a recipient actually gets.
+ */
+export async function renderNotificationHtml(
+  app: AppContext,
+  input: {
+    audience: TemplateAudience;
+    recipientEmail: string;
+    bodyMarkdown: string;
+    unsubscribeCategory: string;
+    /**
+     * INV-09-10: a transactional send omits the unsubscribe link entirely —
+     * it would be a control that cannot work. Callers pass the same value
+     * `decideSuppression` was given, from `isTransactionalDelivery`.
+     */
+    transactional: boolean;
+  },
+): Promise<string> {
+  const event = app.eventId ? await app.db.byId<Row>("event", app.eventId) : null;
+  const org = await app.db.byId<Row>("organization", app.orgId);
+  const eventName = event ? str(event.name) : null;
+  const orgName = org ? str(org.name) : "";
+  const accent = resolveEmailAccent(
+    event ? parseJson<Record<string, unknown>>(event.settings, {}) : null,
+    org ? parseJson<Record<string, unknown>>(org.settings, {}) : null,
+  );
+  return renderEmailLayout({
+    eventName,
+    orgName,
+    audienceLabel: AUDIENCE_LABEL[input.audience],
+    bodyMarkdown: input.bodyMarkdown,
+    plainTextBody: toPlainText(input.bodyMarkdown),
+    accent,
+    permissionReason: permissionReasonFor(input.audience, eventName || orgName),
+    postalAddress: org ? strOrNull(org.postal_address) : null,
+    // No portal preferences surface exists yet — omitted rather than pointing
+    // at a URL nothing serves (09: "Email preferences ... or be omitted").
+    unsubscribeUrl: input.transactional ? null : await unsubscribeUrl(app.env, input.recipientEmail, input.unsubscribeCategory),
+  });
+}
+
 /**
  * Attempt to dispatch one `NotificationDelivery`. Idempotent: a row that has
  * already left `queued` (sent, suppressed, failed, ...) is a no-op, so
@@ -310,7 +438,11 @@ export async function attemptSend(app: AppContext, notificationId: string): Prom
 
   const templateKey = strOrNull(row.template_key);
   const category = categoryOf(templateKey);
-  const transactional = templateKey ? isTransactionalTemplate(templateKey) : false;
+  // 09, "Campaigns": a campaign_id forces non-transactional treatment
+  // regardless of which template_key it was composed from — the same
+  // determination feeds the suppression check below and the footer's
+  // unsubscribe link, so the two can never disagree.
+  const transactional = isTransactionalDelivery({ campaign_id: strOrNull(row.campaign_id), template_key: templateKey });
 
   const entries = await suppressionEntriesFor(app, str(row.recipient_email));
   const decision = decideSuppression(entries, { email: str(row.recipient_email), category, transactional });
@@ -372,13 +504,23 @@ export async function attemptSend(app: AppContext, notificationId: string): Prom
     const res = await resolved.plugin.post("", { text: bodyMarkdown }, resolved.ctx);
     sendResult = { ok: res.ok, providerMessageId: res.id ?? null, error: res.error ?? null };
   } else if (resolved.plugin.capability === "email") {
-    const html = markdown(bodyMarkdown).toString();
+    const audience = await audienceForNotification(app, row);
+    const html = await renderNotificationHtml(app, {
+      audience,
+      recipientEmail: str(row.recipient_email),
+      bodyMarkdown,
+      unsubscribeCategory: category,
+      transactional,
+    });
     const res = await resolved.plugin.send(
       {
         to: [{ email: str(row.recipient_email) }],
         subject: str(row.subject) || "(no subject)",
-        html: `<div>${html}</div>`,
+        html,
         text: toPlainText(bodyMarkdown),
+        // Same transactional determination as the footer link above, so the
+        // two can never disagree (INV-09-10).
+        headers: transactional ? undefined : await oneClickUnsubscribeHeaders(app.env, str(row.recipient_email), category),
         tags: templateKey ? [templateKey] : undefined,
         idempotency_key: `notification:${notificationId}`,
       },
@@ -577,9 +719,19 @@ export async function previewTemplate(
   const vars = await baseVariables(app, recipient);
   const subjectResult = renderTemplate(input.subject ?? "", vars);
   const bodyResult = renderTemplate(input.body_markdown, vars);
+  const html = await renderNotificationHtml(app, {
+    audience: templateAudience(input.key),
+    recipientEmail: str(recipient.email),
+    bodyMarkdown: bodyResult.text,
+    unsubscribeCategory: categoryOf(input.key || null),
+    // A template preview has no campaign_id — same rule as a system-triggered
+    // send of this key (`isTransactionalDelivery`), so what an organizer
+    // previews is what a recipient actually gets.
+    transactional: isTransactionalDelivery({ campaign_id: null, template_key: input.key }),
+  });
   return {
     subject: subjectResult.text,
-    html: markdown(bodyResult.text).toString(),
+    html,
     text: toPlainText(bodyResult.text),
     empty_variables: [...new Set([...subjectResult.empty, ...bodyResult.empty])],
   };
