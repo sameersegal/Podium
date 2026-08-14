@@ -190,15 +190,28 @@ The app does not know either hostname. It reads `PUBLIC_BASE_URL`, which
 [`scripts/deploy-config.mjs`](scripts/deploy-config.mjs) sets from `PODIUM_HOSTNAME` at deploy
 time — which is what lets the same artifact serve your domain when you self-host.
 
-Eight pages, one per question a buyer arrives with: the landing page, `/features`,
-`/integrations`, `/compare`, `/fork`, `/pricing`, `/demo` and `/security`. Every product image on them is
+Eleven pages. Eight are one per question a buyer arrives with — the landing page,
+`/features`, `/integrations`, `/compare`, `/fork`, `/pricing`, `/demo` and `/security` — and
+three are the field guides, `/guides` and the two under it, `/guides/deploy` and
+`/guides/agents`, for the reader who has decided and wants the commands.
+
+Two kinds of image are generated from the running site rather than drawn. Every product shot is
 a photograph of the running app taken by [`www/scripts/screenshots.mjs`](www/scripts/screenshots.mjs)
-against this repository's own seed — never a mockup — so a redesigned screen means re-running it:
+against this repository's own seed — never a mockup — so a redesigned screen means re-running it.
+Every link preview card is typeset from the page's own words by
+[`www/scripts/og-cards.mjs`](www/scripts/og-cards.mjs), which reads the built site, so a page
+whose headline changes needs its card regenerated:
 
 ```bash
 npm run dev                      # repo root: resets, seeds, serves :8787
 npm --prefix www run screenshots # signs in as each persona and recaptures every shot
+npm --prefix www run build       # the cards are read from dist/, so build first
+npm --prefix www run og          # retypesets the card for every page and every section
 ```
+
+Each section of each page carries its own address and its own preview card, so a post can point
+at the argument it is about rather than the top of the page holding it.
+`npm --prefix www run links` prints every one of them.
 
 Changes to any of it go through the [`marketing-site`](.claude/agents/marketing-site.md) agent,
 which will not ship a claim it has not checked and drives a browser at phone and desktop widths
