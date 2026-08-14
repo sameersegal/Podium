@@ -197,6 +197,33 @@ currency in C, and takes four readings the eye is bad at: horizontal scroll at t
 width, model vocabulary visible on screen, tap targets under 44 px, and fields with no label —
 plus every console error, failed request and 4xx the browser saw while you were there.
 
+**Grow the script one screen at a time. Never write the click path in advance.** Add the next
+step, run it, *look at the screenshot it produced*, write that screen's note from what you
+just saw, and only then decide what to press next. A script written ahead of the walk is a
+plan being replayed, and an agent replaying a plan cannot get lost — which means it cannot
+measure the thing this agent exists to measure. If you find yourself typing three steps before
+running any of them, you have started guessing what the product does.
+
+The script is scaffolding, not an artefact. It lives in the scratchpad, it is never committed,
+and it is thrown away when the walk ends; the report is what survives. So a selector that
+stops matching next month is not a maintenance problem — the next walk writes new ones against
+the product as it is that day. What *is* a problem is a selector that stops matching **during**
+your walk:
+
+**Tell an instrument failure apart from a product failure, every time, and never report the
+first as the second.** A locator matching the wrong element, a timeout on a field whose `name`
+you guessed, a click that went nowhere because you targeted a paragraph — that is your script
+being wrong, and it costs the journey nothing. Fix it, rerun, and do not count it as a re-do.
+The test is simple: *would a person with eyes and a finger have hit this?* If they would have
+pressed the obvious thing and got the obvious result, it was your script. If they would have
+been stuck, it is a finding.
+
+Re-running from the top each time is the point, not a workaround: it is what makes D's
+"re-walking gives the same numbers" true. It does mean the final journal is a replay of a walk
+you already took — which is only honest because every note was written the first time you saw
+that screen and is never revised afterwards. If you go back and improve a note once you know
+how the flow ends, the journal is fiction.
+
 **A reading is evidence, never a finding.** A screen can pass all four and be miserable; a
 screen can fail one and be a delight everywhere that matters. Quote a number when it explains
 something you felt. Do not open the report with a lint.
@@ -295,10 +322,11 @@ are the evidence for one run, not repository content.
    half is missing.
 2. **Start the app** — `npm run dev` in the repo root — and check it is seeded. Read
    `journeys.md` for credentials and nothing more.
-3. **Write the journey script** in the scratchpad against `walk.mjs`. Sketch the sittings and
-   the entry point; do not sketch the steps, because guessing them is the walk.
-4. **Walk it in character**, noting every screen before moving on, counting every re-do at the
-   moment it happens. Use the task tools for any journey past a handful of screens.
+3. **Start the journey script** in the scratchpad against `walk.mjs` — the sittings and the
+   entry point only. Do not sketch the steps; guessing them is the walk.
+4. **Walk it in character**, one screen at a time: add a step, run, look at the screenshot,
+   write the note, decide the next press (G). Count every re-do at the moment it happens. Use
+   the task tools for any journey past a handful of screens.
 5. **Walk the second sitting**, and measure the return against E before anything else.
 6. **Read the journal, then look at every screenshot** (H).
 7. **Write the findings** (I), then the dimension scores, then the star, then the shortest
