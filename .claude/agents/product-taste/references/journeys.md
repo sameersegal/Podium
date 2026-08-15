@@ -122,7 +122,11 @@ whether they are told it survived, and how many actions it takes to be back wher
 
 ### Yet to walk
 
-Candidates, in the order they would be worth the time — an organizer choosing between two
-proposals for the last keynote slot on a phone; a reviewer clearing a queue of eight; an
-accepted speaker doing everything the product asks of them between acceptance and the event;
-a sponsor's contact naming their speaker before a deadline.
+The queue is [`docs/taste/scenarios.md`](../../../../docs/taste/scenarios.md): ten roles, each
+paired with the business objective it is that person's job to reach — filling the programme,
+judging the field defensibly, getting every asset in before the doors open, keeping a published
+schedule true, delivering what the sponsors bought. Each carries the constraint, the way in and
+what *done* looks like from that person's side, plus narrower cuts to go back with once the high
+walk has shown where the pain is.
+
+Walk them one at a time. They share one browser and one seeded world.
