@@ -26,6 +26,7 @@ whether it is worth fixing, and how, is somebody else's call.
 | [2026-08-15](2026-08-15-speaker-submits-and-hears-back.md) | Getting a talk in across three sittings, and finding out what happened to it (S2) | A first-time speaker | ★☆☆☆☆ |
 | [2026-08-15](2026-08-15-chair-and-reviewer-judge-the-field.md) | Checking what reviewers see, handing off the unread pile, then reviewing it (S3) | The chair, then a reviewer | ★★☆☆☆ |
 | [2026-08-15](2026-08-15-accepted-speaker-gets-to-the-stage.md) | Doing everything the conference is asking of her after a yes, on a phone (S4) | An accepted speaker | ★☆☆☆☆ |
+| [2026-08-15](2026-08-15-operations-closes-the-supply-chain.md) | Finding who is behind, nudging exactly them, and getting the files to AV (S5) | Speaker operations | ★☆☆☆☆ |
 
 What is waiting to be walked, and in what order, is [`scenarios.md`](scenarios.md) — ten roles
 paired with the business objective each one is responsible for, derived from the functional
