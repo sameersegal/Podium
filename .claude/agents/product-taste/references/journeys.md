@@ -29,6 +29,16 @@ different build — a container, a CI image — add `--executable-path <path to 
 `args` in `.mcp.json` rather than letting it fetch a second copy. Everything a walk produces
 lands in `.walk/`, which is git-ignored.
 
+Two things go wrong on a container and neither says so plainly, so they are written down here.
+The server looks for the `chrome` channel at a fixed path and reports `Chromium distribution
+'chrome' is not found` when only Playwright's own build is present; where `.mcp.json` cannot be
+changed for the running session — the harness reads it once at start-up — pointing that fixed
+path at the existing build works and downloads nothing. And **the app must be served from the
+same place the browser runs**: a dev server started inside a sandboxed shell listens in a
+namespace the browser cannot reach, which shows up as `ERR_CONNECTION_REFUSED` on
+`localhost:8787` while `curl` from that same shell answers fine. The walk is against a product
+the browser can reach or it is not a walk.
+
 ## The fixture world
 
 One organization, two events. **DevFlow Conf 2027** (`devflow-conf-2027`) is the live one — a
