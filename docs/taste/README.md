@@ -22,6 +22,7 @@ whether it is worth fixing, and how, is somebody else's call.
 | Walked | Journey | Role | ★ |
 |---|---|---|---|
 | [2026-08-14](2026-08-14-first-time-speaker-submits.md) | Submitting a talk across two sittings, phone then laptop | A first-time speaker | ★☆☆☆☆ |
+| [2026-08-15](2026-08-15-organizer-fills-the-programme.md) | Opening a second call and getting it live for tomorrow's newsletter (S1) | The organizer | ★★☆☆☆ |
 
 What is waiting to be walked, and in what order, is [`scenarios.md`](scenarios.md) — ten roles
 paired with the business objective each one is responsible for, derived from the functional
