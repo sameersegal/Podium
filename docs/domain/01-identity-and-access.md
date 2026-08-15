@@ -56,12 +56,16 @@ erDiagram
 | `logo_asset_id` | `ref(Asset)` | N | |
 | `default_timezone` | `string` | Y | IANA tz, default for new events |
 | `contact_email` | `string` | Y | reply-to for platform mail |
+| `postal_address` | `string` | N | mailing address, shown on its own line in every outbound email footer ([`09`](09-api-and-integrations.md), "Notifications"); required at first-run setup, nullable only for a deployment whose Organization row predates the field |
 | `settings` | `json` | Y | see below |
 | `created_at` / `updated_at` | `timestamptz` | Y | |
 
 `settings` keys (all optional, defaults in code):
 `review.default_visibility`, `submissions.allow_public_gallery`,
-`onboarding.reminder_default_offsets`, `branding.*`, `privacy.retention_days`.
+`onboarding.reminder_default_offsets`, `branding.*` — including
+`branding.email_accent`, a hex color theming outbound email
+([`09`](09-api-and-integrations.md), "Conference-first rendering and audience"), default
+`#2a6f97` — `privacy.retention_days`.
 
 **First-run setup.** Nothing seeds the one Organization a deployment needs — it does not
 exist until someone creates it. A freshly migrated deployment directs an anonymous visitor to

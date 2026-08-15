@@ -110,6 +110,14 @@ describe("email.resend", () => {
     );
     expect(update.bounce_type).toBe("soft");
   });
+
+  it("forwards List-Unsubscribe headers to Resend unchanged", async () => {
+    const { calls } = stubFetch();
+    const headers = { "List-Unsubscribe": "<https://app.example.com/unsubscribe?email=a%40b.com&category=campaign&sig=abc>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
+    await emailResendPlugin.send({ ...MESSAGE, headers }, ctx());
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.headers).toEqual(headers);
+  });
 });
 
 describe("email.sendgrid", () => {
@@ -131,5 +139,13 @@ describe("email.sendgrid", () => {
     const [hard] = await emailSendgridPlugin.handle_inbound_webhook([{ email: "a@example.com", event: "bounce", type: "bounce", sg_message_id: "m" }], ctx());
     expect(soft.bounce_type).toBe("soft");
     expect(hard.bounce_type).toBe("hard");
+  });
+
+  it("forwards List-Unsubscribe headers to SendGrid unchanged — its payload is built differently from Resend's, so a header the adapter silently drops would look configured and not be", async () => {
+    const { calls } = stubFetch();
+    const headers = { "List-Unsubscribe": "<https://app.example.com/unsubscribe?email=a%40b.com&category=campaign&sig=abc>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
+    await emailSendgridPlugin.send({ ...MESSAGE, headers }, { ...ctx(), plugin_key: "email.sendgrid" });
+    const body = JSON.parse(String(calls[0].init.body));
+    expect(body.headers).toEqual(headers);
   });
 });

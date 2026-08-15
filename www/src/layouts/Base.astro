@@ -1,4 +1,6 @@
 ---
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import "../styles/global.css";
 import Analytics from "../components/Analytics.astro";
 import NavLinks from "../components/NavLinks.astro";
@@ -35,7 +37,23 @@ const path = Astro.url.pathname.replace(/index\.html$/, "").replace(/\.html$/, "
 // Absolute, because Open Graph consumers do not resolve relative URLs. `site`
 // is set in astro.config.mjs, so Astro.site is podiumstack.com at build time.
 const canonical = new URL(path, Astro.site).href;
-const ogImage = new URL("/og-image.png", Astro.site).href;
+
+// This page's own card, drawn from its eyebrow, headline and lede by
+// `scripts/og-cards.mjs` and committed under `public/og/`. Every link the
+// project posted used to preview the same logo art.
+//
+// `/og-image.png` stays the fallback: 404 has no card, and neither does a page
+// added before the next run of `npm --prefix www run og`. A card appearing
+// needs no change here.
+//
+// The path is resolved against the working directory rather than against this
+// file. Astro bundles the layout into `dist/.prerender/` before running it, so
+// `import.meta.url` is a chunk in the output; npm runs a script from its
+// package root, so the directory is `www/`. `scripts/check-previews.mjs` fails
+// the build when a card is on disk and the page fell back anyway.
+const card = `/og/${path === "/" ? "home" : path.replace(/^\//, "")}.jpg`;
+const hasCard = existsSync(join(process.cwd(), "public", card));
+const ogImage = new URL(hasCard ? card : "/og-image.png", Astro.site).href;
 ---
 
 <!doctype html>
@@ -77,6 +95,15 @@ const ogImage = new URL("/og-image.png", Astro.site).href;
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     {!noindex && <meta property="og:url" content={canonical} />}
+    {/* The card is this page's, and it is as far as these tags can go. A
+        fragment never reaches the server and crawlers strip it before
+        fetching, so /fork#plugin and /fork are one request to Twitterbot and
+        would preview identically however these tags were written. That is what
+        the share pages under /s/ are for: one static page per section, built
+        by `scripts/share-pages.mjs`, carrying that section's heading and card
+        and canonical to the real address. They are not pages of this site —
+        nothing here links to one — and `npm --prefix www run links` prints the
+        one to paste. */}
     <meta property="og:image" content={ogImage} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={ogImage} />

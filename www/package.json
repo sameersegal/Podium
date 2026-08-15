@@ -7,11 +7,12 @@
   "license": "MIT",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/share-pages.mjs && node scripts/check-previews.mjs",
     "preview": "wrangler dev",
     "screenshots": "node scripts/screenshots.mjs",
+    "og": "node scripts/og-cards.mjs",
     "links": "node scripts/deep-links.mjs",
-    "deploy": "astro build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "astro": "^7.2.0",

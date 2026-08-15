@@ -59,6 +59,7 @@ const VALID_INPUT = {
   org_name: "Real Org",
   default_timezone: "UTC",
   contact_email: "hello@example.com",
+  postal_address: "1 Test Way, Testville, CA 94000",
   owner_full_name: "Ada Owner",
   owner_email: "ada@example.com",
   owner_password: "a-long-enough-password-1",

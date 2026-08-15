@@ -1,6 +1,14 @@
 # Every page is linked from the footer, so a crawler finds them all from the
 # root. The sitemap is here anyway because it carries change dates, which the
 # footer cannot.
+#
+# Nothing here disallows /s/, deliberately. Those are the share pages — one per
+# section, so a link posted at a section previews as that section — and the
+# whole point of them is that a link-preview bot fetches one. Blocking the path
+# for everyone and re-allowing it per user agent would mean naming every bot
+# that renders a preview, and the ones missed off the list would show a bare
+# link. They carry `noindex` and a canonical to the real section address
+# instead, which keeps them out of results without keeping the previews out.
 User-agent: *
 Allow: /
 

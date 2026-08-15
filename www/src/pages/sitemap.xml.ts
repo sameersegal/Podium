@@ -14,6 +14,12 @@
  *
  * `404` is absent on purpose — it is `noindex`, and listing it would ask a
  * crawler to index the one page that says nothing is here.
+ *
+ * So are the share pages under `/s/`. This list is written by hand and nothing
+ * generated can reach it, which is the property to keep: those pages exist so a
+ * section can be posted with its own preview, they are `noindex` and canonical
+ * to the real section address, and to a reader this site is these eleven pages.
+ * `scripts/share-pages.mjs` says the rest.
  */
 import type { APIRoute } from "astro";
 

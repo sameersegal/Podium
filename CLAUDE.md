@@ -97,6 +97,32 @@ the running product, a rule in `docs/domain/`, a path in this repository, or a d
 source — which is what stops a marketing page from becoming the one document in here that is
 allowed to be aspirational.
 
+## Attacking the product
+
+Use the [`pentest`](.claude/agents/pentest.md) agent to red-team a running instance rather than
+review the source: black box first, deliberately blind, then white box to explain what the
+probing turned up, then the published advisories for the stack underneath. It builds real
+adversaries — an unauthenticated stranger, an account created through the product's own
+`/signup` holding zero grants, a speaker, a reviewer, a leaked read-only key — and reports only
+what it made the app actually do.
+
+```bash
+npm run pentest        # black-box authorization sweep against npm run dev
+npm run pentest:cve    # advisories for the lockfile *and* the platform under it
+```
+
+Three security jobs, deliberately separate: `/security-review` reads one diff, the
+`security-audit` skill reads the whole codebase, and this agent attacks the running product.
+The agent consumes the skill's `attack_surface.py` inventory as its map rather than re-deriving
+it — the white-box guard on each route is the oracle for what the black-box probe should have
+got back, and the disagreement between them is the finding.
+
+Two rules in it are load-bearing. **`blackbox.mjs` refuses any non-loopback target and has no
+override flag**, because a pentest harness that can be aimed is one that eventually gets aimed
+at production. And **`cve_watch.mjs` reports an unreachable feed as UNKNOWN and exits 3**,
+never as clean — `npm audit` covers one runtime dependency and says nothing about workerd, V8
+or the SQLite engine under D1, so a green lockfile is close to no evidence at all.
+
 ## Skills
 
 Three project skills in [`.claude/skills/`](.claude/skills) do the work the rules above
