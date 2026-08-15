@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { Env } from "@podiumstack/data/context.js";
 import { assertTemplateBody, validateTemplateBody, extractVariables } from "@podiumstack/domain/platform/rendering.js";
-import { declaredVariables, isTransactionalTemplate } from "@podiumstack/domain/platform/templates.js";
+import {
+  DEFAULT_TEMPLATES,
+  declaredVariables,
+  invitationAudience,
+  isTransactionalTemplate,
+  templateAudience,
+} from "@podiumstack/domain/platform/templates.js";
 import { decideSuppression } from "@podiumstack/domain/platform/suppression.js";
-import { unsubscribeUrl, verifyUnsubscribeSignature } from "@podiumstack/web/contexts/platform/notifications.js";
+import {
+  isTransactionalDelivery,
+  oneClickUnsubscribeHeaders,
+  unsubscribeUrl,
+  verifyUnsubscribeSignature,
+} from "@podiumstack/web/contexts/platform/notifications.js";
 
 function fakeEnv(overrides: Partial<Env> & { ENVIRONMENT: string }): Env {
   // A reserved example domain, not the real deployment's. Nothing here asserts
@@ -47,6 +58,68 @@ describe("template variable validation (INV-09-13)", () => {
   it("proposal.accepted and task.reminder are both transactional (INV-09-10 exemption applies)", () => {
     expect(isTransactionalTemplate("proposal.accepted")).toBe(true);
     expect(isTransactionalTemplate("task.reminder")).toBe(true);
+  });
+});
+
+describe("template audience — 09, 'Conference-first rendering and audience'", () => {
+  it("every default template declares an audience", () => {
+    for (const t of DEFAULT_TEMPLATES) {
+      expect(["organizers", "reviewers", "speakers", "sponsors"]).toContain(t.audience);
+    }
+  });
+
+  it("classifies proposal, task, schedule and confirmation keys as speakers", () => {
+    for (const key of ["proposal.submitted", "proposal.accepted", "proposal.rejected", "proposal.waitlisted", "proposal.changes_requested", "task.assigned", "task.reminder", "schedule.changed", "speaker.confirmation_request"]) {
+      expect(templateAudience(key)).toBe("speakers");
+    }
+  });
+
+  it("classifies review.assignment and review.reminder as reviewers", () => {
+    expect(templateAudience("review.assignment")).toBe("reviewers");
+    expect(templateAudience("review.reminder")).toBe("reviewers");
+  });
+
+  it("classifies entitlement.expiring_soon as sponsors", () => {
+    expect(templateAudience("entitlement.expiring_soon")).toBe("sponsors");
+  });
+
+  it("defaults invitation.sent to the organizing team's own label", () => {
+    expect(templateAudience("invitation.sent")).toBe("organizers");
+  });
+
+  it("falls back to speakers for a one-off campaign (no template_key) or an unrecognised custom key", () => {
+    expect(templateAudience(null)).toBe("speakers");
+    expect(templateAudience("a_custom_key")).toBe("speakers");
+  });
+
+  it("addresses an invitation as what its kind actually is, not by its default", () => {
+    expect(invitationAudience("reviewer")).toBe("reviewers");
+    expect(invitationAudience("sponsor_contact")).toBe("sponsors");
+    expect(invitationAudience("co_speaker")).toBe("speakers");
+    expect(invitationAudience("speaker_portal")).toBe("speakers");
+    expect(invitationAudience("staff")).toBe("organizers");
+    expect(invitationAudience(null)).toBe("organizers");
+  });
+});
+
+describe("isTransactionalDelivery — the one determination suppression and the footer's unsubscribe link both read (INV-09-10)", () => {
+  it("a system-triggered send of a transactional key is transactional", () => {
+    expect(isTransactionalDelivery({ campaign_id: null, template_key: "proposal.accepted" })).toBe(true);
+  });
+
+  it("a system-triggered send of a non-transactional key is not transactional", () => {
+    expect(isTransactionalDelivery({ campaign_id: null, template_key: null })).toBe(false);
+  });
+
+  it("INV-09-10: a campaign_id forces non-transactional, even when composed from a transactional template's key", () => {
+    // 09, "Campaigns": "A campaign is not a decision notification, and
+    // INV-09-10's exemption is deliberately not extended to it" — even when
+    // the campaign was composed from `proposal.accepted`'s own wording.
+    expect(isTransactionalDelivery({ campaign_id: "cmp_1", template_key: "proposal.accepted" })).toBe(false);
+  });
+
+  it("a campaign with no template_key at all (a one-off composed message) is also not transactional", () => {
+    expect(isTransactionalDelivery({ campaign_id: "cmp_1", template_key: null })).toBe(false);
   });
 });
 
@@ -137,5 +210,26 @@ describe("the unsubscribe link signing key (INV-09-15)", () => {
     const a = await unsubscribeUrl(fakeEnv({ ENVIRONMENT: "production", UNSUBSCRIBE_SECRET: "secret-a" }), "x@example.com", "campaign");
     const b = await unsubscribeUrl(fakeEnv({ ENVIRONMENT: "production", UNSUBSCRIBE_SECRET: "secret-b" }), "x@example.com", "campaign");
     expect(new URL(a).searchParams.get("sig")).not.toBe(new URL(b).searchParams.get("sig"));
+  });
+});
+
+describe("RFC 8058 one-click unsubscribe headers", () => {
+  it("mints List-Unsubscribe (angle-bracketed) and List-Unsubscribe-Post, signed with the same key as the footer link", async () => {
+    const env = fakeEnv({ ENVIRONMENT: "test" });
+    const headers = await oneClickUnsubscribeHeaders(env, "speaker@example.com", "campaign");
+    expect(Object.keys(headers).sort()).toEqual(["List-Unsubscribe", "List-Unsubscribe-Post"]);
+    expect(headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    expect(headers["List-Unsubscribe"]).toMatch(/^<https?:\/\/.*\/unsubscribe\?.*>$/);
+
+    const url = new URL(headers["List-Unsubscribe"].slice(1, -1));
+    expect(url.searchParams.get("email")).toBe("speaker@example.com");
+    expect(url.searchParams.get("category")).toBe("campaign");
+    const sig = url.searchParams.get("sig")!;
+    expect(await verifyUnsubscribeSignature(env, "speaker@example.com", "campaign", sig)).toBe(true);
+  });
+
+  it("never mints a mailto: form — RFC 8058's one-click contract requires the https link", async () => {
+    const headers = await oneClickUnsubscribeHeaders(fakeEnv({ ENVIRONMENT: "test" }), "speaker@example.com", "campaign");
+    expect(headers["List-Unsubscribe"]).not.toContain("mailto:");
   });
 });

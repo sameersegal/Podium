@@ -32,6 +32,7 @@ describe("INV-01-16: bootstrap_state serialises two genuinely concurrent first-r
         org_name: "Race Org",
         default_timezone: "UTC",
         contact_email: "race@example.com",
+        postal_address: "1 Test Way, Testville, CA 94000",
         owner_full_name: "Racer",
         owner_email: email,
         owner_password: "a-long-enough-password-2",

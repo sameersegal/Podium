@@ -6,7 +6,10 @@ deliberately avoided.
 
 **Speaker-facing email is sent as the event, not as the product.** Somebody who submitted to
 AI Engineer World's Fair gets mail from AI Engineer World's Fair. *Podium* belongs on the
-login screen and the invoice, not in a rejection letter.
+login screen and the invoice, not in a rejection letter. Every notification email carries
+this the same way, whoever it is for: the event or organization owns the header and the
+voice, and *Podium* is never more than a one-line footer credit — a program-committee digest
+and an organizer's coverage nudge are branded exactly like a speaker's acceptance letter.
 
 | Term | Meaning | Not to be confused with |
 |---|---|---|
