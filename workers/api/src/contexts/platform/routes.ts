@@ -153,6 +153,15 @@ function registerSettingsRoutes(router: Router<RequestContext>): void {
                 value: str(org.name),
               })}
               ${field({ name: "contact_email", label: "Contact email", type: "email", required: true, value: str(org.contact_email) })}
+              ${field({
+                name: "postal_address",
+                label: "Mailing address",
+                type: "textarea",
+                rows: 2,
+                value: strOrNull(org.postal_address) ?? "",
+                help: "Appears in the footer of every email this deployment sends.",
+                attrs: 'autocomplete="street-address"',
+              })}
               ${field({ name: "primary_domain", label: "Primary domain", value: str(org.primary_domain) })}
               <h3>Access</h3>
               ${field({
@@ -199,6 +208,7 @@ function registerSettingsRoutes(router: Router<RequestContext>): void {
     await app.db.update("organization", app.orgId, {
       name: input.str("name", str(org.name)),
       contact_email: input.str("contact_email", str(org.contact_email)),
+      postal_address: input.optional("postal_address"),
       primary_domain: input.optional("primary_domain"),
       settings: JSON.stringify(settings),
       updated_at: app.now(),
@@ -1444,14 +1454,32 @@ function registerUnsubscribeRoutes(router: Router<RequestContext>): void {
 
   router.post("/unsubscribe", async (req, ctx) => {
     const input = await readInput(req);
-    const email = input.str("email");
-    const category = input.str("category", "campaign");
-    const sig = input.str("sig");
+    // RFC 8058 one-click unsubscribe: a mail client's own "Unsubscribe"
+    // button POSTs a body of exactly `List-Unsubscribe=One-Click` and no
+    // other field, so email/category/sig travel in the URL query string on
+    // that path — the same signed link the header carries (`unsubscribeUrl`).
+    // The human confirm-page form still posts all three as hidden body
+    // fields, which is why the body is checked first and the query string is
+    // only the fallback.
+    const email = input.optional("email") ?? ctx.url.searchParams.get("email") ?? "";
+    const category = input.optional("category") ?? ctx.url.searchParams.get("category") ?? "campaign";
+    const sig = input.optional("sig") ?? ctx.url.searchParams.get("sig") ?? "";
+    const isOneClick = input.str("List-Unsubscribe") === "One-Click";
     const ok = email && (await verifyUnsubscribeSignature(ctx.env, email, category, sig));
-    if (!ok) return htmlResponse(html`<p>That link is not valid.</p>`, { status: 400 });
+    if (!ok) {
+      return isOneClick ? new Response(null, { status: 400 }) : htmlResponse(html`<p>That link is not valid.</p>`, { status: 400 });
+    }
     const app = ctx.app();
     await recordSuppression(app, email, category, "unsubscribed");
     await app.flush();
+    // A one-click request is deliberately unconfirmed — that is RFC 8058's
+    // whole point, a mail client acts with no page load — and it does not
+    // reopen the no-mutation-on-GET rule this route otherwise relies on
+    // (see the `setCookie` comment in http/context.ts): the signature is
+    // still the only credential either way, GET still never mutates, and a
+    // link scanner or prefetcher cannot reach this path because it never
+    // issues a POST. Do not "fix" this back to a confirmation step.
+    if (isOneClick) return new Response("OK", { status: 200, headers: { "content-type": "text/plain" } });
     return htmlResponse(
       adminPage(ctx, { title: "Unsubscribed", width: "narrow" }, html`<div class="card"><p>You will not receive marketing messages of this kind again.</p></div>`),
     );

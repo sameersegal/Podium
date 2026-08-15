@@ -309,6 +309,9 @@ insert("organization", {
   primary_domain: "devflowconf.example",
   default_timezone: TZ,
   contact_email: "hello@devflowconf.example",
+  // 01, Organization.postal_address — shown on its own line in every
+  // outbound email footer (09, "Conference-first rendering and audience").
+  postal_address: "548 Market Street, PMB 40123, San Francisco, CA 94104",
   settings: {
     // R23: on in the shipped default seed. This is load-bearing rather than
     // decorative — the seed installs an active `email.resend` integration

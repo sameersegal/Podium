@@ -28,6 +28,7 @@ const VALID_FORM = {
   org_slug: "",
   default_timezone: "America/Los_Angeles",
   contact_email: "hello@example.com",
+  postal_address: "548 Market Street, PMB 40123, San Francisco, CA 94104",
   owner_full_name: "Ada Owner",
   owner_email: "ada@example.com",
   owner_password: "a-long-enough-password-1",
@@ -70,6 +71,7 @@ describe("a freshly migrated deployment with no Organization row", () => {
     const body = await res.text();
     expect(body).toContain("Set up this Podium");
     expect(body).toContain("Organization name");
+    expect(body).toContain("Mailing address");
     expect(body).toContain("Password");
   });
 });
@@ -95,6 +97,14 @@ describe("POST /setup — validation", () => {
     expect(res.status).toBe(422);
     expect(await orgCount()).toBe(0);
   });
+
+  it("rejects a missing mailing address without creating anything — the footer needs it (09, 'Notifications')", async () => {
+    const res = await postSetup({ ...VALID_FORM, postal_address: "   " });
+    expect(res.status).toBe(422);
+    const body = await res.text();
+    expect(body).toContain("mailing address");
+    expect(await orgCount()).toBe(0);
+  });
 });
 
 describe("POST /setup — success path", () => {
@@ -110,6 +120,7 @@ describe("POST /setup — success path", () => {
     expect(str(org!.name)).toBe("AI Engineer");
     expect(str(org!.contact_email)).toBe("hello@example.com");
     expect(str(org!.default_timezone)).toBe("America/Los_Angeles");
+    expect(str(org!.postal_address)).toBe("548 Market Street, PMB 40123, San Francisco, CA 94104");
 
     const person = await env.DB.prepare("SELECT * FROM person WHERE email = ?").bind("ada@example.com").first<Row>();
     expect(person).toBeTruthy();

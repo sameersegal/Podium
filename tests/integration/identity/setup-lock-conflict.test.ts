@@ -27,6 +27,7 @@ describe("INV-01-16's catch is narrow: only a real bootstrap_state PK conflict i
         org_name: "AI Engineer",
         default_timezone: "UTC",
         contact_email: "hello@example.com",
+        postal_address: "1 Test Way, Testville, CA 94000",
         owner_full_name: "Ada Owner",
         owner_email: "ada@example.com",
         owner_password: "a-long-enough-password-1",
