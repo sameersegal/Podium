@@ -31,6 +31,13 @@ whether it is worth fixing, and how, is somebody else's call.
 | [2026-08-15](2026-08-15-public-surface-holds-up.md) | Embedding the schedule on the conference's own site, then planning a day on a phone (S7) | An attendee, and the site's owner | ★☆☆☆☆ |
 | [2026-08-15](2026-08-15-partnerships-delivers-the-package.md) | Stating each sponsor's position, then a sponsor naming their speaker (S8) | Partnerships, then a sponsor | ★☆☆☆☆ |
 | [2026-08-15](2026-08-15-organizer-builds-the-bench.md) | Finding a half-remembered speaker from last year and starting an approach (S9) | The organizer | ★★☆☆☆ |
+| [2026-08-15](2026-08-15-new-organization-adopts-the-product.md) | Arriving with nothing and trying to run your own conference here (S10) | A new organization | ★☆☆☆☆ |
+
+S1–S10 were walked in one day, a fresh world each, and what the ten say together is in
+[**Ten walks, one day**](2026-08-15-ten-walks-consolidated.md): 13 stars out of 50, Trust at one
+star in eight of them, and one finding under nearly all of it — the product confirms things it
+did not do. Read it after a report, never instead of one; the reports are the evidence and it is
+only the arithmetic.
 
 What is waiting to be walked, and in what order, is [`scenarios.md`](scenarios.md) — ten roles
 paired with the business objective each one is responsible for, derived from the functional
