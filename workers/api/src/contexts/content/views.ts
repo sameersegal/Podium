@@ -27,24 +27,69 @@ export interface FilesLibraryFilters {
   missing?: boolean; // "whose slides are still not here"
 }
 
-async function belongsToLabel(app: AppContext, subjectType: string, subjectId: string): Promise<{ kind: string; id: string; label: string }> {
-  if (subjectType === "session") {
-    const s = await app.db.byId<Row>("session", subjectId, { includeDeleted: true });
-    return { kind: "session", id: subjectId, label: s ? str(s.title) : "(deleted session)" };
+/**
+ * What each `slot_key` subject is called, for every slot on the screen at once.
+ *
+ * This was one `byId` per row, which on the seeded event alone was twenty-two
+ * statements to render one table and grew with the number of files — the
+ * definition of an N+1 (`implementer.md`, G). Four subject types means at most
+ * four `IN (…)` reads however many slots there are, and typically one or two,
+ * since a files library is mostly sessions and people.
+ *
+ * Deleted subjects are still labelled — `includeDeleted` — because a file
+ * outliving its session must say what it belonged to rather than go blank.
+ */
+type BelongsTo = { kind: string; id: string; label: string };
+
+async function belongsToLabels(app: AppContext, subjects: { type: string; id: string }[]): Promise<Map<string, BelongsTo>> {
+  const byType = new Map<string, Set<string>>();
+  for (const s of subjects) {
+    if (!s.id) continue;
+    const set = byType.get(s.type) ?? new Set<string>();
+    set.add(s.id);
+    byType.set(s.type, set);
   }
-  if (subjectType === "person") {
-    const p = await app.db.byId<Row>("person", subjectId, { includeDeleted: true });
-    return { kind: "person", id: subjectId, label: p ? str(p.display_name) || str(p.full_name) : "(deleted person)" };
-  }
-  if (subjectType === "task") {
-    const t = await app.db.byId<Row>("task_instance", subjectId);
-    return { kind: "task", id: subjectId, label: t ? str(t.subject_type) : "task" };
-  }
-  if (subjectType === "sponsor") {
-    const s = await app.db.byId<Row>("sponsor", subjectId, { includeDeleted: true });
-    return { kind: "sponsor", id: subjectId, label: s ? str(s.name) : "(deleted sponsor)" };
-  }
-  return { kind: subjectType, id: subjectId, label: subjectId };
+
+  const TABLES: Record<string, { table: string; includeDeleted: boolean; label: (r: Row) => string; missing: string }> = {
+    session: { table: "session", includeDeleted: true, label: (r) => str(r.title), missing: "(deleted session)" },
+    person: { table: "person", includeDeleted: true, label: (r) => str(r.display_name) || str(r.full_name), missing: "(deleted person)" },
+    task: { table: "task_instance", includeDeleted: false, label: (r) => str(r.subject_type), missing: "task" },
+    sponsor: { table: "sponsor", includeDeleted: true, label: (r) => str(r.name), missing: "(deleted sponsor)" },
+  };
+
+  const out = new Map<string, BelongsTo>();
+  await Promise.all(
+    [...byType.entries()].map(async ([type, ids]) => {
+      const spec = TABLES[type];
+      if (!spec) {
+        // An unknown subject type labels itself, exactly as it always has.
+        for (const id of ids) out.set(`${type}:${id}`, { kind: type, id, label: id });
+        return;
+      }
+      const rows = await app.db.select<Row>(spec.table, { id: [...ids] }, { includeDeleted: spec.includeDeleted });
+      const found = new Map(rows.map((r) => [str(r.id), r]));
+      for (const id of ids) {
+        const row = found.get(id);
+        out.set(`${type}:${id}`, { kind: type, id, label: row ? spec.label(row) : spec.missing });
+      }
+    }),
+  );
+  return out;
+}
+
+/**
+ * How many comments sit on each slot — one `GROUP BY` for the page.
+ *
+ * Was `COUNT(*) … WHERE slot_key = ?` per row: twenty-seven statements on the
+ * seeded event, and one more for every file anybody ever uploads. The predicate
+ * is unchanged (INV-11-2 excludes soft-deleted comments); only the number of
+ * times it is sent is.
+ */
+async function commentCountsBySlot(app: AppContext): Promise<Map<string, number>> {
+  const rows = await app.db.raw<{ slot_key: string; n: number }>(
+    "SELECT slot_key, COUNT(*) AS n FROM asset_comment WHERE deleted_at IS NULL GROUP BY slot_key",
+  );
+  return new Map(rows.map((r) => [str(r.slot_key), num(r.n)]));
 }
 
 /**
@@ -62,7 +107,9 @@ export async function filesLibrary(app: AppContext, filters: FilesLibraryFilters
     bySlot.set(str(a.slot_key), list);
   }
 
-  const out: FilesLibraryRow[] = [];
+  // Every slot that survives filtering, resolved first, so the two lookups
+  // below are asked once for the whole page rather than once per row.
+  const kept: { slotKey: string; latest: Row; versions: Row[]; subjectType: string; subjectId: string }[] = [];
   for (const [slotKey, versions] of bySlot) {
     const marked = markLatest(versions.map((v) => ({ id: str(v.id), version: num(v.version), deleted_at: strOrNull(v.deleted_at) })));
     const latestId = marked.find((m) => m.is_latest)?.id;
@@ -75,17 +122,21 @@ export async function filesLibrary(app: AppContext, filters: FilesLibraryFilters
     const subjectId = parts[1] ?? "";
     if (filters.session_id && !(subjectType === "session" && subjectId === filters.session_id)) continue;
     if (filters.speaker_person_id && !(subjectType === "person" && subjectId === filters.speaker_person_id)) continue;
-
-    const commentCount = await app.db.count("asset_comment", { slot_key: slotKey });
-    const belongsTo = await belongsToLabel(app, subjectType, subjectId);
-    out.push({
-      slot_key: slotKey,
-      latest,
-      version_count: versions.filter((v) => !v.deleted_at).length,
-      comment_count: commentCount,
-      belongs_to: belongsTo,
-    });
+    kept.push({ slotKey, latest, versions, subjectType, subjectId });
   }
+
+  const [commentCounts, labels] = await Promise.all([
+    commentCountsBySlot(app),
+    belongsToLabels(app, kept.map((k) => ({ type: k.subjectType, id: k.subjectId }))),
+  ]);
+
+  const out: FilesLibraryRow[] = kept.map((k) => ({
+    slot_key: k.slotKey,
+    latest: k.latest,
+    version_count: k.versions.filter((v) => !v.deleted_at).length,
+    comment_count: commentCounts.get(k.slotKey) ?? 0,
+    belongs_to: labels.get(`${k.subjectType}:${k.subjectId}`) ?? { kind: k.subjectType, id: k.subjectId, label: k.subjectId },
+  }));
   // "missing-ness" is answered from the other side (sessions with no slides
   // slot at all) — surfaced by the caller joining against the roster/session
   // list, since a library over `asset` alone cannot show what was never

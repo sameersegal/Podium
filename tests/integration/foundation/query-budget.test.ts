@@ -10,25 +10,30 @@ import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
  * so every response outside production carries `x-podium-d1-queries` and this
  * file holds the screens that grew fastest to a ceiling.
  *
- * ## Why the ceilings are not single digits
+ * ## What sits under every number here
  *
- * Two costs sit under every number here and neither is the screen's:
- *
- * - **~11 statements of request context.** `buildContext` resolves the org,
- *   the session, the person, their grants and the five relationship lookups
- *   that authorization needs, before any route runs. `/login` — a form and
- *   nothing else — costs 11. That is the floor for any signed-in page.
+ * - **3 statements of request context.** `buildContext` resolves the org, the
+ *   session and person, and the grants and relationships authorization needs,
+ *   before any route runs. `/login` — a form and nothing else — costs exactly
+ *   that, and it is the floor for any signed-in page. It was 11 until the org
+ *   id and its row became one read, the session and its person became a join,
+ *   and the six authorization lookups became one `json_group_array` row (see
+ *   `PRINCIPAL_FACTS_SQL` in `http/context.ts`).
  * - **~20 statements to answer "what is not published yet".** `pendingChanges`
  *   diffs the working schedule against the live snapshot, which means reading
  *   the schedule. It is flat in the number of sessions rather than N+1, and it
  *   is the honest cost of an exact number; the alternative is a screen that
- *   says "some changes".
+ *   says "some changes". This is now most of what `/admin` spends.
  *
  * So these ceilings are set where a *regression* trips them, not where the
  * ideal sits. They are deliberately loose enough not to churn on a one-query
  * change and tight enough that the shapes this file was written to catch —
  * a per-round loop, a per-call loop, eleven `COUNT(*) … WHERE status = ?` —
  * cannot come back unnoticed. `/admin` cost 94 before those were collapsed.
+ *
+ * `scripts/perf-db.mjs` is the other half of this: it walks *every* route
+ * against a seeded instance and reports what each one spent it on. This file
+ * holds the handful of screens worth failing a build over.
  */
 
 const ORG = "org_qbudget";
@@ -111,15 +116,16 @@ describe("the D1 budget per request (implementer.md, G)", () => {
   it("a public page costs a handful of statements and nothing more", async () => {
     // Anonymous, and served from the cached publication snapshot (INV-09-6) —
     // the cheapest thing in the product, and it must stay that way.
-    expect(await queriesFor("/e/budget-conf")).toBeLessThanOrEqual(10);
+    expect(await queriesFor("/e/budget-conf")).toBeLessThanOrEqual(6);
   });
 
   it("signing in is the floor every authenticated screen pays", async () => {
     const cookie = await signIn();
     // Not an assertion about `/login` so much as a recorded baseline: if this
     // moves, every ceiling below moves with it and the reason is `buildContext`,
-    // not the screen.
-    expect(await queriesFor("/login", cookie)).toBeLessThanOrEqual(15);
+    // not the screen. Three: the org row, the session joined to its person, and
+    // the one row carrying every grant and relationship.
+    expect(await queriesFor("/login", cookie)).toBeLessThanOrEqual(5);
   });
 
   it("Today does not loop over rounds, calls or statuses", async () => {
@@ -129,14 +135,14 @@ describe("the D1 budget per request (implementer.md, G)", () => {
     // building a payload it discards. Three rounds and three calls are seeded
     // above precisely so a reintroduced per-round or per-call loop shows up
     // here as a jump, not as a rounding error.
-    expect(await queriesFor("/admin?nojs=1", cookie)).toBeLessThanOrEqual(60);
+    expect(await queriesFor("/admin?nojs=1", cookie)).toBeLessThanOrEqual(40);
   });
 
   it("the console's Today read is no more expensive than the screen it feeds", async () => {
     const cookie = await signIn();
     const today = await queriesFor(`/v1/events/${EVENT}/dashboard?sections=today`, cookie);
     const all = await queriesFor(`/v1/events/${EVENT}/dashboard`, cookie);
-    expect(today).toBeLessThanOrEqual(60);
+    expect(today).toBeLessThanOrEqual(45);
     // The subset must actually be a subset. If these converge, `sections` has
     // stopped skipping anything and the split is costing complexity for nothing.
     expect(today).toBeLessThan(all);
@@ -147,7 +153,7 @@ describe("the D1 budget per request (implementer.md, G)", () => {
     // Both are one person's own rows, and neither should ever grow a per-row
     // read: the queue joins its proposals in one statement, and the portal's
     // dashboard is a fixed set of lookups.
-    expect(await queriesFor("/review", cookie)).toBeLessThanOrEqual(25);
-    expect(await queriesFor("/portal", cookie)).toBeLessThanOrEqual(30);
+    expect(await queriesFor("/review", cookie)).toBeLessThanOrEqual(12);
+    expect(await queriesFor("/portal", cookie)).toBeLessThanOrEqual(15);
   });
 });

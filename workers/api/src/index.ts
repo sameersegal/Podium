@@ -16,6 +16,7 @@ import { STALE_WRITE_MESSAGE } from "./http/concurrency.js";
 import { buildContext, FLASH_COOKIE, clearCookie, flashCookie, type RequestContext } from "./http/context.js";
 import { withSecurityHeaders } from "./http/headers.js";
 import { isMutating, remember, replayIfSeen } from "./http/idempotency.js";
+import { recordProfile } from "./http/profile.js";
 import { errorResponse, htmlResponse, json, redirect, wantsJson } from "./http/responses.js";
 import { Router } from "./http/router.js";
 import { registerRoutes } from "./routes.js";
@@ -136,6 +137,23 @@ function withQueryCount(res: Response, ctx: RequestContext): Response {
   if (str(ctx.env.ENVIRONMENT) === "production") return res;
   const out = new Response(res.body, res);
   out.headers.set("x-podium-d1-queries", String(ctx.queries.count));
+  // The statements measure the work, the round trips measure the latency, and
+  // `d1.batch()` makes them different numbers — see `QueryCounter.roundTrips`.
+  out.headers.set("x-podium-d1-roundtrips", String(ctx.queries.roundTrips));
+  // When the caller asked to be profiled, the statements go to the ring buffer
+  // `/dev/profile` drains — the count says a screen is expensive, the text says
+  // what it spent it on. See `http/profile.ts`.
+  if (ctx.queries.statements) {
+    recordProfile({
+      method: ctx.req.method,
+      path: ctx.url.pathname + ctx.url.search,
+      status: out.status,
+      count: ctx.queries.count,
+      roundTrips: ctx.queries.roundTrips,
+      statements: ctx.queries.statements,
+      ms: Date.now() - ctx.startedAtMs,
+    });
+  }
   return out;
 }
 

@@ -119,7 +119,9 @@ export async function loadAgendaBuilder(app: AppContext, eventId: string): Promi
   }
   unplaced.sort((a, b) => a.reference.localeCompare(b.reference));
 
-  const [conflicts, pending] = await Promise.all([listConflicts(app, eventId), pendingChanges(app, eventId)]);
+  // `facts` is handed on rather than re-read: the agenda grid and the pending
+  // count are two questions about the same fact set.
+  const [conflicts, pending] = await Promise.all([listConflicts(app, eventId), pendingChanges(app, eventId, { facts })]);
 
   return {
     event: { id: facts.event.id, name: facts.event.name, slug: facts.event.slug, timezone: facts.event.timezone },

@@ -7,7 +7,7 @@
  */
 
 import { AppContext, type Env } from "@podiumstack/data/context.js";
-import { bool, D1Db, parseJson, str, type Row } from "@podiumstack/data/db.js";
+import { bool, D1Db, enableRowCache, parseJson, str, type Row } from "@podiumstack/data/db.js";
 import { hashToken } from "@podiumstack/domain/identity/credentials.js";
 import type { Actor } from "@podiumstack/domain/events/envelope.js";
 import {
@@ -27,6 +27,7 @@ import {
 import { DomainError, forbidden, unauthorized } from "@podiumstack/domain/shared/errors.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
 import { nowIso } from "@podiumstack/domain/shared/time.js";
+import { profileRequested } from "./profile.js";
 
 export const SESSION_COOKIE = "podium_session";
 export const FLASH_COOKIE = "podium_flash";
@@ -86,6 +87,12 @@ export interface RequestContext {
    */
   orgTimezone: string;
   now: string;
+  /**
+   * `Date.now()` when the context was built. Only the profiler reads it: in a
+   * Worker the clock is frozen between I/O, so a difference against it measures
+   * time spent waiting on bindings, which is the number a D1 profile is about.
+   */
+  startedAtMs: number;
   app(eventId?: string | null): AppContext;
   can(capability: Capability, target?: Target): boolean;
   canWrite(capability: Capability, target?: Target): boolean;
@@ -165,17 +172,25 @@ export function flashCookie(kind: "ok" | "err" | "warn" | "info", message: strin
   return setCookie(FLASH_COOKIE, JSON.stringify({ kind, message }), { maxAge: 30 });
 }
 
-/** The single org of this deployment (01, "Tenancy": one Organization per deployment). */
-export async function resolveOrgId(env: Env): Promise<string> {
-  const row = await env.DB.prepare("SELECT id FROM organization ORDER BY created_at LIMIT 1").first<{ id: string }>();
-  return row?.id ?? "";
+/**
+ * The single org of this deployment (01, "Tenancy": one Organization per
+ * deployment) — the whole row, not just its id.
+ *
+ * The id and the row used to be two statements, and every request in the
+ * product paid both: `resolveOrgId` selected the id, then `buildContext`
+ * selected the row that id names. One `SELECT *` answers both questions, which
+ * makes this the only saving here that even an anonymous request collects.
+ */
+export async function resolveOrg(env: Env): Promise<Row | null> {
+  return (await env.DB.prepare("SELECT * FROM organization ORDER BY created_at LIMIT 1").first<Row>()) ?? null;
 }
 
-async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null> {
-  const row = await db.byId<Record<string, unknown>>("person", personId);
-  if (!row) return null;
-  // INV-01-9: reads follow the merge pointer.
-  if (row.merged_into_person_id) return loadPerson(db, str(row.merged_into_person_id));
+/** The id alone, for the callers that only ever wanted that. */
+export async function resolveOrgId(env: Env): Promise<string> {
+  return str((await resolveOrg(env))?.id);
+}
+
+function personView(row: Row): PersonView {
   return {
     id: str(row.id),
     org_id: str(row.org_id),
@@ -186,8 +201,77 @@ async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null
   };
 }
 
+async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null> {
+  const row = await db.byId<Row>("person", personId);
+  if (!row) return null;
+  // INV-01-9: reads follow the merge pointer.
+  if (row.merged_into_person_id) return loadPerson(db, str(row.merged_into_person_id));
+  return personView(row);
+}
+
+/**
+ * The session and the person it belongs to, in one statement.
+ *
+ * These were two round trips — look the session up by token hash, then look the
+ * person up by the id it holds — for a pair that is never useful apart: a
+ * session whose person cannot be read authenticates nobody. The join carries
+ * the same org scope and soft-delete exclusion `db.byId` would have applied
+ * (INV-11-1, INV-11-2), stated explicitly because this is a `raw` read.
+ *
+ * `merged_into_person_id` is returned rather than followed: the merge pointer
+ * (INV-01-9) is rare enough that paying a second statement on the rare path is
+ * better than a recursive join on every request.
+ */
+async function loadSessionAndPerson(
+  db: D1Db,
+  orgId: string,
+  tokenHash: string,
+): Promise<{ sessionId: string; expiresAt: string; lastSeenAt: string | null; person: Row } | null> {
+  const rows = await db.raw<Row>(
+    `SELECT s.id AS __session_id, s.expires_at AS __expires_at, s.last_seen_at AS __last_seen_at, p.*
+       FROM auth_session s
+       JOIN person p ON p.id = s.person_id
+      WHERE s.token_hash = ? AND p.org_id = ? AND p.deleted_at IS NULL
+      LIMIT 1`,
+    [tokenHash, orgId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    sessionId: str(row.__session_id),
+    expiresAt: str(row.__expires_at),
+    lastSeenAt: row.__last_seen_at ? str(row.__last_seen_at) : null,
+    person: row,
+  };
+}
+
+/**
+ * How stale `auth_session.last_seen_at` / `api_key.last_used_at` are allowed to
+ * get before a request refreshes them.
+ *
+ * Both columns are display-only — "last seen" on the sessions list, "last used"
+ * on the API keys screen — and writing one on *every* request meant every read
+ * of the product was also a write. Nothing authorises against them: INV-09-11
+ * requires that *revocation* take effect immediately, which is a property of
+ * the check above, not of this timestamp. A minute of granularity on a column
+ * rendered as a date costs the reader nothing and removes a write from the hot
+ * path of every authenticated request.
+ */
+const ACTIVITY_STAMP_INTERVAL_MS = 60_000;
+
+function stampIsStale(previous: unknown, now: string): boolean {
+  if (!previous) return true;
+  const then = Date.parse(str(previous));
+  if (!Number.isFinite(then)) return true;
+  return Date.parse(now) - then >= ACTIVITY_STAMP_INTERVAL_MS;
+}
+
 export async function loadGrants(db: D1Db, personId: string, now: string): Promise<RoleGrantView[]> {
-  const rows = await db.select<Record<string, unknown>>("role_grant", { person_id: personId });
+  const rows = await db.select<Row>("role_grant", { person_id: personId });
+  return liveGrants(rows, now);
+}
+
+function liveGrants(rows: Row[], now: string): RoleGrantView[] {
   return rows
     .map((r) => ({
       role: str(r.role) as RoleGrantView["role"],
@@ -205,27 +289,81 @@ export async function loadGrants(db: D1Db, personId: string, now: string): Promi
  * rather than baked into a session.
  */
 export async function loadRelationships(db: D1Db, personId: string): Promise<Relationships> {
-  const [speakerRows, submitted, credited, contacts, participants] = await Promise.all([
-    db.raw<{ session_id: string }>(
-      "SELECT session_id FROM session_speaker WHERE person_id = ? AND confirmation_status != 'replaced'",
-      [personId],
-    ),
-    db.raw<{ id: string }>("SELECT id FROM proposal WHERE submitter_person_id = ? AND deleted_at IS NULL", [personId]),
-    db.raw<{ proposal_id: string }>(
-      "SELECT proposal_id FROM proposal_speaker WHERE person_id = ? AND participation_status != 'removed'",
-      [personId],
-    ),
-    db.raw<{ sponsor_id: string }>("SELECT sponsor_id FROM sponsor_contact WHERE person_id = ? AND status = 'active'", [
-      personId,
-    ]),
-    db.raw<{ event_id: string }>("SELECT event_id FROM event_participant WHERE person_id = ?", [personId]),
-  ]);
+  // The grants column of the shared statement is simply ignored here: this
+  // caller asks only about relationships. `loadPrincipalFacts` reads both.
+  const rows = await db.raw<Row>(PRINCIPAL_FACTS_SQL, principalFactsParams(personId, db.orgId));
+  return relationshipsFrom(rows[0]);
+}
+
+/**
+ * The six lookups authorization needs about one person, as one statement.
+ *
+ * Grants and the five relationship tables answer the same question — what may
+ * this person touch — and they were six round trips, run for every
+ * authenticated request in the product before its route had even been matched.
+ * They share no join key, so there is no join to write.
+ *
+ * `UNION ALL` is the obvious shape and does not fit: D1's SQLite is built with
+ * `SQLITE_MAX_COMPOUND_SELECT` at 5, and six arms fails with "too many terms in
+ * compound SELECT" — a limit worth knowing about before reaching for the same
+ * trick elsewhere in this codebase.
+ *
+ * So: six uncorrelated scalar subqueries, each aggregated with
+ * `json_group_array`, returning exactly one row. No compound terms, no
+ * discriminator column, no cross-arm padding, and each subquery is still the
+ * same index scan it was as a statement of its own.
+ */
+const PRINCIPAL_FACTS_SQL = `SELECT
+  (SELECT json_group_array(json_array(role, scope_type, scope_id, expires_at, revoked_at))
+     FROM role_grant WHERE org_id = ? AND person_id = ?)                                              AS grants,
+  (SELECT json_group_array(session_id)
+     FROM session_speaker WHERE person_id = ? AND confirmation_status != 'replaced')                  AS speaker_sessions,
+  (SELECT json_group_array(id)
+     FROM proposal WHERE submitter_person_id = ? AND deleted_at IS NULL)                              AS submitted,
+  (SELECT json_group_array(proposal_id)
+     FROM proposal_speaker WHERE person_id = ? AND participation_status != 'removed')                 AS credited,
+  (SELECT json_group_array(sponsor_id)
+     FROM sponsor_contact WHERE person_id = ? AND status = 'active')                                  AS sponsors,
+  (SELECT json_group_array(event_id)
+     FROM event_participant WHERE person_id = ?)                                                      AS participants`;
+
+/** `role_grant` is org-scoped (INV-11-1); the relationship tables are scoped by their person. */
+function principalFactsParams(personId: string, orgId: string): unknown[] {
+  return [orgId, personId, personId, personId, personId, personId, personId];
+}
+
+/** `json_group_array` of no rows is `[]`, never NULL — but a missing column is. */
+function jsonIds(value: unknown): string[] {
+  return parseJson<unknown[]>(value, []).map((v) => str(v));
+}
+
+function relationshipsFrom(row: Row | undefined): Relationships {
+  if (!row) return NO_RELATIONSHIPS;
   return {
-    session_ids: speakerRows.map((r) => r.session_id),
-    proposal_ids: [...new Set([...submitted.map((r) => r.id), ...credited.map((r) => r.proposal_id)])],
-    sponsor_ids: contacts.map((r) => r.sponsor_id),
-    participant_event_ids: participants.map((r) => r.event_id),
+    session_ids: jsonIds(row.speaker_sessions),
+    proposal_ids: [...new Set([...jsonIds(row.submitted), ...jsonIds(row.credited)])],
+    sponsor_ids: jsonIds(row.sponsors),
+    participant_event_ids: jsonIds(row.participants),
   };
+}
+
+/** Grants and relationships together — one statement, one row, one parse. */
+async function loadPrincipalFacts(
+  db: D1Db,
+  orgId: string,
+  personId: string,
+  now: string,
+): Promise<{ grants: RoleGrantView[]; relationships: Relationships }> {
+  const row = (await db.raw<Row>(PRINCIPAL_FACTS_SQL, principalFactsParams(personId, orgId)))[0];
+  // `json_array` per grant, so the tuple order here is the column order above.
+  const grantRows = parseJson<unknown[][]>(row?.grants, []).map((g) => ({
+    role: g[0],
+    scope_type: g[1],
+    scope_id: g[2],
+    expires_at: g[3],
+    revoked_at: g[4],
+  }));
+  return { grants: liveGrants(grantRows, now), relationships: relationshipsFrom(row) };
 }
 
 /**
@@ -247,6 +385,52 @@ export async function loadRelationships(db: D1Db, personId: string): Promise<Rel
  */
 export interface QueryCounter {
   count: number;
+  /**
+   * How many times the request actually went to D1.
+   *
+   * Not the same number as `count`, and the difference is the point:
+   * `d1.batch()` sends any number of prepared statements in **one** round trip,
+   * so a publish that writes two hundred `published_session` rows through
+   * `insertMany` prepares two hundred statements and makes one call. Statements
+   * measure the work; round trips measure the latency, and an optimisation that
+   * moves work into a batch shows up here and nowhere else.
+   */
+  roundTrips: number;
+  /**
+   * The statement text, in preparation order, when the caller asked to be
+   * profiled (`http/profile.ts`). Absent otherwise, which is the ordinary case:
+   * the count is cheap, keeping every string is not.
+   */
+  statements?: string[];
+}
+
+/** The methods on a prepared statement that actually talk to D1. */
+const EXECUTING = new Set(["all", "run", "first", "raw"]);
+
+/**
+ * A prepared statement that reports when it is executed.
+ *
+ * `bind()` returns a *new* statement rather than mutating this one, so the
+ * wrapper has to re-wrap its result or every bound statement — which is nearly
+ * all of them — would execute uncounted.
+ */
+function countingStatement(stmt: D1PreparedStatement, counter: QueryCounter): D1PreparedStatement {
+  return new Proxy(stmt, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target);
+      if (typeof value !== "function") return value;
+      if (prop === "bind") {
+        return (...args: unknown[]) => countingStatement((value as (...a: unknown[]) => D1PreparedStatement).call(target, ...args), counter);
+      }
+      if (EXECUTING.has(String(prop))) {
+        return (...args: unknown[]) => {
+          counter.roundTrips++;
+          return (value as (...a: unknown[]) => unknown).call(target, ...args);
+        };
+      }
+      return value.bind(target);
+    },
+  });
 }
 
 function countingEnv(env: Env, counter: QueryCounter): Env {
@@ -255,13 +439,21 @@ function countingEnv(env: Env, counter: QueryCounter): Env {
       // `target` as the receiver, not the proxy: a host accessor that reads
       // `this` would otherwise be handed the wrapper and re-enter this trap.
       const value = Reflect.get(target, prop, target);
-      if (prop !== "prepare" || typeof value !== "function") {
-        return typeof value === "function" ? value.bind(target) : value;
+      if (prop === "prepare" && typeof value === "function") {
+        return (sql: string) => {
+          counter.count++;
+          counter.statements?.push(sql);
+          return countingStatement((value as D1Database["prepare"]).call(target, sql), counter);
+        };
       }
-      return (sql: string) => {
-        counter.count++;
-        return (value as D1Database["prepare"]).call(target, sql);
-      };
+      // Any number of statements, one call to D1 — see `roundTrips`.
+      if (prop === "batch" && typeof value === "function") {
+        return (...args: unknown[]) => {
+          counter.roundTrips++;
+          return (value as (...a: unknown[]) => unknown).call(target, ...args);
+        };
+      }
+      return typeof value === "function" ? value.bind(target) : value;
     },
   });
   return { ...env, DB: db };
@@ -270,13 +462,23 @@ function countingEnv(env: Env, counter: QueryCounter): Env {
 export async function buildContext(req: Request, env: Env, waitUntil: (p: Promise<unknown>) => void): Promise<RequestContext> {
   const url = new URL(req.url);
   const now = nowIso();
+  const startedAtMs = Date.now();
   // Wrapped before anything reads: `resolveOrgId` is itself a query, and a
   // counter that starts after the first one is a counter that is wrong by one.
-  const queries: QueryCounter = { count: 0 };
+  const queries: QueryCounter = { count: 0, roundTrips: 0 };
+  if (profileRequested(req, str(env.ENVIRONMENT))) queries.statements = [];
   env = countingEnv(env, queries);
-  const orgId = await resolveOrgId(env);
+  // The per-request identity map (`enableRowCache`, packages/data/src/db.ts),
+  // on for safe methods only. A GET cannot be a read-modify-write, which is the
+  // shape a row cache could otherwise get wrong; a mutating request runs with
+  // no cache at all and re-reads exactly as it always has.
+  if (req.method === "GET" || req.method === "HEAD") enableRowCache(env.DB);
+  // One statement for the id *and* the row: `resolveOrg` is the whole
+  // organization, so the id it yields never has to be spent looking the same
+  // row up again.
+  const orgRow = await resolveOrg(env);
+  const orgId = str(orgRow?.id);
   const db = new D1Db(env.DB, orgId);
-  const orgRow = orgId ? await db.byId<Row>("organization", orgId) : null;
   const orgTimezone = str(orgRow?.default_timezone, "UTC");
 
   let person: PersonView | null = null;
@@ -296,8 +498,10 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
       const evs = parseJson<string[]>(row.event_ids, []);
       apiEventIds = evs.length ? evs : null;
       // INV-09-11: revocation takes effect immediately, so `last_used_at` is a
-      // write we can afford to defer but the check above is not.
-      waitUntil(db.update("api_key", apiKeyId, { last_used_at: now }));
+      // write we can afford to defer but the check above is not — and, since
+      // the column is only ever displayed, one we can afford to skip entirely
+      // while it is still fresh (`ACTIVITY_STAMP_INTERVAL_MS`).
+      if (stampIsStale(row.last_used_at, now)) waitUntil(db.update("api_key", apiKeyId, { last_used_at: now }));
       grants = apiKeyGrants(apiScopes, orgId);
     }
   }
@@ -305,12 +509,18 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
   if (!apiKeyId) {
     const token = cookiesOf(req)[SESSION_COOKIE];
     if (token) {
-      const sess = await db.first<Record<string, unknown>>("auth_session", { token_hash: hashToken(token) });
-      if (sess && str(sess.expires_at) > now) {
-        person = await loadPerson(db, str(sess.person_id));
+      const sess = await loadSessionAndPerson(db, orgId, hashToken(token));
+      if (sess && sess.expiresAt > now) {
+        // INV-01-9: reads follow the merge pointer. Set only on a merged
+        // person, so the second statement is the exception, not the rule.
+        person = sess.person.merged_into_person_id
+          ? await loadPerson(db, str(sess.person.merged_into_person_id))
+          : personView(sess.person);
         if (person) {
-          [grants, relationships] = await Promise.all([loadGrants(db, person.id, now), loadRelationships(db, person.id)]);
-          waitUntil(db.update("auth_session", str(sess.id), { last_seen_at: now }));
+          ({ grants, relationships } = await loadPrincipalFacts(db, orgId, person.id, now));
+          if (stampIsStale(sess.lastSeenAt, now)) {
+            waitUntil(db.update("auth_session", sess.sessionId, { last_seen_at: now }));
+          }
         }
       }
     }
@@ -352,6 +562,7 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
     eventId: null,
     orgTimezone,
     now,
+    startedAtMs,
     queries,
     waitUntil,
     app(eventId?: string | null) {

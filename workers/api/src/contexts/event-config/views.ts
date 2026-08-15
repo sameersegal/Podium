@@ -198,12 +198,28 @@ export interface CfpTrackView {
   sort_order: number;
 }
 
+/**
+ * The rows one `IN (…)` read behind a list of options, indexed by id.
+ *
+ * Both option lists below were a `byId` per option — five statements to draw a
+ * five-format CFP, on six different screens including the public one. One read
+ * for the whole list is the same rows in the same order (the order comes from
+ * the options, not from this), minus the loop.
+ */
+async function byIdIndex(app: AppContext, table: string, ids: string[]): Promise<Map<string, Row>> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return new Map();
+  const rows = await app.db.select<Row>(table, { id: unique });
+  return new Map(rows.map((r) => [str(r.id), r]));
+}
+
 export async function cfpFormatOptions(app: AppContext, cfpId: string, availableOnly = false): Promise<CfpFormatView[]> {
   const options = await app.db.select<Row>("cfp_format_option", { cfp_id: cfpId }, { orderBy: "sort_order, id" });
+  const formats = await byIdIndex(app, "session_format", options.map((o) => str(o.session_format_id)));
   const out: CfpFormatView[] = [];
   for (const o of options) {
     if (availableOnly && !bool(o.is_available)) continue;
-    const fmt = await app.db.byId<Row>("session_format", str(o.session_format_id));
+    const fmt = formats.get(str(o.session_format_id));
     if (!fmt) continue; // archived formats drop out (INV-11-2)
     out.push({
       id: str(o.id),
@@ -226,10 +242,11 @@ export async function cfpFormatOptions(app: AppContext, cfpId: string, available
 
 export async function cfpTrackOptions(app: AppContext, cfpId: string, availableOnly = false): Promise<CfpTrackView[]> {
   const options = await app.db.select<Row>("cfp_track_option", { cfp_id: cfpId }, { orderBy: "sort_order, id" });
+  const tracks = await byIdIndex(app, "track", options.map((o) => str(o.track_id)));
   const out: CfpTrackView[] = [];
   for (const o of options) {
     if (availableOnly && !bool(o.is_available)) continue;
-    const trk = await app.db.byId<Row>("track", str(o.track_id));
+    const trk = tracks.get(str(o.track_id));
     if (!trk) continue;
     out.push({
       id: str(o.id),

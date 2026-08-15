@@ -165,12 +165,19 @@ npm test           # unit + integration against real local D1, KV, R2, Queues an
 npm run typecheck
 npm run drift      # model↔code consistency; exits non-zero on a defect
 node scripts/smoke.mjs   # walk every screen as each persona
+npm run perf:db    # D1 cost of every action, against the running dev instance
 ```
 
 Keep these green. They are the contract, not a formality:
 
 - `npm run drift` reports **0 errors, 0 warnings**. A new `enum(...)` left unspelled or an
   event promised but uncatalogued will break it, which is the point.
+- `npm run perf:db` walks every route as each persona and reports what each one spent its D1
+  budget on — the shared `buildContext` baseline, the statements a request *repeated*, and
+  the cost by table. A repeated statement is an N+1 whatever the code looks like, which is
+  why it is the number to read first. `tests/integration/foundation/query-budget.test.ts`
+  holds the handful of screens worth failing a build over; this finds the ones nobody
+  suspected. See "Profiling every action" in [`docs/implementation.md`](docs/implementation.md).
 - Every invariant is cited in the code or the migration that enforces it, and the ones with
   behaviour are named in a test title.
 - `tests/unit/shared/unit-of-work.test.ts` fails the build if a mutating handler opens an

@@ -12,6 +12,7 @@ import { replayUnprocessedEvents } from "../consumers/replay.js";
 import { str, type Row } from "@podiumstack/data/db.js";
 import { forbidden, notFound } from "@podiumstack/domain/shared/errors.js";
 import type { RequestContext } from "../http/context.js";
+import { drainProfiles } from "../http/profile.js";
 import { json } from "../http/responses.js";
 import type { Router } from "../http/router.js";
 
@@ -93,6 +94,54 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
       httpMetadata: { contentType: str(asset.content_type) },
     });
     return json({ storage_key: str(asset.storage_key), size_bytes: bytes.byteLength });
+  });
+
+  /**
+   * One real id per table, so a walker can build a URL for every route rather
+   * than only for the handful `/dev/ids` happens to name.
+   *
+   * `/dev/ids` answers "what is the seeded event" — a curated, stable shape a
+   * smoke walk reads by name. This answers the different question the profiler
+   * asks: for each `:someId` in the route table, give me *a* row that exists.
+   * Keeping them apart means adding a table here cannot quietly change what
+   * `smoke.mjs` walks.
+   *
+   * `SELECT id … LIMIT 1` per table, unscoped by org on purpose: this is a
+   * development affordance on a single-org deployment, and the tables without
+   * an `org_id` column (INV-11-1 scopes those by joining) would otherwise have
+   * to be special-cased one by one.
+   */
+  router.get("/dev/fixtures", async (req, ctx) => {
+    guard(ctx);
+    const app = ctx.app();
+    const wanted = (new URL(req.url).searchParams.get("tables") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+    const out: Record<string, string | null> = {};
+    for (const table of wanted) {
+      // The caller names tables, so the name is checked against the schema
+      // rather than interpolated: a dev route is still a route.
+      if (!/^[a-z_]+$/.test(table)) continue;
+      const known = await app.db.raw<Row>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [table]);
+      if (!known.length) {
+        out[table] = null;
+        continue;
+      }
+      const rows = await app.db.raw<Row>(`SELECT id FROM ${table} LIMIT 1`);
+      out[table] = rows.length ? str(rows[0].id) : null;
+    }
+    return json({ fixtures: out });
+  });
+
+  /**
+   * Drain the D1 statement profiles captured since the last call.
+   *
+   * A profiler walks the app sending `x-podium-profile: 1`, then reads this
+   * once at the end: the response header already carried the *count*, and this
+   * carries the statements behind it, which is what tells an N+1 apart from an
+   * honestly expensive screen. See `http/profile.ts`.
+   */
+  router.get("/dev/profile", async (_req, ctx) => {
+    guard(ctx);
+    return json({ records: drainProfiles() });
   });
 
   /** Run every cron sweep now rather than waiting for the next trigger. */

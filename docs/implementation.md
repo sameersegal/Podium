@@ -267,28 +267,96 @@ throttling, so the table reports `load` — a strictly later event, and therefor
 conservative reading of a first-render budget.
 
 **Server — D1 statements per request.** Every response outside production carries
-`x-podium-d1-queries` (`index.ts::withQueryCount`), and
+`x-podium-d1-queries` and `x-podium-d1-roundtrips` (`index.ts::withQueryCount`), and
 `tests/integration/foundation/query-budget.test.ts` holds the hot screens to a ceiling.
 
 | Route | before | after |
 |---|---|---|
-| `/admin` (Today, server-rendered) | 94 | **45** |
-| `GET /v1/events/:id/dashboard` | 90 | **48** (41 with `?sections=today`) |
-| `/admin/events/:id/publications` | 55 | **32** |
-| `/review`, `/portal`, `/e/:slug` | — | 15, 17, 4 |
+| `/admin` (Today, server-rendered) | 94 | **35** |
+| `GET /v1/events/:id/dashboard` | 90 | **37** |
+| `/admin/events/:id/publications` | 55 | **20** |
+| `/review`, `/portal`, `/e/:slug` | 15, 17, 4 | **6, 9, 4** |
 
-Four N+1s were the cause and are gone: eleven `COUNT(*) … WHERE status = ?` per table became
-one `GROUP BY`; four statements per review round and one per call for papers became one
-grouped query each; `pendingChanges` loaded the schedule, handed it to `buildSnapshot`, and
-then loaded it again; and that snapshot assembled a full publication payload — speakers,
+Four N+1s were the first cause and are gone: eleven `COUNT(*) … WHERE status = ?` per table
+became one `GROUP BY`; four statements per review round and one per call for papers became
+one grouped query each; `pendingChanges` loaded the schedule, handed it to `buildSnapshot`,
+and then loaded it again; and that snapshot assembled a full publication payload — speakers,
 profiles, sponsors, tiers, assets — to derive a count it then discarded (`verdictsOnly`).
 
-Two costs remain and neither is a defect. **~11 statements of request context** — org,
-session, person, grants and the five relationship lookups authorization needs — are the floor
-for any signed-in page; `/login` alone costs 11. **~20 statements answer "what is not
-published yet"**: the diff has to read the schedule to be exact, and it is flat in the number
-of sessions rather than N+1. The single-digit budget is reachable only by making one of those
-approximate, which is a product decision rather than an optimisation.
+### Profiling every action, not the screens we suspected
+
+`npm run perf:db` (`scripts/perf-db.mjs`) walks **every** route against a seeded local
+instance as each persona, and joins the count on each response to the statement text behind
+it, drained from `/dev/profile`. The route list comes from the security skill's
+`attack_surface.py` inventory rather than a list kept beside it, so a route cannot be added
+without being profiled. It reports three things a single number cannot: the shared
+`buildContext` baseline, the statements a request *repeated* (the N+1 detector — identical
+parameterised SQL sent k times is a loop over rows, whatever the code looks like), and where
+the budget went by table.
+
+Run across 162 routes, it found that **60% of every statement in the product was request
+context**, not any screen. The result of acting on it:
+
+| | before | after |
+|---|---|---|
+| statements across the 162-route walk | 2533 | **1235** |
+| median per action | 14 | **6** |
+| p90 · max | 25 · 68 | **15 · 37** |
+| `buildContext` baseline, paid by every request | 11 | **3** |
+
+The baseline is where most of it came from, and it was four separate mistakes:
+
+- `resolveOrgId` selected the organization's **id**, then `buildContext` selected the **row**
+  that id names. `resolveOrg` returns the row, and the id comes off it.
+- The session was looked up by token hash and the person by the id it holds — two round trips
+  for a pair that is never useful apart. One join, carrying the same org scope and
+  soft-delete exclusion `byId` would have applied. The merge pointer (INV-01-9) is followed
+  with a second statement only when it is set.
+- Grants plus the five relationship tables were six round trips before any route ran. They
+  are now one row of `json_group_array` subqueries (`PRINCIPAL_FACTS_SQL`). `UNION ALL` is
+  the obvious shape and does not fit: **D1's SQLite is built with
+  `SQLITE_MAX_COMPOUND_SELECT` at 5**, so six arms fails outright — worth knowing before
+  reaching for the same trick elsewhere.
+- `auth_session.last_seen_at` and `api_key.last_used_at` were written on *every* request,
+  making every read of the product also a write. Both are display-only; they now refresh at
+  most once a minute.
+
+Beyond the baseline, the profile named the loops directly:
+
+| Route | before | after | what it was |
+|---|---|---|---|
+| `/admin/events/:id/files` | 68 | **11** | a `COUNT(*)` and a label lookup per slot |
+| `/admin/cfps/:id/form/preview` | 46 | **15** | per-option format/track reads, plus a whole `publicCfpView` fetched for one column |
+| `/v1/me/assignments/:id` | 43 | **29** | the same event and round re-read by four layers |
+| `/v1/events/:id/schedule` | 40 | **20** | the schedule fact set loaded twice |
+| `/admin/rounds/:id/assignments/auto` | 39 | **25** | three statements per proposal to grade conflicts |
+| `/admin/events/:id/decisions` | 35 | **16** | six statements per proposal to find its score |
+| `/admin/events/:id/sponsorships` | 28 | **13** | three statements per sponsorship |
+
+**The per-request identity map** (`packages/data/src/db.ts`) is the one structural change
+rather than a local fix. A request builds several `AppContext`s — `ctx.app()` returns a fresh
+one each call — so nothing was in a position to notice that the route guard, the page shell
+and the handler had all just read the same `event` row; it was the single most repeated
+statement in the product. `byId` now answers from a map keyed on the per-request binding.
+Three rules keep it from becoming a staleness bug: **primary key reads only** (a `select` is
+a question about a set), **any write to a table drops that table's rows** — `rawRun` and
+`batch` drop everything, since this layer does not parse their SQL — and **opt-in for safe
+methods only**, so no mutating request, queue consumer or cron sweep has a cache at all.
+`tests/integration/foundation/row-cache.test.ts` pins all three.
+
+**Statements are not round trips.** `d1.batch()` sends any number of prepared statements in
+one call, so publishing a 200-session schedule through `insertMany` prepares 200 statements
+and makes one call. The profiler and the response headers now report both, because an
+optimisation that moves work into a batch shows up in one and not the other. Publishing was
+also doing a read and a write *per session* to move it to `published` (INV-08-5) — 400
+statements for a 200-session conference — which is now one read and one batched write, and
+all-or-nothing as a bonus.
+
+Two costs remain and neither is a defect. **3 statements of request context** are the floor
+for any signed-in page. **~20 statements answer "what is not published yet"**: the diff has
+to read the schedule to be exact, and it is flat in the number of sessions rather than N+1.
+The single-digit budget is reachable only by making one of those approximate, which is a
+product decision rather than an optimisation.
 
 ### The rail, and where its counts come from
 

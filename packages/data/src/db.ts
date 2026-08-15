@@ -239,6 +239,50 @@ function encode(value: unknown): unknown {
   return value;
 }
 
+/* -------------------------------------------------------------------------- */
+/* The per-request identity map                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One row, read once per request, however many layers ask for it.
+ *
+ * A request builds several `AppContext`s — `ctx.app()` returns a fresh one on
+ * every call — and each builds its own `D1Db`, so nothing was in a position to
+ * notice that the route guard, the page shell and the handler had all just read
+ * the same `event` row. Profiling put that at the top of the list: the single
+ * most repeated statement in the whole product was `SELECT * FROM event WHERE
+ * id = ?`, up to four times in one request.
+ *
+ * Three rules keep it from becoming a staleness bug:
+ *
+ *   1. **Primary key reads only.** `byId` and nothing else. A `select` with a
+ *      `where` is a question about a set, and a set can change under any write;
+ *      one row identified by its id cannot change except by a write to that
+ *      row, which is rule 2.
+ *   2. **Any write to a table drops that table's rows.** Insert, update,
+ *      versioned update, soft delete, hard delete — all of them. `rawRun` and
+ *      `batch` carry SQL this layer does not parse, so they drop *everything*.
+ *      Read-modify-write within a request therefore always re-reads.
+ *   3. **Opt-in, per request.** `buildContext` enables it for safe methods
+ *      (GET/HEAD) only. Queue consumers, cron sweeps and every mutating
+ *      request run with no cache at all, exactly as before.
+ *
+ * Keyed on the `D1Database` binding rather than plumbed through constructors,
+ * because the per-request binding proxy is already the one object every
+ * `AppContext` of a request shares — the same seam `countingEnv` uses. A
+ * `WeakMap` means the cache dies with the request that made it.
+ */
+const ROW_CACHES = new WeakMap<D1Database, Map<string, Row | null>>();
+
+/** Turns the identity map on for everything sharing this binding. */
+export function enableRowCache(d1: D1Database): void {
+  if (!ROW_CACHES.has(d1)) ROW_CACHES.set(d1, new Map());
+}
+
+export function rowCacheSize(d1: D1Database): number {
+  return ROW_CACHES.get(d1)?.size ?? 0;
+}
+
 export class D1Db implements Db {
   constructor(
     private readonly d1: D1Database,
@@ -247,6 +291,20 @@ export class D1Db implements Db {
 
   forOrg(orgId: string): D1Db {
     return new D1Db(this.d1, orgId);
+  }
+
+  /** Rule 2 — a write to `table` invalidates every cached row of it. */
+  private invalidate(table: string | null): void {
+    const cache = ROW_CACHES.get(this.d1);
+    if (!cache) return;
+    if (table === null) {
+      cache.clear();
+      return;
+    }
+    const prefix = `${table} `;
+    for (const key of cache.keys()) {
+      if (key.startsWith(prefix)) cache.delete(key);
+    }
   }
 
   async select<T extends Row = Row>(table: string, where: Row = {}, opts: QueryOptions = {}): Promise<T[]> {
@@ -266,7 +324,15 @@ export class D1Db implements Db {
 
   async byId<T extends Row = Row>(table: string, id: string, opts: QueryOptions = {}): Promise<T | null> {
     if (!id) return null;
-    return this.first<T>(table, { id }, opts);
+    const cache = ROW_CACHES.get(this.d1);
+    // The org is part of the key: `forOrg` gives the platform surfaces a view
+    // of the same binding scoped elsewhere, and the same id can be a hit in one
+    // org and a miss in another (INV-11-1).
+    const key = cache ? `${table} ${this.orgId} ${opts.includeDeleted ? 1 : 0} ${id}` : "";
+    if (cache && cache.has(key)) return cache.get(key) as T | null;
+    const row = await this.first<T>(table, { id }, opts);
+    if (cache) cache.set(key, row);
+    return row;
   }
 
   async count(table: string, where: Row = {}, opts: QueryOptions = {}): Promise<number> {
@@ -281,6 +347,7 @@ export class D1Db implements Db {
   async insert<T extends Row = Row>(table: string, values: Row): Promise<T> {
     const { statement, row } = buildInsert(table, values, this.orgId);
     await this.d1.prepare(statement.sql).bind(...(statement.params ?? [])).run();
+    this.invalidate(table);
     return row as T;
   }
 
@@ -295,12 +362,14 @@ export class D1Db implements Db {
         .bind(...keys.map((k) => encode(row[k])));
     });
     await this.d1.batch(statements);
+    this.invalidate(table);
   }
 
   async update(table: string, id: string, values: Row): Promise<void> {
     if (Object.keys(values).length === 0) return;
     const { sql, params } = buildUpdate(table, id, values, this.orgId);
     await this.d1.prepare(sql).bind(...(params ?? [])).run();
+    this.invalidate(table);
   }
 
   /**
@@ -319,6 +388,7 @@ export class D1Db implements Db {
       params.push(this.orgId);
     }
     const res = await this.d1.prepare(sql).bind(...params).run();
+    this.invalidate(table);
     const changed = res.meta?.changes ?? 0;
     if (changed === 0) {
       const current = await this.byId(table, id, { includeDeleted: true });
@@ -334,6 +404,7 @@ export class D1Db implements Db {
   async hardDelete(table: string, where: Row): Promise<void> {
     const { sql, params } = buildWhere(table, this.orgId, where, { includeDeleted: true });
     await this.d1.prepare(`DELETE FROM ${table}${sql}`).bind(...params).run();
+    this.invalidate(table);
   }
 
   async raw<T extends Row = Row>(sql: string, params: unknown[] = []): Promise<T[]> {
@@ -343,6 +414,7 @@ export class D1Db implements Db {
 
   async rawRun(sql: string, params: unknown[] = []): Promise<void> {
     await this.d1.prepare(sql).bind(...params.map(encode)).run();
+    this.invalidate(null); // Rule 2 — SQL this layer does not parse drops everything.
   }
 
   /**
@@ -356,6 +428,7 @@ export class D1Db implements Db {
   async batch(statements: Statement[]): Promise<void> {
     if (statements.length === 0) return;
     await this.d1.batch(statements.map((s) => this.d1.prepare(s.sql).bind(...(s.params ?? []).map(encode))));
+    this.invalidate(null); // Rule 2 — SQL this layer does not parse drops everything.
   }
 }
 

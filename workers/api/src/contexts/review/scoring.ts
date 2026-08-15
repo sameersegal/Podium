@@ -389,6 +389,107 @@ export async function roundResults(app: AppContext, round: RoundView): Promise<R
   return { round, criteria, rows };
 }
 
+export interface DecisionQueueRow {
+  proposal: Row;
+  decision: Row | null;
+  round_id: string | null;
+  score: ProposalScore | null;
+}
+
+/**
+ * The decision queue for a whole event — every proposal awaiting a call, with
+ * the decision standing against it and the score behind that call.
+ *
+ * `roundResults` above is the same idea for one round, and this is the shape
+ * the *cross-round* screens need: the decisions queue spans rounds, so it
+ * cannot pick a rubric up front.
+ *
+ * It exists because the two callers were both writing the loop by hand —
+ * per proposal: read its decisions, read its assignments to find the latest
+ * round, then read the round, the rubric's criteria and the reviews to score
+ * it. Six statements per row, so a 300-proposal event cost eighteen hundred of
+ * them to draw one table. Flat, it is eight, whatever the event's size:
+ *
+ *   proposals · decisions · assignments · reviews (+ their criterion scores)
+ *   · rounds · criteria
+ *
+ * "An N+1 is a defect, not a slow path" (`implementer.md`, G).
+ */
+export async function decisionQueue(app: AppContext, eventId: string, statuses: string[]): Promise<DecisionQueueRow[]> {
+  const proposals = await app.db.select<Row>("proposal", { event_id: eventId, status: statuses }, { orderBy: "reference" });
+  if (!proposals.length) return [];
+  const proposalIds = proposals.map((p) => str(p.id));
+
+  // The review tables carry no `org_id` (see this file's header), so they are
+  // reached by proposal id, which the org-scoped `proposal` read above already
+  // authorised.
+  const [decisions, assignments, reviews] = await Promise.all([
+    app.db.select<Row>("decision", { proposal_id: proposalIds }),
+    app.db.select<Row>("review_assignment", { proposal_id: proposalIds }, { orderBy: "assigned_at DESC" }),
+    loadReviews(app, { proposal_id: proposalIds }),
+  ]);
+
+  // Which round each proposal's score is about: its most recent assignment,
+  // falling back to its most recent review — the same rule the per-proposal
+  // helper applied, applied once over all the rows instead of once per row.
+  const roundByProposal = new Map<string, string>();
+  for (const a of assignments) {
+    const pid = str(a.proposal_id);
+    if (!roundByProposal.has(pid)) roundByProposal.set(pid, str(a.round_id));
+  }
+  // `loadReviews` orders by `created_at` ascending, so walking it backwards
+  // reaches each proposal's most recent review first — the same row the
+  // per-proposal `ORDER BY created_at DESC LIMIT 1` used to return.
+  for (let i = reviews.length - 1; i >= 0; i--) {
+    const r = reviews[i];
+    if (!roundByProposal.has(r.proposal_id)) roundByProposal.set(r.proposal_id, r.round_id);
+  }
+
+  const roundIds = [...new Set(roundByProposal.values())];
+  const roundRows = roundIds.length ? await app.db.select<RoundRow>("review_round", { id: roundIds }) : [];
+  const rounds = new Map(roundRows.map((r) => [str(r.id), toRoundView(r)]));
+
+  const rubricIds = [...new Set([...rounds.values()].map((r) => r.rubric_id).filter(Boolean))];
+  const criterionRows = rubricIds.length
+    ? await app.db.select<Row>("rubric_criterion", { rubric_id: rubricIds }, { orderBy: "sort_order, key" })
+    : [];
+  const criteriaByRubric = new Map<string, CriterionView[]>();
+  for (const row of criterionRows) {
+    const list = criteriaByRubric.get(str(row.rubric_id)) ?? [];
+    list.push(toCriterionView(row));
+    criteriaByRubric.set(str(row.rubric_id), list);
+  }
+
+  const decisionByProposal = new Map<string, Row>();
+  for (const d of decisions) {
+    if (str(d.status) === "superseded") continue;
+    decisionByProposal.set(str(d.proposal_id), d);
+  }
+  const reviewsByProposalRound = new Map<string, ReviewView[]>();
+  for (const r of reviews) {
+    const key = `${r.proposal_id}|${r.round_id}`;
+    const list = reviewsByProposalRound.get(key) ?? [];
+    list.push(r);
+    reviewsByProposalRound.set(key, list);
+  }
+
+  return proposals.map((proposal) => {
+    const pid = str(proposal.id);
+    const roundId = roundByProposal.get(pid) ?? null;
+    const round = roundId ? rounds.get(roundId) : undefined;
+    const score = round
+      ? aggregateProposalScore({
+          proposal_id: pid,
+          round_id: round.id,
+          criteria: criteriaByRubric.get(round.rubric_id) ?? [],
+          reviews: reviewsByProposalRound.get(`${pid}|${round.id}`) ?? [],
+          target_reviews_per_proposal: round.target_reviews_per_proposal,
+        })
+      : null;
+    return { proposal, decision: decisionByProposal.get(pid) ?? null, round_id: roundId, score };
+  });
+}
+
 export const RESULT_SORTS = [
   "reference",
   "title",
@@ -521,6 +622,60 @@ export async function loadConflicts(app: AppContext, eventId: string, reviewerPe
   if (reviewerPersonId) where.reviewer_person_id = reviewerPersonId;
   const rows = await app.db.select<Row>("conflict_of_interest", where);
   return rows.map(toConflictRecord);
+}
+
+/**
+ * The same thing as `conflictSubject`, for many proposals in three statements.
+ *
+ * The assignable-pool screen asked for one subject per proposal, and each was
+ * three reads — the proposal, its credited speakers, their email domains — so
+ * grading a 300-proposal round for conflicts cost nine hundred statements
+ * before a single reviewer had been matched to anything. Every one of the three
+ * is an `IN (…)` away from being asked once.
+ *
+ * A proposal id with no row is simply absent from the map: the single-proposal
+ * version throws `notFound`, which is right when a caller named one proposal
+ * and wrong when it named the round's whole pool.
+ */
+export async function conflictSubjectsFor(app: AppContext, proposalIds: string[]): Promise<Map<string, ProposalConflictSubject>> {
+  const ids = [...new Set(proposalIds.filter(Boolean))];
+  if (!ids.length) return new Map();
+
+  const [proposals, speakers] = await Promise.all([
+    app.db.select<Row>("proposal", { id: ids }),
+    app.db.select<Row>("proposal_speaker", { proposal_id: ids }),
+  ]);
+
+  const creditedByProposal = new Map<string, string[]>();
+  for (const s of speakers) {
+    if (str(s.participation_status) === "removed") continue;
+    const key = str(s.proposal_id);
+    creditedByProposal.set(key, [...(creditedByProposal.get(key) ?? []), str(s.person_id)]);
+  }
+
+  const personIds = [
+    ...new Set([...proposals.map((p) => str(p.submitter_person_id)), ...[...creditedByProposal.values()].flat()].filter(Boolean)),
+  ];
+  const people = personIds.length
+    ? await app.db.raw<Row>(`SELECT id, email FROM person WHERE id IN (${personIds.map(() => "?").join(",")})`, personIds)
+    : [];
+  const emailById = new Map(people.map((p) => [str(p.id), str(p.email)]));
+
+  const out = new Map<string, ProposalConflictSubject>();
+  for (const proposal of proposals) {
+    const id = str(proposal.id);
+    const credited = creditedByProposal.get(id) ?? [];
+    out.set(id, {
+      proposal_id: id,
+      submitter_person_id: str(proposal.submitter_person_id),
+      credited_person_ids: credited,
+      sponsor_id: strOrNull(proposal.sponsor_id),
+      speaker_email_domains: [...new Set([str(proposal.submitter_person_id), ...credited])]
+        .map((pid) => emailById.get(pid)?.toLowerCase().split("@")[1] ?? "")
+        .filter(Boolean),
+    });
+  }
+  return out;
 }
 
 /** Everything a `ConflictOfInterest` can attach to for one proposal. */

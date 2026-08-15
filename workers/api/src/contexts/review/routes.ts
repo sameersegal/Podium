@@ -94,6 +94,7 @@ import {
   roundScopeProposals,
   RESULT_SORTS,
   toRoundView,
+  decisionQueue,
   proposalScoreFor,
   type ResultFilters,
   type ResultSort,
@@ -1147,26 +1148,17 @@ function registerDecisionRoutes(router: Router<RequestContext>): void {
     ctx.eventId = event.id;
     ctx.requireRead("decision.manage", { event_id: event.id });
     const app = ctx.app(event.id);
-    const proposals = await app.db.select<Row>(
-      "proposal",
-      { event_id: event.id, status: ["submitted", "in_review", "changes_requested", "waitlisted"] },
-      { orderBy: "reference" },
-    );
-    const rows = [];
-    for (const proposal of proposals) {
-      const decisions = await app.db.select<Row>("decision", { proposal_id: str(proposal.id) });
-      const decision = decisions.find((d) => str(d.status) !== "superseded") ?? null;
-      const roundId = await latestRoundForProposal(app, str(proposal.id));
-      const score = roundId ? await proposalScoreFor(app, roundId, str(proposal.id)) : null;
-      rows.push({
-        proposal,
-        decision,
-        hasQuorum: score ? score.has_quorum : false,
-        // INV-05-17: an AI review never counts towards quorum, so the queue
-        // shows the human count that actually gates the publish.
-        reviews: score ? { done: score.human_review_count, target: score.target_reviews_per_proposal } : null,
-      });
-    }
+    // Flat in the number of proposals — `decisionQueue` reads the decisions,
+    // rounds, reviews and criteria for the whole queue at once rather than
+    // per row. It was six statements per proposal.
+    const rows = (await decisionQueue(app, event.id, ["submitted", "in_review", "changes_requested", "waitlisted"])).map((r) => ({
+      proposal: r.proposal,
+      decision: r.decision,
+      hasQuorum: r.score ? r.score.has_quorum : false,
+      // INV-05-17: an AI review never counts towards quorum, so the queue
+      // shows the human count that actually gates the publish.
+      reviews: r.score ? { done: r.score.human_review_count, target: r.score.target_reviews_per_proposal } : null,
+    }));
     const { tracks, formats } = await eventLookups(app, event.id);
     return htmlResponse(
       adminPage(

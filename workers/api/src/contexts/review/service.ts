@@ -67,6 +67,7 @@ import { createInvitation, findOrCreatePerson, type CreatedInvitation } from "..
 import { applyDecisionToProposal, requestChanges, setProposalStatus } from "../submissions/service.js";
 import {
   conflictSubject,
+  conflictSubjectsFor,
   loadConflicts,
   loadCriteria,
   loadReviewableProposal,
@@ -907,14 +908,25 @@ async function assignableProposals(
   const assignments = await app.db.select<Row>("review_assignment", { round_id: round.id });
   const conflicts = await loadConflicts(app, round.event_id);
 
-  const out: AssignableProposal[] = [];
-  for (const proposal of proposals) {
-    const existing = assignments
-      .filter((a) => str(a.proposal_id) === proposal.id && str(a.status) !== "revoked" && str(a.status) !== "declined")
-      .map((a) => str(a.reviewer_person_id));
-    if (filter.only_under_quorum && existing.length >= round.target_reviews_per_proposal) continue;
+  const existingByProposal = new Map<string, string[]>();
+  for (const a of assignments) {
+    if (str(a.status) === "revoked" || str(a.status) === "declined") continue;
+    const key = str(a.proposal_id);
+    existingByProposal.set(key, [...(existingByProposal.get(key) ?? []), str(a.reviewer_person_id)]);
+  }
 
-    const subject = await conflictSubject(app, proposal.id);
+  // Only the proposals that survive the quorum filter, and their conflict
+  // subjects in three statements rather than three per proposal.
+  const considered = proposals.filter(
+    (p) => !filter.only_under_quorum || (existingByProposal.get(p.id) ?? []).length < round.target_reviews_per_proposal,
+  );
+  const subjects = await conflictSubjectsFor(app, considered.map((p) => p.id));
+
+  const out: AssignableProposal[] = [];
+  for (const proposal of considered) {
+    const existing = existingByProposal.get(proposal.id) ?? [];
+    const subject = subjects.get(proposal.id);
+    if (!subject) continue; // The proposal vanished between the two reads.
     const reviewers = [...new Set(conflicts.map((c) => c.reviewer_person_id))];
     const conflicted = reviewers.filter((r) => matchConflicts(conflicts, r, subject).length > 0);
     // The structural conflicts — submitter and credited speakers — need no

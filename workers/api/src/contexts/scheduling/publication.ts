@@ -11,7 +11,7 @@
  */
 
 import type { AppContext, Env } from "@podiumstack/data/context.js";
-import { D1Db, bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
+import { D1Db, bool, buildUpdate, num, parseJson, str, strOrNull, type Row, type Statement } from "@podiumstack/data/db.js";
 import { DEFAULT_PROFILE_VISIBILITY } from "@podiumstack/domain/identity/types.js";
 import {
   assertNoPrivateFields,
@@ -436,13 +436,23 @@ export async function publishSchedule(app: AppContext, eventId: string, input: P
   await app.db.update("schedule_publication", id, { status: "live" });
 
   // INV-08-5: `published` is where a session lands once it is in a snapshot.
-  for (const s of build.sessions) {
-    const row = await app.db.byId<Row>("session", s.session_id);
-    if (!row) continue;
-    const patch: Row = { updated_at: now };
-    if (str(row.status) === "scheduled") patch.status = "published";
-    if (!row.published_at) patch.published_at = now;
-    await app.db.update("session", s.session_id, patch);
+  //
+  // One read and one batched write for the whole snapshot, rather than a read
+  // and a write per session: publishing a 200-session conference was 400
+  // statements here alone, on the one write in the product that most wants to
+  // be quick. `db.batch` is also all-or-nothing, so a snapshot can no longer
+  // half-move its sessions to `published`.
+  const publishedIds = build.sessions.map((s) => s.session_id);
+  if (publishedIds.length) {
+    const rows = await app.db.select<Row>("session", { id: publishedIds });
+    const patches: Statement[] = [];
+    for (const row of rows) {
+      const patch: Row = { updated_at: now };
+      if (str(row.status) === "scheduled") patch.status = "published";
+      if (!row.published_at) patch.published_at = now;
+      patches.push(buildUpdate("session", str(row.id), patch, app.db.orgId));
+    }
+    await app.db.batch(patches);
   }
 
   app.events.emit({
@@ -765,7 +775,11 @@ export async function snapshotById(env: Env, orgId: string, publicationId: strin
  * Derived, never stored. Diffs the live working state against the `live`
  * publication so the staleness is impossible to miss.
  */
-export async function pendingChanges(app: AppContext, eventId: string): Promise<PendingPublicationChanges> {
+export async function pendingChanges(
+  app: AppContext,
+  eventId: string,
+  preloaded?: { facts: ScheduleFacts },
+): Promise<PendingPublicationChanges> {
   // The schedule facts are loaded once and handed to the snapshot build, rather
   // than each of them loading their own. This function used to read the whole
   // fact set twice — once here, once inside `buildSnapshot` — and wait for the
@@ -776,7 +790,15 @@ export async function pendingChanges(app: AppContext, eventId: string): Promise<
   // `verdictsOnly` is the other half of the same saving: this needs to know
   // *which* sessions would publish, not what the payload would say about them,
   // so the build stops once it has decided.
-  const [facts, live] = await Promise.all([loadScheduleFacts(app, eventId), liveRow(app, eventId)]);
+  //
+  // `preloaded.facts` extends the same rule one caller outwards: the agenda
+  // builder has just read the whole fact set to draw the grid, and asking for
+  // the pending count made it read it a second time — eleven statements to
+  // answer a question its caller already held the inputs to.
+  const [facts, live] = await Promise.all([
+    preloaded?.facts ? Promise.resolve(preloaded.facts) : loadScheduleFacts(app, eventId),
+    liveRow(app, eventId),
+  ]);
   const [liveSessions, build] = await Promise.all([
     live ? snapshotSessions(app, str(live.id)) : Promise.resolve(null),
     buildSnapshot(app, eventId, { facts, verdictsOnly: true }),

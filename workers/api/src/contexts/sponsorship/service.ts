@@ -699,13 +699,7 @@ export interface SponsorshipUsage {
 export async function sponsorshipUsage(app: AppContext, sponsorshipId: string): Promise<SponsorshipUsage> {
   const rows = await entitlementsForSponsorship(app, sponsorshipId);
   const usage = await entitlementUsageFor(app, rows);
-  const entitlements = rows.map((r) => ({ ...r, usage: usage.get(str(r.id))! }));
-  return {
-    entitlements,
-    quantity: entitlements.reduce((n, e) => n + e.usage.quantity, 0),
-    consumed_count: entitlements.reduce((n, e) => n + e.usage.consumed_count, 0),
-    remaining: entitlements.reduce((n, e) => n + e.usage.remaining, 0),
-  };
+  return totalUsage(rows.map((r) => ({ ...r, usage: usage.get(str(r.id))! })));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -951,20 +945,55 @@ export async function sponsorshipsForEvent(app: AppContext, eventId: string): Pr
   const tiers = await app.db.select<Row>("sponsorship_tier", { event_id: eventId });
   const tierById = new Map(tiers.map((t) => [str(t.id), t]));
   const now = app.now();
+  if (!sponsorships.length) return [];
+
+  // Flat in the number of sponsorships. This was a `byId` for the sponsor plus
+  // a `sponsorshipUsage` — itself two more reads — per row, so the sponsorships
+  // screen cost three statements per sponsor on a table whose whole point is
+  // to list all of them at once. `entitlementUsageFor` was already written to
+  // take many entitlements; it was simply being handed one sponsorship's worth
+  // at a time.
+  const sponsorRows = await app.db.select<Row>("sponsor", { id: [...new Set(sponsorships.map((s) => str(s.sponsor_id)))] });
+  const sponsorById = new Map(sponsorRows.map((r) => [str(r.id), r]));
+
+  const entitlementRows = await app.db.select<Row>(
+    "entitlement",
+    { sponsorship_id: sponsorships.map((s) => str(s.id)) },
+    { orderBy: "created_at" },
+  );
+  const usageById = await entitlementUsageFor(app, entitlementRows);
+  const entitlementsBySponsorship = new Map<string, (Row & { usage: EntitlementUsage })[]>();
+  for (const row of entitlementRows) {
+    const key = str(row.sponsorship_id);
+    const list = entitlementsBySponsorship.get(key) ?? [];
+    list.push({ ...row, usage: usageById.get(str(row.id))! });
+    entitlementsBySponsorship.set(key, list);
+  }
 
   const out: SponsorshipListRow[] = [];
   for (const s of sponsorships) {
-    const sponsor = await app.db.byId<Row>("sponsor", str(s.sponsor_id));
+    const sponsor = sponsorById.get(str(s.sponsor_id));
     if (!sponsor) continue; // INV-11-2: a soft-deleted sponsor drops out of every read
+    const entitlements = entitlementsBySponsorship.get(str(s.id)) ?? [];
     out.push({
       sponsorship: s,
       sponsor,
       tier: s.tier_id ? (tierById.get(str(s.tier_id)) ?? null) : null,
-      usage: await sponsorshipUsage(app, str(s.id)),
+      usage: totalUsage(entitlements),
       public_now: isPubliclyVisible({ status: str(s.status), public_from: strOrNull(s.public_from) }, now), // INV-03-8
     });
   }
   return out;
+}
+
+/** The three totals `SponsorshipUsage` carries, summed off entitlements already loaded. */
+function totalUsage(entitlements: (Row & { usage: EntitlementUsage })[]): SponsorshipUsage {
+  return {
+    entitlements,
+    quantity: entitlements.reduce((n, e) => n + e.usage.quantity, 0),
+    consumed_count: entitlements.reduce((n, e) => n + e.usage.consumed_count, 0),
+    remaining: entitlements.reduce((n, e) => n + e.usage.remaining, 0),
+  };
 }
 
 /**

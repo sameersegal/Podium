@@ -97,6 +97,7 @@
     "secret-literal": [
       "secret-literal|scripts/dev.mjs|password = <15 chars>",
       "secret-literal|scripts/perf-console.mjs|password = <15 chars>",
+      "secret-literal|scripts/perf-db.mjs|password = <15 chars>",
       "secret-literal|scripts/seed-publish.mjs|password = <15 chars>",
       "secret-literal|scripts/seed.mjs|password = <15 chars>",
       "secret-literal|scripts/smoke.mjs|password = <15 chars>"

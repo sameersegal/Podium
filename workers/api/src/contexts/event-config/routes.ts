@@ -1571,7 +1571,12 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
     const { cfp, ref } = await loadCfpFor(ctx, params.cfpId);
     ctx.requireRead("cfp.configure", { event_id: ref.id });
     const app = ctx.app(ref.id);
-    const view = await publicCfpView(app, params.cfpId, { allowNonPublic: true });
+    // The introduction comes off the `cfp` row `loadCfpFor` has already read.
+    // It used to come from a whole `publicCfpView`, which re-reads the event,
+    // the track and format options and the published form spec — every one of
+    // which this screen either loads again below or does not use — to hand back
+    // one column. Ten statements for a paragraph of markdown.
+    const introMarkdown = strOrNull(cfp.intro_markdown);
     const spec = await builderForm(app, params.cfpId);
     const [tracks, formats] = await Promise.all([cfpTrackOptions(app, params.cfpId, true), cfpFormatOptions(app, params.cfpId, true)]);
     const publicOnly = spec
@@ -1589,7 +1594,7 @@ function registerAdminFormRoutes(router: Router<RequestContext>): void {
             "This is the form as an applicant sees it: committee-only, organizer-only and personal-data fields are absent. Conditional fields appear and disappear as you change the answers.",
             html`<a class="btn secondary" href="/admin/cfps/${params.cfpId}/form">Back to the builder</a>`,
           )}
-          ${view?.cfp.intro_markdown ? card(markdown(view.cfp.intro_markdown), "Introduction") : raw("")}
+          ${introMarkdown ? card(markdown(introMarkdown), "Introduction") : raw("")}
           <noscript><p class="notice">With scripts off, every conditional field is shown with a note saying when it applies.</p></noscript>
           ${renderPublicForm(publicOnly, { tracks, formats, disabled: true })}`,
       ),
