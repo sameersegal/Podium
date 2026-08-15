@@ -91,7 +91,7 @@ world is in
 | S3 | Judge the field fairly enough to defend the result | The chair, then a reviewer | [2026-08-15](2026-08-15-chair-and-reviewer-judge-the-field.md) | ★★☆☆☆ |
 | S4 | Turn a yes into a talk that actually happens | An accepted speaker | [2026-08-15](2026-08-15-accepted-speaker-gets-to-the-stage.md) | ★☆☆☆☆ |
 | S5 | Have every asset in hand before the doors open | Speaker operations | [2026-08-15](2026-08-15-operations-closes-the-supply-chain.md) | ★☆☆☆☆ |
-| S6 | Publish a schedule that survives contact with reality | The organizer | — | — |
+| S6 | Publish a schedule that survives contact with reality | The organizer | [2026-08-15](2026-08-15-organizer-publishes-a-living-schedule.md) | ★☆☆☆☆ |
 | S7 | Let the world find the conference and plan around it | An attendee, and the site's owner | — | — |
 | S8 | Deliver what the sponsors paid for | Partnerships, then a sponsor | — | — |
 | S9 | Build a speaker bench that outlives one event | The organizer | — | — |
