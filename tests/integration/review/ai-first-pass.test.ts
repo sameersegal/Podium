@@ -45,8 +45,8 @@ async function seed(aiEnabled: boolean) {
     ],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "AI First Pass Conf", "aifp-conf", "UTC", "2028-02-01", "2028-02-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "AI First Pass Conf", "aifp-conf", "UTC", "2028-02-01", "2028-02-02", "in_person", "active", "public", "{}", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, opens_at, closes_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -57,8 +57,8 @@ async function seed(aiEnabled: boolean) {
     [SUBMITTER, "aifp-submitter@example.com"],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, ORG, email, "Someone", "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [id, email, "Someone", "active", 0, now, now],
     );
   }
   await run(
@@ -66,8 +66,8 @@ async function seed(aiEnabled: boolean) {
     ["aid_aifp_chair", CHAIR_PERSON, "password", CHAIR_EMAIL, hashPassword(CHAIR_PASSWORD), now, CHAIR_EMAIL, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_aifp_chair", ORG, CHAIR_PERSON, "program_chair", "event", EVENT, CHAIR_PERSON, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_aifp_chair", CHAIR_PERSON, "program_chair", "event", EVENT, CHAIR_PERSON, now],
   );
   await run(
     "INSERT OR IGNORE INTO rubric (id, event_id, name, version, overall_scale, requires_comment, created_at, row_version) VALUES (?,?,?,?,?,?,?,?)",
@@ -90,9 +90,9 @@ async function seed(aiEnabled: boolean) {
   ] as const) {
     await run(
       `INSERT OR IGNORE INTO proposal
-         (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, ORG, EVENT, CFP, "frm_aifp", ref, SUBMITTER, title, "An abstract.", "in_review", now, now, now, 1],
+         (id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, EVENT, CFP, "frm_aifp", ref, SUBMITTER, title, "An abstract.", "in_review", now, now, now, 1],
     );
   }
 }

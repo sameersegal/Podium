@@ -34,8 +34,8 @@ async function seed() {
     [ORG, "Sched Org", "sched-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Sched Conf", "sched-conf", "UTC", "2027-09-01", "2027-09-01", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Sched Conf", "sched-conf", "UTC", "2027-09-01", "2027-09-01", "in_person", "active", "public", "{}", now, now],
   );
   await run("INSERT OR IGNORE INTO venue (id, event_id, name) VALUES (?,?,?)", [VENUE, EVENT, "Main Venue"]);
   await run(
@@ -54,20 +54,20 @@ async function seed() {
   );
 
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [CHAIR, ORG, CHAIR_EMAIL, "Chair Person", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [CHAIR, CHAIR_EMAIL, "Chair Person", "active", 0, now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [SPEAKER, ORG, "sched-speaker@example.com", "Speaker Person", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [SPEAKER, "sched-speaker@example.com", "Speaker Person", "active", 0, now, now],
   );
   await run(
     "INSERT OR IGNORE INTO auth_identity (id, person_id, provider, subject, credential_hash, credential_updated_at, email_at_provider, created_at) VALUES (?,?,?,?,?,?,?,?)",
     ["aid_sched_chair", CHAIR, "password", CHAIR_EMAIL, hashPassword(CHAIR_PASSWORD), now, CHAIR_EMAIL, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_sched_chair", ORG, CHAIR, "program_chair", "event", EVENT, CHAIR, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_sched_chair", CHAIR, "program_chair", "event", EVENT, CHAIR, now],
   );
 
   for (const [id, ref] of [
@@ -76,9 +76,9 @@ async function seed() {
   ]) {
     await run(
       `INSERT OR IGNORE INTO session
-        (id, org_id, event_id, reference, origin, title, abstract, session_format_id, track_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, ORG, EVENT, ref, "cfp", `Session ${ref}`, "An abstract.", FORMAT, TRACK, 30, "confirmed", "approved", "public", now, now],
+        (id, event_id, reference, origin, title, abstract, session_format_id, track_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, EVENT, ref, "cfp", `Session ${ref}`, "An abstract.", FORMAT, TRACK, 30, "confirmed", "approved", "public", now, now],
     );
   }
   await run(
@@ -89,13 +89,13 @@ async function seed() {
   // A public, clean headshot in the speaker's profile — what exercises
   // `assetUrl` in the snapshot builder, below.
   await run(
-    "INSERT OR IGNORE INTO asset (id, org_id, storage_key, filename, content_type, size_bytes, checksum, scan_status, visibility, uploaded_by_person_id, purpose, slot_key, version, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [SPEAKER_HEADSHOT, ORG, `${ORG}/person/${SPEAKER}/headshot/1/me.png`, "me.png", "image/png", 9, "deadbeef", "clean", "public", SPEAKER, "headshot", `person:${SPEAKER}:headshot`, 1, now],
+    "INSERT OR IGNORE INTO asset (id, storage_key, filename, content_type, size_bytes, checksum, scan_status, visibility, uploaded_by_person_id, purpose, slot_key, version, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    [SPEAKER_HEADSHOT, `${ORG}/person/${SPEAKER}/headshot/1/me.png`, "me.png", "image/png", 9, "deadbeef", "clean", "public", SPEAKER, "headshot", `person:${SPEAKER}:headshot`, 1, now],
   );
   await env.ASSETS_BUCKET.put(`${ORG}/person/${SPEAKER}/headshot/1/me.png`, "headshot bytes");
   await run(
-    "INSERT OR IGNORE INTO speaker_profile (id, person_id, org_id, headshot_asset_id, is_listed, visibility, updated_at) VALUES (?,?,?,?,?,?,?)",
-    ["spf_sched", SPEAKER, ORG, SPEAKER_HEADSHOT, 1, "{}", now],
+    "INSERT OR IGNORE INTO speaker_profile (id, person_id, headshot_asset_id, is_listed, visibility, updated_at) VALUES (?,?,?,?,?,?)",
+    ["spf_sched", SPEAKER, SPEAKER_HEADSHOT, 1, "{}", now],
   );
 }
 

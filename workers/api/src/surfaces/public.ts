@@ -192,7 +192,7 @@ export async function renderEventLanding(ctx: RequestContext, row: Row): Promise
   // two "submit" buttons has not decided which deadline matters.
   const soonest = openCalls.filter((c) => c.status === "open").sort((a, b) => a.at.localeCompare(b.at))[0] ?? null;
 
-  const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+  const snapshot = await liveSnapshot(ctx.env, ref.id);
   const opening = snapshot
     ? snapshot.sessions
         .filter((s) => s.starts_at)
@@ -351,7 +351,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
     const ref = toRef(row);
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const snapshot = await liveSnapshot(ctx.env, ref.id);
     if (!snapshot) return htmlResponse(publicPage(ctx, { title: "Schedule", event: ref, width: "wide" }, noPublicationYet(ref)));
 
     // Opening on a published day that happens to hold nothing reads as "this
@@ -397,7 +397,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
     const ref = toRef(row);
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const snapshot = await liveSnapshot(ctx.env, ref.id);
     // INV-08-10 — a cancelled or since-removed session does not 404; it says
     // plainly that it is no longer part of the published schedule.
     const body = snapshot ? renderSessionDetail(snapshot, params.sessionId, renderOpts(ref, false)) : html`<p class="empty">This session is not part of the published schedule.</p>`;
@@ -411,7 +411,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
     const ref = toRef(row);
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const snapshot = await liveSnapshot(ctx.env, ref.id);
     if (!snapshot) return htmlResponse(publicPage(ctx, { title: "Sessions", event: ref, width: "wide" }, noPublicationYet(ref)));
     return htmlResponse(
       publicPage(
@@ -429,7 +429,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
     const ref = toRef(row);
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const snapshot = await liveSnapshot(ctx.env, ref.id);
     return htmlResponse(
       publicPage(
         ctx,
@@ -446,7 +446,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
     const ref = toRef(row);
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const snapshot = await liveSnapshot(ctx.env, ref.id);
     return htmlResponse(
       publicPage(
         ctx,
@@ -461,7 +461,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return notFoundPage(ctx, "No such event.");
     const ref = toRef(row);
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const snapshot = await liveSnapshot(ctx.env, ref.id);
     const body = snapshot ? renderSpeakerDetail(snapshot, params.personId, renderOpts(ref, false)) : html`<p class="empty">This speaker is not part of the published schedule.</p>`;
     return htmlResponse(publicPage(ctx, { title: "Speaker", event: ref, width: "narrow" }, html`${body}<p><a href="/e/${ref.slug}/speakers">← Back to speakers</a></p>`));
   });
@@ -470,7 +470,7 @@ function registerScheduleRoutes(router: Router<RequestContext>): void {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return text("No such event.", { status: 404 });
     const ref = toRef(row);
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, ref.id);
+    const snapshot = await liveSnapshot(ctx.env, ref.id);
     if (!snapshot) return text("No published schedule yet.", { status: 404 });
     const track = ctx.url.searchParams.get("track");
     const sessionIds = ctx.url.searchParams.get("sessions")?.split(",").filter(Boolean);
@@ -770,7 +770,7 @@ function scheduleClientScript(eventSlug: string): SafeHtml {
 
 async function snapshotForEmbed(ctx: RequestContext, embed: EmbedConfigRow | null): Promise<ScheduleSnapshot | null> {
   if (!embed) return null;
-  if (embed.pinned_publication_id) return snapshotById(ctx.env, ctx.orgId, embed.pinned_publication_id);
+  if (embed.pinned_publication_id) return snapshotById(ctx.env, embed.pinned_publication_id);
   if (embed.show_unpublished) {
     // A preview embed for staging sites: intentionally reads the working
     // schedule rather than the cached `live` snapshot, so it is never served
@@ -792,7 +792,7 @@ async function snapshotForEmbed(ctx: RequestContext, embed: EmbedConfigRow | nul
       rooms: build.rooms,
     };
   }
-  return liveSnapshot(ctx.env, ctx.orgId, embed.event_id);
+  return liveSnapshot(ctx.env, embed.event_id);
 }
 
 function registerEmbedRoutes(router: Router<RequestContext>): void {
@@ -907,7 +907,7 @@ function registerPublicApiRoutes(router: Router<RequestContext>): void {
   router.get("/v1/public/events/:eventSlug/schedule", async (req, ctx, params) => {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return json({ error: "not_found", message: "No such event." }, { status: 404 });
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, str(row.id));
+    const snapshot = await liveSnapshot(ctx.env, str(row.id));
     if (!snapshot) return json({ event: toRef(row), sessions: [], speakers: [], tracks: [], formats: [], rooms: [] });
     if (req.headers.get("if-none-match") === snapshot.content_etag) return new Response(null, { status: 304, headers: { etag: snapshot.content_etag } });
     return json(snapshot, { headers: { etag: snapshot.content_etag, "cache-control": "public, max-age=60" } });
@@ -916,7 +916,7 @@ function registerPublicApiRoutes(router: Router<RequestContext>): void {
   router.get("/v1/public/events/:eventSlug/sessions", async (req, ctx, params) => {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return json({ error: "not_found", message: "No such event." }, { status: 404 });
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, str(row.id));
+    const snapshot = await liveSnapshot(ctx.env, str(row.id));
     const data = snapshot?.sessions ?? [];
     const etag = snapshot ? `${snapshot.content_etag}` : null;
     if (etag && req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag } });
@@ -926,7 +926,7 @@ function registerPublicApiRoutes(router: Router<RequestContext>): void {
   router.get("/v1/public/events/:eventSlug/speakers", async (req, ctx, params) => {
     const row = await resolvePublicEvent(ctx, params.eventSlug);
     if (!row) return json({ error: "not_found", message: "No such event." }, { status: 404 });
-    const snapshot = await liveSnapshot(ctx.env, ctx.orgId, str(row.id));
+    const snapshot = await liveSnapshot(ctx.env, str(row.id));
     const data = snapshot?.speakers ?? [];
     const etag = snapshot ? `${snapshot.content_etag}` : null;
     if (etag && req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag } });

@@ -22,7 +22,7 @@ const EVENT = "evt_inbound_test";
 const PERSON = "per_inbound_test";
 const now = () => new Date().toISOString();
 
-/** `resolveOrgId` takes the earliest-created organization, so this one must sort first. */
+/** `resolveOrg` takes the earliest-created organization, so this one must sort first. */
 const EPOCH = "2000-01-01T00:00:00.000Z";
 
 async function seed() {
@@ -32,14 +32,14 @@ async function seed() {
     .bind(ORG, "Inbound Test Org", "inbound-test-org", "UTC", "test@example.com", "{}", EPOCH, EPOCH)
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(EVENT, ORG, "Inbound Test Conf", "inbound-test-conf", "UTC", "2028-08-01", "2028-08-02", "in_person", "active", "public", "{}", now(), now())
+    .bind(EVENT, "Inbound Test Conf", "inbound-test-conf", "UTC", "2028-08-01", "2028-08-02", "in_person", "active", "public", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(PERSON, ORG, "bouncer@example.com", "Bounce E. Person", "active", 0, now(), now())
+    .bind(PERSON, "bouncer@example.com", "Bounce E. Person", "active", 0, now(), now())
     .run();
 }
 
@@ -128,8 +128,8 @@ describe("inbound provider callbacks (09, email: handle_inbound_webhook)", () =>
     expect(row?.status).toBe("bounced");
     expect(String(row?.error)).toContain("550");
 
-    const suppression = await env.DB.prepare("SELECT reason FROM notification_suppression WHERE org_id = ? AND email = ?")
-      .bind(ORG, "hard-bounce@example.com")
+    const suppression = await env.DB.prepare("SELECT reason FROM notification_suppression WHERE email = ?")
+      .bind( "hard-bounce@example.com")
       .first<Record<string, unknown>>();
     expect(suppression?.reason).toBe("hard_bounce");
   });
@@ -138,8 +138,8 @@ describe("inbound provider callbacks (09, email: handle_inbound_webhook)", () =>
     await sentDelivery("msg_soft", "soft-bounce@example.com");
     // SendGrid spells a soft bounce `type: "blocked"`.
     await post(url, sendgridEvent("soft-bounce@example.com", "bounce", "msg_soft", { type: "blocked", reason: "mailbox full" }));
-    const suppression = await env.DB.prepare("SELECT reason FROM notification_suppression WHERE org_id = ? AND email = ?")
-      .bind(ORG, "soft-bounce@example.com")
+    const suppression = await env.DB.prepare("SELECT reason FROM notification_suppression WHERE email = ?")
+      .bind( "soft-bounce@example.com")
       .first<Record<string, unknown>>();
     expect(suppression).toBeNull();
   });

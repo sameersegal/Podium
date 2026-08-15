@@ -52,12 +52,12 @@ async function seed(): Promise<void> {
     [ORG, "Sync Test Org", "sync-test-org", "UTC", "a@b.example", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [ACTOR, ORG, "sync-admin@example.com", "Sync Admin", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [ACTOR, "sync-admin@example.com", "Sync Admin", "active", 0, now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, status, timezone, starts_on, ends_on, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Sync Test Event", "sync-test-event", "active", "UTC", "2026-06-01", "2026-06-02", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, status, timezone, starts_on, ends_on, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Sync Test Event", "sync-test-event", "active", "UTC", "2026-06-01", "2026-06-02", now, now],
   );
   await run("INSERT OR IGNORE INTO session_format (id, event_id, name, slug, default_duration_minutes) VALUES (?,?,?,?,?)", [
     "fmt_sync",
@@ -67,8 +67,8 @@ async function seed(): Promise<void> {
     30,
   ]);
   await run(
-    "INSERT OR IGNORE INTO integration (id, org_id, plugin_key, capability, display_name, config, secret_ref, is_default_for_capability, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-    [INTEGRATION, ORG, "sync.memory", "sync", "Test table", "{}", "", 1, "active", now],
+    "INSERT OR IGNORE INTO integration (id, plugin_key, capability, display_name, config, secret_ref, is_default_for_capability, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    [INTEGRATION, "sync.memory", "sync", "Test table", "{}", "", 1, "active", now],
   );
 }
 
@@ -76,10 +76,9 @@ async function makeSession(id: string, title: string): Promise<void> {
   const now = new Date().toISOString();
   await run(
     `INSERT OR IGNORE INTO session
-       (id, org_id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes,
-        keywords, status, content_status, visibility, recording_consent, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, ORG, EVENT, `ST-${id.slice(-4)}`, "cfp", title, "An abstract.", "fmt_sync", 30, '["ai"]', "confirmed", "draft", "public", "unanswered", now, now],
+       (id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, keywords, status, content_status, visibility, recording_consent, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, EVENT, `ST-${id.slice(-4)}`, "cfp", title, "An abstract.", "fmt_sync", 30, '["ai"]', "confirmed", "draft", "public", "unanswered", now, now],
   );
 }
 
@@ -118,22 +117,22 @@ async function describeExternal(app: AppContext, mappingId: string): Promise<{ e
 }
 
 async function eventsOfType(type: string): Promise<Row[]> {
-  const res = await env.DB.prepare("SELECT * FROM domain_event_record WHERE org_id = ? AND type = ?").bind(ORG, type).all<Row>();
+  const res = await env.DB.prepare("SELECT * FROM domain_event_record WHERE type = ?").bind( type).all<Row>();
   return res.results ?? [];
 }
 
 beforeEach(async () => {
   resetExternalTables();
-  await run("DELETE FROM external_record_link WHERE org_id = ?", [ORG]);
-  await run("DELETE FROM sync_run WHERE org_id = ?", [ORG]);
-  await run("DELETE FROM sync_mapping WHERE org_id = ?", [ORG]);
-  await run("DELETE FROM domain_event_record WHERE org_id = ?", [ORG]);
-  await run("DELETE FROM audit_log WHERE org_id = ?", [ORG]);
+  await run("DELETE FROM external_record_link", []);
+  await run("DELETE FROM sync_run", []);
+  await run("DELETE FROM sync_mapping", []);
+  await run("DELETE FROM domain_event_record", []);
+  await run("DELETE FROM audit_log", []);
   // Children before parents: `session_revision` and `session_speaker` both
   // reference `session`, and the schema means it.
-  await run("DELETE FROM session_revision WHERE session_id IN (SELECT id FROM session WHERE org_id = ?)", [ORG]);
-  await run("DELETE FROM session_speaker WHERE session_id IN (SELECT id FROM session WHERE org_id = ?)", [ORG]);
-  await run("DELETE FROM session WHERE org_id = ?", [ORG]);
+  await run("DELETE FROM session_revision WHERE session_id IN (SELECT id FROM session)", []);
+  await run("DELETE FROM session_speaker WHERE session_id IN (SELECT id FROM session)", []);
+  await run("DELETE FROM session", []);
   await seed();
 });
 
@@ -272,7 +271,7 @@ describe("write-back", () => {
     await puller.flush();
 
     expect(counts.skipped).toBe(1);
-    const sessions = await env.DB.prepare("SELECT COUNT(*) AS n FROM session WHERE org_id = ?").bind(ORG).first<{ n: number }>();
+    const sessions = await env.DB.prepare("SELECT COUNT(*) AS n FROM session").bind().first<{ n: number }>();
     expect(Number(sessions?.n ?? 0)).toBe(1);
   });
 });
@@ -344,8 +343,8 @@ describe("erasure (INV-09-22)", () => {
   it("removes the person's external records, including from a paused mapping", async () => {
     const now = new Date().toISOString();
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      ["per_erase_me", ORG, "erase@example.com", "Erase Me", "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      ["per_erase_me", "erase@example.com", "Erase Me", "active", 0, now, now],
     );
 
     const app = ctx();
@@ -416,13 +415,12 @@ describe("relationships (INV-09-24)", () => {
   async function makeSpeaker(personId: string, profileId: string, name: string, sessionId: string): Promise<void> {
     const now = new Date().toISOString();
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [personId, ORG, `${personId}@example.com`, name, "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [personId, `${personId}@example.com`, name, "active", 0, now, now],
     );
-    await run("INSERT OR IGNORE INTO speaker_profile (id, person_id, org_id, bio, visibility, is_listed, updated_at) VALUES (?,?,?,?,?,?,?)", [
+    await run("INSERT OR IGNORE INTO speaker_profile (id, person_id, bio, visibility, is_listed, updated_at) VALUES (?,?,?,?,?,?)", [
       profileId,
       personId,
-      ORG,
       "A bio.",
       "{}",
       1,

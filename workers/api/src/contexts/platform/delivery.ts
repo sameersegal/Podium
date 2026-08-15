@@ -4,7 +4,7 @@
  * 24h, then `exhausted`), never a hand-rolled loop in the request path.
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { AppContext, soleOrgId, type Env } from "@podiumstack/data/context.js";
 import { num, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { SYSTEM_ACTOR, type DomainEvent } from "@podiumstack/domain/events/envelope.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
@@ -15,8 +15,13 @@ import type { DeliveryMessage } from "../../consumers/delivery.js";
 import { attemptSend, queueNotification } from "./notifications.js";
 import { runCampaignSend } from "./campaigns.js";
 
-function contextFor(env: Env, orgId: string, eventId?: string | null): AppContext {
-  return new AppContext({ env, orgId, eventId: eventId ?? null, actor: SYSTEM_ACTOR });
+/**
+ * A delivery message no longer carries the org (see `DeliveryMessage`), so the
+ * consumer resolves it — needed only for the event envelope these contexts go
+ * on to emit, never to scope a read.
+ */
+async function contextFor(env: Env, eventId?: string | null): Promise<AppContext> {
+  return new AppContext({ env, orgId: await soleOrgId(env), eventId: eventId ?? null, actor: SYSTEM_ACTOR });
 }
 
 function loadDomainEvent(row: Row): DomainEvent {
@@ -40,7 +45,7 @@ function loadDomainEvent(row: Row): DomainEvent {
 /* -------------------------------------------------------------------------- */
 
 export async function deliverWebhook(env: Env, msg: Extract<DeliveryMessage, { kind: "webhook" }>): Promise<void> {
-  const app = contextFor(env, msg.org_id);
+  const app = await contextFor(env);
   const delivery = await app.db.byId<Row>("webhook_delivery", msg.delivery_id, { includeDeleted: true });
   // Idempotent: a delivery no longer `pending` has already been resolved by an
   // earlier attempt at processing this same at-least-once message.
@@ -169,8 +174,8 @@ async function finishFailure(
 async function notifyOwnersOfDisabledWebhook(app: AppContext, webhookId: string): Promise<void> {
   const webhook = await app.db.byId<Row>("webhook", webhookId);
   const owners = await app.db.raw<{ person_id: string }>(
-    "SELECT person_id FROM role_grant WHERE org_id = ? AND role = 'owner' AND revoked_at IS NULL",
-    [app.orgId],
+    "SELECT person_id FROM role_grant WHERE role = 'owner' AND revoked_at IS NULL",
+    [],
   );
   for (const o of owners) {
     await queueNotification(app, {
@@ -189,7 +194,7 @@ async function notifyOwnersOfDisabledWebhook(app: AppContext, webhookId: string)
 /* -------------------------------------------------------------------------- */
 
 export async function deliverNotification(env: Env, msg: Extract<DeliveryMessage, { kind: "notification" }>): Promise<void> {
-  const app = contextFor(env, msg.org_id);
+  const app = await contextFor(env);
   const notification = await app.db.byId<Row>("notification_delivery", msg.notification_id, { includeDeleted: true });
   app.eventId = notification ? strOrNull(notification.event_id) : null;
   try {
@@ -205,7 +210,7 @@ export async function deliverNotification(env: Env, msg: Extract<DeliveryMessage
 /* -------------------------------------------------------------------------- */
 
 export async function sendCampaign(env: Env, msg: Extract<DeliveryMessage, { kind: "campaign" }>): Promise<void> {
-  const app = contextFor(env, msg.org_id);
+  const app = await contextFor(env);
   try {
     const result = await runCampaignSend(app, msg.campaign_id);
     console.log(JSON.stringify({ level: "info", event: "campaign.send", campaign_id: msg.campaign_id, ...result }));

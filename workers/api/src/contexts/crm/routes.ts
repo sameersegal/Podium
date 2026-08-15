@@ -466,8 +466,8 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const app = ctx.app();
     const { limit, cursor } = pageRequest(ctx.url);
     const pipelineId = ctx.url.searchParams.get("pipeline_id");
-    const params: unknown[] = [ctx.orgId];
-    let sql = `SELECT c.* FROM prospect_card c JOIN sourcing_pipeline p ON p.id = c.pipeline_id WHERE p.org_id = ?`;
+    const params: unknown[] = [];
+    let sql = `SELECT c.* FROM prospect_card c JOIN sourcing_pipeline p ON p.id = c.pipeline_id `;
     if (pipelineId) {
       sql += " AND c.pipeline_id = ?";
       params.push(pipelineId);

@@ -114,7 +114,6 @@ attachments.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ast_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `storage_key` | `string` | Y | opaque key in the storage backend |
 | `filename` | `string` | Y | as uploaded, sanitised |
 | `content_type` / `size_bytes` | | Y | validated server-side, never trusted from the client (INV-11-15) |
@@ -215,7 +214,6 @@ schema change per customer.
 | CustomFieldDefinition field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `cfd_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | null = applies across every event |
 | `subject_type` | `enum(person, event_participant, session, sponsor)` | Y | what it hangs off |
 | `key` | `slug` | Y | unique per `(org, subject_type)`; immutable once values exist |
@@ -262,7 +260,7 @@ hundred slide decks each take longer than a request should live.
 | BulkImport field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `imp_` |
-| `org_id` / `event_id` | `ref(...)` | Y/N | |
+| `event_id` | `ref(Event)` | N | |
 | `subject` | `enum(person, event_participant, session, sponsor)` | Y | what is being imported |
 | `source_asset_id` | `ref(Asset)` | Y | the uploaded file, retained for dispute |
 | `column_mapping` | `json` | Y | `{csv_header: field_key}`, confirmed by the operator before the run |
@@ -290,7 +288,7 @@ The rules that make an import trustworthy rather than terrifying:
 | Export field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `exp_` |
-| `org_id` / `event_id` | `ref(...)` | Y/N | |
+| `event_id` | `ref(Event)` | N | |
 | `subject` | `enum(review_results, proposals, sessions, speakers, participants, tasks, files, contacts, communications)` | Y | |
 | `format` | `enum(csv, xlsx, json, zip, ics)` | Y | `zip` for file bundles |
 | `filters` | `json` | N | the same criteria as the screen it was launched from |
@@ -318,7 +316,7 @@ which is what an AV team asks for.
 | Field | Type | Notes |
 |---|---|---|
 | `id` | `ulid` | prefix `aud_` |
-| `org_id` / `event_id` | `ref(...)` | |
+| `event_id` | `ref(Event)` | |
 | `actor_type` | `enum(person, api_key, system, integration)` | |
 | `actor_id` / `actor_display` | | display captured at the time |
 | `action` | `string` | `proposal.update`, `decision.publish`, `person.merge` |
@@ -448,8 +446,12 @@ derived column fails while somebody is looking at it (INV-09-17).
 
 ## Invariants
 
-- **INV-11-1** Every entity is reachable from exactly one `org_id`; every query is scoped by
-  it. No cross-org read is possible through any surface.
+- **INV-11-1** *(amended — R9)* A deployment holds exactly one `Organization` (INV-01-16),
+  and entities carry no `org_id`. Scoping a query by organization is therefore not a rule the
+  repository layer can enforce, because there is nothing to enforce it against; what it still
+  enforces once, rather than per endpoint, is INV-11-2. The isolation guarantee this
+  invariant used to make is now made by deployment: two organizations mean two deployments,
+  with separate databases.
 - **INV-11-2** Soft-deleted records are excluded from all reads, counts and aggregates
   unless explicitly requested by an admin.
 - **INV-11-3** An asset may not be attached to a completed task, a published session, or any

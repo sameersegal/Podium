@@ -28,14 +28,14 @@ async function seed() {
     .bind(ORG, "React Org", "react-org", "UTC", "a@b.example", "{}", now, now)
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(EVENT, ORG, "React Event", "react-event", "UTC", "2027-05-12", "2027-05-14", "in_person", "active", "public", "{}", now, now)
+    .bind(EVENT, "React Event", "react-event", "UTC", "2027-05-12", "2027-05-14", "in_person", "active", "public", "{}", now, now)
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind("per_react1", ORG, "react-speaker@example.com", "Rea Ction", "active", 0, now, now)
+    .bind("per_react1", "react-speaker@example.com", "Rea Ction", "active", 0, now, now)
     .run();
 }
 

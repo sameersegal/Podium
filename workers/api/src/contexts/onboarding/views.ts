@@ -142,8 +142,8 @@ export async function nominatedPersonIds(app: AppContext, viewerPersonId: string
   if (emails.size === 0) return [];
   const list = [...emails];
   const rows2 = await app.db.raw<Row>(
-    `SELECT id FROM person WHERE org_id = ? AND lower(email) IN (${list.map(() => "?").join(",")})`,
-    [app.orgId, ...list],
+    `SELECT id FROM person WHERE lower(email) IN (${list.map(() => "?").join(",")})`,
+    [...list],
   );
   return rows2.map((p) => str(p.id));
 }

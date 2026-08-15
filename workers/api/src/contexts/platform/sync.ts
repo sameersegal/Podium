@@ -13,7 +13,7 @@
  *     if (num(row.row_version) !== link.last_pushed_version) → conflict          // INV-09-18
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { AppContext, soleOrgId, type Env } from "@podiumstack/data/context.js";
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
 import { DomainError, notFound } from "@podiumstack/domain/shared/errors.js";
 import { newId } from "@podiumstack/domain/shared/ids.js";
@@ -95,7 +95,6 @@ export async function createMapping(app: AppContext, input: MappingInput): Promi
   const now = app.now();
   await app.db.insert("sync_mapping", {
     id,
-    org_id: app.orgId,
     integration_id: input.integration_id,
     event_id: spec.scope === "event" ? eventId : null,
     subject: input.subject,
@@ -224,7 +223,6 @@ async function ensureLink(app: AppContext, mapping: Row, subjectId: string): Pro
   const now = app.now();
   await app.db.insert("external_record_link", {
     id,
-    org_id: app.orgId,
     mapping_id: mappingId,
     subject_type: subjectType,
     subject_id: subjectId,
@@ -270,8 +268,8 @@ export async function markDirty(app: AppContext, subject: SyncSubject, subjectId
 async function markMappingDirty(app: AppContext, mappingId: string): Promise<void> {
   await app.db.rawRun(
     `UPDATE external_record_link SET status = 'pending_push', updated_at = ?
-      WHERE mapping_id = ? AND org_id = ? AND status IN ('in_sync', 'error')`,
-    [app.now(), mappingId, app.orgId],
+      WHERE mapping_id = ? AND status IN ('in_sync', 'error')`,
+    [app.now(), mappingId],
   );
 }
 
@@ -283,7 +281,6 @@ async function startRun(app: AppContext, mapping: Row, direction: SyncRunDirecti
   const id = newId("SyncRun");
   await app.db.insert("sync_run", {
     id,
-    org_id: app.orgId,
     mapping_id: str(mapping.id),
     direction,
     trigger,
@@ -364,9 +361,9 @@ async function resolveLinks(
     }
     const links = await app.db.raw<Row>(
       `SELECT subject_id, external_id FROM external_record_link
-        WHERE mapping_id = ? AND org_id = ? AND external_id IS NOT NULL
+        WHERE mapping_id = ? AND external_id IS NOT NULL
           AND subject_id IN (${ids.map(() => "?").join(",")})`,
-      [str(target.id), app.orgId, ...ids],
+      [str(target.id), ...ids],
     );
     const byId = new Map(links.map((l) => [str(l.subject_id), str(l.external_id)]));
     // Order follows the related ids, which the adapter sorted by billing order.
@@ -1084,8 +1081,8 @@ export async function runsFor(app: AppContext, mappingId: string): Promise<Row[]
 
 export async function linkStats(app: AppContext, mappingId: string): Promise<Record<string, number>> {
   const rows = await app.db.raw<Row>(
-    "SELECT status, COUNT(*) AS n FROM external_record_link WHERE mapping_id = ? AND org_id = ? GROUP BY status",
-    [mappingId, app.orgId],
+    "SELECT status, COUNT(*) AS n FROM external_record_link WHERE mapping_id = ? GROUP BY status",
+    [mappingId],
   );
   const out: Record<string, number> = {};
   for (const r of rows) out[str(r.status)] = num(r.n, 0);
@@ -1102,16 +1099,15 @@ export async function linkStats(app: AppContext, mappingId: string): Promise<Rec
  * writes no domain data, so that half stays `system` — a bookkeeping row is not
  * an actor's decision.
  */
-export function syncContext(
+export async function syncContext(
   env: Env,
-  orgId: string,
   eventId: string | null,
   opts: { causationId?: string | null; integration?: Row | null } = {},
-): AppContext {
+): Promise<AppContext> {
   const integration = opts.integration;
   return new AppContext({
     env,
-    orgId,
+    orgId: await soleOrgId(env),
     eventId,
     actor: integration
       ? { type: "integration", id: str(integration.id), display_name: str(integration.display_name) }

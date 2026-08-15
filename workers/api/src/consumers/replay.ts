@@ -89,7 +89,7 @@ export async function replayUnprocessedEvents(env: Env, opts: ReplayOptions = {}
   // Unscoped by org on purpose: this is an operational sweep over the whole
   // deployment's event log, the same posture the other cron sweeps take when
   // they iterate every Organization (e.g. onboarding/cron.ts's `orgIds`).
-  const db = new D1Db(env.DB, "");
+  const db = new D1Db(env.DB);
 
   const params: unknown[] = [graceCutoff];
   let lookbackClause = "";

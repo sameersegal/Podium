@@ -43,8 +43,8 @@ beforeAll(async () => {
     [ORG, "Provisioning Org", "provisioning-org", "America/Los_Angeles", "a@b.example", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [PERSON, ORG, "prov-admin@example.com", "Pat Provisioner", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [PERSON, "prov-admin@example.com", "Pat Provisioner", "active", 0, now, now],
   );
 });
 
@@ -188,9 +188,9 @@ describe("cloning an edition", () => {
     );
     const now = new Date().toISOString();
     await run(
-      `INSERT INTO notification_template (id, org_id, event_id, key, channel, subject, body_markdown, locale, is_active, version, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      ["ntp_prov", ORG, sourceId, "proposal.submitted", "email", "Got it", "Hi {{recipient.first_name}}, we have it.", "en", 1, 1, now, now],
+      `INSERT INTO notification_template (id, event_id, key, channel, subject, body_markdown, locale, is_active, version, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      ["ntp_prov", sourceId, "proposal.submitted", "email", "Got it", "Hi {{recipient.first_name}}, we have it.", "en", 1, 1, now, now],
     );
     await run("INSERT INTO sponsorship_tier (id, event_id, name, slug, level, is_public, sort_order) VALUES (?,?,?,?,?,?,?)", [
       "tir_prov",
@@ -203,9 +203,9 @@ describe("cloning an edition", () => {
     ]);
     const cfp = (await all("SELECT id, active_form_id FROM call_for_proposals WHERE event_id = ?", [sourceId]))[0];
     await run(
-      `INSERT INTO proposal (id, org_id, event_id, cfp_id, form_id, reference, origin, status, title, abstract, submitter_person_id, last_activity_at, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      ["prp_prov", ORG, sourceId, str(cfp.id), str(cfp.active_form_id), "CS-1", "cfp", "submitted", "A talk", "About things", PERSON, now, now, now],
+      `INSERT INTO proposal (id, event_id, cfp_id, form_id, reference, origin, status, title, abstract, submitter_person_id, last_activity_at, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ["prp_prov", sourceId, str(cfp.id), str(cfp.active_form_id), "CS-1", "cfp", "submitted", "A talk", "About things", PERSON, now, now, now],
     );
     await seed.flush();
 

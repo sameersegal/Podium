@@ -27,7 +27,6 @@ import type { Role, ScopeType } from "@podiumstack/domain/shared/authorization.j
 
 export interface PersonRow extends Row {
   id: string;
-  org_id: string;
   email: string;
   full_name: string;
   display_name: string | null;
@@ -92,7 +91,7 @@ function isBootstrapLockConflict(err: unknown): boolean {
  *
  * SECURITY (INV-01-16): this runs with no principal and creates an
  * administrator. The route MUST refuse the request before calling this when
- * `resolveOrgId` already finds a row — but that check and this function's
+ * `resolveOrg` already finds a row — but that check and this function's
  * first write are not the same statement, so the real backstop against two
  * concurrent requests both bootstrapping the deployment is `bootstrap_state`:
  * its primary key holds exactly one value, and claiming it is deliberately
@@ -183,7 +182,6 @@ export async function setupOrganization(env: Env, input: SetupOrganizationInput)
       updated_at: now,
       row_version: 1,
     },
-    orgId,
   );
   statements.push(org.statement);
   app.events.emit({
@@ -295,7 +293,7 @@ export async function findOrCreatePerson(
     if (Object.keys(patch).length > 0) {
       patch.updated_at = now;
       if (opts.batch) {
-        opts.batch.push(buildUpdate("person", resolved.id, patch, ctx.orgId));
+        opts.batch.push(buildUpdate("person", resolved.id, patch));
       } else {
         await ctx.db.update("person", resolved.id, patch);
       }
@@ -307,7 +305,6 @@ export async function findOrCreatePerson(
   const id = newId("Person");
   const values: Row = {
     id,
-    org_id: ctx.orgId,
     email,
     full_name: input.full_name?.trim() || email,
     display_name: input.display_name ?? null,
@@ -323,7 +320,7 @@ export async function findOrCreatePerson(
   };
   let row: Row;
   if (opts.batch) {
-    const built = buildInsert("person", values, ctx.orgId);
+    const built = buildInsert("person", values);
     opts.batch.push(built.statement);
     row = built.row;
   } else {
@@ -457,8 +454,8 @@ export async function detectMergeCandidates(ctx: AppContext, personId: string): 
     if (existing.length > 0) continue;
     const confidence = Math.min(1, 0.5 + signals.length * 0.25);
     await ctx.db.rawRun(
-      "INSERT INTO person_merge_candidate (org_id, person_id, candidate_person_id, signals, confidence, created_at) VALUES (?,?,?,?,?,?)",
-      [ctx.orgId, a, b, JSON.stringify(signals), confidence, ctx.now()],
+      "INSERT INTO person_merge_candidate (person_id, candidate_person_id, signals, confidence, created_at) VALUES (?,?,?,?,?)",
+      [a, b, JSON.stringify(signals), confidence, ctx.now()],
     );
     ctx.events.emit({
       type: "person.merge_candidate_detected",
@@ -500,7 +497,7 @@ export async function setPassword(ctx: AppContext, personId: string, plaintext: 
   const hash = hashPassword(plaintext);
   if (existing) {
     if (opts.batch) {
-      opts.batch.push(buildUpdate("auth_identity", str(existing.id), { credential_hash: hash, credential_updated_at: now }, ctx.orgId));
+      opts.batch.push(buildUpdate("auth_identity", str(existing.id), { credential_hash: hash, credential_updated_at: now }));
     } else {
       await ctx.db.update("auth_identity", str(existing.id), { credential_hash: hash, credential_updated_at: now });
     }
@@ -517,7 +514,7 @@ export async function setPassword(ctx: AppContext, personId: string, plaintext: 
     created_at: now,
   };
   if (opts.batch) {
-    opts.batch.push(buildInsert("auth_identity", row, ctx.orgId).statement);
+    opts.batch.push(buildInsert("auth_identity", row).statement);
   } else {
     await ctx.db.insert("auth_identity", row);
   }
@@ -581,7 +578,6 @@ export async function startSession(ctx: AppContext, personId: string): Promise<s
     id: newId("Session_Cookie"),
     token_hash: hashToken(token),
     person_id: personId,
-    org_id: ctx.orgId,
     created_at: now,
     expires_at: addDays(now, 30),
     last_seen_at: now,
@@ -622,7 +618,6 @@ export async function grantRole(
   const id = newId("RoleGrant");
   const row: Row = {
     id,
-    org_id: ctx.orgId,
     person_id: input.person_id,
     role: input.role,
     scope_type: input.scope_type,
@@ -632,7 +627,7 @@ export async function grantRole(
     expires_at: input.expires_at ?? null,
   };
   if (opts.batch) {
-    opts.batch.push(buildInsert("role_grant", row, ctx.orgId).statement);
+    opts.batch.push(buildInsert("role_grant", row).statement);
   } else {
     await ctx.db.insert("role_grant", row);
   }
@@ -657,8 +652,8 @@ export async function revokeRole(ctx: AppContext, grantId: string): Promise<void
   if (str(grant.role) === "owner") {
     // INV-01-8: an org must always have at least one active owner.
     const owners = await ctx.db.raw<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM role_grant WHERE org_id = ? AND role = 'owner' AND revoked_at IS NULL",
-      [ctx.orgId],
+      "SELECT COUNT(*) AS n FROM role_grant WHERE role = 'owner' AND revoked_at IS NULL",
+      [],
     );
     if ((owners[0]?.n ?? 0) <= 1) {
       throw invariantError("INV-01-8", "last_owner", "An organization must always have at least one active owner.");
@@ -718,7 +713,6 @@ export async function createInvitation(
   const expiresAt = addDays(now, input.expires_in_days ?? 14);
   await ctx.db.insert("invitation", {
     id,
-    org_id: ctx.orgId,
     email,
     person_id: input.person_id ?? null,
     kind: input.kind,
@@ -819,7 +813,6 @@ export async function getOrCreateProfile(ctx: AppContext, personId: string): Pro
   const row: Row = {
     id,
     person_id: personId,
-    org_id: ctx.orgId,
     visibility: JSON.stringify(DEFAULT_PROFILE_VISIBILITY),
     is_listed: 1,
     updated_at: ctx.now(),
@@ -991,7 +984,6 @@ export async function addParticipant(ctx: AppContext, input: AddParticipantInput
   const id = newId("EventParticipant");
   const row: Row = {
     id,
-    org_id: ctx.orgId,
     event_id: input.event_id,
     person_id: input.person_id,
     kind: input.kind,
@@ -1092,7 +1084,6 @@ export async function addPersonNote(
   const id = newId("PersonNote");
   await ctx.db.insert("person_note", {
     id,
-    org_id: ctx.orgId,
     person_id: input.person_id,
     event_id: input.event_id ?? null,
     body: input.body,
@@ -1235,8 +1226,8 @@ export interface MergeCandidateView {
 export async function mergeCandidatesFor(ctx: AppContext, personId: string): Promise<MergeCandidateView[]> {
   const rows = await ctx.db.raw<Row>(
     `SELECT * FROM person_merge_candidate
-      WHERE org_id = ? AND (person_id = ? OR candidate_person_id = ?) AND dismissed_at IS NULL`,
-    [ctx.orgId, personId, personId],
+      WHERE (person_id = ? OR candidate_person_id = ?) AND dismissed_at IS NULL`,
+    [personId, personId],
   );
   const out: MergeCandidateView[] = [];
   for (const r of rows) {
@@ -1258,8 +1249,8 @@ export async function dismissMergeCandidate(ctx: AppContext, aId: string, bId: s
   const [a, b] = [aId, bId].sort();
   await ctx.db.rawRun(
     `UPDATE person_merge_candidate SET dismissed_by_person_id = ?, dismissed_at = ?
-      WHERE org_id = ? AND person_id = ? AND candidate_person_id = ?`,
-    [ctx.actor.id ?? null, ctx.now(), ctx.orgId, a, b],
+      WHERE person_id = ? AND candidate_person_id = ?`,
+    [ctx.actor.id ?? null, ctx.now(), a, b],
   );
   ctx.audit.record({ action: "person.merge_candidate_dismiss", entity_type: "person", entity_id: a, after: { candidate_person_id: b } });
 }
@@ -1314,10 +1305,10 @@ export async function sessionsGiven(ctx: AppContext, personId: string): Promise<
        FROM session_speaker ss
        JOIN session s ON s.id = ss.session_id
        JOIN event e ON e.id = s.event_id
-      WHERE ss.person_id = ? AND s.org_id = ? AND s.deleted_at IS NULL
+      WHERE ss.person_id = ? AND s.deleted_at IS NULL
         AND s.status != 'cancelled' AND ss.confirmation_status != 'replaced'
       ORDER BY e.starts_on DESC`,
-    [personId, ctx.orgId],
+    [personId],
   );
   return rows.map((r) => ({
     session_id: str(r.id),
@@ -1341,9 +1332,9 @@ export async function participationOf(ctx: AppContext, personId: string): Promis
   const rows = await ctx.db.raw<Row>(
     `SELECT ep.*, e.name AS event_name, e.starts_on
        FROM event_participant ep JOIN event e ON e.id = ep.event_id
-      WHERE ep.person_id = ? AND ep.org_id = ? AND e.deleted_at IS NULL
+      WHERE ep.person_id = ? AND e.deleted_at IS NULL
       ORDER BY e.starts_on DESC`,
-    [personId, ctx.orgId],
+    [personId],
   );
   return rows.map((r) => ({ participant: r, event_id: str(r.event_id), event_name: str(r.event_name), starts_on: str(r.starts_on) }));
 }
@@ -1395,12 +1386,12 @@ export interface RosterRow {
  * per row.
  */
 export async function eventRoster(ctx: AppContext, eventId: string, filters: RosterFilters = {}): Promise<RosterRow[]> {
-  const params: unknown[] = [ctx.orgId, eventId];
+  const params: unknown[] = [eventId];
   let sql = `SELECT ep.*, p.full_name, p.email, p.display_name, sp.company, sp.job_title, sp.headshot_asset_id
                FROM event_participant ep
                JOIN person p ON p.id = ep.person_id
           LEFT JOIN speaker_profile sp ON sp.person_id = p.id
-              WHERE ep.org_id = ? AND ep.event_id = ? AND p.deleted_at IS NULL`;
+              WHERE ep.event_id = ? AND p.deleted_at IS NULL`;
   if (filters.status) {
     sql += " AND ep.status = ?";
     params.push(filters.status);
@@ -1426,10 +1417,10 @@ export async function eventRoster(ctx: AppContext, eventId: string, filters: Ros
     const sessionRows = await ctx.db.raw<Row>(
       `SELECT ss.person_id, s.id, s.title, s.track_id, s.status
          FROM session_speaker ss JOIN session s ON s.id = ss.session_id
-        WHERE s.event_id = ? AND s.org_id = ? AND s.deleted_at IS NULL
+        WHERE s.event_id = ? AND s.deleted_at IS NULL
           AND s.status != 'cancelled' AND ss.confirmation_status != 'replaced'
           AND ss.person_id IN (${placeholders})`,
-      [eventId, ctx.orgId, ...personIds],
+      [eventId, ...personIds],
     );
     for (const s of sessionRows) {
       const list = sessionsByPerson.get(str(s.person_id)) ?? [];
@@ -1438,8 +1429,8 @@ export async function eventRoster(ctx: AppContext, eventId: string, filters: Ros
     }
     const taskRows = await ctx.db.raw<Row>(
       `SELECT assignee_person_id, status, due_at FROM task_instance
-        WHERE org_id = ? AND event_id = ? AND assignee_person_id IN (${placeholders})`,
-      [ctx.orgId, eventId, ...personIds],
+        WHERE event_id = ? AND assignee_person_id IN (${placeholders})`,
+      [eventId, ...personIds],
     );
     const now = ctx.now();
     for (const t of taskRows) {
@@ -1520,8 +1511,8 @@ export async function storeHeadshot(ctx: AppContext, personId: string, file: Fil
 
   const slotKey = `person:${personId}:headshot`;
   const prior = await ctx.db.raw<Row>(
-    "SELECT id, version FROM asset WHERE slot_key = ? AND org_id = ? AND deleted_at IS NULL ORDER BY version DESC LIMIT 1",
-    [slotKey, ctx.orgId],
+    "SELECT id, version FROM asset WHERE slot_key = ? AND deleted_at IS NULL ORDER BY version DESC LIMIT 1",
+    [slotKey],
   );
   const version = num(prior[0]?.version, 0) + 1;
   const id = newId("Asset");
@@ -1531,7 +1522,6 @@ export async function storeHeadshot(ctx: AppContext, personId: string, file: Fil
 
   await ctx.db.insert("asset", {
     id,
-    org_id: ctx.orgId,
     storage_key: storageKey,
     filename,
     content_type: contentType,

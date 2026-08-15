@@ -44,8 +44,8 @@ async function run(sql: string, params: unknown[] = []): Promise<void> {
 async function seedPerson(id: string, email: string, fullName: string, password: string): Promise<void> {
   const now = new Date().toISOString();
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [id, ORG, email, fullName, "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [id, email, fullName, "active", 0, now, now],
   );
   await run(
     "INSERT OR IGNORE INTO auth_identity (id, person_id, provider, subject, credential_hash, credential_updated_at, email_at_provider, created_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -62,8 +62,8 @@ async function seed(): Promise<void> {
   );
 
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Wizard Conf 2027", "wizard-conf", "UTC", "2027-06-01", "2027-06-03", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Wizard Conf 2027", "wizard-conf", "UTC", "2027-06-01", "2027-06-03", "in_person", "active", "public", "{}", now, now],
   );
 
   await run("INSERT OR IGNORE INTO track (id, event_id, name, slug, sort_order, is_public) VALUES (?,?,?,?,?,?)", [TRACK, EVENT, "Agents", "agents", 0, 1]);
@@ -125,9 +125,8 @@ async function seed(): Promise<void> {
   await seedPerson(OTHER_SPEAKER, OTHER_SPEAKER_EMAIL, "Other Speaker", OTHER_SPEAKER_PASSWORD);
   await seedPerson(OWNER, OWNER_EMAIL, "Wiz Owner", OWNER_PASSWORD);
   await seedPerson(REVIEWER, REVIEWER_EMAIL, "Wiz Reviewer", REVIEWER_PASSWORD);
-  await run("INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)", [
+  await run("INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)", [
     "rgr_wiz_owner",
-    ORG,
     OWNER,
     "owner",
     "org",
@@ -135,9 +134,8 @@ async function seed(): Promise<void> {
     OWNER,
     now,
   ]);
-  await run("INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)", [
+  await run("INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)", [
     "rgr_wiz_reviewer",
-    ORG,
     REVIEWER,
     "reviewer",
     "event",

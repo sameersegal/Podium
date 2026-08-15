@@ -44,9 +44,9 @@ async function seedFixtures() {
 
   const eventId = "evt_prog_test";
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, status, visibility, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, status, visibility, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(eventId, ORG, "Program Test Conf", "program-test-conf", "UTC", "2027-05-01", "2027-05-02", "active", "public", now(), now())
+    .bind(eventId, "Program Test Conf", "program-test-conf", "UTC", "2027-05-01", "2027-05-02", "active", "public", now(), now())
     .run();
 
   const formatId = "fmt_prog_test";
@@ -65,9 +65,9 @@ async function seedFixtures() {
 
   const speakerId = "per_prog_speaker";
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, created_at, updated_at) VALUES (?,?,?,?,?,?)",
   )
-    .bind(speakerId, ORG, "speaker@example.com", "Sasha Speaker", "active", now(), now())
+    .bind(speakerId, "speaker@example.com", "Sasha Speaker", "active", now(), now())
     .run();
 
   return { eventId, formatId, cfpId, speakerId };
@@ -75,11 +75,10 @@ async function seedFixtures() {
 
 async function seedProposal(id: string, fixtures: Awaited<ReturnType<typeof seedFixtures>>, title: string) {
   await env.DB.prepare(
-    `INSERT INTO proposal (id, org_id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, title, abstract,
-        session_format_id, status, last_activity_at, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO proposal (id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, title, abstract, session_format_id, status, last_activity_at, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   )
-    .bind(id, ORG, fixtures.eventId, fixtures.cfpId, "frm_test", `PT-${id}`, "cfp", fixtures.speakerId, title, "An abstract.", fixtures.formatId, "accepted", now(), now(), now())
+    .bind(id, fixtures.eventId, fixtures.cfpId, "frm_test", `PT-${id}`, "cfp", fixtures.speakerId, title, "An abstract.", fixtures.formatId, "accepted", now(), now(), now())
     .run();
   await env.DB.prepare(
     `INSERT INTO proposal_speaker (id, proposal_id, person_id, speaker_role, sort_order, participation_status, added_by_person_id, added_at)
@@ -230,9 +229,9 @@ async function signUpStaff(email: string): Promise<{ cookie: string; personId: s
   const cookie = setCookie.split(";")[0];
   const person = await env.DB.prepare("SELECT id FROM person WHERE email = ?").bind(email).first<{ id: string }>();
   await env.DB.prepare(
-    "INSERT INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(newId("RoleGrant"), ORG, person!.id, "admin", "org", ORG, person!.id, now())
+    .bind(newId("RoleGrant"), person!.id, "admin", "org", ORG, person!.id, now())
     .run();
   return { cookie, personId: person!.id };
 }
@@ -241,9 +240,9 @@ async function apiKeyWithScopes(scopes: string[]): Promise<string> {
   const { hashToken, newToken } = await import("@podiumstack/domain/identity/credentials.js");
   const secret = newToken();
   await env.DB.prepare(
-    "INSERT INTO api_key (id, org_id, name, prefix, secret_hash, scopes, created_by_person_id, created_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT INTO api_key (id, name, prefix, secret_hash, scopes, created_by_person_id, created_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(newId("ApiKey"), ORG, "test key", secret.slice(0, 6), hashToken(secret), JSON.stringify(scopes), "system", now())
+    .bind(newId("ApiKey"), "test key", secret.slice(0, 6), hashToken(secret), JSON.stringify(scopes), "system", now())
     .run();
   return secret;
 }

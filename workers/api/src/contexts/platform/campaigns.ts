@@ -42,7 +42,6 @@ export async function createCampaign(app: AppContext, input: CampaignInput): Pro
   const id = newId("Campaign");
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? app.eventId ?? null,
     name: input.name.trim(),
     channel: input.channel,
@@ -111,7 +110,7 @@ export async function cancelCampaign(app: AppContext, id: string): Promise<void>
 export async function sendCampaignNow(app: AppContext, id: string): Promise<void> {
   await transition(app, id, "sending");
   app.audit.record({ action: "campaign.send", entity_type: "campaign", entity_id: id });
-  const message: DeliveryMessage = { kind: "campaign", campaign_id: id, org_id: app.orgId };
+  const message: DeliveryMessage = { kind: "campaign", campaign_id: id };
   try {
     await app.env.DELIVERY_QUEUE.send(message);
   } catch (err) {
@@ -170,8 +169,8 @@ export async function resolveAudience(app: AppContext, audience: AudienceCriteri
     }
     case "sponsor_contacts": {
       const rows = await app.db.raw<{ person_id: string }>(
-        "SELECT DISTINCT sc.person_id FROM sponsor_contact sc JOIN sponsor s ON s.id = sc.sponsor_id WHERE s.org_id = ? AND sc.status = 'active'",
-        [app.orgId],
+        "SELECT DISTINCT sc.person_id FROM sponsor_contact sc JOIN sponsor s ON s.id = sc.sponsor_id WHERE sc.status = 'active'",
+        [],
       );
       personIds = rows.map((r) => r.person_id);
       break;
@@ -235,8 +234,8 @@ export async function resolveAudience(app: AppContext, audience: AudienceCriteri
 
   const placeholders = personIds.map(() => "?").join(",");
   const people = await app.db.raw<Row>(
-    `SELECT id, full_name, display_name, email FROM person WHERE org_id = ? AND id IN (${placeholders}) AND deleted_at IS NULL`,
-    [app.orgId, ...personIds],
+    `SELECT id, full_name, display_name, email FROM person WHERE id IN (${placeholders}) AND deleted_at IS NULL`,
+    [...personIds],
   );
   return people
     .filter((p) => p.email)

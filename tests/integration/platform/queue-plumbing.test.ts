@@ -69,8 +69,8 @@ describe("runQueueBatch — podium-events", () => {
       [ORG, "Queue Plumbing Org", "qplumb-org", "UTC", "a@b.example", "{}", now, now],
     );
     await run(
-      "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      [EVENT, ORG, "Plumbing Conf", "qplumb-conf", "UTC", "2028-06-01", "2028-06-01", "in_person", "active", "public", "{}", now, now],
+      "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      [EVENT, "Plumbing Conf", "qplumb-conf", "UTC", "2028-06-01", "2028-06-01", "in_person", "active", "public", "{}", now, now],
     );
   });
 
@@ -135,11 +135,10 @@ describe("runQueueBatch — podium-dlq", () => {
     expect(row?.source_queue).toBe("podium-events");
     expect(row?.message_kind).toBe("domain_event");
     expect(row?.event_type).toBe("proposal.submitted");
-    expect(row?.org_id).toBe(ORG);
   });
 
   it("records a delivery-message-shaped arrival and always acks", async () => {
-    const message: DeliveryMessage = { kind: "webhook", delivery_id: "whd_qplumb_dlq", webhook_id: "wbh_qplumb_dlq", org_id: ORG, event_id: "evn_qplumb_dlq_source" };
+    const message: DeliveryMessage = { kind: "webhook", delivery_id: "whd_qplumb_dlq", webhook_id: "wbh_qplumb_dlq", event_id: "evn_qplumb_dlq_source" };
     const batch = createMessageBatch("podium-dlq", [{ id: "msg_qplumb_dlq_delivery", timestamp: new Date(), attempts: 7, body: message }]);
     const ctx = createExecutionContext();
 
@@ -187,12 +186,12 @@ describe("deliverEvent — partial failure isolates handlers, and replayUnproces
       [CFP, EVENT, "Plumbing CFP", "plumbing", "2028-01-01T00:00:00.000Z", "2028-05-01T00:00:00.000Z", now, now],
     );
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [SUBMITTER, ORG, "qplumb-submitter@example.com", "Sam Submitter", "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [SUBMITTER, "qplumb-submitter@example.com", "Sam Submitter", "active", 0, now, now],
     );
     await run(
-      "INSERT OR IGNORE INTO sponsor (id, org_id, name, slug, status, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?)",
-      [SPONSOR, ORG, "Acme", "acme-qplumb", "active", now, now, 1],
+      "INSERT OR IGNORE INTO sponsor (id, name, slug, status, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?)",
+      [SPONSOR, "Acme", "acme-qplumb", "active", now, now, 1],
     );
     await run(
       "INSERT OR IGNORE INTO sponsorship (id, sponsor_id, event_id, status, confirmed_at, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?)",
@@ -200,9 +199,9 @@ describe("deliverEvent — partial failure isolates handlers, and replayUnproces
     );
     await run(
       `INSERT OR IGNORE INTO proposal
-         (id, org_id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, sponsor_id, entitlement_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [PROPOSAL, ORG, EVENT, CFP, "frm_qplumb", "QPLUMB-0001", "sponsor", SUBMITTER, SPONSOR, ENTITLEMENT, "A sponsor talk", "An abstract.", "draft", now, now, now, 1],
+         (id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, sponsor_id, entitlement_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [PROPOSAL, EVENT, CFP, "frm_qplumb", "QPLUMB-0001", "sponsor", SUBMITTER, SPONSOR, ENTITLEMENT, "A sponsor talk", "An abstract.", "draft", now, now, now, 1],
     );
 
     abandoned = buildEvent(

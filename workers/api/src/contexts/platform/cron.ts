@@ -7,7 +7,7 @@
  * or this sweep.
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { AppContext, soleOrgId, type Env } from "@podiumstack/data/context.js";
 import { str, type Row } from "@podiumstack/data/db.js";
 import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
 import type { CronJob } from "../../consumers/cron.js";
@@ -27,7 +27,7 @@ export const PLATFORM_CRON: CronJob[] = [
     everyMinutes: 1,
     async run(env, now) {
       const due = await env.DB.prepare(
-        `SELECT wd.id AS delivery_id, wd.webhook_id, wd.domain_event_id, w.org_id AS org_id
+        `SELECT wd.id AS delivery_id, wd.webhook_id, wd.domain_event_id
            FROM webhook_delivery wd JOIN webhook w ON w.id = wd.webhook_id
           WHERE wd.status = 'pending' AND wd.attempt > 1 AND wd.scheduled_for <= ? AND w.status = 'active'
           LIMIT 200`,
@@ -40,7 +40,6 @@ export const PLATFORM_CRON: CronJob[] = [
           kind: "webhook",
           delivery_id: str(row.delivery_id),
           webhook_id: str(row.webhook_id),
-          org_id: str(row.org_id),
           event_id: str(row.domain_event_id),
         };
         try {
@@ -59,13 +58,14 @@ export const PLATFORM_CRON: CronJob[] = [
     everyMinutes: 5,
     async run(env: Env, now: string) {
       const due = await env.DB.prepare(
-        "SELECT id, org_id, event_id FROM campaign WHERE status = 'scheduled' AND scheduled_for IS NOT NULL AND scheduled_for <= ? LIMIT 100",
+        "SELECT id, event_id FROM campaign WHERE status = 'scheduled' AND scheduled_for IS NOT NULL AND scheduled_for <= ? LIMIT 100",
       )
         .bind(now)
         .all<Row>();
       let n = 0;
+      const orgId = await soleOrgId(env);
       for (const row of due.results ?? []) {
-        const app = new AppContext({ env, orgId: str(row.org_id), eventId: str(row.event_id) || null, actor: SYSTEM_ACTOR });
+        const app = new AppContext({ env, orgId, eventId: str(row.event_id) || null, actor: SYSTEM_ACTOR });
         try {
           await sendCampaignNow(app, str(row.id));
           await app.flush();
@@ -118,12 +118,11 @@ export const PLATFORM_CRON: CronJob[] = [
     everyMinutes: 15,
     async run(env: Env) {
       const mappings = await env.DB.prepare(
-        "SELECT id, org_id, subject FROM sync_mapping WHERE is_active = 1 LIMIT 200",
+        "SELECT id, subject FROM sync_mapping WHERE is_active = 1 LIMIT 200",
       ).all<Row>();
 
       let n = 0;
       for (const row of mappings.results ?? []) {
-        const orgId = str(row.org_id);
         const mappingId = str(row.id);
         // Push first: a record left dirty by a queue outage should reach the
         // provider before the pull reads a table that is missing it.
@@ -133,11 +132,11 @@ export const PLATFORM_CRON: CronJob[] = [
           .bind(mappingId)
           .first<{ n: number }>();
         if (Number(pending?.n ?? 0) > 0) {
-          await schedulePush(env, orgId, mappingId, "cron");
+          await schedulePush(env, mappingId, "cron");
           n++;
         }
         if (writableFields(str(row.subject)).length > 0) {
-          await schedulePull(env, orgId, mappingId, "cron");
+          await schedulePull(env, mappingId, "cron");
           n++;
         }
       }

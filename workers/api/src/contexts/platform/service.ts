@@ -55,7 +55,6 @@ export async function createApiKey(app: AppContext, input: CreateApiKeyInput): P
   const id = newId("ApiKey");
   const row: Row = {
     id,
-    org_id: app.orgId,
     name: input.name.trim(),
     prefix: secret.slice(0, 8),
     secret_hash: hashToken(secret),
@@ -137,7 +136,6 @@ export async function createWebhook(app: AppContext, input: WebhookInput): Promi
   const id = newId("Webhook");
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? null,
     name: input.name.trim() || input.url,
     url: input.url,
@@ -245,8 +243,8 @@ async function nextAttempt(app: AppContext, webhookId: string, domainEventId: st
   return num(rows[0]?.n, 0) + 1;
 }
 
-async function enqueueWebhookDelivery(env: Env, orgId: string, deliveryId: string, webhookId: string, domainEventId: string): Promise<void> {
-  const message: DeliveryMessage = { kind: "webhook", delivery_id: deliveryId, webhook_id: webhookId, org_id: orgId, event_id: domainEventId };
+async function enqueueWebhookDelivery(env: Env, deliveryId: string, webhookId: string, domainEventId: string): Promise<void> {
+  const message: DeliveryMessage = { kind: "webhook", delivery_id: deliveryId, webhook_id: webhookId, event_id: domainEventId };
   try {
     await env.DELIVERY_QUEUE.send(message);
   } catch (err) {
@@ -267,7 +265,7 @@ export async function scheduleWebhookDelivery(app: AppContext, webhookId: string
       scheduled_for: app.now(),
     },
   ]);
-  await enqueueWebhookDelivery(app.env, app.orgId, id, webhookId, domainEventId);
+  await enqueueWebhookDelivery(app.env, id, webhookId, domainEventId);
   return id;
 }
 
@@ -287,7 +285,7 @@ export async function redeliverWebhookDelivery(app: AppContext, deliveryId: stri
       scheduled_for: app.now(),
     },
   ]);
-  await enqueueWebhookDelivery(app.env, app.orgId, id, str(delivery.webhook_id), str(delivery.domain_event_id));
+  await enqueueWebhookDelivery(app.env, id, str(delivery.webhook_id), str(delivery.domain_event_id));
   app.audit.record({ action: "webhook_delivery.redeliver", entity_type: "webhook_delivery", entity_id: id, after: { source: deliveryId } });
   return id;
 }
@@ -302,8 +300,8 @@ export async function replayEventType(
 ): Promise<number> {
   const webhook = await getWebhook(app, webhookId);
   const rows = await app.db.raw<Row>(
-    "SELECT id, type FROM domain_event_record WHERE org_id = ? AND occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at",
-    [app.orgId, from, to],
+    "SELECT id, type FROM domain_event_record WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at",
+    [from, to],
   );
   let count = 0;
   for (const r of rows) {
@@ -336,8 +334,8 @@ export interface IntegrationInput {
 /** Clears any other default for the same capability + scope before this one claims it (INV-09-4). */
 async function clearOtherDefaults(app: AppContext, capability: string, eventId: string | null, exceptId: string): Promise<void> {
   await app.db.rawRun(
-    "UPDATE integration SET is_default_for_capability = 0 WHERE org_id = ? AND capability = ? AND COALESCE(event_id,'') = ? AND id != ?",
-    [app.orgId, capability, eventId ?? "", exceptId],
+    "UPDATE integration SET is_default_for_capability = 0 WHERE capability = ? AND COALESCE(event_id,'') = ? AND id != ?",
+    [capability, eventId ?? "", exceptId],
   );
 }
 
@@ -365,7 +363,6 @@ export async function installIntegration(app: AppContext, input: IntegrationInpu
   const id = newId("Integration");
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? null,
     plugin_key: plugin.key,
     capability: plugin.capability,

@@ -45,7 +45,6 @@ import { findOrCreatePerson } from "../identity/service.js";
 
 export interface SessionRow extends Row {
   id: string;
-  org_id: string;
   event_id: string;
   proposal_id: string | null;
   reference: string;
@@ -257,7 +256,6 @@ async function insertSession(app: AppContext, input: InsertSessionInput): Promis
   const now = app.now();
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: input.event_id,
     proposal_id: input.proposal_id ?? null,
     reference: input.reference,

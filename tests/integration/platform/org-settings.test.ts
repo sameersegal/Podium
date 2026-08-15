@@ -28,9 +28,8 @@ async function seed(): Promise<void> {
     "INSERT OR IGNORE INTO organization (id, name, slug, default_timezone, contact_email, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
     [ORG, "Settings Test Org", "settings-test-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), EPOCH, EPOCH],
   );
-  await run("INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)", [
+  await run("INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)", [
     ADMIN,
-    ORG,
     ADMIN_EMAIL,
     "Settings Admin",
     "active",
@@ -48,9 +47,8 @@ async function seed(): Promise<void> {
     ADMIN_EMAIL,
     now,
   ]);
-  await run("INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)", [
+  await run("INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)", [
     "rg_settings_admin",
-    ORG,
     ADMIN,
     "owner",
     "org",

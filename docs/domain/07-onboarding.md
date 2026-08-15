@@ -125,7 +125,7 @@ record appears.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `tsk_` |
-| `org_id` / `event_id` | `ref(...)` | Y | denormalised for the portal query |
+| `event_id` | `ref(Event)` | Y | denormalised for the portal query |
 | `definition_id` | `ref(TaskDefinition)` | Y | |
 | `definition_version` | `int` | Y | frozen at materialisation (INV-07-1) |
 | `definition_key` | `slug` | Y | denormalised, so reporting survives definition retirement |

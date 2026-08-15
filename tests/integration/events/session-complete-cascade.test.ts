@@ -56,8 +56,8 @@ async function seed() {
   // makes closing the last blocking task actually republish rather than only
   // clear the block.
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Cascade Conf", "tccasc-conf", "UTC", "2028-05-01", "2028-05-01", "in_person", "active", "public", JSON.stringify({ publication: { auto_publish: true } }), now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Cascade Conf", "tccasc-conf", "UTC", "2028-05-01", "2028-05-01", "in_person", "active", "public", JSON.stringify({ publication: { auto_publish: true } }), now, now],
   );
   await run("INSERT OR IGNORE INTO venue (id, event_id, name) VALUES (?,?,?)", [VENUE, EVENT, "Venue"]);
   await run(
@@ -70,14 +70,14 @@ async function seed() {
     [FORMAT, EVENT, "Talk", "talk", 30, 1, '["cfp"]', 0, 1],
   );
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [SPEAKER, ORG, "tccasc-speaker@example.com", "Sasha Speaker", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [SPEAKER, "tccasc-speaker@example.com", "Sasha Speaker", "active", 0, now, now],
   );
   await run(
     `INSERT OR IGNORE INTO session
-      (id, org_id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [SESSION, ORG, EVENT, "TC-0001", "cfp", "A talk worth rearranging", "An abstract.", FORMAT, 30, "scheduled", "approved", "public", now, now],
+      (id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [SESSION, EVENT, "TC-0001", "cfp", "A talk worth rearranging", "An abstract.", FORMAT, 30, "scheduled", "approved", "public", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO session_speaker (id, session_id, person_id, speaker_role, sort_order, confirmation_status, is_public, added_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -100,11 +100,9 @@ async function seed() {
   );
   await run(
     `INSERT INTO task_instance
-      (id, org_id, event_id, definition_id, definition_version, definition_key, title, requirement_type, config,
-       subject_type, subject_id, session_id, assignee_person_id, status, is_blocking, is_required, requires_review,
-       reminder_count, created_at, updated_at, row_version)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [TASK_INSTANCE, ORG, EVENT, TASK_DEF, 1, "tccasc-last-task", "Confirm the demo works", "acknowledgement", "{}", "session", SESSION, SESSION, SPEAKER, "not_started", 1, 1, 0, 0, now, now, 1],
+      (id, event_id, definition_id, definition_version, definition_key, title, requirement_type, config, subject_type, subject_id, session_id, assignee_person_id, status, is_blocking, is_required, requires_review, reminder_count, created_at, updated_at, row_version)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [TASK_INSTANCE, EVENT, TASK_DEF, 1, "tccasc-last-task", "Confirm the demo works", "acknowledgement", "{}", "session", SESSION, SESSION, SPEAKER, "not_started", 1, 1, 0, 0, now, now, 1],
   );
 
   // Publish once up front so there is a `live` publication to diff against —

@@ -277,7 +277,6 @@ export async function writeNotification(app: AppContext, input: WriteNotificatio
   const id = newId("NotificationDelivery");
   await app.db.insert("notification_delivery", {
     id,
-    org_id: app.orgId,
     event_id: app.eventId,
     campaign_id: input.campaign_id ?? null,
     template_key: input.template_key ?? null,
@@ -292,7 +291,7 @@ export async function writeNotification(app: AppContext, input: WriteNotificatio
     status: "queued",
     created_at: app.now(),
   });
-  const message: DeliveryMessage = { kind: "notification", notification_id: id, org_id: app.orgId };
+  const message: DeliveryMessage = { kind: "notification", notification_id: id };
   try {
     await app.env.DELIVERY_QUEUE.send(message);
   } catch (err) {
@@ -306,22 +305,20 @@ export async function writeNotification(app: AppContext, input: WriteNotificatio
 /* -------------------------------------------------------------------------- */
 
 async function suppressionEntriesFor(app: AppContext, email: string): Promise<SuppressionEntry[]> {
-  const rows = await app.db.raw<Row>("SELECT * FROM notification_suppression WHERE org_id = ? AND email = ?", [app.orgId, email.toLowerCase()]);
+  const rows = await app.db.raw<Row>("SELECT * FROM notification_suppression WHERE email = ?", [email.toLowerCase()]);
   return rows.map((r) => ({ email: str(r.email), category: str(r.category), reason: str(r.reason) }));
 }
 
 export async function recordSuppression(app: AppContext, email: string, category: string, reason: string): Promise<void> {
   await app.db.rawRun(
-    "INSERT INTO notification_suppression (org_id, email, category, reason, created_at) VALUES (?,?,?,?,?) " +
-      "ON CONFLICT (org_id, email, category) DO UPDATE SET reason = excluded.reason, created_at = excluded.created_at",
-    [app.orgId, email.trim().toLowerCase(), category, reason, app.now()],
+    "INSERT INTO notification_suppression (email, category, reason, created_at) VALUES (?,?,?,?) " +
+      "ON CONFLICT (email, category) DO UPDATE SET reason = excluded.reason, created_at = excluded.created_at",
+    [email.trim().toLowerCase(), category, reason, app.now()],
   );
 }
 
 export async function removeSuppression(app: AppContext, email: string, category: string): Promise<void> {
-  await app.db.rawRun("DELETE FROM notification_suppression WHERE org_id = ? AND email = ? AND category = ?", [
-    app.orgId,
-    email.trim().toLowerCase(),
+  await app.db.rawRun("DELETE FROM notification_suppression WHERE email = ? AND category = ?", [email.trim().toLowerCase(),
     category,
   ]);
 }
@@ -464,7 +461,7 @@ export async function attemptSend(app: AppContext, notificationId: string): Prom
       if (q.defer) {
         try {
           await app.env.DELIVERY_QUEUE.send(
-            { kind: "notification", notification_id: notificationId, org_id: app.orgId } satisfies DeliveryMessage,
+            { kind: "notification", notification_id: notificationId } satisfies DeliveryMessage,
             { delaySeconds: Math.min(q.delay_seconds, 43200) },
           );
         } catch (err) {
@@ -629,7 +626,6 @@ export async function createTemplate(app: AppContext, input: TemplateInput): Pro
   const id = newId("NotificationTemplate");
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? null,
     key: input.key,
     channel: input.channel ?? spec?.channel ?? "email",

@@ -111,7 +111,7 @@ async function speakerProfileIds(
   return rows.map((r) => str(r.profile_id)).filter(Boolean);
 }
 
-/** Rows of an event-scoped table that has no `org_id` column of its own. */
+/** Rows of a table scoped to one event rather than to the whole deployment. */
 async function byEvent(app: AppContext, table: string, scope: MappingScope, extra = ""): Promise<Row[]> {
   if (!scope.eventId) return [];
   return app.db.raw<Row>(`SELECT * FROM ${table} WHERE event_id = ?${extra} ORDER BY id`, [scope.eventId]);
@@ -444,8 +444,8 @@ export const SUBJECT_ADAPTERS: Record<SyncSubject, SubjectAdapter> = {
     async list(app, scope) {
       const rows = await app.db.raw<Row>(
         `SELECT c.* FROM prospect_card c JOIN sourcing_pipeline p ON p.id = c.pipeline_id
-          WHERE p.org_id = ? ORDER BY c.id`,
-        [app.orgId],
+           ORDER BY c.id`,
+        [],
       );
       return applyFilter(rows, scope);
     },

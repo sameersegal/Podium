@@ -737,11 +737,11 @@ export async function invalidateSnapshot(env: Env, eventId: string): Promise<voi
  * publication, and serve it from cache: the embed never touches the database on
  * a warm read.
  */
-export async function liveSnapshot(env: Env, orgId: string, eventId: string): Promise<ScheduleSnapshot | null> {
+export async function liveSnapshot(env: Env, eventId: string): Promise<ScheduleSnapshot | null> {
   const cached = await env.CACHE.get<ScheduleSnapshot>(cacheKeyFor(eventId), "json");
   if (cached) return cached;
 
-  const db = new D1Db(env.DB, orgId);
+  const db = new D1Db(env.DB);
   const pub = await db.first<Row>("schedule_publication", { event_id: eventId, status: "live" });
   if (!pub) return null;
   const app = { db, env, now: () => new Date().toISOString() } as unknown as AppContext;
@@ -751,8 +751,8 @@ export async function liveSnapshot(env: Env, orgId: string, eventId: string): Pr
 }
 
 /** A pinned or preview publication, read directly rather than from the live cache. */
-export async function snapshotById(env: Env, orgId: string, publicationId: string): Promise<ScheduleSnapshot | null> {
-  const db = new D1Db(env.DB, orgId);
+export async function snapshotById(env: Env, publicationId: string): Promise<ScheduleSnapshot | null> {
+  const db = new D1Db(env.DB);
   const app = { db, env, now: () => new Date().toISOString() } as unknown as AppContext;
   return readSnapshot(app, publicationId);
 }

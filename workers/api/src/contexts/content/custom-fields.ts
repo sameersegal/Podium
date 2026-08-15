@@ -62,7 +62,6 @@ export async function createDefinition(app: AppContext, input: CreateFieldInput)
   const id = newId("CustomFieldDefinition");
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? null,
     subject_type: input.subject_type,
     key,
@@ -136,8 +135,8 @@ export async function listDefinitions(app: AppContext, subjectType?: CustomField
 /** R27: no hard cap; a soft warning past roughly 25 definitions per subject type. */
 export async function definitionCountBySubject(app: AppContext): Promise<Record<string, number>> {
   const rows = await app.db.raw<{ subject_type: string; n: number }>(
-    "SELECT subject_type, COUNT(*) AS n FROM custom_field_definition WHERE org_id = ? AND status = 'active' GROUP BY subject_type",
-    [app.orgId],
+    "SELECT subject_type, COUNT(*) AS n FROM custom_field_definition WHERE status = 'active' GROUP BY subject_type",
+    [],
   );
   return Object.fromEntries(rows.map((r) => [r.subject_type, r.n]));
 }

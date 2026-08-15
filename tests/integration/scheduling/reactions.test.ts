@@ -32,8 +32,8 @@ async function seed() {
     [ORG, "Screact Org", "screact-org", "UTC", "a@b.example", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Screact Conf", "screact-conf", "UTC", "2027-10-01", "2027-10-01", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Screact Conf", "screact-conf", "UTC", "2027-10-01", "2027-10-01", "in_person", "active", "public", "{}", now, now],
   );
   await run("INSERT OR IGNORE INTO venue (id, event_id, name) VALUES (?,?,?)", [VENUE, EVENT, "Venue"]);
   await run(
@@ -47,9 +47,9 @@ async function seed() {
   );
   await run(
     `INSERT OR IGNORE INTO session
-      (id, org_id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [SESSION, ORG, EVENT, "T-0001", "cfp", "A talk", "An abstract.", FORMAT, 30, "scheduled", "approved", "public", now, now],
+      (id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [SESSION, EVENT, "T-0001", "cfp", "A talk", "An abstract.", FORMAT, 30, "scheduled", "approved", "public", now, now],
   );
   await run(
     `INSERT OR IGNORE INTO placement
@@ -96,17 +96,17 @@ describe("scheduling.recompute_conflicts_on_move", () => {
   beforeAll(async () => {
     const now = new Date().toISOString();
     await run(
-      "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      [EVENT2, ORG, "Screact Conf 2", "screact-conf-2", "UTC", "2027-10-02", "2027-10-02", "in_person", "active", "public", "{}", now, now],
+      "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      [EVENT2, "Screact Conf 2", "screact-conf-2", "UTC", "2027-10-02", "2027-10-02", "in_person", "active", "public", "{}", now, now],
     );
     for (const [id, ref] of [
       [SESSION_A, "T-0002"],
       [SESSION_B, "T-0003"],
     ]) {
       await run(
-        `INSERT OR IGNORE INTO session (id, org_id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [id, ORG, EVENT2, ref, "cfp", `Talk ${ref}`, "Abstract.", FORMAT, 30, "scheduled", "approved", "public", now, now],
+        `INSERT OR IGNORE INTO session (id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [id, EVENT2, ref, "cfp", `Talk ${ref}`, "Abstract.", FORMAT, 30, "scheduled", "approved", "public", now, now],
       );
     }
     // Both in the same room, overlapping — a conflict already exists before

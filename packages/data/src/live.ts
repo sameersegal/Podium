@@ -40,8 +40,8 @@ interface Poke {
  * `v1` is in the name so a future change to what a room means can be rolled
  * out by renaming rather than by draining every socket in the fleet.
  */
-export function roomKey(orgId: string, eventId: string | null | undefined): string {
-  return eventId ? `room:v1:${orgId}:event:${eventId}` : `room:v1:${orgId}:org`;
+export function roomKey(eventId: string | null | undefined): string {
+  return eventId ? `room:v1:event:${eventId}` : "room:v1:org";
 }
 
 /**
@@ -52,7 +52,7 @@ export async function pokeRooms(env: Env, events: DomainEvent[]): Promise<void> 
   const byRoom = new Map<string, Poke[]>();
   for (const e of events) {
     if (!isLiveEventType(e.type)) continue;
-    const key = roomKey(e.org_id, e.event_id);
+    const key = roomKey(e.event_id);
     const pokes = byRoom.get(key) ?? [];
     pokes.push({ id: e.id, type: e.type, subject: e.subject, occurred_at: e.occurred_at });
     byRoom.set(key, pokes);
@@ -78,9 +78,9 @@ export async function pokeRooms(env: Env, events: DomainEvent[]): Promise<void> 
 }
 
 /** Closes every socket a person holds in one room — a revoked grant, or a sign-out. */
-export async function kickFromRoom(env: Env, orgId: string, eventId: string | null, personId: string): Promise<void> {
+export async function kickFromRoom(env: Env, eventId: string | null, personId: string): Promise<void> {
   try {
-    await roomStub(env, roomKey(orgId, eventId)).fetch("https://room.internal/kick", {
+    await roomStub(env, roomKey(eventId)).fetch("https://room.internal/kick", {
       method: "POST",
       body: JSON.stringify({ person_id: personId }),
       headers: { "content-type": "application/json" },

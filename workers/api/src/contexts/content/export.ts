@@ -46,7 +46,6 @@ export async function createExport(app: AppContext, principals: Principals, inpu
   const id = newId("Export");
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? null,
     subject: input.subject,
     format: input.format,
@@ -235,10 +234,11 @@ async function contactRows(app: AppContext): Promise<Record<string, unknown>[]> 
 }
 
 async function communicationRows(app: AppContext, eventId: string | null): Promise<Record<string, unknown>[]> {
-  const where: Row = { org_id: app.orgId };
+  const where: Row = {};
   if (eventId) where.event_id = eventId;
   const clauses = Object.keys(where).map((k) => `${k} = ?`);
-  const rows = await app.db.raw<Row>(`SELECT * FROM notification_delivery WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC`, Object.values(where));
+  const filter = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
+  const rows = await app.db.raw<Row>(`SELECT * FROM notification_delivery${filter} ORDER BY created_at DESC`, Object.values(where));
   return rows.map((r) => ({
     id: str(r.id),
     created_at: str(r.created_at),

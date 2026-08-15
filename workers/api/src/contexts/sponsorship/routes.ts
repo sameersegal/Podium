@@ -567,10 +567,10 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
     const holders = await app.db.raw<Row>(
       `SELECT p.id, p.reference, p.title, p.status, p.entitlement_id, p.session_id
          FROM proposal p
-        WHERE p.org_id = ? AND p.deleted_at IS NULL AND p.entitlement_id IN (
+        WHERE p.deleted_at IS NULL AND p.entitlement_id IN (
               SELECT id FROM entitlement WHERE sponsorship_id = ?)
         ORDER BY p.created_at`,
-      [ctx.orgId, params.id],
+      [params.id],
     );
 
     return htmlResponse(
@@ -733,8 +733,8 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
     const limit = Math.min(200, Number(ctx.url.searchParams.get("limit") ?? 50));
     const cursor = ctx.url.searchParams.get("cursor");
     const rows = await app.db.raw<Row>(
-      `SELECT * FROM sponsor WHERE org_id = ? AND deleted_at IS NULL ${cursor ? "AND id > ?" : ""} ORDER BY id LIMIT ?`,
-      cursor ? [ctx.orgId, cursor, limit + 1] : [ctx.orgId, limit + 1],
+      `SELECT * FROM sponsor WHERE deleted_at IS NULL ${cursor ? "AND id > ?" : ""} ORDER BY id LIMIT ?`,
+      cursor ? [cursor, limit + 1] : [limit + 1],
     );
     const page = rows.slice(0, limit);
     return json({
@@ -888,9 +888,9 @@ export function registerSponsorshipRoutes(router: Router<RequestContext>): void 
       ? await entitlementsForSponsorship(app, sponsorshipId)
       : await app.db.raw<Row>(
           `SELECT en.* FROM entitlement en JOIN sponsorship sp ON sp.id = en.sponsorship_id
-            JOIN sponsor s ON s.id = sp.sponsor_id AND s.org_id = ? AND s.deleted_at IS NULL
+            JOIN sponsor s ON s.id = sp.sponsor_id AND s.deleted_at IS NULL
             ${eventId ? "WHERE sp.event_id = ?" : ""} ORDER BY en.id`,
-          eventId ? [ctx.orgId, eventId] : [ctx.orgId],
+          eventId ? [eventId] : [],
         );
     const usage = await entitlementUsageFor(app, rows);
     return json({

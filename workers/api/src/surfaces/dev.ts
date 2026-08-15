@@ -54,7 +54,6 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
     const [task] = await app.db.select<Row>("task_instance", { event_id: eventId }, { orderBy: "created_at", limit: 1 });
     const [person] = await app.db.select<Row>("person", {}, { orderBy: "created_at", limit: 1 });
     return json({
-      org_id: ctx.orgId,
       events,
       event_id: eventId,
       event_slug: str(event.slug),

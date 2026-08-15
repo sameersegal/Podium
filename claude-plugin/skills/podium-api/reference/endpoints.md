@@ -27,27 +27,27 @@ Paths shown with `:name` take an id in that position.
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/cfps/:cfpId` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2282 |
-| `PATCH /v1/cfps/:cfpId` | `events:write` | — | `row_version` |  | workers/api/src/contexts/event-config/routes.ts:2289 |
-| `GET /v1/cfps/:cfpId/builder` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2423 |
-| `POST /v1/cfps/:cfpId/close` | `events:write` | — | `reason` |  | workers/api/src/contexts/event-config/routes.ts:2308 |
-| `GET /v1/cfps/:cfpId/forms` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2348 |
-| `POST /v1/cfps/:cfpId/forms` | `events:write` | — | `notes` |  | workers/api/src/contexts/event-config/routes.ts:2365 |
-| `GET /v1/cfps/:cfpId/options` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2328 |
-| `PATCH /v1/cfps/:cfpId/options` | `events:write` | — | `formats` `tracks` |  | workers/api/src/contexts/event-config/routes.ts:2335 |
-| `POST /v1/cfps/:cfpId/publish` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2299 |
-| `POST /v1/cfps/:cfpId/reopen` | `events:write` | — | `reason` `closes_at` |  | workers/api/src/contexts/event-config/routes.ts:2318 |
-| `GET /v1/events/:eventId/cfps` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2259 |
-| `POST /v1/events/:eventId/cfps` | `events:write` | — | `name` `slug` `audience` `intro_markdown` `guidelines_url` `grace_period_minutes` `late_submission_policy` `max_proposals_per_person` `allow_edit_after_submit` `withdraw_allowed_until` `notify_on_submit` |  | workers/api/src/contexts/event-config/routes.ts:2272 |
-| `DELETE /v1/fields/:fieldId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2541 |
-| `PATCH /v1/fields/:fieldId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2527 |
-| `GET /v1/forms/:formId` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2375 |
-| `POST /v1/forms/:formId/fields` | `events:write` | — | `step_id` `key` `label` `help_text` `placeholder` `type` `options` `is_required` `visible_when` `maps_to` `audience` `pii` `identifies_speaker` `sort_order` |  | workers/api/src/contexts/event-config/routes.ts:2499 |
-| `POST /v1/forms/:formId/publish` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2383 |
-| `POST /v1/forms/:formId/reorder` | `events:write` | — | `steps` `fields` |  | workers/api/src/contexts/event-config/routes.ts:2470 |
-| `POST /v1/forms/:formId/steps` | `events:write` | — | `key` `title` `description` `is_optional` `sort_order` `visible_when` |  | workers/api/src/contexts/event-config/routes.ts:2394 |
-| `DELETE /v1/steps/:stepId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2554 |
-| `PATCH /v1/steps/:stepId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2485 |
+| `GET /v1/cfps/:cfpId` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2277 |
+| `PATCH /v1/cfps/:cfpId` | `events:write` | — | `row_version` |  | workers/api/src/contexts/event-config/routes.ts:2284 |
+| `GET /v1/cfps/:cfpId/builder` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2418 |
+| `POST /v1/cfps/:cfpId/close` | `events:write` | — | `reason` |  | workers/api/src/contexts/event-config/routes.ts:2303 |
+| `GET /v1/cfps/:cfpId/forms` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2343 |
+| `POST /v1/cfps/:cfpId/forms` | `events:write` | — | `notes` |  | workers/api/src/contexts/event-config/routes.ts:2360 |
+| `GET /v1/cfps/:cfpId/options` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2323 |
+| `PATCH /v1/cfps/:cfpId/options` | `events:write` | — | `formats` `tracks` |  | workers/api/src/contexts/event-config/routes.ts:2330 |
+| `POST /v1/cfps/:cfpId/publish` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2294 |
+| `POST /v1/cfps/:cfpId/reopen` | `events:write` | — | `reason` `closes_at` |  | workers/api/src/contexts/event-config/routes.ts:2313 |
+| `GET /v1/events/:eventId/cfps` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2255 |
+| `POST /v1/events/:eventId/cfps` | `events:write` | — | `name` `slug` `audience` `intro_markdown` `guidelines_url` `grace_period_minutes` `late_submission_policy` `max_proposals_per_person` `allow_edit_after_submit` `withdraw_allowed_until` `notify_on_submit` |  | workers/api/src/contexts/event-config/routes.ts:2267 |
+| `DELETE /v1/fields/:fieldId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2536 |
+| `PATCH /v1/fields/:fieldId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2522 |
+| `GET /v1/forms/:formId` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2370 |
+| `POST /v1/forms/:formId/fields` | `events:write` | — | `step_id` `key` `label` `help_text` `placeholder` `type` `options` `is_required` `visible_when` `maps_to` `audience` `pii` `identifies_speaker` `sort_order` |  | workers/api/src/contexts/event-config/routes.ts:2494 |
+| `POST /v1/forms/:formId/publish` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2378 |
+| `POST /v1/forms/:formId/reorder` | `events:write` | — | `steps` `fields` |  | workers/api/src/contexts/event-config/routes.ts:2465 |
+| `POST /v1/forms/:formId/steps` | `events:write` | — | `key` `title` `description` `is_optional` `sort_order` `visible_when` |  | workers/api/src/contexts/event-config/routes.ts:2389 |
+| `DELETE /v1/steps/:stepId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2549 |
+| `PATCH /v1/steps/:stepId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2480 |
 
 ## console
 
@@ -80,35 +80,35 @@ Paths shown with `:name` take an id in that position.
 | `GET /v1/custom-fields` | `events:read` | `subject_type` | — |  | workers/api/src/contexts/content/routes.ts:815 |
 | `POST /v1/custom-fields` | `events:write` | — | `subject_type` `key` `label` `type` `options` `is_required` `pii` `audience` |  | workers/api/src/contexts/content/routes.ts:820 |
 | `POST /v1/custom-fields/:id` | `events:write` | — | `action` `label` `help_text` `is_required` `show_in_list` `is_filterable` |  | workers/api/src/contexts/content/routes.ts:837 |
-| `DELETE /v1/days/:dayId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2085 |
-| `PATCH /v1/days/:dayId` | `events:write` | — | `date` `label` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2069 |
-| `GET /v1/events` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:1950 |
-| `POST /v1/events` | `events:write` | — | `name` `slug` `edition` `tagline` `description` `timezone` `starts_on` `ends_on` `mode` `website_url` `visibility` `source` `clone_from_event_id` |  | workers/api/src/contexts/event-config/routes.ts:1957 |
-| `GET /v1/events/:eventId` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2011 |
-| `PATCH /v1/events/:eventId` | `events:write` | — | `row_version` |  | workers/api/src/contexts/event-config/routes.ts:2017 |
-| `POST /v1/events/:eventId/activate` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2026 |
-| `POST /v1/events/:eventId/archive` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2034 |
+| `DELETE /v1/days/:dayId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2084 |
+| `PATCH /v1/days/:dayId` | `events:write` | — | `date` `label` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2068 |
+| `GET /v1/events` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:1949 |
+| `POST /v1/events` | `events:write` | — | `name` `slug` `edition` `tagline` `description` `timezone` `starts_on` `ends_on` `mode` `website_url` `visibility` `source` `clone_from_event_id` |  | workers/api/src/contexts/event-config/routes.ts:1956 |
+| `GET /v1/events/:eventId` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2010 |
+| `PATCH /v1/events/:eventId` | `events:write` | — | `row_version` |  | workers/api/src/contexts/event-config/routes.ts:2016 |
+| `POST /v1/events/:eventId/activate` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2025 |
+| `POST /v1/events/:eventId/archive` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2033 |
 | `POST /v1/events/:eventId/auto-place` | `schedule:publish` | — | `track_ids` `event_day_ids` `strategy` |  | workers/api/src/contexts/scheduling/api-routes.ts:229 |
-| `POST /v1/events/:eventId/clone` | `events:read` `events:write` | — | `name` `slug` `edition` `tagline` `description` `timezone` `starts_on` `ends_on` `mode` `website_url` |  | workers/api/src/contexts/event-config/routes.ts:1984 |
+| `POST /v1/events/:eventId/clone` | `events:read` `events:write` | — | `name` `slug` `edition` `tagline` `description` `timezone` `starts_on` `ends_on` `mode` `website_url` |  | workers/api/src/contexts/event-config/routes.ts:1983 |
 | `GET /v1/events/:eventId/dashboard` | `events:read` | `sections` | — |  | workers/api/src/surfaces/console.ts:397 |
-| `GET /v1/events/:eventId/days` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2049 |
-| `POST /v1/events/:eventId/days` | `events:write` | — | `date` `label` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2055 |
-| `GET /v1/events/:eventId/formats` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2143 |
-| `POST /v1/events/:eventId/formats` | `events:write` | — | `name` `slug` `description` `default_duration_minutes` `min_duration_minutes` `max_duration_minutes` `max_speakers` `eligible_origins` `requires_review` `requires_recording_consent` `capacity_policy` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2156 |
-| `GET /v1/events/:eventId/readiness` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2042 |
-| `GET /v1/events/:eventId/rooms` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2208 |
-| `POST /v1/events/:eventId/rooms` | `events:write` | — | `venue_id` `name` `slug` `capacity` `floor` `av_capabilities` `default_track_id` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2221 |
+| `GET /v1/events/:eventId/days` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2048 |
+| `POST /v1/events/:eventId/days` | `events:write` | — | `date` `label` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2054 |
+| `GET /v1/events/:eventId/formats` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2141 |
+| `POST /v1/events/:eventId/formats` | `events:write` | — | `name` `slug` `description` `default_duration_minutes` `min_duration_minutes` `max_duration_minutes` `max_speakers` `eligible_origins` `requires_review` `requires_recording_consent` `capacity_policy` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2153 |
+| `GET /v1/events/:eventId/readiness` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2041 |
+| `GET /v1/events/:eventId/rooms` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2205 |
+| `POST /v1/events/:eventId/rooms` | `events:write` | — | `venue_id` `name` `slug` `capacity` `floor` `av_capabilities` `default_track_id` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2217 |
 | `GET /v1/events/:eventId/schedule` | `schedule:read` | — | — |  | workers/api/src/contexts/scheduling/api-routes.ts:96 |
-| `GET /v1/events/:eventId/tracks` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2097 |
-| `POST /v1/events/:eventId/tracks` | `events:write` | — | `name` `slug` `description` `color` `sort_order` `target_session_count` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2110 |
-| `GET /v1/events/:eventId/venues` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2188 |
-| `POST /v1/events/:eventId/venues` | `events:write` | — | `name` `address` `map_url` `timezone` `venue_id` |  | workers/api/src/contexts/event-config/routes.ts:2194 |
-| `DELETE /v1/formats/:formatId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2176 |
-| `PATCH /v1/formats/:formatId` | `events:write` | — | `name` `slug` `description` `default_duration_minutes` `min_duration_minutes` `max_duration_minutes` `max_speakers` `eligible_origins` `requires_review` `requires_recording_consent` `capacity_policy` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2165 |
-| `DELETE /v1/rooms/:roomId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2247 |
-| `PATCH /v1/rooms/:roomId` | `events:write` | — | `name` `slug` `capacity` `floor` `av_capabilities` `default_track_id` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2236 |
-| `DELETE /v1/tracks/:trackId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2130 |
-| `PATCH /v1/tracks/:trackId` | `events:write` | — | `name` `slug` `description` `color` `sort_order` `target_session_count` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2119 |
+| `GET /v1/events/:eventId/tracks` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2096 |
+| `POST /v1/events/:eventId/tracks` | `events:write` | — | `name` `slug` `description` `color` `sort_order` `target_session_count` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2108 |
+| `GET /v1/events/:eventId/venues` | `events:read` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2185 |
+| `POST /v1/events/:eventId/venues` | `events:write` | — | `name` `address` `map_url` `timezone` `venue_id` |  | workers/api/src/contexts/event-config/routes.ts:2191 |
+| `DELETE /v1/formats/:formatId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2173 |
+| `PATCH /v1/formats/:formatId` | `events:write` | — | `name` `slug` `description` `default_duration_minutes` `min_duration_minutes` `max_duration_minutes` `max_speakers` `eligible_origins` `requires_review` `requires_recording_consent` `capacity_policy` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2162 |
+| `DELETE /v1/rooms/:roomId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2243 |
+| `PATCH /v1/rooms/:roomId` | `events:write` | — | `name` `slug` `capacity` `floor` `av_capabilities` `default_track_id` `sort_order` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2232 |
+| `DELETE /v1/tracks/:trackId` | `events:write` | — | — |  | workers/api/src/contexts/event-config/routes.ts:2128 |
+| `PATCH /v1/tracks/:trackId` | `events:write` | — | `name` `slug` `description` `color` `sort_order` `target_session_count` `is_public` |  | workers/api/src/contexts/event-config/routes.ts:2117 |
 
 ## onboarding tasks
 
@@ -190,28 +190,28 @@ Paths shown with `:name` take an id in that position.
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/sessions` | `sessions:read` | `event_id` `status` | — |  | workers/api/src/contexts/program/routes.ts:501 |
-| `GET /v1/sessions/:sessionId` | `sessions:read` | — | — |  | workers/api/src/contexts/program/routes.ts:564 |
-| `GET /v1/sessions/:sessionId/speakers` | `sessions:read` | — | — | · | workers/api/src/contexts/program/routes.ts:574 |
-| `POST /v1/sessions/:sessionId/speakers` | `sessions:write` | — | `person_id` `email` `full_name` `speaker_role` `override_reason` |  | workers/api/src/contexts/program/routes.ts:585 |
+| `GET /v1/sessions` | `sessions:read` | `event_id` `status` | — |  | workers/api/src/contexts/program/routes.ts:500 |
+| `GET /v1/sessions/:sessionId` | `sessions:read` | — | — |  | workers/api/src/contexts/program/routes.ts:563 |
+| `GET /v1/sessions/:sessionId/speakers` | `sessions:read` | — | — | · | workers/api/src/contexts/program/routes.ts:573 |
+| `POST /v1/sessions/:sessionId/speakers` | `sessions:write` | — | `person_id` `email` `full_name` `speaker_role` `override_reason` |  | workers/api/src/contexts/program/routes.ts:584 |
 
 ## proposals
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/proposals` | `proposals:read` | `event_id` `q` `sort` `fields` `status` `track_id` `format_id` `origin` `cfp_id` | — | · | workers/api/src/contexts/submissions/routes.ts:798 |
-| `POST /v1/proposals` | `proposals:read` | — | `cfp_id` `submitter_person_id` `entitlement_id` `sponsor_id` `origin` | · | workers/api/src/contexts/submissions/routes.ts:860 |
-| `GET /v1/proposals/:id` | `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:816 |
-| `PATCH /v1/proposals/:id` | `proposals:write` | — | `reason` `keywords` `title` `abstract` `description` `session_format_id` `requested_duration_minutes` `track_id` `assigned_track_id` `audience_level` `language` `recording_consent` `recording_conditions` `coi_disclosure` | · | workers/api/src/contexts/submissions/routes.ts:888 |
-| `POST /v1/proposals/:id/submit` | `session` `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:901 |
-| `POST /v1/proposals/:id/withdraw` | `proposals:read` | — | `reason` | · | workers/api/src/contexts/submissions/routes.ts:917 |
+| `GET /v1/proposals` | `proposals:read` | `event_id` `q` `sort` `fields` `status` `track_id` `format_id` `origin` `cfp_id` | — | · | workers/api/src/contexts/submissions/routes.ts:796 |
+| `POST /v1/proposals` | `proposals:read` | — | `cfp_id` `submitter_person_id` `entitlement_id` `sponsor_id` `origin` | · | workers/api/src/contexts/submissions/routes.ts:858 |
+| `GET /v1/proposals/:id` | `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:814 |
+| `PATCH /v1/proposals/:id` | `proposals:write` | — | `reason` `keywords` `title` `abstract` `description` `session_format_id` `requested_duration_minutes` `track_id` `assigned_track_id` `audience_level` `language` `recording_consent` `recording_conditions` `coi_disclosure` | · | workers/api/src/contexts/submissions/routes.ts:886 |
+| `POST /v1/proposals/:id/submit` | `session` `proposals:read` | — | — | · | workers/api/src/contexts/submissions/routes.ts:899 |
+| `POST /v1/proposals/:id/withdraw` | `proposals:read` | — | `reason` | · | workers/api/src/contexts/submissions/routes.ts:915 |
 | `GET /v1/proposals/:proposalId/score` | `reviews:read` | `round_id` | — |  | workers/api/src/contexts/review/routes.ts:1640 |
 
 ## public
 
 | Endpoint | Scope | Query | Body | PII | Source |
 |---|---|---|---|---|---|
-| `GET /v1/public/events/:eventSlug/cfps/:cfpSlug` | — | — | — |  | workers/api/src/contexts/event-config/routes.ts:2578 |
+| `GET /v1/public/events/:eventSlug/cfps/:cfpSlug` | — | — | — |  | workers/api/src/contexts/event-config/routes.ts:2573 |
 | `GET /v1/public/events/:eventSlug/schedule` | — | — | — |  | workers/api/src/surfaces/public.ts:907 |
 | `GET /v1/public/events/:eventSlug/sessions` | — | — | — |  | workers/api/src/surfaces/public.ts:916 |
 | `GET /v1/public/events/:eventSlug/speakers` | — | — | — |  | workers/api/src/surfaces/public.ts:926 |

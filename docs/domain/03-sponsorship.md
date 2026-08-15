@@ -36,7 +36,6 @@ carrying their record forward is half the value of having events be plural.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `spo_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `name` | `string` | Y | legal or trading name |
 | `display_name` | `string` | N | what goes on the website |
 | `slug` | `slug` | Y | unique per org |

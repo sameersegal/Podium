@@ -6,7 +6,7 @@
  * management UI), an API key (management API), or nothing (public surfaces).
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { AppContext, soleOrg, type Env } from "@podiumstack/data/context.js";
 import { bool, D1Db, parseJson, str, type Row } from "@podiumstack/data/db.js";
 import { hashToken } from "@podiumstack/domain/identity/credentials.js";
 import type { Actor } from "@podiumstack/domain/events/envelope.js";
@@ -33,7 +33,6 @@ export const FLASH_COOKIE = "podium_flash";
 
 export interface PersonView {
   id: string;
-  org_id: string;
   full_name: string;
   display_name: string | null;
   email: string;
@@ -165,10 +164,21 @@ export function flashCookie(kind: "ok" | "err" | "warn" | "info", message: strin
   return setCookie(FLASH_COOKIE, JSON.stringify({ kind, message }), { maxAge: 30 });
 }
 
-/** The single org of this deployment (01, "Tenancy": one Organization per deployment). */
-export async function resolveOrgId(env: Env): Promise<string> {
-  const row = await env.DB.prepare("SELECT id FROM organization ORDER BY created_at LIMIT 1").first<{ id: string }>();
-  return row?.id ?? "";
+/**
+ * The single org of this deployment (01, "Tenancy"), on the request path.
+ *
+ * Returns the row rather than the id because a request needs both — the org's
+ * `default_timezone` to render every date, and its id for the `org_id` every
+ * domain event envelope carries. It scopes nothing: since migration 0012 there
+ * is no `org_id` column left to scope by.
+ *
+ * Resolved fresh per request and never cached. `/setup` turns "no org" into "an
+ * org" exactly once in a deployment's life, and a cached miss would make that
+ * transition need a restart to become visible — see `index.ts`, which sends
+ * every route but `/setup` to the setup screen while this returns null.
+ */
+export async function resolveOrg(env: Env): Promise<Row | null> {
+  return await soleOrg(env);
 }
 
 async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null> {
@@ -178,7 +188,6 @@ async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null
   if (row.merged_into_person_id) return loadPerson(db, str(row.merged_into_person_id));
   return {
     id: str(row.id),
-    org_id: str(row.org_id),
     full_name: str(row.full_name),
     display_name: row.display_name ? str(row.display_name) : null,
     email: str(row.email),
@@ -270,13 +279,13 @@ function countingEnv(env: Env, counter: QueryCounter): Env {
 export async function buildContext(req: Request, env: Env, waitUntil: (p: Promise<unknown>) => void): Promise<RequestContext> {
   const url = new URL(req.url);
   const now = nowIso();
-  // Wrapped before anything reads: `resolveOrgId` is itself a query, and a
+  // Wrapped before anything reads: `resolveOrg` is itself a query, and a
   // counter that starts after the first one is a counter that is wrong by one.
   const queries: QueryCounter = { count: 0 };
   env = countingEnv(env, queries);
-  const orgId = await resolveOrgId(env);
-  const db = new D1Db(env.DB, orgId);
-  const orgRow = orgId ? await db.byId<Row>("organization", orgId) : null;
+  const orgRow = await resolveOrg(env);
+  const orgId = str(orgRow?.id);
+  const db = new D1Db(env.DB);
   const orgTimezone = str(orgRow?.default_timezone, "UTC");
 
   let person: PersonView | null = null;

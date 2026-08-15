@@ -229,7 +229,6 @@ function pageParams(ctx: RequestContext): { cursor: string | null; limit: number
 function eventJson(row: Row): Record<string, unknown> {
   return {
     id: str(row.id),
-    org_id: str(row.org_id),
     name: str(row.name),
     slug: str(row.slug),
     edition: strOrNull(row.edition),
@@ -1950,7 +1949,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
   router.get("/v1/events", async (_req, ctx) => {
     ctx.requireRead("config.manage");
     const { cursor, limit } = pageParams(ctx);
-    const page = await cursorPage(ctx.app(), "event", { orgScoped: true, softDelete: true, cursor, limit });
+    const page = await cursorPage(ctx.app(), "event", { softDelete: true, cursor, limit });
     return json({ data: page.items.map(eventJson), next_cursor: page.next_cursor });
   });
 
@@ -2099,7 +2098,6 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const { cursor, limit } = pageParams(ctx);
     const page = await cursorPage(ctx.app(params.eventId), "track", {
       where: { event_id: params.eventId },
-      orgScoped: false,
       softDelete: true,
       cursor,
       limit,
@@ -2145,7 +2143,6 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const { cursor, limit } = pageParams(ctx);
     const page = await cursorPage(ctx.app(params.eventId), "session_format", {
       where: { event_id: params.eventId },
-      orgScoped: false,
       softDelete: true,
       cursor,
       limit,
@@ -2210,7 +2207,6 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const { cursor, limit } = pageParams(ctx);
     const page = await cursorPage(ctx.app(params.eventId), "room", {
       where: { event_id: params.eventId },
-      orgScoped: false,
       softDelete: true,
       cursor,
       limit,
@@ -2261,7 +2257,6 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const { cursor, limit } = pageParams(ctx);
     const page = await cursorPage(ctx.app(params.eventId), "call_for_proposals", {
       where: { event_id: params.eventId },
-      orgScoped: false,
       softDelete: true,
       cursor,
       limit,

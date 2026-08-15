@@ -296,8 +296,16 @@ RAW_HTML_RE = re.compile(r"(?<![\w.])raw\s*\(\s*(?![\"'`)])")
 CLIENT_SINK_RE = re.compile(r"\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML\s*\(|\bdocument\.write\s*\(|\beval\s*\(|new Function\s*\(")
 # SQL assembled with interpolation rather than bound parameters.
 SQL_INTERP_RE = re.compile(r"\.(?:raw|rawRun|prepare|batch)\s*\(\s*`[^`]*\$\{", re.S)
-# `db.raw()` bypasses buildWhere, so it must carry its own org_id (INV-11-1).
+# `db.raw()` bypasses buildWhere, so a read of a soft-deletable table must carry
+# its own `deleted_at` filter (INV-11-2). It had to carry an `org_id` too until R9
+# was amended; entities no longer have one, so that half would match every raw
+# query and single nothing out.
 SQL_RAW_RE = re.compile(r"\.(?:raw|rawRun)\s*\(\s*[`\"']((?:[^`\"']|\\.)*)", re.S)
+# The tables carrying `deleted_at` — SOFT_DELETE_TABLES in packages/data/src/db.ts.
+SOFT_DELETE_RE = (
+    r"\b(?:from|join)\s+(?:person|person_note|event|track|session_format|room"
+    r"|call_for_proposals|sponsor|proposal|session|asset|asset_comment|review_comment)\b"
+)
 
 
 def snippet(text: str, index: int, width: int = 110) -> str:
@@ -324,8 +332,8 @@ def check_escapes() -> list[Check]:
     )
     sql_unscoped = Check(
         "sql-unscoped",
-        "`db.raw()` / `rawRun()` bypass `buildWhere`, so INV-11-1 (org-scoping) and "
-        "INV-11-2 (soft deletes) are the caller's job. These queries name neither.",
+        "`db.raw()` / `rawRun()` bypass `buildWhere`, so INV-11-2 (soft deletes) is "
+        "the caller's job. These read a table carrying `deleted_at` without naming it.",
     )
 
     for path in source_files((".ts", ".js", ".mjs")):
@@ -354,9 +362,11 @@ def check_escapes() -> list[Check]:
             sql = m.group(1)
             if not re.search(r"\b(?:select|insert|update|delete)\b", sql, re.I):
                 continue
-            if re.search(r"\borg_id\b", sql, re.I):
+            if not re.search(SOFT_DELETE_RE, sql, re.I):
                 continue
-            # Joins onto an org-scoped parent are scoped transitively; still worth listing.
+            if re.search(r"\bdeleted_at\b", sql, re.I):
+                continue
+            # A join onto an already-filtered parent is covered transitively; still listed.
             sql_unscoped.findings.append(
                 Finding("sql-unscoped", r, line_of(text, m.start()), snippet(text, m.start()))
             )

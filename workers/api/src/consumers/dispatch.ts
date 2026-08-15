@@ -28,7 +28,7 @@ export function reactionsFor(type: string): Reaction[] {
  */
 export async function deliverEvent(env: Env, ev: DomainEvent): Promise<string[]> {
   const started = Date.now();
-  const db = new D1Db(env.DB, ev.org_id);
+  const db = new D1Db(env.DB);
   const ran: string[] = [];
   const failures: { handler: string; error: unknown }[] = [];
 

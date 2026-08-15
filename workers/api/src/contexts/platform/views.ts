@@ -32,8 +32,8 @@ export interface CommsFilters {
  */
 export async function communicationsHistory(app: AppContext, filters: CommsFilters): Promise<{ items: Row[]; next_cursor: string | null }> {
   const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
-  const clauses = ["org_id = ?"];
-  const params: unknown[] = [app.orgId];
+  const clauses: string[] = [];
+  const params: unknown[] = [];
   if (filters.event_id) {
     clauses.push("event_id = ?");
     params.push(filters.event_id);
@@ -59,7 +59,7 @@ export async function communicationsHistory(app: AppContext, filters: CommsFilte
     params.push(filters.cursor);
   }
   const rows = await app.db.raw<Row>(
-    `SELECT * FROM notification_delivery WHERE ${clauses.join(" AND ")} ORDER BY id DESC LIMIT ${limit + 1}`,
+    `SELECT * FROM notification_delivery${clauses.length ? ` WHERE ${clauses.join(" AND ")}` : ""} ORDER BY id DESC LIMIT ${limit + 1}`,
     params,
   );
   const items = rows.slice(0, limit);
@@ -183,7 +183,6 @@ export function templateJson(row: Row): Record<string, unknown> {
 export function campaignJson(row: Row, stats: Record<string, number>, recipientCount: number): Record<string, unknown> {
   return {
     id: str(row.id),
-    org_id: str(row.org_id),
     event_id: strOrNull(row.event_id),
     name: str(row.name),
     channel: str(row.channel),
@@ -224,8 +223,8 @@ export interface EventLogFilters {
  */
 export async function listDomainEvents(app: AppContext, filters: EventLogFilters): Promise<{ items: Row[]; next_cursor: string | null }> {
   const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
-  const clauses = ["org_id = ?"];
-  const params: unknown[] = [app.orgId];
+  const clauses: string[] = [];
+  const params: unknown[] = [];
   const type = filters.type?.trim();
   if (type && type !== "*") {
     if (type.endsWith(".*")) {
@@ -248,19 +247,19 @@ export async function listDomainEvents(app: AppContext, filters: EventLogFilters
     clauses.push("id < ?");
     params.push(filters.cursor);
   }
-  const rows = await app.db.raw<Row>(`SELECT * FROM domain_event_record WHERE ${clauses.join(" AND ")} ORDER BY id DESC LIMIT ${limit + 1}`, params);
+  const rows = await app.db.raw<Row>(`SELECT * FROM domain_event_record${clauses.length ? ` WHERE ${clauses.join(" AND ")}` : ""} ORDER BY id DESC LIMIT ${limit + 1}`, params);
   const items = rows.slice(0, limit);
   return { items, next_cursor: rows.length > limit ? str(items[items.length - 1]?.id) : null };
 }
 
 export async function getDomainEventRow(app: AppContext, id: string): Promise<Row | null> {
-  const rows = await app.db.raw<Row>("SELECT * FROM domain_event_record WHERE id = ? AND org_id = ?", [id, app.orgId]);
+  const rows = await app.db.raw<Row>("SELECT * FROM domain_event_record WHERE id = ?", [id]);
   return rows[0] ?? null;
 }
 
 /** Events this one caused — walking `causation_id` forward, one hop. */
 export async function childEventsOf(app: AppContext, id: string): Promise<Row[]> {
-  return app.db.raw<Row>("SELECT * FROM domain_event_record WHERE causation_id = ? AND org_id = ? ORDER BY id", [id, app.orgId]);
+  return app.db.raw<Row>("SELECT * FROM domain_event_record WHERE causation_id = ? ORDER BY id", [id]);
 }
 
 export interface ReactionStatus {

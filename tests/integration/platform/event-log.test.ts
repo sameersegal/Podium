@@ -42,16 +42,16 @@ async function seed() {
     [ORG, "Event Log Org", "evlog-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Event Log Conf", "evlog-conf", "UTC", "2028-07-01", "2028-07-01", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Event Log Conf", "evlog-conf", "UTC", "2028-07-01", "2028-07-01", "in_person", "active", "public", "{}", now, now],
   );
   for (const [id, email, name] of [
     [CHAIR, CHAIR_EMAIL, "Chair Person"],
     [REVIEWER, REVIEWER_EMAIL, "Reviewer Person"],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, ORG, email, name, "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [id, email, name, "active", 0, now, now],
     );
   }
   await run(
@@ -63,12 +63,12 @@ async function seed() {
     ["aid_evlog_reviewer", REVIEWER, "password", REVIEWER_EMAIL, hashPassword(REVIEWER_PASSWORD), now, REVIEWER_EMAIL, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_evlog_chair", ORG, CHAIR, "program_chair", "org", ORG, CHAIR, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_evlog_chair", CHAIR, "program_chair", "org", ORG, CHAIR, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_evlog_reviewer", ORG, REVIEWER, "reviewer", "event", EVENT, CHAIR, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_evlog_reviewer", REVIEWER, "reviewer", "event", EVENT, CHAIR, now],
   );
 
   await run(
@@ -89,8 +89,8 @@ async function seed() {
   await run("INSERT INTO event_reaction_log (event_id, handler, processed_at) VALUES (?,?,?)", [PARENT_EVENT_ID, "platform.webhook_fanout", now]);
 
   await run(
-    "INSERT INTO audit_log (id, org_id, event_id, actor_type, actor_id, actor_display, action, entity_type, entity_id, reason, correlation_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-    ["aud_evlog_1", ORG, EVENT, "system", null, "system", "entitlement.release", "entitlement", "ent_evlog", "abandoned", CORRELATION_ID, now],
+    "INSERT INTO audit_log (id, event_id, actor_type, actor_id, actor_display, action, entity_type, entity_id, reason, correlation_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    ["aud_evlog_1", EVENT, "system", null, "system", "entitlement.release", "entitlement", "ent_evlog", "abandoned", CORRELATION_ID, now],
   );
 }
 

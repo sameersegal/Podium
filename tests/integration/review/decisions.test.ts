@@ -47,8 +47,8 @@ async function seed() {
     [ORG, "Revdec Org", "revdec-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Revdec Conf", "revdec-conf", "UTC", "2027-06-01", "2027-06-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Revdec Conf", "revdec-conf", "UTC", "2027-06-01", "2027-06-02", "in_person", "active", "public", "{}", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, opens_at, closes_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -68,8 +68,8 @@ async function seed() {
     [REVIEWER_2, "revdec-r2@example.com", "Reviewer Two"],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, ORG, email, name, "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [id, email, name, "active", 0, now, now],
     );
   }
 
@@ -78,8 +78,8 @@ async function seed() {
     ["aid_revdec_chair", CHAIR_PERSON, "password", CHAIR_EMAIL, hashPassword(CHAIR_PASSWORD), now, CHAIR_EMAIL, now],
   );
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_revdec_chair", ORG, CHAIR_PERSON, "program_chair", "event", EVENT, CHAIR_PERSON, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_revdec_chair", CHAIR_PERSON, "program_chair", "event", EVENT, CHAIR_PERSON, now],
   );
 
   await run(
@@ -100,15 +100,15 @@ async function seed() {
 
   await run(
     `INSERT OR IGNORE INTO proposal
-       (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [PROPOSAL_SHORT, ORG, EVENT, CFP, "frm_revdec", "REVDEC-0001", SUBMITTER_SHORT, "Short of Quorum", "An abstract.", "in_review", now, now, now, 1],
+       (id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [PROPOSAL_SHORT, EVENT, CFP, "frm_revdec", "REVDEC-0001", SUBMITTER_SHORT, "Short of Quorum", "An abstract.", "in_review", now, now, now, 1],
   );
   await run(
     `INSERT OR IGNORE INTO proposal
-       (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [PROPOSAL_FULL, ORG, EVENT, CFP, "frm_revdec", "REVDEC-0002", SUBMITTER_FULL, "Has Quorum", "An abstract.", "in_review", now, now, now, 1],
+       (id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [PROPOSAL_FULL, EVENT, CFP, "frm_revdec", "REVDEC-0002", SUBMITTER_FULL, "Has Quorum", "An abstract.", "in_review", now, now, now, 1],
   );
 
   // A proposal whose submitter is also its credited primary speaker — the
@@ -121,9 +121,9 @@ async function seed() {
   // fact is the one the test below drives directly.
   await run(
     `INSERT OR IGNORE INTO proposal
-       (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, session_format_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [PROPOSAL_SPEAKER, ORG, EVENT, CFP, "frm_revdec", "REVDEC-0003", SUBMITTER_SPEAKER, FORMAT, "Submitter Is The Speaker", "An abstract.", "accepted", now, now, now, 1],
+       (id, event_id, cfp_id, form_id, reference, submitter_person_id, session_format_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [PROPOSAL_SPEAKER, EVENT, CFP, "frm_revdec", "REVDEC-0003", SUBMITTER_SPEAKER, FORMAT, "Submitter Is The Speaker", "An abstract.", "accepted", now, now, now, 1],
   );
   await run(
     "INSERT OR IGNORE INTO proposal_speaker (id, proposal_id, person_id, speaker_role, sort_order, participation_status, added_by_person_id, added_at) VALUES (?,?,?,?,?,?,?,?)",

@@ -42,7 +42,7 @@ erDiagram
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ses_` |
-| `org_id` / `event_id` | `ref(...)` | Y | |
+| `event_id` | `ref(Event)` | Y | |
 | `proposal_id` | `ref(Proposal)` | N | null for invited/organizer-created sessions |
 | `reference` | `string` | Y | human-facing code, unique per event; reuses the proposal's when there is one |
 | `origin` | `enum(cfp, sponsor, invited, organizer)` | Y | `organizer` covers breaks, registration, and other non-talk items |

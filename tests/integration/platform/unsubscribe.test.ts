@@ -29,14 +29,14 @@ async function seed() {
     .bind(ORG, "One-Click Test Org", "oneclick-test-org", "UTC", "test@example.com", "{}", EPOCH, EPOCH)
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(EVENT, ORG, "One-Click Test Conf", "oneclick-test-conf", "UTC", "2028-09-01", "2028-09-02", "in_person", "active", "public", "{}", now(), now())
+    .bind(EVENT, "One-Click Test Conf", "oneclick-test-conf", "UTC", "2028-09-01", "2028-09-02", "in_person", "active", "public", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(PERSON, ORG, EMAIL, "One Click Recipient", "active", 0, now(), now())
+    .bind(PERSON, EMAIL, "One Click Recipient", "active", 0, now(), now())
     .run();
 }
 
@@ -45,8 +45,8 @@ function appFor(): AppContext {
 }
 
 async function suppressionRow(): Promise<Record<string, unknown> | null> {
-  return env.DB.prepare("SELECT * FROM notification_suppression WHERE org_id = ? AND email = ? AND category = 'campaign'")
-    .bind(ORG, EMAIL)
+  return env.DB.prepare("SELECT * FROM notification_suppression WHERE email = ? AND category = 'campaign'")
+    .bind(EMAIL)
     .first<Record<string, unknown>>();
 }
 
@@ -137,8 +137,8 @@ describe("POST /unsubscribe — the RFC 8058 one-click form and the human confir
     const body = await res.text();
     expect(body).toContain("You will not receive marketing messages");
 
-    const row = await env.DB.prepare("SELECT reason FROM notification_suppression WHERE org_id = ? AND email = ? AND category = 'campaign'")
-      .bind(ORG, formEmail)
+    const row = await env.DB.prepare("SELECT reason FROM notification_suppression WHERE email = ? AND category = 'campaign'")
+      .bind(formEmail)
       .first<Record<string, unknown>>();
     expect(row?.reason).toBe("unsubscribed");
   });
@@ -150,7 +150,7 @@ describe("POST /unsubscribe — the RFC 8058 one-click form and the human confir
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("Unsubscribe");
-    const row = await env.DB.prepare("SELECT * FROM notification_suppression WHERE org_id = ? AND email = ?").bind(ORG, getEmail).first();
+    const row = await env.DB.prepare("SELECT * FROM notification_suppression WHERE email = ?").bind(getEmail).first();
     expect(row).toBeNull();
   });
 });

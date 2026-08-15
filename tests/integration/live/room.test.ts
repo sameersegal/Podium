@@ -24,7 +24,7 @@ const EVENT = "evt_room";
 // the `Env & typeof testEnv` intersection sends the checker into TS2589.
 function stub() {
   const ns = testEnv.ROOM_DO;
-  return ns.get(ns.idFromName(roomKey(ORG, EVENT)));
+  return ns.get(ns.idFromName(roomKey(EVENT)));
 }
 
 function event(type: string, subjectType: string, id: string): DomainEvent {

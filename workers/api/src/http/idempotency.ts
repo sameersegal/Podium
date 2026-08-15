@@ -15,15 +15,15 @@ interface StoredResponse {
   body: string;
 }
 
-function cacheKey(orgId: string, method: string, path: string, key: string): string {
-  return `idem:${orgId}:${method}:${path}:${key}`;
+function cacheKey(method: string, path: string, key: string): string {
+  return `idem:${method}:${path}:${key}`;
 }
 
-export async function replayIfSeen(env: Env, orgId: string, req: Request): Promise<Response | null> {
+export async function replayIfSeen(env: Env, req: Request): Promise<Response | null> {
   const key = req.headers.get("idempotency-key");
   if (!key) return null;
   const url = new URL(req.url);
-  const stored = await env.CACHE.get<StoredResponse>(cacheKey(orgId, req.method, url.pathname, key), "json");
+  const stored = await env.CACHE.get<StoredResponse>(cacheKey(req.method, url.pathname, key), "json");
   if (!stored) return null;
   return new Response(stored.body, {
     status: stored.status,
@@ -31,7 +31,7 @@ export async function replayIfSeen(env: Env, orgId: string, req: Request): Promi
   });
 }
 
-export async function remember(env: Env, orgId: string, req: Request, res: Response): Promise<Response> {
+export async function remember(env: Env, req: Request, res: Response): Promise<Response> {
   const key = req.headers.get("idempotency-key");
   if (!key) return res;
   if (res.status >= 500) return res;
@@ -43,7 +43,7 @@ export async function remember(env: Env, orgId: string, req: Request, res: Respo
     headers[k] = v;
   });
   await env.CACHE.put(
-    cacheKey(orgId, req.method, url.pathname, key),
+    cacheKey(req.method, url.pathname, key),
     JSON.stringify({ status: res.status, headers, body } satisfies StoredResponse),
     { expirationTtl: TTL_SECONDS },
   );
