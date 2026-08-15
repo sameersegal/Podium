@@ -31,7 +31,18 @@ function storageKeyFor(orgId: string, slotKey: string, version: number, filename
   return `${orgId}/${slotKey.replace(/:/g, "/")}/${version}/${filename}`;
 }
 
+/**
+ * Every asset the slot has ever held, soft-deleted ones included — a deliberate
+ * escape from INV-11-2's default, not an oversight.
+ *
+ * `nextVersion` numbers a new upload above every version the slot has *ever*
+ * carried, and `supersededBy` needs the unbroken chain. Filtering `deleted_at`
+ * here would let a deleted asset's version number be handed out a second time,
+ * which is the one thing INV-11-9 exists to prevent. Callers wanting the live
+ * asset filter it themselves — see `latestInSlot`.
+ */
 async function assetsInSlot(app: AppContext, slotKey: string): Promise<Row[]> {
+  // nosemgrep: claude.skills.security-audit.rules.podium-raw-sql-unscoped
   return app.db.raw<Row>("SELECT * FROM asset WHERE slot_key = ?", [slotKey]);
 }
 
