@@ -87,7 +87,7 @@ world is in
 | | The objective | Whose job it is | Walked | ★ |
 |---|---|---|---|---|
 | S1 | Fill the programme with talks worth watching | The organizer | [2026-08-15](2026-08-15-organizer-fills-the-programme.md) | ★★☆☆☆ |
-| S2 | Get a talk in, and find out whether it got in | A first-time speaker | [2026-08-14](2026-08-14-first-time-speaker-submits.md) ‡ | ★☆☆☆☆ |
+| S2 | Get a talk in, and find out whether it got in | A first-time speaker | [2026-08-15](2026-08-15-speaker-submits-and-hears-back.md) | ★☆☆☆☆ |
 | S3 | Judge the field fairly enough to defend the result | The chair, then a reviewer | — | — |
 | S4 | Turn a yes into a talk that actually happens | An accepted speaker | — | — |
 | S5 | Have every asset in hand before the doors open | Speaker operations | — | — |
