@@ -35,7 +35,7 @@ describe("migrations", () => {
   });
 
   it("INV-11-1 (amended, R9): entities carry no org_id — one Organization per deployment", async () => {
-    // The inverse of what this test asserted until migration 0011. INV-01-16
+    // The inverse of what this test asserted until migration 0012. INV-01-16
     // allows exactly one Organization, so `WHERE org_id = ?` compared a column
     // to the only value it held; keeping it read as tenant-safety the code did
     // not have. Isolation is now a property of deployment, not of a predicate.

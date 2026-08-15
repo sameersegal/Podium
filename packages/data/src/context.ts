@@ -53,7 +53,7 @@ export interface Env {
  * The deployment's one Organization (INV-01-16) — its settings row, and the
  * single definition of which row that is.
  *
- * Since R9 was amended and migration 0011 dropped `org_id`, this resolves
+ * Since R9 was amended and migration 0012 dropped `org_id`, this resolves
  * nothing that scopes a query. It is still needed for two things: the
  * organization's own settings (name, `default_timezone`), and the `org_id` that
  * every domain event envelope carries to external webhook consumers
@@ -122,7 +122,7 @@ export interface AppContextInit {
   env: Env;
   /**
    * The deployment's one Organization (INV-01-16). Since R9 was amended and
-   * migration 0011 dropped `org_id`, this no longer scopes a single query — it
+   * migration 0012 dropped `org_id`, this no longer scopes a single query — it
    * is carried solely because `org_id` is a published field of the domain event
    * envelope (10-domain-events.md, "Envelope") that external webhook consumers
    * receive.

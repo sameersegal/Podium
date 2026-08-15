@@ -177,7 +177,7 @@ const runtimeSweeps = () => [
   ["schedule_publication", MARKED("event_id")],
 
   // Everything else the app writes at runtime, after the children above. These
-  // were swept by `org_id = ORG` until migration 0011 dropped the column; with
+  // were swept by `org_id = ORG` until migration 0012 dropped the column; with
   // one Organization per deployment (INV-01-16) that predicate always matched
   // every row, so "all of them" is the same sweep and not a wider one.
   ...[

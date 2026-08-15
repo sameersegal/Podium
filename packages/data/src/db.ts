@@ -11,7 +11,7 @@
  * There was a second until R9 was amended: every query was scoped by `org_id`.
  * INV-01-16 has always guaranteed one Organization per deployment, so that
  * predicate compared a column to the only value it held and could never
- * exclude a row. Migration 0011 drops the column; see its header for what
+ * exclude a row. Migration 0012 drops the column; see its header for what
  * survived and why.
  */
 

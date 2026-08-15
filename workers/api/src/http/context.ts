@@ -169,7 +169,7 @@ export function flashCookie(kind: "ok" | "err" | "warn" | "info", message: strin
  *
  * Returns the row rather than the id because a request needs both — the org's
  * `default_timezone` to render every date, and its id for the `org_id` every
- * domain event envelope carries. It scopes nothing: since migration 0011 there
+ * domain event envelope carries. It scopes nothing: since migration 0012 there
  * is no `org_id` column left to scope by.
  *
  * Resolved fresh per request and never cached. `/setup` turns "no org" into "an

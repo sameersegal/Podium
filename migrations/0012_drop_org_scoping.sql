@@ -1,4 +1,4 @@
--- 0011 — Drop `org_id` as a scoping column (01, "Tenancy"; R9 amended).
+-- 0012 — Drop `org_id` as a scoping column (01, "Tenancy"; R9 amended).
 --
 -- INV-01-16 has always guaranteed exactly one Organization per deployment,
 -- enforced by `bootstrap_state`'s single-row primary key (0005). `org_id` was
