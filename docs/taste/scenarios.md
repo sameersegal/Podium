@@ -89,7 +89,7 @@ world is in
 | S1 | Fill the programme with talks worth watching | The organizer | [2026-08-15](2026-08-15-organizer-fills-the-programme.md) | ★★☆☆☆ |
 | S2 | Get a talk in, and find out whether it got in | A first-time speaker | [2026-08-15](2026-08-15-speaker-submits-and-hears-back.md) | ★☆☆☆☆ |
 | S3 | Judge the field fairly enough to defend the result | The chair, then a reviewer | [2026-08-15](2026-08-15-chair-and-reviewer-judge-the-field.md) | ★★☆☆☆ |
-| S4 | Turn a yes into a talk that actually happens | An accepted speaker | — | — |
+| S4 | Turn a yes into a talk that actually happens | An accepted speaker | [2026-08-15](2026-08-15-accepted-speaker-gets-to-the-stage.md) | ★☆☆☆☆ |
 | S5 | Have every asset in hand before the doors open | Speaker operations | — | — |
 | S6 | Publish a schedule that survives contact with reality | The organizer | — | — |
 | S7 | Let the world find the conference and plan around it | An attendee, and the site's owner | — | — |
