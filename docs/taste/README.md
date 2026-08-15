@@ -28,6 +28,7 @@ whether it is worth fixing, and how, is somebody else's call.
 | [2026-08-15](2026-08-15-accepted-speaker-gets-to-the-stage.md) | Doing everything the conference is asking of her after a yes, on a phone (S4) | An accepted speaker | ★☆☆☆☆ |
 | [2026-08-15](2026-08-15-operations-closes-the-supply-chain.md) | Finding who is behind, nudging exactly them, and getting the files to AV (S5) | Speaker operations | ★☆☆☆☆ |
 | [2026-08-15](2026-08-15-organizer-publishes-a-living-schedule.md) | Publishing the grid, then cancelling a talk from a taxi on a phone (S6) | The organizer | ★☆☆☆☆ |
+| [2026-08-15](2026-08-15-public-surface-holds-up.md) | Embedding the schedule on the conference's own site, then planning a day on a phone (S7) | An attendee, and the site's owner | ★☆☆☆☆ |
 
 What is waiting to be walked, and in what order, is [`scenarios.md`](scenarios.md) — ten roles
 paired with the business objective each one is responsible for, derived from the functional

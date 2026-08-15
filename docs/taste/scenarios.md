@@ -92,7 +92,7 @@ world is in
 | S4 | Turn a yes into a talk that actually happens | An accepted speaker | [2026-08-15](2026-08-15-accepted-speaker-gets-to-the-stage.md) | ★☆☆☆☆ |
 | S5 | Have every asset in hand before the doors open | Speaker operations | [2026-08-15](2026-08-15-operations-closes-the-supply-chain.md) | ★☆☆☆☆ |
 | S6 | Publish a schedule that survives contact with reality | The organizer | [2026-08-15](2026-08-15-organizer-publishes-a-living-schedule.md) | ★☆☆☆☆ |
-| S7 | Let the world find the conference and plan around it | An attendee, and the site's owner | — | — |
+| S7 | Let the world find the conference and plan around it | An attendee, and the site's owner | [2026-08-15](2026-08-15-public-surface-holds-up.md) | ★☆☆☆☆ |
 | S8 | Deliver what the sponsors paid for | Partnerships, then a sponsor | — | — |
 | S9 | Build a speaker bench that outlives one event | The organizer | — | — |
 | S10 | Get off the incumbent and run this conference here | A new organization, from nothing | — | — |
