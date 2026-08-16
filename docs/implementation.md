@@ -287,7 +287,11 @@ profiles, sponsors, tiers, assets — to derive a count it then discarded (`verd
 
 `npm run perf:db` (`scripts/perf-db.mjs`) walks **every** route against a seeded local
 instance as each persona, and joins the count on each response to the statement text behind
-it, drained from `/dev/profile`. The route list comes from the security skill's
+it, drained from `/dev/profile`. `npm run perf:db:check` compares against
+`.claude/skills/db-performance/baseline.json` and exits non-zero on a regression, which is
+what makes this a loop rather than a one-off; the
+[`db-performance`](../.claude/skills/db-performance/SKILL.md) skill carries the procedure and
+the catalogue of shapes to look for. The route list comes from the security skill's
 `attack_surface.py` inventory rather than a list kept beside it, so a route cannot be added
 without being profiled. It reports three things a single number cannot: the shared
 `buildContext` baseline, the statements a request *repeated* (the N+1 detector — identical

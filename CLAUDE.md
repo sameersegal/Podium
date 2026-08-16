@@ -100,7 +100,7 @@ or the SQLite engine under D1, so a green lockfile is close to no evidence at al
 
 ## Skills
 
-Three project skills in [`.claude/skills/`](.claude/skills) do the work the rules above
+Four project skills in [`.claude/skills/`](.claude/skills) do the work the rules above
 describe, so it happens the same way every time:
 
 - **`domain-expert`** — answers "how does this work / who can do that / what happens at the
@@ -121,6 +121,16 @@ describe, so it happens the same way every time:
   for the same sinks — stock rulesets score zero here, because nothing in this app looks
   like Express or React, and a zero from them means nothing. Reviewing one diff is the
   built-in `/security-review`'s job, not this one's.
+- **`db-performance`** — the periodic measure-and-fix loop behind
+  `implementer.md`'s "single digits; an N+1 is a defect, not a slow path". It runs
+  [`perf-db.mjs`](scripts/perf-db.mjs) against a freshly seeded `npm run dev`, reads the four
+  signals in the order that matters (the shared request baseline first, since a statement
+  there is one per *route in the product*), carries the catalogue of shapes this codebase has
+  actually produced, and records the accepted numbers in
+  [`baseline.json`](.claude/skills/db-performance/baseline.json) so
+  `npm run perf:db:check` fails on a regression. Its findings are the ones that are invisible
+  on a fixture and quadratic on a real conference, which is why it runs on a cadence rather
+  than when something feels slow.
 
 The first two close a loop around the `implementer` agent: it validates against the model
 before building, `domain-drift` checks the model against what was actually built afterwards.
@@ -177,7 +187,11 @@ Keep these green. They are the contract, not a formality:
   the cost by table. A repeated statement is an N+1 whatever the code looks like, which is
   why it is the number to read first. `tests/integration/foundation/query-budget.test.ts`
   holds the handful of screens worth failing a build over; this finds the ones nobody
-  suspected. See "Profiling every action" in [`docs/implementation.md`](docs/implementation.md).
+  suspected. `npm run perf:db:check` compares against the accepted baseline and exits
+  non-zero on a regression, so it belongs on a cadence rather than in a panic — the defects
+  it catches are invisible on a fixture and quadratic on a real conference. The
+  [`db-performance`](.claude/skills/db-performance/SKILL.md) skill is the loop around it.
+  See "Profiling every action" in [`docs/implementation.md`](docs/implementation.md).
 - Every invariant is cited in the code or the migration that enforces it, and the ones with
   behaviour are named in a test title.
 - `tests/unit/shared/unit-of-work.test.ts` fails the build if a mutating handler opens an

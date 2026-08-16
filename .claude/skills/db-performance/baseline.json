@@ -1,0 +1,985 @@
+{
+  "note": "Accepted D1 cost per action. Regenerate with: npm run perf:db -- --update-baseline",
+  "request_baseline": 3,
+  "totals": {
+    "routes": 162,
+    "statements": 1229,
+    "median": 6,
+    "p90": 15,
+    "max": 37
+  },
+  "routes": {
+    "GET /admin/events/:eventId/files": {
+      "statements": 11,
+      "round_trips": 11,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /files/:assetId": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /files/:assetId/download": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /assets/:assetId": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /admin/custom-fields": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/custom-fields/new": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/imports": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/imports/new": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/exports": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/exports/new": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/me/export": {
+      "statements": 10,
+      "round_trips": 10,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /v1/assets/:id": {
+      "statements": 3,
+      "round_trips": 3,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /v1/assets/:id/comments": {
+      "statements": 3,
+      "round_trips": 3,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /v1/custom-fields": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/imports": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/exports": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/contacts/dashboard": {
+      "statements": 15,
+      "round_trips": 15,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/contacts": {
+      "statements": 14,
+      "round_trips": 14,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/segments": {
+      "statements": 8,
+      "round_trips": 8,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/segments/:segmentId": {
+      "statements": 10,
+      "round_trips": 10,
+      "persona": "organizer",
+      "repeated": 2
+    },
+    "GET /admin/pipelines": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/pipelines/new": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/pipelines/:pipelineId": {
+      "statements": 11,
+      "round_trips": 11,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/pipelines/cards/:cardId": {
+      "statements": 12,
+      "round_trips": 12,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/segments": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/segments/:segmentId": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/pipelines": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/pipelines/:pipelineId": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/prospects": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/new": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/setup": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/cfps": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/cfps/new": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/cfps/:cfpId": {
+      "statements": 15,
+      "round_trips": 15,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/cfps/:cfpId/form": {
+      "statements": 8,
+      "round_trips": 8,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/cfps/:cfpId/form/preview": {
+      "statements": 15,
+      "round_trips": 15,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/readiness": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/days": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/tracks": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 2
+    },
+    "GET /v1/events/:eventId/formats": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/venues": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/rooms": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/cfps": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 1
+    },
+    "GET /v1/cfps/:cfpId": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/cfps/:cfpId/options": {
+      "statements": 8,
+      "round_trips": 8,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/cfps/:cfpId/forms": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/forms/:formId": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/cfps/:cfpId/builder": {
+      "statements": 14,
+      "round_trips": 14,
+      "persona": "organizer",
+      "repeated": 1
+    },
+    "GET /v1/public/events/:eventSlug/cfps/:cfpSlug": {
+      "statements": 13,
+      "round_trips": 13,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /login": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /signup": {
+      "statements": 1,
+      "round_trips": 1,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /admin/team": {
+      "statements": 13,
+      "round_trips": 13,
+      "persona": "organizer",
+      "repeated": 1
+    },
+    "GET /admin/events/:eventId/roster": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /admin/people/:personId": {
+      "statements": 17,
+      "round_trips": 17,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /portal/profile": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /v1/people": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/people/:personId": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/invitations": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/role-grants": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/tasks": {
+      "statements": 9,
+      "round_trips": 9,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/tasks/:defId": {
+      "statements": 11,
+      "round_trips": 11,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/onboarding": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/tasks/:taskId": {
+      "statements": 9,
+      "round_trips": 9,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /portal/tasks": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /portal/tasks/:taskId": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/task-definitions": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/tasks": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/settings": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/api-keys": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/api-keys/new": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/webhooks": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/webhooks/new": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/integrations": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/templates": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/templates/new": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/campaigns": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/campaigns/new": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/outbox": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/audit": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/event-log": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/api-keys": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/webhooks": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/integrations": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/notifications": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/campaigns": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/sync": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sync/subjects": {
+      "statements": 3,
+      "round_trips": 3,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sync/mappings": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sync/conflicts": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sync/active": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/sessions": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/sessions/new": {
+      "statements": 9,
+      "round_trips": 9,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/sessions/:sessionId": {
+      "statements": 21,
+      "round_trips": 21,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /portal/sessions": {
+      "statements": 3,
+      "round_trips": 3,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sessions": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /v1/sessions/:sessionId": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sessions/:sessionId/speakers": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /review": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /review/:assignmentId": {
+      "statements": 12,
+      "round_trips": 12,
+      "persona": "reviewer",
+      "repeated": 0
+    },
+    "GET /v1/me/assignments": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /v1/me/assignments/:assignmentId": {
+      "statements": 29,
+      "round_trips": 29,
+      "persona": "reviewer",
+      "repeated": 3
+    },
+    "GET /admin/events/:eventId/review": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/review/rounds/new": {
+      "statements": 10,
+      "round_trips": 10,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/rounds/:roundId": {
+      "statements": 12,
+      "round_trips": 12,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/rounds/:roundId/pool": {
+      "statements": 13,
+      "round_trips": 13,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/rounds/:roundId/assignments": {
+      "statements": 17,
+      "round_trips": 17,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/rounds/:roundId/assignments/auto": {
+      "statements": 25,
+      "round_trips": 25,
+      "persona": "organizer",
+      "repeated": 3
+    },
+    "GET /admin/rounds/:roundId/progress": {
+      "statements": 10,
+      "round_trips": 10,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/rounds/:roundId/results": {
+      "statements": 15,
+      "round_trips": 15,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/rubrics": {
+      "statements": 8,
+      "round_trips": 8,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/rubrics/:rubricId": {
+      "statements": 9,
+      "round_trips": 9,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/decisions": {
+      "statements": 16,
+      "round_trips": 16,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/proposals/:proposalId/decision": {
+      "statements": 16,
+      "round_trips": 16,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/decisions/publish": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/proposals/:proposalId/review": {
+      "statements": 18,
+      "round_trips": 18,
+      "persona": "organizer",
+      "repeated": 3
+    },
+    "GET /v1/rounds/:roundId": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/proposals/:proposalId/score": {
+      "statements": 10,
+      "round_trips": 10,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/schedule": {
+      "statements": 20,
+      "round_trips": 20,
+      "persona": "organizer",
+      "repeated": 1
+    },
+    "GET /v1/events/:eventId/conflicts": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/publications": {
+      "statements": 18,
+      "round_trips": 18,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/schedule": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/schedule/slots": {
+      "statements": 9,
+      "round_trips": 9,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/publications": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/embeds": {
+      "statements": 11,
+      "round_trips": 11,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/sponsors": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/sponsors/new": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/sponsors/:sponsorId": {
+      "statements": 12,
+      "round_trips": 12,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/tiers": {
+      "statements": 11,
+      "round_trips": 11,
+      "persona": "organizer",
+      "repeated": 2
+    },
+    "GET /admin/events/:eventId/sponsorships": {
+      "statements": 13,
+      "round_trips": 13,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sponsors": {
+      "statements": 4,
+      "round_trips": 4,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/sponsors/:sponsorId": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/entitlements": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/entitlements/:entitlementId": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /portal": {
+      "statements": 9,
+      "round_trips": 9,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /portal/proposals": {
+      "statements": 3,
+      "round_trips": 3,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /portal/proposals/new": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /portal/proposals/:id": {
+      "statements": 20,
+      "round_trips": 20,
+      "persona": "reviewer",
+      "repeated": 0
+    },
+    "GET /portal/proposals/:id/step/:stepKey": {
+      "statements": 6,
+      "round_trips": 6,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /admin/events/:eventId/proposals": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "reviewer",
+      "repeated": 0
+    },
+    "GET /admin/proposals/:proposalId": {
+      "statements": 8,
+      "round_trips": 8,
+      "persona": "reviewer",
+      "repeated": 0
+    },
+    "GET /v1/proposals/:id": {
+      "statements": 20,
+      "round_trips": 20,
+      "persona": "reviewer",
+      "repeated": 0
+    },
+    "GET /admin": {
+      "statements": 7,
+      "round_trips": 7,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /v1/console/bootstrap": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "speaker",
+      "repeated": 0
+    },
+    "GET /v1/events/:eventId/dashboard": {
+      "statements": 37,
+      "round_trips": 37,
+      "persona": "organizer",
+      "repeated": 0
+    },
+    "GET /": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug": {
+      "statements": 5,
+      "round_trips": 5,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/cfp/:cfpSlug": {
+      "statements": 13,
+      "round_trips": 13,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/schedule": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/sessions/:sessionId": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/sessions": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/speakers": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/gallery": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/speakers/:personId": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /e/:eventSlug/schedule.ics": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /embed.js": {
+      "statements": 1,
+      "round_trips": 1,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /v1/public/events/:eventSlug/schedule": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /v1/public/events/:eventSlug/sessions": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    },
+    "GET /v1/public/events/:eventSlug/speakers": {
+      "statements": 2,
+      "round_trips": 2,
+      "persona": "anonymous",
+      "repeated": 0
+    }
+  }
+}

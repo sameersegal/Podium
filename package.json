@@ -27,6 +27,7 @@
     "smoke": "node scripts/smoke.mjs",
     "perf": "node scripts/perf-console.mjs",
     "perf:db": "node scripts/perf-db.mjs",
+    "perf:db:check": "node scripts/perf-db.mjs --check",
     "perf:scale": "node scripts/perf-seed-scale.mjs",
     "dev:lan": "node scripts/dev.mjs --host 0.0.0.0",
     "deploy:config": "node scripts/deploy-config.mjs",

@@ -27,17 +27,25 @@
  *   tables     which tables the budget went to, so "expensive" becomes
  *              "expensive because it reads `person` forty times".
  *
+ * And because a report is a snapshot while a *loop* needs a difference, it
+ * keeps a baseline: `--update-baseline` accepts the current numbers,
+ * `--check` compares against them and exits non-zero on a regression. That is
+ * what makes "measure, fix, repeat" a thing a schedule can run rather than a
+ * thing someone has to remember what the numbers used to be.
+ *
  * Usage:
  *   node scripts/perf-db.mjs [--base http://127.0.0.1:8787] [--json out.json]
  *                            [--only <substring>] [--top 40] [--mutations]
+ *                            [--check] [--update-baseline] [--quiet]
  *
  * `--mutations` additionally profiles a curated set of write actions. It is
  * off by default because a POST that succeeds changes what every later GET
- * costs, so a mutation pass wants a freshly seeded instance to be comparable.
+ * costs, so a mutation pass wants a freshly seeded instance to be comparable —
+ * and for the same reason it is excluded from the baseline.
  */
 
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 
 /* -------------------------------------------------------------------------- */
@@ -56,6 +64,30 @@ const TOP = Number(flag("top", "40"));
 const JSON_OUT = flag("json", null);
 const WITH_MUTATIONS = argv.includes("--mutations");
 const QUIET = argv.includes("--quiet");
+/** Compare against the accepted baseline and exit non-zero on a regression. */
+const CHECK = argv.includes("--check");
+/** Accept the current numbers as the new baseline. */
+const UPDATE_BASELINE = argv.includes("--update-baseline");
+
+/**
+ * Where the accepted numbers live.
+ *
+ * In the skill's directory rather than beside this script, for the same reason
+ * `security-audit/baseline.json` is: the numbers are the *skill's* record of
+ * what has been reviewed and accepted, and reviewing them is the part a person
+ * does. The script only measures.
+ */
+const BASELINE_PATH = ".claude/skills/db-performance/baseline.json";
+
+/**
+ * How much a route may grow before `--check` calls it a regression.
+ *
+ * Absolute *and* relative, because neither alone is right: +2 on a 4-statement
+ * public page is a 50% regression worth catching, and +2 on a 37-statement
+ * dashboard is noise. A route has to exceed both to fail.
+ */
+const TOLERANCE_ABSOLUTE = 2;
+const TOLERANCE_RELATIVE = 0.15;
 
 const PERSONAS = {
   anonymous: null,
@@ -329,6 +361,18 @@ for (const route of gets) {
     }
     if (!best || r.status > 0) best = { persona, ...r };
   }
+  // Measure the *second* hit, not the first.
+  //
+  // Some screens read through a cache that D1 fills on a miss — the public
+  // pages serve the publication snapshot from KV (INV-09-6) and fall back to
+  // the database when it is cold. A first-run number therefore mixes "what
+  // this screen costs" with "what this screen costs once, ever", and a
+  // baseline recorded on a cold cache reports a phantom improvement on the
+  // next run. The warm number is also the honest one: it is what the
+  // hundredth visitor gets.
+  if (best && best.status >= 200 && best.status < 300) {
+    best = { persona: best.persona, ...(await hit("GET", path, cookies[best.persona])) };
+  }
   results.push({ route: `GET ${route.pattern}`, path, file: route.file, ...best });
 }
 
@@ -463,4 +507,118 @@ if (skipped.length && !QUIET) {
 if (JSON_OUT) {
   writeFileSync(JSON_OUT, JSON.stringify({ base: BASE, baseline, results, skipped, suspects }, null, 2));
   console.log(`\nwrote ${JSON_OUT}`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* The baseline — what makes this runnable in a loop                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A report is a snapshot; a loop needs a *difference*.
+ *
+ * Absolute numbers say "this screen costs 37", which is only actionable if you
+ * already know what it used to cost. The baseline records what was measured and
+ * accepted, so a periodic run can answer the question a periodic run is for:
+ * what got worse since someone last looked.
+ */
+function currentBaselineDoc() {
+  const counts = ok.map((r) => r.count).sort((a, b) => a - b);
+  const at = (q) => counts[Math.min(counts.length - 1, Math.floor(q * counts.length))];
+  const routes = {};
+  for (const r of ok) {
+    const reps = repeatsIn(r.statements.slice(baseline.length));
+    routes[r.route] = {
+      statements: r.count,
+      round_trips: r.roundTrips,
+      persona: r.persona,
+      // Recorded so a *new* loop is a finding even when the total barely moves:
+      // three statements per row on a fixture with two rows costs six, and the
+      // same code costs nine hundred on a real conference.
+      repeated: reps.reduce((a, x) => a + x.n - 1, 0),
+    };
+  }
+  return {
+    note: "Accepted D1 cost per action. Regenerate with: npm run perf:db -- --update-baseline",
+    request_baseline: baseline.length,
+    totals: {
+      routes: ok.length,
+      statements: counts.reduce((a, b) => a + b, 0),
+      median: at(0.5),
+      p90: at(0.9),
+      max: counts[counts.length - 1],
+    },
+    routes,
+  };
+}
+
+function readBaseline() {
+  if (!existsSync(BASELINE_PATH)) return null;
+  return JSON.parse(readFileSync(BASELINE_PATH, "utf8"));
+}
+
+if (UPDATE_BASELINE) {
+  const doc = currentBaselineDoc();
+  writeFileSync(BASELINE_PATH, `${JSON.stringify(doc, null, 2)}\n`);
+  console.log(`\nbaseline written: ${Object.keys(doc.routes).length} routes, ${doc.totals.statements} statements, request baseline ${doc.request_baseline}`);
+}
+
+if (CHECK) {
+  const prev = readBaseline();
+  if (!prev) {
+    console.error(`\nno baseline at ${BASELINE_PATH} — run with --update-baseline first.`);
+    process.exit(2);
+  }
+  const now = currentBaselineDoc();
+  const errors = [];
+  const warnings = [];
+  const wins = [];
+
+  // The shared prefix is paid by every authenticated request in the product,
+  // so it gets no tolerance at all: one more statement here is 162 more across
+  // the walk, and it is never the screen's fault.
+  if (now.request_baseline > prev.request_baseline) {
+    errors.push(`request baseline ${prev.request_baseline} → ${now.request_baseline} — every authenticated request pays this`);
+  }
+
+  for (const [route, was] of Object.entries(prev.routes)) {
+    const is = now.routes[route];
+    if (!is) {
+      warnings.push(`${route} — in the baseline but not profiled this run (route gone, or its fixture is)`);
+      continue;
+    }
+    const grew = is.statements - was.statements;
+    if (grew > TOLERANCE_ABSOLUTE && grew > was.statements * TOLERANCE_RELATIVE) {
+      errors.push(`${route}  ${was.statements} → ${is.statements} statements (+${grew})`);
+    } else if (grew > 0) {
+      warnings.push(`${route}  ${was.statements} → ${is.statements} (+${grew}, within tolerance)`);
+    } else if (grew < 0) {
+      wins.push(`${route}  ${was.statements} → ${is.statements} (${grew})`);
+    }
+    // A loop that appears where there was none is a finding on its own: the
+    // fixture may only have two rows today, and a real event has hundreds.
+    if (is.repeated >= 3 && was.repeated < 3) {
+      errors.push(`${route} — ${is.repeated} repeated statements, up from ${was.repeated}: a new N+1`);
+    }
+  }
+
+  for (const route of Object.keys(now.routes)) {
+    if (!prev.routes[route]) warnings.push(`${route} — new route, not yet in the baseline`);
+  }
+
+  console.log(`\n${"=".repeat(78)}`);
+  console.log("CHECK AGAINST THE ACCEPTED BASELINE");
+  console.log("=".repeat(78));
+  console.log(`  request baseline  ${prev.request_baseline} → ${now.request_baseline}`);
+  console.log(`  total statements  ${prev.totals.statements} → ${now.totals.statements}`);
+  console.log(`  median · p90 · max  ${prev.totals.median}·${prev.totals.p90}·${prev.totals.max} → ${now.totals.median}·${now.totals.p90}·${now.totals.max}`);
+  for (const e of errors) console.log(`  REGRESSION  ${e}`);
+  for (const w of warnings) console.log(`  note        ${w}`);
+  if (wins.length) console.log(`  ${wins.length} route(s) improved — accept with --update-baseline`);
+  for (const w of wins.slice(0, 10)) console.log(`  better      ${w}`);
+
+  if (errors.length) {
+    console.log(`\n${errors.length} regression(s). Profile them above, fix, then re-run.`);
+    process.exit(1);
+  }
+  console.log("\nno regressions.");
 }
