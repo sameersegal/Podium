@@ -82,6 +82,12 @@ export interface KeyHint {
 export interface ConsoleChrome {
   /** Where the brand mark goes. */
   home: string;
+  /**
+   * What the rail's summary names on a phone, where it is the drawer's only
+   * tap target and its only label. The event, on the organizer's side. Left
+   * unset — a reviewer, an org-wide screen — it falls back to the wordmark.
+   */
+  brand?: string | null;
   context?: RailContext | null;
   groups: RailGroup[];
   /** Below the rail's own rule: Settings, and the signed-in person. */
@@ -251,20 +257,26 @@ function railLink(item: RailItem): SafeHtml {
  *
  * It is a `<details>` for the same reason `.navmenu` was: a navigation that
  * needs a script to open is a navigation that is sometimes not there. Above
- * `64rem` the stylesheet forces the panel open and the summary stops being a
- * button and goes back to being the brand — the same markup, unfolded, which is
- * what keeps one rail from becoming two navigations that can disagree.
+ * `64rem` the stylesheet forces the panel open and drops the summary entirely —
+ * the same markup, unfolded — which is what keeps one rail from becoming two
+ * navigations that can disagree.
+ *
+ * The summary is therefore a phone affordance, and it names the event rather
+ * than the product: the logo now lives in the top bar, and a closed drawer
+ * whose header says "Podium" tells the reader nothing they did not know.
  */
 function rail(c: ConsoleChrome): SafeHtml {
   return html`<details class="rail">
     <summary class="rail-brand">
       ${
-        // The real lockup, white wordmark on the rail's near-black — the light
-        // variant exists for exactly this ground (`brand/README.md`). Sized in
-        // the markup as well as the stylesheet: the rail is the first thing
-        // drawn and a brand row that changes height when the image lands moves
-        // every destination under the reader's cursor.
-        html`<img class="mark" src="/podium-logo-horizontal-light.png" alt="Podium" width="81" height="24">`
+        // Sized in the markup as well as the stylesheet: the rail is the first
+        // thing drawn and a brand row that changes height when the image lands
+        // moves every destination under the reader's cursor. The light lockup —
+        // white wordmark — because this ground is the rail's near-black
+        // (`brand/README.md`).
+        c.brand
+          ? html`<span class="rail-brand-name">${c.brand}</span>`
+          : html`<img class="mark" src="/podium-logo-horizontal-light.png" alt="Podium" width="81" height="24">`
       }
       <span class="spacer"></span>
       <span class="toggle" aria-hidden="true">${MENU_ICON}</span>
@@ -341,8 +353,17 @@ function railContext(ctx: RailContext): SafeHtml {
   </details>`;
 }
 
+/**
+ * The trail, drawn only when there is a trail.
+ *
+ * One crumb is not a breadcrumb: it is the page's own name, in mono, three
+ * lines above the `<h1>` that says the same word. The event used to lead every
+ * one of them, which made a real-looking path out of a name the rail was
+ * already flying — so the event came out, and with it the last reason a
+ * single-crumb bar existed. Two or more, and the parent is worth the row.
+ */
 function crumbs(items: Crumb[]): SafeHtml {
-  if (items.length === 0) return raw("");
+  if (items.length < 2) return raw("");
   return html`<nav class="crumbs" aria-label="Breadcrumb">
     ${items.map((c, i) =>
       html`${i > 0 ? html`<span class="sep" aria-hidden="true">/</span>` : raw("")}${c.href
@@ -386,17 +407,41 @@ function keyHints(hints: KeyHint[]): SafeHtml {
   </p>`;
 }
 
+/**
+ * The mark, at the far right of the top bar.
+ *
+ * It sits on the workspace's white rather than the rail's near-black, so this
+ * is the dark lockup — the one place in the console that uses it. It points at
+ * the landing page of the surface you are on, which is what a logo in a tool
+ * means and the only thing it has ever been asked to do here.
+ */
+function barBrand(home: string): SafeHtml {
+  return html`<a class="bar-brand" href="${home}"
+    ><img src="/podium-logo-horizontal.png" alt="Podium" width="81" height="24"
+  /></a>`;
+}
+
+/**
+ * Search leads, the brand closes.
+ *
+ * The bar used to open with the event's name and close with a search box a
+ * third of the way in from the right edge, which spent the widest row in the
+ * product saying twice what the rail already says once. What is left reads as a
+ * tool: the one thing you type into, then whatever this screen is holding, then
+ * the mark.
+ */
 function consoleShell(opts: PageOptions, c: ConsoleChrome, body: SafeHtml): SafeHtml {
   const width = opts.width === "narrow" ? "narrow" : opts.width === "wide" ? "wide" : "";
   return html`<div class="frame">
     ${rail(c)}
     <div class="workspace">
       <header class="bar">
+        ${c.search === false ? raw("") : searchButton()}
         ${crumbs(c.crumbs ?? [])}
         <span class="spacer"></span>
-        ${c.search === false ? raw("") : searchButton()}
         ${keyHints(c.hints ?? [])}
         ${c.status ? html`<span class="pill ${c.status.kind ?? ""}">${c.status.label}</span>` : raw("")}
+        ${barBrand(c.home)}
       </header>
       <main class="${width}">
         ${flashBanner(opts)}

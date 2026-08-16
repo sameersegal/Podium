@@ -387,9 +387,14 @@ function rail(active) {
     h(
       "summary",
       { class: "rail-brand" },
-      // The same lockup the server-rendered rail draws, sized in the markup
-      // against layout shift — see `ui/layout.ts::rail()`.
-      h("img", { class: "mark", src: "/podium-logo-horizontal-light.png", alt: "Podium", width: "81", height: "24" }),
+      // A phone affordance: above 64rem the stylesheet drops this row and the
+      // event card below is the top of the sidebar. So it names the event, not
+      // the product — the mark is in the top bar now, and a closed drawer
+      // labelled "Podium" tells the reader nothing. Sized in the markup against
+      // layout shift, as the server-rendered rail is — `ui/layout.ts::rail()`.
+      ev && !isReviewer()
+        ? h("span", { class: "rail-brand-name" }, ev.name)
+        : h("img", { class: "mark", src: "/podium-logo-horizontal-light.png", alt: "Podium", width: "81", height: "24" }),
       h("span", { class: "spacer" }),
       h("span", { class: "toggle", "aria-hidden": "true" }, icons.menu ? icons.menu() : "≡"),
       h("span", { class: "sr-only" }, "Menu"),
@@ -457,33 +462,16 @@ function rail(active) {
 function bar() {
   const ev = boot.event;
   const reviewer = isReviewer();
-  const crumbs = [];
-  if (reviewer) crumbs.push({ label: "Review", href: "/review" });
-  else if (ev) crumbs.push({ label: ev.name, href: "/admin/events/" + ev.id });
-  crumbs.push({ label: chrome.title || (reviewer ? "My queue" : "Admin") });
+  // One crumb is not a breadcrumb — it is the `<h1>` two lines below, in mono.
+  // The event used to lead every trail on the organizer's side, which made a
+  // path out of the name the rail is already flying; with it gone there is no
+  // parent left to name, so the organizer's bar draws none. The reviewer's
+  // queue really is one level under Review, and keeps its trail. Same rule as
+  // `crumbs()` in `ui/layout.ts`, which drops any trail shorter than two.
+  const crumbs = reviewer ? [{ label: "Review", href: "/review" }, { label: chrome.title || "My queue" }] : [];
   return h(
     "header",
     { class: "bar" },
-    h(
-      "nav",
-      { class: "crumbs", "aria-label": "Breadcrumb" },
-      crumbs.map((c, i) => [
-        i > 0 ? h("span", { key: "s" + i, class: "sep", "aria-hidden": "true" }, "/") : null,
-        c.href
-          ? h("a", { key: "c" + i, href: c.href }, c.label)
-          : h("span", { key: "c" + i, "aria-current": "page" }, c.label),
-      ]),
-    ),
-    h("span", { class: "spacer" }),
-    chrome.hints && chrome.hints.length
-      ? h(
-          "p",
-          { class: "hints", "data-hints": "" },
-          chrome.hints.map((hint, i) =>
-            h("span", { key: i, class: "hint" }, hint.keys.map((k, j) => h("kbd", { key: j }, k)), hint.label),
-          ),
-        )
-      : null,
     // The palette lives in `public/keys.js`, which is loaded on both surfaces
     // and finds this button by its attribute rather than by an import.
     //
@@ -499,6 +487,28 @@ function bar() {
           h("span", { class: "label" }, "Search proposals, people, sessions"),
           h("kbd", null, h("span", { class: "on-mac" }, "⌘K"), h("span", { class: "on-pc" }, "Ctrl K")),
         ),
+    crumbs.length > 1
+      ? h(
+          "nav",
+          { class: "crumbs", "aria-label": "Breadcrumb" },
+          crumbs.map((c, i) => [
+            i > 0 ? h("span", { key: "s" + i, class: "sep", "aria-hidden": "true" }, "/") : null,
+            c.href
+              ? h("a", { key: "c" + i, href: c.href }, c.label)
+              : h("span", { key: "c" + i, "aria-current": "page" }, c.label),
+          ]),
+        )
+      : null,
+    h("span", { class: "spacer" }),
+    chrome.hints && chrome.hints.length
+      ? h(
+          "p",
+          { class: "hints", "data-hints": "" },
+          chrome.hints.map((hint, i) =>
+            h("span", { key: i, class: "hint" }, hint.keys.map((k, j) => h("kbd", { key: j }, k)), hint.label),
+          ),
+        )
+      : null,
     ev
       ? h(
           "a",
@@ -506,6 +516,15 @@ function bar() {
           "Public page ↗",
         )
       : null,
+    // The mark closes the bar, on the workspace's white — so the dark lockup,
+    // the one place in the console that uses it. Mirrors `barBrand` in
+    // `ui/layout.ts`, down to the width and height that keep the row from
+    // reflowing when the image lands.
+    h(
+      "a",
+      { class: "bar-brand", href: reviewer ? "/review" : "/admin" },
+      h("img", { src: "/podium-logo-horizontal.png", alt: "Podium", width: "81", height: "24" }),
+    ),
   );
 }
 

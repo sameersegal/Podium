@@ -328,16 +328,15 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
     adminRail(ev, settings ? "" : (opts.active ?? ""), ctx.rail ?? {}),
     settings || Boolean(opts.active),
   );
+  // The event no longer leads the trail. It is named in the rail's context card
+  // — the first thing in the sidebar — and repeating it in the bar made "DevFlow
+  // Conf 2027 / Review" out of a path with one real step in it. What is left is
+  // a real parent or nothing, and `crumbs()` in `ui/layout.ts` draws nothing for
+  // a trail of one: the `<h1>` under it already names the screen.
   const crumbs: Crumb[] = opts.crumbs ?? [
-    ...(settings
-      ? // "Settings / Settings" is what a naive prefix produces on the area's
-        // own landing screen, so the parent is dropped when the section is it.
-        opts.title === "Settings"
-        ? []
-        : [{ label: "Settings", href: "/admin/settings" }]
-      : ev
-        ? [{ label: ev.name, href: `/admin/events/${ev.id}` }]
-        : [{ label: "Podium", href: "/admin" }]),
+    // "Settings / Settings" is what a naive prefix produces on the area's own
+    // landing screen, so the parent is dropped when the section is it.
+    ...(settings && opts.title !== "Settings" ? [{ label: "Settings", href: "/admin/settings" }] : []),
     { label: opts.title },
   ];
   return page(
@@ -350,6 +349,8 @@ export function adminPage(ctx: RequestContext, opts: ShellOptions, body: SafeHtm
       flash: ctx.flash,
       console: {
         home: "/admin",
+        // What the drawer's header says on a phone. See `rail()` in `layout.ts`.
+        brand: ev?.name ?? null,
         context: ev
           ? {
               name: ev.name,

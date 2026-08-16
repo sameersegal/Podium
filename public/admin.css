@@ -239,8 +239,22 @@ hr { border: 0; border-top: 1px solid var(--hairline); margin: var(--sp-5) 0; }
 /* The lockup, not a coloured square and a set word. The design handoff drew a
    plain mark because it had reopened the brand; the brand did not move, so the
    rail flies the real one. `height` is the authority and `width: auto` keeps
-   the aspect if the artwork is ever regenerated at another size. */
+   the aspect if the artwork is ever regenerated at another size.
+
+   Only a reviewer and the org-wide screens get this far: with an event in
+   context the row names the event instead, because on a phone this summary is
+   the closed drawer's only label. */
 .rail-brand .mark { height: 24px; width: auto; flex: none; display: block; }
+.rail-brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rail-text-on);
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .rail-brand .spacer { flex: 1; }
 .rail-brand .toggle { display: flex; color: var(--rail-muted-2); }
 
@@ -416,6 +430,14 @@ details.rail-context.switcher > summary p:last-child { margin-bottom: 0; }
 }
 .bar .spacer { flex: 1; }
 
+/* The mark, at the far right and on the workspace's white — so the dark lockup,
+   the one place in the console that uses it. `flex: none` and a height in the
+   rule as well as the markup: the bar is drawn before the image lands, and a
+   brand that grows on arrival moves the pill beside it under the cursor. */
+.bar-brand { flex: none; display: flex; align-items: center; }
+.bar-brand img { height: 22px; width: auto; display: block; }
+.bar-brand:hover { opacity: .78; }
+
 .crumbs { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .crumbs a { color: var(--muted); }
 .crumbs a:hover { color: var(--ink); text-decoration: none; }
@@ -431,7 +453,11 @@ details.rail-context.switcher > summary p:last-child { margin-bottom: 0; }
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  min-width: 260px;
+  /* It leads the bar now, so it is sized rather than left to its label: wide
+     enough to read as the thing you type into, capped before it becomes the
+     row. `flex-shrink` does the rest on a narrow window, down to the minimum. */
+  flex: 0 1 340px;
+  min-width: 240px;
   padding: 6px 10px;
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
@@ -1353,8 +1379,13 @@ dialog::backdrop { background: rgb(21 16 33 / .38); }
   }
   @supports selector(::details-content) {
     .rail { display: flex; }
-    .rail-brand { cursor: default; }
-    .rail-brand .toggle { display: none; }
+    /* The summary goes entirely, not just its toggle. What it held was the
+       lockup, which is in the top bar now, and the event's name, which the
+       context card below says in full — so the card is the top of the sidebar
+       and nothing above it repeats it. Without `::details-content` the rail is
+       still a real disclosure and its summary is the only way to open it, which
+       is why this lives in here and not in the plain query. */
+    .rail-brand { display: none; }
     .rail::details-content { content-visibility: visible; display: block; block-size: auto; }
     .rail-body { display: flex; }
   }

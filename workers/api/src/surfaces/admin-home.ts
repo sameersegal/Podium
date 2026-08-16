@@ -91,7 +91,6 @@ export function registerAdminHomeRoutes(router: Router<RequestContext>): void {
           title: "Today",
           event: ev,
           active: "today",
-          crumbs: [{ label: ev.name, href: `/admin/events/${ev.id}` }, { label: "Today" }],
           status: publishState(d),
         },
         html`
