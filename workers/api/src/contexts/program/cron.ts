@@ -7,17 +7,12 @@
  * off.
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
-import { D1Db, str, type Row } from "@podiumstack/data/db.js";
+import { AppContext, soleOrgId } from "@podiumstack/data/context.js";
+import { str, type Row } from "@podiumstack/data/db.js";
 import { SYSTEM_ACTOR } from "@podiumstack/domain/events/envelope.js";
 import type { CronJob } from "../../consumers/cron.js";
 import { markDelivered } from "./service.js";
 
-async function orgIds(env: Env): Promise<string[]> {
-  const db = new D1Db(env.DB, "");
-  const rows = await db.raw<{ id: string }>("SELECT id FROM organization");
-  return rows.map((r) => r.id);
-}
 
 export const PROGRAM_CRON: CronJob[] = [
   {
@@ -25,23 +20,22 @@ export const PROGRAM_CRON: CronJob[] = [
     everyMinutes: 15,
     async run(env, now) {
       let count = 0;
-      for (const orgId of await orgIds(env)) {
-        const lookup = new AppContext({ env, orgId, actor: SYSTEM_ACTOR });
-        const rows = await lookup.db.raw<Row>(
-          `SELECT s.id AS session_id, s.event_id AS event_id FROM session s
-             JOIN placement pl ON pl.session_id = s.id
-            WHERE s.status = 'published' AND pl.ends_at <= ?`,
-          [now],
-        );
-        // One AppContext per session, so `AppContext.eventId` — read once at
-        // `flush()` for every audit row in the batch — is never shared across
-        // sessions from different events.
-        for (const row of rows) {
-          const app = new AppContext({ env, orgId, eventId: str(row.event_id), actor: SYSTEM_ACTOR });
-          await markDelivered(app, str(row.session_id));
-          await app.flush();
-          count++;
-        }
+      const orgId = await soleOrgId(env);
+      const lookup = new AppContext({ env, orgId, actor: SYSTEM_ACTOR });
+      const rows = await lookup.db.raw<Row>(
+        `SELECT s.id AS session_id, s.event_id AS event_id FROM session s
+           JOIN placement pl ON pl.session_id = s.id
+          WHERE s.status = 'published' AND pl.ends_at <= ?`,
+        [now],
+      );
+      // One AppContext per session, so `AppContext.eventId` — read once at
+      // `flush()` for every audit row in the batch — is never shared across
+      // sessions from different events.
+      for (const row of rows) {
+        const app = new AppContext({ env, orgId, eventId: str(row.event_id), actor: SYSTEM_ACTOR });
+        await markDelivered(app, str(row.session_id));
+        await app.flush();
+        count++;
       }
       return count;
     },

@@ -32,9 +32,9 @@ async function cookieFor(personId: string): Promise<string> {
   const expires = new Date(Date.now() + 86_400_000).toISOString();
   await env.DB.prepare("DELETE FROM auth_session WHERE person_id = ?").bind(personId).run();
   await env.DB.prepare(
-    "INSERT INTO auth_session (id, token_hash, person_id, org_id, created_at, expires_at) VALUES (?,?,?,?,?,?)",
+    "INSERT INTO auth_session (id, token_hash, person_id, created_at, expires_at) VALUES (?,?,?,?,?)",
   )
-    .bind(`sid_${personId}`, hashToken(token), personId, ORG, now, expires)
+    .bind(`sid_${personId}`, hashToken(token), personId, now, expires)
     .run();
   return `podium_session=${token}`;
 }
@@ -43,9 +43,9 @@ async function apiKeyHeader(scopes: string[]): Promise<string> {
   const secret = `test-secret-${scopes.join("-")}-${Math.random().toString(36).slice(2)}`;
   const now = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT INTO api_key (id, org_id, name, prefix, secret_hash, scopes, created_by_person_id, created_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT INTO api_key (id, name, prefix, secret_hash, scopes, created_by_person_id, created_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(`key_${scopes.join("_")}_${Math.random().toString(36).slice(2, 8)}`, ORG, "test key", "test", hashToken(secret), JSON.stringify(scopes), ORGANIZER, now)
+    .bind(`key_${scopes.join("_")}_${Math.random().toString(36).slice(2, 8)}`, "test key", "test", hashToken(secret), JSON.stringify(scopes), ORGANIZER, now)
     .run();
   return `Bearer ${secret}`;
 }
@@ -57,23 +57,23 @@ async function seed() {
       "INSERT OR IGNORE INTO organization (id, name, slug, default_timezone, contact_email, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
     ).bind(ORG, "Onboarding Org", "onboarding-org", "UTC", "a@b.example", "{}", now, now),
     env.DB.prepare(
-      "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    ).bind(EVENT, ORG, "Onboarding Event", "onboarding-event", "UTC", "2027-06-01", "2027-06-03", "in_person", "active", "public", "{}", now, now),
+      "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    ).bind(EVENT, "Onboarding Event", "onboarding-event", "UTC", "2027-06-01", "2027-06-03", "in_person", "active", "public", "{}", now, now),
     env.DB.prepare(
       "INSERT OR IGNORE INTO session_format (id, event_id, name, slug, default_duration_minutes, max_speakers, eligible_origins, requires_review, requires_recording_consent, capacity_policy, sort_order, is_public) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
     ).bind(FORMAT, EVENT, "Talk", "talk", 30, 3, '["cfp"]', 1, 0, "open", 0, 1),
     env.DB.prepare(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    ).bind(ORGANIZER, ORG, "ob-organizer@example.com", "Orin Organizer", "active", 0, now, now),
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    ).bind(ORGANIZER, "ob-organizer@example.com", "Orin Organizer", "active", 0, now, now),
     env.DB.prepare(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    ).bind(SPEAKER1, ORG, "ob-speaker1@example.com", "Sasha Speaker", "active", 0, now, now),
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    ).bind(SPEAKER1, "ob-speaker1@example.com", "Sasha Speaker", "active", 0, now, now),
     env.DB.prepare(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    ).bind(SPEAKER2, ORG, "ob-speaker2@example.com", "Cody Cospeaker", "active", 0, now, now),
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    ).bind(SPEAKER2, "ob-speaker2@example.com", "Cody Cospeaker", "active", 0, now, now),
     env.DB.prepare(
-      "INSERT OR IGNORE INTO session (id, org_id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    ).bind(SESSION, ORG, EVENT, "OB-0001", "cfp", "Materialising Onboarding", "An abstract.", FORMAT, 30, "confirmed", "draft", "public", now, now, 1),
+      "INSERT OR IGNORE INTO session (id, event_id, reference, origin, title, abstract, session_format_id, duration_minutes, status, content_status, visibility, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    ).bind(SESSION, EVENT, "OB-0001", "cfp", "Materialising Onboarding", "An abstract.", FORMAT, 30, "confirmed", "draft", "public", now, now, 1),
     env.DB.prepare(
       "INSERT OR IGNORE INTO session_speaker (id, session_id, person_id, speaker_role, sort_order, confirmation_status, is_public, added_at) VALUES (?,?,?,?,?,?,?,?)",
     ).bind("ssp_ob1", SESSION, SPEAKER1, "primary", 0, "confirmed", 1, now),
@@ -81,8 +81,8 @@ async function seed() {
       "INSERT OR IGNORE INTO session_speaker (id, session_id, person_id, speaker_role, sort_order, confirmation_status, is_public, added_at) VALUES (?,?,?,?,?,?,?,?)",
     ).bind("ssp_ob2", SESSION, SPEAKER2, "co_speaker", 1, "confirmed", 1, now),
     env.DB.prepare(
-      "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ).bind("grt_ob1", ORG, ORGANIZER, "admin", "org", ORG, ORGANIZER, now),
+      "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ).bind("grt_ob1", ORGANIZER, "admin", "org", ORG, ORGANIZER, now),
   ]);
 
   const app = new AppContext({ env, orgId: ORG, eventId: EVENT, actor: SYSTEM_ACTOR });

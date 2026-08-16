@@ -47,7 +47,7 @@ await app.flush();               // persists the event log + audit, then publish
 
 | Rule | Where |
 |---|---|
-| INV-11-1 org scoping, INV-11-2 soft delete | `packages/data/src/db.ts` |
+| INV-11-2 soft delete (INV-11-1 no longer scopes — R9) | `packages/data/src/db.ts` |
 | INV-09-7 idempotency replay | `workers/api/src/http/idempotency.ts` |
 | Authorization matrix, INV-11-7 | `packages/domain/src/shared/authorization.ts` |
 | INV-09-5 / INV-11-4 PII redaction | `packages/domain/src/shared/pii.ts` |
@@ -211,6 +211,13 @@ integration tests drive it with.
   exception and is client-rendered over `/v1`; see R30 in
   [`13`](domain/13-open-questions.md) for where the line falls and why `/review` sits on the
   server-rendered side of it.
+- Every transactional email — system-triggered and campaign alike — is wrapped by
+  `ui/email-layout.ts`, ported from `docs/design/emails/` (09, "Conference-first rendering
+  and audience"): the event or organization owns the header and voice, Podium is a one-line
+  footer credit, and the per-`template_key` `audience` picks the header label and the
+  footer's permission-reason line. `contexts/platform/notifications.ts`'s `attemptSend` and
+  `previewTemplate` are its only two callers, so what an organizer previews is what a
+  recipient gets.
 - Code enforcing an invariant names it in a comment; its test names it in the title.
 
 ### Two design languages
@@ -651,7 +658,7 @@ Three properties make that safe, and each one is load-bearing:
   previous seed's 491 ids, and `INSERT OR REPLACE` would have left all 441 old rows behind.
   The deletes match on `_01JQ0000`, the fixed epoch every seeded id carries and nothing real
   does, so they cannot touch a row the seed did not write.
-- **The organization's `created_at` is pinned to 2020-01-01, not `now`.** `resolveOrgId`
+- **The organization's `created_at` is pinned to 2020-01-01, not `now`.** `resolveOrg`
   serves the oldest organization to every request, so a seed stamped with today's date would
   hand a deployment that has ever held another org to that other org, and render the seeded
   conference unreachable.

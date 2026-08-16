@@ -5,7 +5,7 @@
 # and `mysql.query`. This app has none of them. Its dangerous operations are its own:
 #
 #   raw(x)           steps past `escapeHtml` in workers/api/src/ui/html.ts
-#   db.raw(sql)      steps past the org-scoping in packages/data/src/db.ts (INV-11-1)
+#   db.raw(sql)      steps past the soft-delete filter in packages/data/src/db.ts (INV-11-2)
 #   redirect(x)      sends a Location header
 #   input.str(k)     reads the request body
 #
@@ -102,10 +102,12 @@ rules:
     severity: WARNING
     languages: [typescript]
     message: >-
-      db.raw()/rawRun() bypasses buildWhere(), so INV-11-1 (every query org-scoped)
-      and INV-11-2 (soft-deleted rows excluded) are this caller's responsibility and
-      this query names neither org_id nor a scoping parent id. Either add the scope
-      or use the typed helpers.
+      db.raw()/rawRun() bypasses buildWhere(), so INV-11-2 (soft-deleted rows
+      excluded) is this caller's responsibility — and this query reads a table
+      carrying `deleted_at` without naming it. Either add the filter or use the
+      typed helpers. (This rule checked org-scoping too until R9 was amended;
+      entities carry no `org_id`, so that half would now match every raw query and
+      mean nothing.)
     patterns:
       - pattern-either:
           - pattern: $DB.raw("$SQL", ...)
@@ -117,7 +119,10 @@ rules:
           regex: (?i).*\b(select|update|delete|insert)\b.*
       - metavariable-regex:
           metavariable: $SQL
-          regex: (?i)^(?!.*\borg_id\b).*$
+          regex: (?i).*\b(from|join)\s+(person|person_note|event|track|session_format|room|call_for_proposals|sponsor|proposal|session|asset|asset_comment|review_comment)\b.*
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?i)^(?!.*\bdeleted_at\b).*$
     paths:
       include: ["**/workers/**", "**/packages/**"]
 

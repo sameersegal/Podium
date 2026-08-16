@@ -6,7 +6,7 @@
  * management UI), an API key (management API), or nothing (public surfaces).
  */
 
-import { AppContext, type Env } from "@podiumstack/data/context.js";
+import { AppContext, soleOrg, type Env } from "@podiumstack/data/context.js";
 import { bool, D1Db, enableRowCache, parseJson, str, type Row } from "@podiumstack/data/db.js";
 import { hashToken } from "@podiumstack/domain/identity/credentials.js";
 import type { Actor } from "@podiumstack/domain/events/envelope.js";
@@ -34,7 +34,6 @@ export const FLASH_COOKIE = "podium_flash";
 
 export interface PersonView {
   id: string;
-  org_id: string;
   full_name: string;
   display_name: string | null;
   email: string;
@@ -173,16 +172,20 @@ export function flashCookie(kind: "ok" | "err" | "warn" | "info", message: strin
 }
 
 /**
- * The single org of this deployment (01, "Tenancy": one Organization per
- * deployment) — the whole row, not just its id.
+ * The single org of this deployment (01, "Tenancy"), on the request path.
  *
- * The id and the row used to be two statements, and every request in the
- * product paid both: `resolveOrgId` selected the id, then `buildContext`
- * selected the row that id names. One `SELECT *` answers both questions, which
- * makes this the only saving here that even an anonymous request collects.
+ * Returns the row rather than the id because a request needs both — the org's
+ * `default_timezone` to render every date, and its id for the `org_id` every
+ * domain event envelope carries. It scopes nothing: since migration 0012 there
+ * is no `org_id` column left to scope by.
+ *
+ * Resolved fresh per request and never cached. `/setup` turns "no org" into "an
+ * org" exactly once in a deployment's life, and a cached miss would make that
+ * transition need a restart to become visible — see `index.ts`, which sends
+ * every route but `/setup` to the setup screen while this returns null.
  */
 export async function resolveOrg(env: Env): Promise<Row | null> {
-  return (await env.DB.prepare("SELECT * FROM organization ORDER BY created_at LIMIT 1").first<Row>()) ?? null;
+  return await soleOrg(env);
 }
 
 /** The id alone, for the callers that only ever wanted that. */
@@ -193,7 +196,6 @@ export async function resolveOrgId(env: Env): Promise<string> {
 function personView(row: Row): PersonView {
   return {
     id: str(row.id),
-    org_id: str(row.org_id),
     full_name: str(row.full_name),
     display_name: row.display_name ? str(row.display_name) : null,
     email: str(row.email),
@@ -214,9 +216,9 @@ async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null
  *
  * These were two round trips — look the session up by token hash, then look the
  * person up by the id it holds — for a pair that is never useful apart: a
- * session whose person cannot be read authenticates nobody. The join carries
- * the same org scope and soft-delete exclusion `db.byId` would have applied
- * (INV-11-1, INV-11-2), stated explicitly because this is a `raw` read.
+ * session whose person cannot be read authenticates nobody. The join states the
+ * soft-delete exclusion `db.byId` would have applied (INV-11-2) explicitly,
+ * because a `raw` read gets none of `buildWhere`'s defaults.
  *
  * `merged_into_person_id` is returned rather than followed: the merge pointer
  * (INV-01-9) is rare enough that paying a second statement on the rare path is
@@ -224,16 +226,15 @@ async function loadPerson(db: D1Db, personId: string): Promise<PersonView | null
  */
 async function loadSessionAndPerson(
   db: D1Db,
-  orgId: string,
   tokenHash: string,
 ): Promise<{ sessionId: string; expiresAt: string; lastSeenAt: string | null; person: Row } | null> {
   const rows = await db.raw<Row>(
     `SELECT s.id AS __session_id, s.expires_at AS __expires_at, s.last_seen_at AS __last_seen_at, p.*
        FROM auth_session s
        JOIN person p ON p.id = s.person_id
-      WHERE s.token_hash = ? AND p.org_id = ? AND p.deleted_at IS NULL
+      WHERE s.token_hash = ? AND p.deleted_at IS NULL
       LIMIT 1`,
-    [tokenHash, orgId],
+    [tokenHash],
   );
   const row = rows[0];
   if (!row) return null;
@@ -291,7 +292,7 @@ function liveGrants(rows: Row[], now: string): RoleGrantView[] {
 export async function loadRelationships(db: D1Db, personId: string): Promise<Relationships> {
   // The grants column of the shared statement is simply ignored here: this
   // caller asks only about relationships. `loadPrincipalFacts` reads both.
-  const rows = await db.raw<Row>(PRINCIPAL_FACTS_SQL, principalFactsParams(personId, db.orgId));
+  const rows = await db.raw<Row>(PRINCIPAL_FACTS_SQL, principalFactsParams(personId));
   return relationshipsFrom(rows[0]);
 }
 
@@ -315,7 +316,7 @@ export async function loadRelationships(db: D1Db, personId: string): Promise<Rel
  */
 const PRINCIPAL_FACTS_SQL = `SELECT
   (SELECT json_group_array(json_array(role, scope_type, scope_id, expires_at, revoked_at))
-     FROM role_grant WHERE org_id = ? AND person_id = ?)                                              AS grants,
+     FROM role_grant WHERE person_id = ?)                                                             AS grants,
   (SELECT json_group_array(session_id)
      FROM session_speaker WHERE person_id = ? AND confirmation_status != 'replaced')                  AS speaker_sessions,
   (SELECT json_group_array(id)
@@ -327,9 +328,9 @@ const PRINCIPAL_FACTS_SQL = `SELECT
   (SELECT json_group_array(event_id)
      FROM event_participant WHERE person_id = ?)                                                      AS participants`;
 
-/** `role_grant` is org-scoped (INV-11-1); the relationship tables are scoped by their person. */
-function principalFactsParams(personId: string, orgId: string): unknown[] {
-  return [orgId, personId, personId, personId, personId, personId, personId];
+/** Every arm asks about one person; migration 0012 left nothing else to scope by. */
+function principalFactsParams(personId: string): unknown[] {
+  return [personId, personId, personId, personId, personId, personId];
 }
 
 /** `json_group_array` of no rows is `[]`, never NULL — but a missing column is. */
@@ -350,11 +351,10 @@ function relationshipsFrom(row: Row | undefined): Relationships {
 /** Grants and relationships together — one statement, one row, one parse. */
 async function loadPrincipalFacts(
   db: D1Db,
-  orgId: string,
   personId: string,
   now: string,
 ): Promise<{ grants: RoleGrantView[]; relationships: Relationships }> {
-  const row = (await db.raw<Row>(PRINCIPAL_FACTS_SQL, principalFactsParams(personId, orgId)))[0];
+  const row = (await db.raw<Row>(PRINCIPAL_FACTS_SQL, principalFactsParams(personId)))[0];
   // `json_array` per grant, so the tuple order here is the column order above.
   const grantRows = parseJson<unknown[][]>(row?.grants, []).map((g) => ({
     role: g[0],
@@ -463,7 +463,7 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
   const url = new URL(req.url);
   const now = nowIso();
   const startedAtMs = Date.now();
-  // Wrapped before anything reads: `resolveOrgId` is itself a query, and a
+  // Wrapped before anything reads: `resolveOrg` is itself a query, and a
   // counter that starts after the first one is a counter that is wrong by one.
   const queries: QueryCounter = { count: 0, roundTrips: 0 };
   if (profileRequested(req, str(env.ENVIRONMENT))) queries.statements = [];
@@ -473,12 +473,9 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
   // shape a row cache could otherwise get wrong; a mutating request runs with
   // no cache at all and re-reads exactly as it always has.
   if (req.method === "GET" || req.method === "HEAD") enableRowCache(env.DB);
-  // One statement for the id *and* the row: `resolveOrg` is the whole
-  // organization, so the id it yields never has to be spent looking the same
-  // row up again.
   const orgRow = await resolveOrg(env);
   const orgId = str(orgRow?.id);
-  const db = new D1Db(env.DB, orgId);
+  const db = new D1Db(env.DB);
   const orgTimezone = str(orgRow?.default_timezone, "UTC");
 
   let person: PersonView | null = null;
@@ -509,7 +506,7 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
   if (!apiKeyId) {
     const token = cookiesOf(req)[SESSION_COOKIE];
     if (token) {
-      const sess = await loadSessionAndPerson(db, orgId, hashToken(token));
+      const sess = await loadSessionAndPerson(db, hashToken(token));
       if (sess && sess.expiresAt > now) {
         // INV-01-9: reads follow the merge pointer. Set only on a merged
         // person, so the second statement is the exception, not the rule.
@@ -517,7 +514,7 @@ export async function buildContext(req: Request, env: Env, waitUntil: (p: Promis
           ? await loadPerson(db, str(sess.person.merged_into_person_id))
           : personView(sess.person);
         if (person) {
-          ({ grants, relationships } = await loadPrincipalFacts(db, orgId, person.id, now));
+          ({ grants, relationships } = await loadPrincipalFacts(db, person.id, now));
           if (stampIsStale(sess.lastSeenAt, now)) {
             waitUntil(db.update("auth_session", sess.sessionId, { last_seen_at: now }));
           }

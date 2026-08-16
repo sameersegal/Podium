@@ -74,7 +74,6 @@ twice and somebody else not at all.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `seg_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `name` | `string` | Y | "AI infra — not asked since 2025" |
 | `description` | `text` | N | |
 | `kind` | `enum(dynamic, static)` | Y | see below |
@@ -123,7 +122,6 @@ puts an unreviewed non-submission into the committee's queue.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `pip_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | null = a standing pipeline not tied to one event |
 | `name` | `string` | Y | "World's Fair 2027 keynotes" |
 | `status` | `enum(active, archived)` | Y | |

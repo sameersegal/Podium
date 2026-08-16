@@ -41,7 +41,7 @@ export default {
       const ctx = await buildContext(req, env, (p) => execCtx.waitUntil(p));
 
       // 01, "First-run setup": nothing seeds the one Organization a
-      // deployment needs, so `resolveOrgId` (inside `buildContext`, fresh
+      // deployment needs, so `resolveOrg` (inside `buildContext`, fresh
       // every request — never cached) resolving to "" means there is nowhere
       // for any other route to scope its reads or writes. Send everything but
       // the setup screen itself there, rather than letting every surface fail
@@ -60,7 +60,7 @@ export default {
       }
 
       if (isMutating(req.method)) {
-        const replay = await replayIfSeen(env, ctx.orgId, req);
+        const replay = await replayIfSeen(env, req);
         if (replay) return await withSecurityHeaders(req, replay);
       }
 
@@ -98,7 +98,7 @@ export default {
         res.headers.append("set-cookie", clearCookie(FLASH_COOKIE));
       }
 
-      if (isMutating(req.method)) res = await remember(env, ctx.orgId, req, res);
+      if (isMutating(req.method)) res = await remember(env, req, res);
       return await withSecurityHeaders(req, withQueryCount(res, ctx));
     } catch (err) {
       // The error paths need the headers too — an error page is still a page,

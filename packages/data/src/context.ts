@@ -11,7 +11,7 @@ import { buildEvent, type Actor, type DomainEvent, type NewEvent } from "@podium
 import { newId } from "@podiumstack/domain/shared/ids.js";
 import type { AuditEntry, AuditSink, Clock, EventSink } from "@podiumstack/domain/shared/ports.js";
 import { nowIso, type Instant } from "@podiumstack/domain/shared/time.js";
-import { D1Db, type Db } from "./db.js";
+import { D1Db, type Db, type Row } from "./db.js";
 import { pokeRooms } from "./live.js";
 
 export interface Env {
@@ -47,6 +47,33 @@ export interface Env {
    * documented dev default is used instead.
    */
   UNSUBSCRIBE_SECRET?: string;
+}
+
+/**
+ * The deployment's one Organization (INV-01-16) — its settings row, and the
+ * single definition of which row that is.
+ *
+ * Since R9 was amended and migration 0012 dropped `org_id`, this resolves
+ * nothing that scopes a query. It is still needed for two things: the
+ * organization's own settings (name, `default_timezone`), and the `org_id` that
+ * every domain event envelope carries to external webhook consumers
+ * (10-domain-events.md, "Envelope").
+ *
+ * `ORDER BY created_at LIMIT 1` rather than "the only row", because on a
+ * freshly migrated deployment there is no row at all until `/setup` runs.
+ */
+export async function soleOrg(env: Env): Promise<Row | null> {
+  return await env.DB.prepare("SELECT * FROM organization ORDER BY created_at LIMIT 1").first<Row>();
+}
+
+/**
+ * `soleOrg`'s id, for contexts built off the request path — cron jobs, queue
+ * consumers, reactions — which have no `RequestContext` to inherit it from and
+ * need only the id for the envelope.
+ */
+export async function soleOrgId(env: Env): Promise<string> {
+  const row = await soleOrg(env);
+  return row ? String(row.id) : "";
 }
 
 export class CollectingEventSink implements EventSink {
@@ -93,6 +120,13 @@ export class CollectingAuditSink implements AuditSink {
 
 export interface AppContextInit {
   env: Env;
+  /**
+   * The deployment's one Organization (INV-01-16). Since R9 was amended and
+   * migration 0012 dropped `org_id`, this no longer scopes a single query — it
+   * is carried solely because `org_id` is a published field of the domain event
+   * envelope (10-domain-events.md, "Envelope") that external webhook consumers
+   * receive.
+   */
   orgId: string;
   eventId?: string | null;
   actor: Actor;
@@ -133,7 +167,7 @@ export class AppContext {
     this.ip = init.ip ?? null;
     this.userAgent = init.userAgent ?? null;
     this.clock = init.clock ?? { now: () => nowIso() };
-    this.db = new D1Db(init.env.DB, init.orgId);
+    this.db = new D1Db(init.env.DB);
     this.events = new CollectingEventSink(
       { org_id: this.orgId, event_id: this.eventId, actor: this.actor, correlation_id: this.correlationId },
       this.clock,
@@ -188,7 +222,6 @@ export class AppContext {
         "audit_log",
         audits.map((a) => ({
           id: a.id,
-          org_id: this.orgId,
           event_id: this.eventId,
           actor_type: this.actor.type,
           actor_id: this.actor.id ?? null,

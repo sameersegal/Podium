@@ -27,21 +27,21 @@ async function seedFixtures() {
 
   const eventId = "evt_crm_test";
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, status, visibility, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, status, visibility, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(eventId, ORG, "CRM Test Conf", "crm-test-conf", "UTC", "2028-05-01", "2028-05-02", "active", "public", now(), now())
+    .bind(eventId, "CRM Test Conf", "crm-test-conf", "UTC", "2028-05-01", "2028-05-02", "active", "public", now(), now())
     .run();
 
   const personId = "per_crm_prospect";
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, created_at, updated_at) VALUES (?,?,?,?,?,?)",
   )
-    .bind(personId, ORG, "prospect@example.com", "Priya Prospect", "active", now(), now())
+    .bind(personId, "prospect@example.com", "Priya Prospect", "active", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO speaker_profile (id, person_id, org_id, job_title, company, bio, visibility, last_edited_by_person_id, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO speaker_profile (id, person_id, job_title, company, bio, visibility, last_edited_by_person_id, updated_at) VALUES (?,?,?,?,?,?,?,?)",
   )
-    .bind(newId("SpeakerProfile"), personId, ORG, "Staff Engineer", "Northwind", "Bio.", "{}", personId, now())
+    .bind(newId("SpeakerProfile"), personId, "Staff Engineer", "Northwind", "Bio.", "{}", personId, now())
     .run();
 
   return { eventId, personId };
@@ -135,9 +135,9 @@ async function signUpStaff(email: string): Promise<string> {
   const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0];
   const person = await env.DB.prepare("SELECT id FROM person WHERE email = ?").bind(email).first<{ id: string }>();
   await env.DB.prepare(
-    "INSERT INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind(newId("RoleGrant"), ORG, person!.id, "admin", "org", ORG, person!.id, now())
+    .bind(newId("RoleGrant"), person!.id, "admin", "org", ORG, person!.id, now())
     .run();
   return cookie;
 }
@@ -227,7 +227,7 @@ describe("CRM HTTP surface", () => {
       redirect: "manual",
     });
     expect(res.status).toBe(303);
-    const row = await env.DB.prepare("SELECT event_id, audience FROM campaign WHERE org_id = ? AND name = ?").bind(ORG, "Speak at CRM Test Conf?").first<{
+    const row = await env.DB.prepare("SELECT event_id, audience FROM campaign WHERE name = ?").bind( "Speak at CRM Test Conf?").first<{
       event_id: string | null;
       audience: string;
     }>();
@@ -251,8 +251,8 @@ describe("CRM HTTP surface", () => {
       redirect: "manual",
     });
     expect(segRes.status).toBe(303);
-    const segment = await env.DB.prepare("SELECT id, member_person_ids FROM contact_segment WHERE org_id = ? AND name = ?")
-      .bind(ORG, "Northwind people")
+    const segment = await env.DB.prepare("SELECT id, member_person_ids FROM contact_segment WHERE name = ?")
+      .bind( "Northwind people")
       .first<{ id: string; member_person_ids: string | null }>();
     // The bug's exact shape: the dynamic segment's frozen-list column is empty.
     expect(segment?.member_person_ids).toBeNull();

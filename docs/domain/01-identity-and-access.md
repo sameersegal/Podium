@@ -12,12 +12,21 @@ AI Engineer World's Fair). **Events** are first class and plural: an org runs Wo
 2026, Summit 2027, and a regional edition from the same instance, sharing a person
 directory, sponsor records and reviewer pool.
 
-The model still carries `org_id` on top-level entities. That is not multi-tenancy theatre —
-it is what makes a future hosted mode a configuration change rather than a rewrite, and it
-makes "every query is scoped" a rule you can enforce in one place. See
-[`13-open-questions.md`](13-open-questions.md), R9 — settled by the org-scoped speaker
-directory in [`14`](14-speaker-crm.md), which makes the column load-bearing today rather
-than speculatively.
+Entities do **not** carry an `org_id`. They did until R9 was amended: the column was kept so
+that a future hosted mode would be a configuration change rather than a rewrite. What that
+argument missed is that a column holding one distinct value on every row of every table is
+not evidence of tenant-safety — INV-01-16 guarantees exactly one `Organization`, so
+`WHERE org_id = ?` compared a column to the only value it had and could never exclude a row.
+A hosted mode would have to re-derive real scoping anyway, against tests that had never once
+seen the predicate exclude anything.
+
+What remains of the organization is the thing that was always real: `Organization` is the
+deployment's settings record — its name, slug, default timezone and contact address — and
+one still exists. Two places still name it, neither of them scoping. `RoleGrant.scope_id`
+holds its id for a grant whose `scope_type` is `org` (INV-01-6), which authorization
+compares. And every domain event envelope carries `org_id`
+([`10`](10-domain-events.md)), because that is a field published to external webhook
+consumers; see [`13-open-questions.md`](13-open-questions.md), R9.
 
 ## Person vs. account
 
@@ -56,12 +65,16 @@ erDiagram
 | `logo_asset_id` | `ref(Asset)` | N | |
 | `default_timezone` | `string` | Y | IANA tz, default for new events |
 | `contact_email` | `string` | Y | reply-to for platform mail |
+| `postal_address` | `string` | N | mailing address, shown on its own line in every outbound email footer ([`09`](09-api-and-integrations.md), "Notifications"); required at first-run setup, nullable only for a deployment whose Organization row predates the field |
 | `settings` | `json` | Y | see below |
 | `created_at` / `updated_at` | `timestamptz` | Y | |
 
 `settings` keys (all optional, defaults in code):
 `review.default_visibility`, `submissions.allow_public_gallery`,
-`onboarding.reminder_default_offsets`, `branding.*`, `privacy.retention_days`.
+`onboarding.reminder_default_offsets`, `branding.*` — including
+`branding.email_accent`, a hex color theming outbound email
+([`09`](09-api-and-integrations.md), "Conference-first rendering and audience"), default
+`#2a6f97` — `privacy.retention_days`.
 
 **First-run setup.** Nothing seeds the one Organization a deployment needs — it does not
 exist until someone creates it. A freshly migrated deployment directs an anonymous visitor to
@@ -77,7 +90,6 @@ it runs with no principal and creates an administrator.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `per_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `email` | `string` | Y | canonical, lowercased; unique per org (INV-01-1) |
 | `email_verified_at` | `timestamptz` | N | null until proven |
 | `full_name` | `string` | Y | as the person writes it; never split into first/last |
@@ -296,7 +308,6 @@ and a note that can be silently edited is worthless as a record.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `pnt_` |
-| `org_id` | `ref(Organization)` | Y | notes follow the person across events |
 | `person_id` | `ref(Person)` | Y | |
 | `event_id` | `ref(Event)` | N | set when the note is about one event |
 | `body` | `text` | Y | markdown |
@@ -366,7 +377,6 @@ sponsor contact invites. One entity, one expiry policy, one audit trail.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `inv_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `email` | `string` | Y | |
 | `person_id` | `ref(Person)` | N | set if the person already exists |
 | `kind` | `enum(staff, reviewer, co_speaker, sponsor_contact, speaker_portal)` | Y | |

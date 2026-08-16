@@ -60,6 +60,7 @@ export interface EmailMessage {
   subject: string;
   html: string;
   text: string;
+  /** RFC 8058 one-click unsubscribe (`List-Unsubscribe*`) on a non-transactional send, among others. */
   headers?: Record<string, string>;
   tags?: string[];
   /** INV-09-7 all the way down: a provider retry must not send twice. */

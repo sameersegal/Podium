@@ -70,20 +70,20 @@ async function seed() {
     [ORG, "Entitlement Release Org", "entrel-org", "UTC", "a@b.example", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Entrel Conf", "entrel-conf", "UTC", "2028-03-01", "2028-03-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Entrel Conf", "entrel-conf", "UTC", "2028-03-01", "2028-03-02", "in_person", "active", "public", "{}", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, opens_at, closes_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
     [CFP, EVENT, "Sponsor CFP", "sponsor", "2027-10-01T00:00:00.000Z", "2028-01-01T00:00:00.000Z", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    [SUBMITTER, ORG, "entrel-submitter@example.com", "Sam Submitter", "active", 0, now, now],
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+    [SUBMITTER, "entrel-submitter@example.com", "Sam Submitter", "active", 0, now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO sponsor (id, org_id, name, slug, status, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?)",
-    [SPONSOR, ORG, "Acme", "acme", "active", now, now, 1],
+    "INSERT OR IGNORE INTO sponsor (id, name, slug, status, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?)",
+    [SPONSOR, "Acme", "acme", "active", now, now, 1],
   );
   await run(
     "INSERT OR IGNORE INTO sponsorship (id, sponsor_id, event_id, status, confirmed_at, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?)",
@@ -103,10 +103,9 @@ async function seed() {
   ] as const) {
     await run(
       `INSERT OR IGNORE INTO proposal
-         (id, org_id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, sponsor_id, entitlement_id,
-          title, abstract, status, confirmation_deadline, last_activity_at, created_at, updated_at, row_version)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [prop, ORG, EVENT, CFP, "frm_entrel", ref, "sponsor", SUBMITTER, SPONSOR, ent, "A sponsor talk", "An abstract.", status, "2020-01-01T00:00:00.000Z", now, now, now, 1],
+         (id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, sponsor_id, entitlement_id, title, abstract, status, confirmation_deadline, last_activity_at, created_at, updated_at, row_version)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [prop, EVENT, CFP, "frm_entrel", ref, "sponsor", SUBMITTER, SPONSOR, ent, "A sponsor talk", "An abstract.", status, "2020-01-01T00:00:00.000Z", now, now, now, 1],
     );
   }
   await run(

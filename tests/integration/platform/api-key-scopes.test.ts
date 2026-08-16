@@ -32,9 +32,9 @@ async function seed() {
     .bind(ORG, "Scope Test Org", "scope-test-org", "UTC", "test@example.com", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
   )
-    .bind(EVENT, ORG, "Scope Test Conf", "scope-test-conf", "UTC", "2028-09-01", "2028-09-02", "in_person", "active", "public", "{}", now(), now())
+    .bind(EVENT, "Scope Test Conf", "scope-test-conf", "UTC", "2028-09-01", "2028-09-02", "in_person", "active", "public", "{}", now(), now())
     .run();
 }
 

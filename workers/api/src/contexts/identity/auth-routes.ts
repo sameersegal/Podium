@@ -199,7 +199,7 @@ export function registerAuthRoutes(router: Router<RequestContext>): void {
     // A session that has ended must not keep a live channel open, even one
     // that says as little as this one does. Deferred: closing a socket is not
     // worth delaying the sign-out redirect.
-    if (personId) ctx.waitUntil(closeSocketsFor(ctx.env, ctx.orgId, personId));
+    if (personId) ctx.waitUntil(closeSocketsFor(ctx.env, personId));
     return redirect("/", 303, { "set-cookie": clearCookie(SESSION_COOKIE) });
   });
 

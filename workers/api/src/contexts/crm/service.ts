@@ -61,8 +61,8 @@ export async function directory(
   opts: { limit?: number; offset?: number } = {},
 ): Promise<{ rows: DirectoryRow[]; total: number }> {
   const c = normaliseCriteria(criteria as Record<string, unknown>);
-  const where: string[] = ["p.org_id = ?", "p.deleted_at IS NULL", "p.merged_into_person_id IS NULL"];
-  const params: unknown[] = [app.orgId];
+  const where: string[] = ["p.deleted_at IS NULL", "p.merged_into_person_id IS NULL"];
+  const params: unknown[] = [];
 
   if (c.q) {
     where.push("(p.full_name LIKE ?1q OR p.email LIKE ?1q OR sp.company LIKE ?1q OR sp.bio LIKE ?1q)".replace(/\?1q/g, "?"));
@@ -151,13 +151,11 @@ export async function directoryFacets(app: AppContext): Promise<{ companies: str
   const companies = await app.db.raw<{ company: string }>(
     `SELECT DISTINCT sp.company AS company FROM speaker_profile sp
        JOIN person p ON p.id = sp.person_id
-      WHERE p.org_id = ? AND sp.company IS NOT NULL AND sp.company != ''
+      WHERE sp.company IS NOT NULL AND sp.company != ''
       ORDER BY sp.company`,
-    [app.orgId],
+    [],
   );
-  const tagRows = await app.db.raw<{ tags: string }>("SELECT tags FROM person WHERE org_id = ? AND tags IS NOT NULL", [
-    app.orgId,
-  ]);
+  const tagRows = await app.db.raw<{ tags: string }>("SELECT tags FROM person WHERE tags IS NOT NULL", []);
   const tags = new Set<string>();
   for (const row of tagRows) for (const t of parseJson<string[]>(row.tags, [])) tags.add(t);
   return { companies: companies.map((c) => str(c.company)), tags: [...tags].sort() };
@@ -256,7 +254,6 @@ export async function createSegment(
   const now = app.now();
   await app.db.insert("contact_segment", {
     id,
-    org_id: app.orgId,
     name: input.name,
     description: input.description ?? null,
     kind: input.kind,
@@ -432,7 +429,6 @@ export async function createPipeline(
   const id = newId("SourcingPipeline");
   await app.db.insert("sourcing_pipeline", {
     id,
-    org_id: app.orgId,
     event_id: input.event_id ?? null,
     name: input.name,
     status: "active",
@@ -539,9 +535,9 @@ export async function cardsForPerson(app: AppContext, personId: string): Promise
        FROM prospect_card c
        JOIN sourcing_pipeline pl ON pl.id = c.pipeline_id
        JOIN pipeline_stage st ON st.id = c.stage_id
-      WHERE c.person_id = ? AND pl.org_id = ?
+      WHERE c.person_id = ?
       ORDER BY c.updated_at DESC`,
-    [personId, app.orgId],
+    [personId],
   );
 }
 
@@ -775,44 +771,44 @@ export interface CrmDashboard {
 export async function crmDashboard(app: AppContext): Promise<CrmDashboard> {
   const [contacts, speakers, returning, events, companies, sources, outreach, pipelines] = await Promise.all([
     app.db.raw<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM person WHERE org_id = ? AND deleted_at IS NULL AND merged_into_person_id IS NULL",
-      [app.orgId],
+      "SELECT COUNT(*) AS n FROM person WHERE deleted_at IS NULL AND merged_into_person_id IS NULL",
+      [],
     ),
     app.db.raw<{ n: number }>(
       `SELECT COUNT(DISTINCT ss.person_id) AS n FROM session_speaker ss
          JOIN session s ON s.id = ss.session_id
-        WHERE s.org_id = ? AND s.status != 'cancelled'`,
-      [app.orgId],
+        WHERE s.status != 'cancelled'`,
+      [],
     ),
     app.db.raw<{ n: number }>(
       `SELECT COUNT(*) AS n FROM (
          SELECT ss.person_id FROM session_speaker ss
            JOIN session s ON s.id = ss.session_id
-          WHERE s.org_id = ? AND s.status != 'cancelled'
+          WHERE s.status != 'cancelled'
           GROUP BY ss.person_id HAVING COUNT(DISTINCT s.event_id) > 1)`,
-      [app.orgId],
+      [],
     ),
-    app.db.raw<{ n: number }>("SELECT COUNT(*) AS n FROM event WHERE org_id = ? AND deleted_at IS NULL", [app.orgId]),
+    app.db.raw<{ n: number }>("SELECT COUNT(*) AS n FROM event WHERE deleted_at IS NULL", []),
     app.db.raw<{ company: string; n: number }>(
       `SELECT sp.company AS company, COUNT(*) AS n FROM speaker_profile sp
          JOIN person p ON p.id = sp.person_id
-        WHERE p.org_id = ? AND sp.company IS NOT NULL AND sp.company != '' AND p.deleted_at IS NULL
+        WHERE sp.company IS NOT NULL AND sp.company != '' AND p.deleted_at IS NULL
         GROUP BY sp.company ORDER BY n DESC LIMIT 10`,
-      [app.orgId],
+      [],
     ),
     app.db.raw<{ source: string; n: number }>(
-      "SELECT source, COUNT(*) AS n FROM event_participant WHERE org_id = ? GROUP BY source ORDER BY n DESC",
-      [app.orgId],
+      "SELECT source, COUNT(*) AS n FROM event_participant  GROUP BY source ORDER BY n DESC",
+      [],
     ),
     app.db.raw<{ month: string; n: number }>(
       `SELECT substr(created_at, 1, 7) AS month, COUNT(*) AS n FROM notification_delivery
-        WHERE org_id = ? GROUP BY month ORDER BY month DESC LIMIT 12`,
-      [app.orgId],
+         GROUP BY month ORDER BY month DESC LIMIT 12`,
+      [],
     ),
     app.db.select<Row>("sourcing_pipeline", { status: "active" }),
   ]);
 
-  const tagRows = await app.db.raw<{ tags: string }>("SELECT tags FROM person WHERE org_id = ? AND tags IS NOT NULL", [app.orgId]);
+  const tagRows = await app.db.raw<{ tags: string }>("SELECT tags FROM person WHERE tags IS NOT NULL", []);
   const tagCounts = new Map<string, number>();
   for (const row of tagRows) for (const t of parseJson<string[]>(row.tags, [])) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
 

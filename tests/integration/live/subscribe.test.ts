@@ -36,9 +36,8 @@ async function run(sql: string, params: unknown[] = []): Promise<void> {
 
 async function seedPerson(id: string, email: string, name: string, password: string): Promise<void> {
   const now = new Date().toISOString();
-  await run("INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)", [
+  await run("INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)", [
     id,
-    ORG,
     email,
     name,
     "active",
@@ -59,8 +58,8 @@ async function seed(): Promise<void> {
     [ORG, "Subscribe Org", "subscribe-org", "UTC", "a@b.example", JSON.stringify({ auth: { password_login_enabled: true } }), now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Subscribe Conf", "subscribe-conf", "UTC", "2027-10-01", "2027-10-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Subscribe Conf", "subscribe-conf", "UTC", "2027-10-01", "2027-10-02", "in_person", "active", "public", "{}", now, now],
   );
 
   await seedPerson(CHAIR, CHAIR_EMAIL, "Chair Person", CHAIR_PASSWORD);
@@ -68,13 +67,13 @@ async function seed(): Promise<void> {
   await seedPerson(OUTSIDER, OUTSIDER_EMAIL, "Outsider Person", OUTSIDER_PASSWORD);
 
   await run(
-    "INSERT OR IGNORE INTO role_grant (id, org_id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?,?)",
-    ["rg_sub_chair", ORG, CHAIR, "program_chair", "event", EVENT, CHAIR, now],
+    "INSERT OR IGNORE INTO role_grant (id, person_id, role, scope_type, scope_id, granted_by_person_id, granted_at) VALUES (?,?,?,?,?,?,?)",
+    ["rg_sub_chair", CHAIR, "program_chair", "event", EVENT, CHAIR, now],
   );
   // A speaker is not staff; they are taking part, which is what gets them in.
   await run(
-    "INSERT OR IGNORE INTO event_participant (id, org_id, event_id, person_id, kind, status, source, added_by_person_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-    ["evp_sub_speaker", ORG, EVENT, SPEAKER, "speaker", "active", "manual", CHAIR, now, now],
+    "INSERT OR IGNORE INTO event_participant (id, event_id, person_id, kind, status, source, added_by_person_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    ["evp_sub_speaker", EVENT, SPEAKER, "speaker", "active", "manual", CHAIR, now, now],
   );
 }
 

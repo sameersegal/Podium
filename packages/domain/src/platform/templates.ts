@@ -10,9 +10,22 @@
  * **Speaker-facing email is sent as the event, not as the product**
  * (12-glossary.md): the from-name is the event's name, and no default body
  * below mentions Podium.
+ *
+ * `audience` classifies who a key is *for* — 09, "Notifications": it is what
+ * the rendered email's header label and footer permission-reason line are
+ * chosen from, never a stored field on `NotificationTemplate` (an organizer's
+ * override changes the words, not who the message is for).
  */
 
 export type TemplateChannel = "email" | "chat";
+
+/**
+ * 09, "Notifications": internal audiences (`organizers`, `reviewers`) and
+ * external ones (`speakers`, `sponsors`) share the same rendered shell, and
+ * on every one of them Podium is a footer credit, never the sender's voice
+ * (12-glossary.md).
+ */
+export type TemplateAudience = "organizers" | "reviewers" | "speakers" | "sponsors";
 
 export interface TemplateSpec {
   key: string;
@@ -24,6 +37,8 @@ export interface TemplateSpec {
    * session or task is never suppressed by a marketing unsubscribe.
    */
   transactional: boolean;
+  /** Who this message is for — drives the rendered email's header label and footer reason. */
+  audience: TemplateAudience;
   subject: string;
   body_markdown: string;
   description: string;
@@ -49,6 +64,7 @@ export const DEFAULT_TEMPLATES: readonly TemplateSpec[] = [
   {
     key: "proposal.submitted",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["proposal.title", "proposal.reference", "proposal.url", "cfp.name", "cfp.closes_at"],
     description: "Sent to the submitter the moment a proposal leaves draft.",
@@ -58,9 +74,9 @@ export const DEFAULT_TEMPLATES: readonly TemplateSpec[] = [
 Thanks for submitting **{{proposal.title}}** to {{event.name}}.
 
 Your reference is **{{proposal.reference}}**. You can review or update it at any time before
-the call closes on {{cfp.closes_at}}:
+the call closes on {{cfp.closes_at}}.
 
-{{proposal.url}}
+[Review your proposal]({{proposal.url}})
 
 We will be in touch once review is finished.
 
@@ -69,6 +85,7 @@ We will be in touch once review is finished.
   {
     key: "proposal.accepted",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: [
       "proposal.title",
@@ -88,7 +105,7 @@ We would like to include **{{proposal.title}}** in the {{event.name}} programme.
 Please confirm by **{{decision.confirmation_deadline}}**. If we do not hear from you by then
 the slot is released to somebody on the waitlist.
 
-{{confirm_url}}
+[Confirm your slot]({{confirm_url}})
 
 {{decision.feedback}}
 
@@ -99,6 +116,7 @@ the slot is released to somebody on the waitlist.
   {
     key: "proposal.rejected",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["proposal.title", "proposal.reference", "decision.feedback"],
     description: "The rejection letter, carrying feedback_for_speaker where there is any.",
@@ -117,6 +135,7 @@ We would be glad to see you submit again.
   {
     key: "proposal.waitlisted",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["proposal.title", "proposal.reference", "decision.feedback"],
     description: "Waitlist notice — a real state, not a soft rejection.",
@@ -133,6 +152,7 @@ include it and do not yet have a slot. If one opens up we will contact you first
   {
     key: "proposal.changes_requested",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["proposal.title", "proposal.reference", "proposal.url", "decision.note"],
     description: "The committee wants an edit before deciding.",
@@ -143,13 +163,14 @@ Before we decide on **{{proposal.title}}** we would like one change:
 
 > {{decision.note}}
 
-You can edit and resubmit here: {{proposal.url}}
+[Edit and resubmit]({{proposal.url}})
 
 — The {{event.name}} programme team`,
   },
   {
     key: "task.assigned",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["task.title", "task.due_at", "task.url", "task.instructions", "session.title"],
     description: "A new onboarding obligation landed on somebody.",
@@ -161,13 +182,14 @@ There is something we need from you for {{event.name}}: **{{task.title}}**, due
 
 {{task.instructions}}
 
-{{task.url}}
+[Open the task]({{task.url}})
 
 — The {{event.name}} programme team`,
   },
   {
     key: "task.reminder",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["task.title", "task.due_at", "task.url", "days_remaining", "session.title"],
     description: "The chase. Escalates per the task's reminder rules.",
@@ -176,7 +198,7 @@ There is something we need from you for {{event.name}}: **{{task.title}}**, due
 
 We still need **{{task.title}}** for {{event.name}}. It is due {{task.due_at}}.
 
-{{task.url}}
+[Open the task]({{task.url}})
 
 If it is already done, ignore this — the reminder stops as soon as we have it.
 
@@ -185,6 +207,7 @@ If it is already done, ignore this — the reminder stops as soon as we have it.
   {
     key: "schedule.changed",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["session.title", "session.starts_at", "session.room", "change_summary", "schedule_url"],
     description: "Fires on publication, not on every drag in the planning UI.",
@@ -198,13 +221,14 @@ The published schedule for {{event.name}} has changed and it affects
 
 It is now {{session.starts_at}} in {{session.room}} ({{event.timezone}}).
 
-Full schedule: {{schedule_url}}
+[See the full schedule]({{schedule_url}})
 
 — The {{event.name}} programme team`,
   },
   {
     key: "invitation.sent",
     channel: "email",
+    audience: "organizers",
     transactional: true,
     variables: ["invitation.accept_url", "invitation.kind", "invited_by"],
     description: "Carries the accept_url. INV-01-15 also shows it on screen.",
@@ -213,7 +237,7 @@ Full schedule: {{schedule_url}}
 
 {{invited_by}} has invited you to {{event.name}}.
 
-{{invitation.accept_url}}
+[Accept your invitation]({{invitation.accept_url}})
 
 The link is single-use and expires.
 
@@ -222,6 +246,7 @@ The link is single-use and expires.
   {
     key: "speaker.confirmation_request",
     channel: "email",
+    audience: "speakers",
     transactional: true,
     variables: ["session.title", "confirmation_deadline", "confirm_url"],
     description: "Asks a credited speaker to confirm they are actually coming.",
@@ -231,13 +256,14 @@ The link is single-use and expires.
 You are credited on **{{session.title}}** at {{event.name}}. Please confirm you can present
 it by **{{confirmation_deadline}}**.
 
-{{confirm_url}}
+[Confirm your session]({{confirm_url}})
 
 — The {{event.name}} programme team`,
   },
   {
     key: "review.assignment",
     channel: "email",
+    audience: "reviewers",
     transactional: true,
     variables: ["round.name", "assignment_count", "due_at", "review_url"],
     description: "Reviewer has proposals waiting.",
@@ -246,13 +272,14 @@ it by **{{confirmation_deadline}}**.
 
 You have **{{assignment_count}}** proposals to review in {{round.name}}, due {{due_at}}.
 
-{{review_url}}
+[Open your review queue]({{review_url}})
 
 — The {{event.name}} programme team`,
   },
   {
     key: "review.reminder",
     channel: "email",
+    audience: "reviewers",
     transactional: true,
     variables: ["round.name", "outstanding_count", "due_at", "review_url"],
     description: "The reviewer chase.",
@@ -262,13 +289,14 @@ You have **{{assignment_count}}** proposals to review in {{round.name}}, due {{d
 {{outstanding_count}} of your reviews for {{round.name}} are still open, and the round closes
 {{due_at}}.
 
-{{review_url}}
+[Open your review queue]({{review_url}})
 
 — The {{event.name}} programme team`,
   },
   {
     key: "entitlement.expiring_soon",
     channel: "email",
+    audience: "sponsors",
     transactional: true,
     variables: ["sponsor.name", "entitlement.type", "remaining", "expires_at", "days_remaining"],
     description: "Nudges a sponsor contact before a paid-for right lapses.",
@@ -278,7 +306,7 @@ You have **{{assignment_count}}** proposals to review in {{round.name}}, due {{d
 {{sponsor.name}} has **{{remaining}}** unused {{entitlement.type}} for {{event.name}}, and
 they expire on {{expires_at}} — {{days_remaining}} days from now.
 
-{{portal_url}}
+[Open the sponsor portal]({{portal_url}})
 
 — The {{event.name}} programme team`,
   },
@@ -292,6 +320,40 @@ export function templateSpec(key: string): TemplateSpec | null {
 
 export function isTransactionalTemplate(key: string): boolean {
   return BY_KEY.get(key)?.transactional ?? false;
+}
+
+/**
+ * The audience a template key is for. Falls back to `speakers` for an
+ * unrecognised or absent key — a one-off campaign (`template_key = null`) is
+ * overwhelmingly a message to speakers (09, "Campaigns"), and a custom
+ * template key an organizer invents is closer to that than to any of the
+ * other three.
+ */
+export function templateAudience(key: string | null | undefined): TemplateAudience {
+  if (!key) return "speakers";
+  return BY_KEY.get(key)?.audience ?? "speakers";
+}
+
+/**
+ * `invitation.sent` is the one key whose audience is not fixed: an
+ * `Invitation.kind` (01) names who is being invited, and the email should
+ * greet them as what they are being invited to be — 09, "Notifications".
+ * Falls back to `organizers` (the "Program Team" label) when the kind is
+ * absent, matching a staff invite.
+ */
+export function invitationAudience(kind: string | null | undefined): TemplateAudience {
+  switch (kind) {
+    case "reviewer":
+      return "reviewers";
+    case "sponsor_contact":
+      return "sponsors";
+    case "co_speaker":
+    case "speaker_portal":
+      return "speakers";
+    case "staff":
+    default:
+      return "organizers";
+  }
 }
 
 /**

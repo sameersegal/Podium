@@ -2220,7 +2220,6 @@ export async function remindReviewer(
   const now = app.now();
   await app.db.insert("notification_delivery", {
     id: notificationId,
-    org_id: app.orgId,
     event_id: round.event_id,
     template_key: input.template_key ?? "review.reminder",
     recipient_person_id: input.reviewer_person_id,
@@ -2258,7 +2257,7 @@ export async function remindReviewer(
   }
 
   try {
-    const message: DeliveryMessage = { kind: "notification", notification_id: notificationId, org_id: app.orgId };
+    const message: DeliveryMessage = { kind: "notification", notification_id: notificationId };
     await app.env.DELIVERY_QUEUE.send(message);
   } catch (err) {
     console.warn("reminder enqueue failed", { notification_id: notificationId, error: String(err) });

@@ -65,7 +65,32 @@ against an alternative. It carries the buyer, the taste rules and the design sys
 already has, and it verifies its own work by driving a browser at phone and desktop widths
 rather than reasoning about the CSS.
 
-The line between the two agents is the line the repository already draws: `www/` imports
+## Finding out what the product is like to use
+
+Use the [`product-taste`](.claude/agents/product-taste.md) agent when the question is not
+whether something works but what it is like — before a release, after a redesign, or when a
+flow has quietly grown a step. Give it a role and a job ("a first-time speaker submitting a
+talk, across two sittings") and it walks the running product against the seed, in character,
+recording a note per screen as it goes, and produces a report in [`docs/taste/`](docs/taste)
+with what confused it, what it had to do twice, what it lost by leaving and coming back, and a
+rating out of five stars.
+
+It is the only agent here that may not read the code while it works. Knowing what a screen was
+*meant* to do makes it impossible to see that the screen never said so, which is the thing
+being measured. It changes nothing — it has no `Edit` tool — and it never fixes what it finds.
+
+It reaches the product only through the Playwright MCP server in
+[`.mcp.json`](.mcp.json), and may not write a driver script of any kind. That is the same rule
+again in a different place: a snapshot of the page is the only thing there is to click, so
+there is nothing to write a selector against until it has looked, which is exactly where a
+first-time user stands. A script would let it skip the looking.
+
+The first walk is in [`docs/taste/`](docs/taste/README.md) and scored one star: a speaker who
+leaves mid-form and comes back on another device cannot reach their own draft from any screen,
+and the portal describes that draft as both `Draft` and `Submitted` on the same page. Both are
+missing links rather than missing screens, which is what the report is for.
+
+The line between the implementer and marketing agents is the line the repository already draws: `www/` imports
 nothing from `packages/` and has its own CI job, and the marketing agent may not touch anything
 outside it. Its first rule is that no claim ships without being checked against a screenshot of
 the running product, a rule in `docs/domain/`, a path in this repository, or a dated third-party
@@ -115,7 +140,7 @@ describe, so it happens the same way every time:
   tenancy, sessions, rendering, uploads, CSRF, SSRF, PII exposure. Its
   [`attack_surface.py`](.claude/skills/security-audit/scripts/attack_surface.py) inventories
   every route with the guard in front of it and every deliberate escape from a safe default
-  (`raw()` past the escaper, `db.raw()` past the org-scoping), and `--check` fails on
+  (`raw()` past the escaper, `db.raw()` past the soft-delete filter), and `--check` fails on
   anything new since the last accepted baseline. Its
   [`rules/podium.yml`](.claude/skills/security-audit/rules/podium.yml) is a Semgrep ruleset
   for the same sinks — stock rulesets score zero here, because nothing in this app looks

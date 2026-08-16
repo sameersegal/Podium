@@ -70,7 +70,6 @@ export async function createSponsor(app: AppContext, input: SponsorInput): Promi
   const slug = await uniqueSponsorSlug(app, input.slug || slugify(input.name));
   const row: Row = {
     id,
-    org_id: app.orgId,
     name: input.name.trim(),
     display_name: input.display_name ?? null,
     slug,
@@ -138,8 +137,8 @@ export async function softDeleteSponsor(app: AppContext, sponsorId: string, reas
   const live = await app.db.raw<{ session_id: string }>(
     `SELECT s.id AS session_id
        FROM session s
-      WHERE s.org_id = ? AND s.sponsor_id = ? AND s.status != 'cancelled' AND s.deleted_at IS NULL`,
-    [app.orgId, sponsorId],
+      WHERE s.sponsor_id = ? AND s.status != 'cancelled' AND s.deleted_at IS NULL`,
+    [sponsorId],
   );
   raiseIf(checkSponsorDeletable(str(sponsor.name), live.map((r) => r.session_id)));
   await app.db.softDelete("sponsor", sponsorId, app.now());
@@ -629,8 +628,8 @@ export async function entitlementCountsFor(
             s.status AS session_status
        FROM proposal p
        LEFT JOIN session s ON s.id = p.session_id AND s.deleted_at IS NULL
-      WHERE p.org_id = ? AND p.deleted_at IS NULL AND p.entitlement_id IN (${placeholders})`,
-    [app.orgId, ...entitlementIds],
+      WHERE p.deleted_at IS NULL AND p.entitlement_id IN (${placeholders})`,
+    [...entitlementIds],
   );
 
   // One policy lookup per distinct event, not per proposal.

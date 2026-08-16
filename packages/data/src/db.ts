@@ -5,9 +5,14 @@
  * `D1Database`. Swapping in Postgres via Hyperdrive means reimplementing this
  * file, not the model.
  *
- * Two rules are enforced here, once, rather than per endpoint:
- *   * INV-11-1 — every query is org-scoped.
+ * One rule is enforced here, once, rather than per endpoint:
  *   * INV-11-2 — soft-deleted rows are excluded from every read.
+ *
+ * There was a second until R9 was amended: every query was scoped by `org_id`.
+ * INV-01-16 has always guaranteed one Organization per deployment, so that
+ * predicate compared a column to the only value it held and could never
+ * exclude a row. Migration 0012 drops the column; see its header for what
+ * survived and why.
  */
 
 import { versionConflict } from "@podiumstack/domain/shared/errors.js";
@@ -43,38 +48,6 @@ const SOFT_DELETE_TABLES = new Set([
   "asset",
   "asset_comment",
   "review_comment",
-]);
-
-/** Tables with a direct `org_id` column. Everything else is scoped by joining. */
-const ORG_SCOPED_TABLES = new Set([
-  "person",
-  "person_note",
-  "role_grant",
-  "invitation",
-  "event",
-  "sponsor",
-  "proposal",
-  "session",
-  "task_instance",
-  "api_key",
-  "webhook",
-  "integration",
-  "notification_template",
-  "notification_delivery",
-  "campaign",
-  "asset",
-  "custom_field_definition",
-  "audit_log",
-  "bulk_import",
-  "export",
-  "contact_segment",
-  "sourcing_pipeline",
-  "domain_event_record",
-  "event_participant",
-  "speaker_profile",
-  "sync_mapping",
-  "external_record_link",
-  "sync_run",
 ]);
 
 /**
@@ -119,10 +92,6 @@ const VERSIONED_TABLES = new Set([
   "webhook",
 ]);
 
-export function isOrgScoped(table: string): boolean {
-  return ORG_SCOPED_TABLES.has(table);
-}
-
 export function isVersioned(table: string): boolean {
   return VERSIONED_TABLES.has(table);
 }
@@ -132,7 +101,7 @@ export function hasSoftDelete(table: string): boolean {
 }
 
 export interface Db {
-  /** Rows matching `where`, org-scoped and excluding soft-deleted rows. */
+  /** Rows matching `where`, excluding soft-deleted rows. */
   select<T extends Row = Row>(table: string, where?: Row, opts?: QueryOptions): Promise<T[]>;
   first<T extends Row = Row>(table: string, where: Row, opts?: QueryOptions): Promise<T | null>;
   byId<T extends Row = Row>(table: string, id: string, opts?: QueryOptions): Promise<T | null>;
@@ -144,7 +113,7 @@ export interface Db {
   updateVersioned(table: string, id: string, expectedVersion: number, values: Row): Promise<number>;
   softDelete(table: string, id: string, at: string): Promise<void>;
   hardDelete(table: string, where: Row): Promise<void>;
-  /** Escape hatch for reads the generic helpers cannot express. Still org-scoped by the caller. */
+  /** Escape hatch for reads the generic helpers cannot express. */
   raw<T extends Row = Row>(sql: string, params?: unknown[]): Promise<T[]>;
   rawRun(sql: string, params?: unknown[]): Promise<void>;
   /**
@@ -156,37 +125,28 @@ export interface Db {
    * assembled.
    */
   batch(statements: Statement[]): Promise<void>;
-  /** A view of this Db bound to a different org, for the platform surfaces. */
-  readonly orgId: string;
-}
-
-/** Applies the same "inject org_id for org-scoped tables" rule as `insert`. */
-function withOrgId(table: string, values: Row, orgId: string): Row {
-  if (ORG_SCOPED_TABLES.has(table) && values.org_id === undefined) return { ...values, org_id: orgId };
-  return values;
 }
 
 /**
  * Builds an `INSERT` statement without executing it, for callers assembling a
  * `Db.batch()` — the same column/placeholder logic `D1Db.insert` uses, so a
- * batched insert and an immediate one can never drift apart. Returns the
- * finalised row (with `org_id` applied) alongside the statement, since the
- * caller usually needs the row's id before the batch has actually run.
+ * batched insert and an immediate one can never drift apart. Returns the row
+ * alongside the statement, since the caller usually needs the row's id before
+ * the batch has actually run.
  */
-export function buildInsert(table: string, values: Row, orgId: string): { statement: Statement; row: Row } {
-  const row = withOrgId(table, values, orgId);
-  const keys = Object.keys(row);
+export function buildInsert(table: string, values: Row): { statement: Statement; row: Row } {
+  const keys = Object.keys(values);
   return {
     statement: {
       sql: `INSERT INTO ${table} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`,
-      params: keys.map((k) => encode(row[k])),
+      params: keys.map((k) => encode(values[k])),
     },
-    row,
+    row: values,
   };
 }
 
 /** Builds an `UPDATE` statement without executing it — see `buildInsert`. */
-export function buildUpdate(table: string, id: string, values: Row, orgId: string): Statement {
+export function buildUpdate(table: string, id: string, values: Row): Statement {
   const keys = Object.keys(values);
   // An unversioned write to a versioned row still has to move the counter, or a
   // later compare-and-set silently compares against a version that never saw it
@@ -194,22 +154,14 @@ export function buildUpdate(table: string, id: string, values: Row, orgId: strin
   // `row_version` explicitly, so it never reaches this branch.
   const sets = [...keys.map((k) => `${k} = ?`), ...(VERSIONED_TABLES.has(table) ? ["row_version = row_version + 1"] : [])].join(",");
   const params: unknown[] = keys.map((k) => encode(values[k]));
-  let sql = `UPDATE ${table} SET ${sets} WHERE id = ?`;
+  const sql = `UPDATE ${table} SET ${sets} WHERE id = ?`;
   params.push(id);
-  if (ORG_SCOPED_TABLES.has(table)) {
-    sql += " AND org_id = ?";
-    params.push(orgId);
-  }
   return { sql, params };
 }
 
-function buildWhere(table: string, orgId: string, where: Row, opts: QueryOptions): { sql: string; params: unknown[] } {
+function buildWhere(table: string, where: Row, opts: QueryOptions): { sql: string; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
-  if (ORG_SCOPED_TABLES.has(table)) {
-    clauses.push("org_id = ?"); // INV-11-1
-    params.push(orgId);
-  }
   if (SOFT_DELETE_TABLES.has(table) && !opts.includeDeleted) {
     clauses.push("deleted_at IS NULL"); // INV-11-2
   }
@@ -284,14 +236,7 @@ export function rowCacheSize(d1: D1Database): number {
 }
 
 export class D1Db implements Db {
-  constructor(
-    private readonly d1: D1Database,
-    readonly orgId: string,
-  ) {}
-
-  forOrg(orgId: string): D1Db {
-    return new D1Db(this.d1, orgId);
-  }
+  constructor(private readonly d1: D1Database) {}
 
   /** Rule 2 — a write to `table` invalidates every cached row of it. */
   private invalidate(table: string | null): void {
@@ -308,7 +253,7 @@ export class D1Db implements Db {
   }
 
   async select<T extends Row = Row>(table: string, where: Row = {}, opts: QueryOptions = {}): Promise<T[]> {
-    const { sql, params } = buildWhere(table, this.orgId, where, opts);
+    const { sql, params } = buildWhere(table, where, opts);
     let q = `SELECT * FROM ${table}${sql}`;
     if (opts.orderBy) q += ` ORDER BY ${opts.orderBy}`;
     if (opts.limit) q += ` LIMIT ${Math.floor(opts.limit)}`;
@@ -325,10 +270,12 @@ export class D1Db implements Db {
   async byId<T extends Row = Row>(table: string, id: string, opts: QueryOptions = {}): Promise<T | null> {
     if (!id) return null;
     const cache = ROW_CACHES.get(this.d1);
-    // The org is part of the key: `forOrg` gives the platform surfaces a view
-    // of the same binding scoped elsewhere, and the same id can be a hit in one
-    // org and a miss in another (INV-11-1).
-    const key = cache ? `${table} ${this.orgId} ${opts.includeDeleted ? 1 : 0} ${id}` : "";
+    // `includeDeleted` is part of the key because it changes the predicate: a
+    // hit on the ordinary read must never answer the admin escape from
+    // INV-11-2, or a soft-deleted row would become invisible to the one caller
+    // entitled to see it. Nothing else varies the query — since migration 0012
+    // there is no org to scope by.
+    const key = cache ? `${table} ${opts.includeDeleted ? 1 : 0} ${id}` : "";
     if (cache && cache.has(key)) return cache.get(key) as T | null;
     const row = await this.first<T>(table, { id }, opts);
     if (cache) cache.set(key, row);
@@ -336,7 +283,7 @@ export class D1Db implements Db {
   }
 
   async count(table: string, where: Row = {}, opts: QueryOptions = {}): Promise<number> {
-    const { sql, params } = buildWhere(table, this.orgId, where, opts);
+    const { sql, params } = buildWhere(table, where, opts);
     const res = await this.d1
       .prepare(`SELECT COUNT(*) AS n FROM ${table}${sql}`)
       .bind(...params)
@@ -345,7 +292,7 @@ export class D1Db implements Db {
   }
 
   async insert<T extends Row = Row>(table: string, values: Row): Promise<T> {
-    const { statement, row } = buildInsert(table, values, this.orgId);
+    const { statement, row } = buildInsert(table, values);
     await this.d1.prepare(statement.sql).bind(...(statement.params ?? [])).run();
     this.invalidate(table);
     return row as T;
@@ -353,9 +300,7 @@ export class D1Db implements Db {
 
   async insertMany(table: string, rows: Row[]): Promise<void> {
     if (rows.length === 0) return;
-    const statements = rows.map((r) => {
-      const row: Row = { ...r };
-      if (ORG_SCOPED_TABLES.has(table) && row.org_id === undefined) row.org_id = this.orgId;
+    const statements = rows.map((row) => {
       const keys = Object.keys(row);
       return this.d1
         .prepare(`INSERT INTO ${table} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`)
@@ -367,7 +312,7 @@ export class D1Db implements Db {
 
   async update(table: string, id: string, values: Row): Promise<void> {
     if (Object.keys(values).length === 0) return;
-    const { sql, params } = buildUpdate(table, id, values, this.orgId);
+    const { sql, params } = buildUpdate(table, id, values);
     await this.d1.prepare(sql).bind(...(params ?? [])).run();
     this.invalidate(table);
   }
@@ -382,11 +327,7 @@ export class D1Db implements Db {
     const keys = Object.keys(values);
     const sets = [...keys.map((k) => `${k} = ?`), "row_version = ?"].join(",");
     const params: unknown[] = [...keys.map((k) => encode(values[k])), next, id, expectedVersion];
-    let sql = `UPDATE ${table} SET ${sets} WHERE id = ? AND row_version = ?`;
-    if (ORG_SCOPED_TABLES.has(table)) {
-      sql += " AND org_id = ?";
-      params.push(this.orgId);
-    }
+    const sql = `UPDATE ${table} SET ${sets} WHERE id = ? AND row_version = ?`;
     const res = await this.d1.prepare(sql).bind(...params).run();
     this.invalidate(table);
     const changed = res.meta?.changes ?? 0;
@@ -402,7 +343,7 @@ export class D1Db implements Db {
   }
 
   async hardDelete(table: string, where: Row): Promise<void> {
-    const { sql, params } = buildWhere(table, this.orgId, where, { includeDeleted: true });
+    const { sql, params } = buildWhere(table, where, { includeDeleted: true });
     await this.d1.prepare(`DELETE FROM ${table}${sql}`).bind(...params).run();
     this.invalidate(table);
   }

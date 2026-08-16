@@ -66,7 +66,6 @@ import { loadFormSpec, loadPublishedForm } from "../event-config/views.js";
 
 export interface ProposalRow extends Row {
   id: string;
-  org_id: string;
   event_id: string;
   cfp_id: string;
   form_id: string;
@@ -246,7 +245,6 @@ export async function createDraft(app: AppContext, input: CreateDraftInput): Pro
 
   const row: Row = {
     id,
-    org_id: app.orgId,
     event_id: eventId,
     cfp_id: input.cfp_id,
     form_id: form.id,
@@ -661,9 +659,9 @@ async function submissionContext(app: AppContext, proposal: ProposalRow) {
   // submitter under this CFP".
   const capRows = await app.db.raw<{ n: number }>(
     `SELECT COUNT(*) AS n FROM proposal
-      WHERE org_id = ? AND cfp_id = ? AND submitter_person_id = ? AND deleted_at IS NULL
+      WHERE cfp_id = ? AND submitter_person_id = ? AND deleted_at IS NULL
         AND id != ? AND status NOT IN ('withdrawn','rejected')`,
-    [app.orgId, str(proposal.cfp_id), str(proposal.submitter_person_id), id],
+    [str(proposal.cfp_id), str(proposal.submitter_person_id), id],
   );
   const limitCandidates = [
     window.cfp.max_proposals_per_person,

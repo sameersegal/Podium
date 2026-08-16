@@ -34,11 +34,23 @@ describe("migrations", () => {
     }
   });
 
-  it("INV-11-1: org-scoped tables all carry org_id so no cross-org read is possible", async () => {
-    for (const table of ["person", "proposal", "session", "task_instance", "asset", "audit_log"]) {
+  it("INV-11-1 (amended, R9): entities carry no org_id — one Organization per deployment", async () => {
+    // The inverse of what this test asserted until migration 0012. INV-01-16
+    // allows exactly one Organization, so `WHERE org_id = ?` compared a column
+    // to the only value it held; keeping it read as tenant-safety the code did
+    // not have. Isolation is now a property of deployment, not of a predicate.
+    for (const table of ["person", "proposal", "session", "task_instance", "asset", "audit_log", "event", "sponsor", "role_grant"]) {
       const { results } = await env.DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
-      expect(results.some((c: { name: string }) => c.name === "org_id"), `${table} has no org_id`).toBe(true);
+      expect(results.some((c: { name: string }) => c.name === "org_id"), `${table} still carries org_id`).toBe(false);
     }
+  });
+
+  it("the domain event envelope keeps its org_id, because webhook consumers receive it", async () => {
+    // Deliberately the one survivor (R9): `DomainEvent.org_id` is a published
+    // field (10-domain-events.md), so dropping it would be a major version of
+    // every event type in the catalogue.
+    const { results } = await env.DB.prepare("PRAGMA table_info(domain_event_record)").all<{ name: string }>();
+    expect(results.some((c: { name: string }) => c.name === "org_id")).toBe(true);
   });
 
   it("R8: derived fields get no column — Entitlement stores no consumed_count", async () => {

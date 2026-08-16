@@ -53,8 +53,8 @@ beforeAll(async () => {
     [ORG, "Row Cache Org", "row-cache-org", "UTC", "a@b.example", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Row Cache Conf", "row-cache-conf", "UTC", "2027-06-01", "2027-06-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Row Cache Conf", "row-cache-conf", "UTC", "2027-06-01", "2027-06-02", "in_person", "active", "public", "{}", now, now],
   );
 });
 
@@ -62,7 +62,7 @@ describe("the per-request identity map", () => {
   it("reads a row once however many layers ask for it", async () => {
     const { db, reads } = counting();
     enableRowCache(db);
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
 
     const first = await repo.byId("event", EVENT);
     const second = await repo.byId("event", EVENT);
@@ -76,7 +76,7 @@ describe("the per-request identity map", () => {
 
   it("is off unless the request turned it on", async () => {
     const { db, reads } = counting();
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
     await repo.byId("event", EVENT);
     await repo.byId("event", EVENT);
     expect(reads()).toBe(2);
@@ -85,27 +85,17 @@ describe("the per-request identity map", () => {
   it("separates `includeDeleted` from the ordinary read (INV-11-2)", async () => {
     const { db, reads } = counting();
     enableRowCache(db);
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
     await repo.byId("event", EVENT);
     await repo.byId("event", EVENT, { includeDeleted: true });
     // Different predicates, so a hit on one must never answer the other.
     expect(reads()).toBe(2);
   });
 
-  it("separates orgs, so a `forOrg` view never answers with another org's row (INV-11-1)", async () => {
-    const { db, reads } = counting();
-    enableRowCache(db);
-    const repo = new D1Db(db, ORG);
-    expect((await repo.byId("event", EVENT))?.id).toBe(EVENT);
-    // The same id, read as a different org, must miss and come back empty.
-    expect(await repo.forOrg("org_someone_else").byId("event", EVENT)).toBeNull();
-    expect(reads()).toBe(2);
-  });
-
   it("never serves a row an update in the same request has already changed", async () => {
     const { db } = counting();
     enableRowCache(db);
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
 
     expect((await repo.byId("event", EVENT))?.name).toBe("Row Cache Conf");
     await repo.update("event", EVENT, { name: "Renamed mid-request" });
@@ -119,7 +109,7 @@ describe("the per-request identity map", () => {
   it("drops everything after a `rawRun`, whose SQL this layer does not parse", async () => {
     const { db } = counting();
     enableRowCache(db);
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
 
     await repo.byId("event", EVENT);
     await repo.rawRun("UPDATE event SET name = ? WHERE id = ?", ["Raw rename", EVENT]);
@@ -131,7 +121,7 @@ describe("the per-request identity map", () => {
   it("drops everything after a `batch`, for the same reason", async () => {
     const { db } = counting();
     enableRowCache(db);
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
 
     await repo.byId("event", EVENT);
     await repo.batch([{ sql: "UPDATE event SET name = ? WHERE id = ?", params: ["Batched rename", EVENT] }]);
@@ -143,7 +133,7 @@ describe("the per-request identity map", () => {
   it("caches the absence of a row as firmly as its presence", async () => {
     const { db, reads } = counting();
     enableRowCache(db);
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
     expect(await repo.byId("event", "evt_does_not_exist")).toBeNull();
     expect(await repo.byId("event", "evt_does_not_exist")).toBeNull();
     expect(reads()).toBe(1);
@@ -152,7 +142,7 @@ describe("the per-request identity map", () => {
   it("leaves set reads alone — only a primary key read is cacheable", async () => {
     const { db, reads } = counting();
     enableRowCache(db);
-    const repo = new D1Db(db, ORG);
+    const repo = new D1Db(db);
     await repo.select("event", { status: "active" });
     await repo.select("event", { status: "active" });
     await repo.count("event", {});

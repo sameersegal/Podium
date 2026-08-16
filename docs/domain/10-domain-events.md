@@ -56,7 +56,7 @@ log can be queried by actor or subject without unpacking JSON.
 | `type` | `string` | Y | from the catalogue below |
 | `version` | `int` | Y | per type, starts at 1 |
 | `occurred_at` | `timestamptz` | Y | when the fact became true |
-| `org_id` | `ref(Organization)` | Y | |
+| `org_id` | `ref(Organization)` | Y | the deployment's one `Organization` (INV-01-16). A published field of the envelope, not a scoping column — entities carry no `org_id` (R9), and this one survives because removing a field from an event is a major version of every type in the catalogue |
 | `event_id` | `ref(Event)` | N | null for org-level facts |
 | `actor_type` | `enum(person, api_key, system, integration)` | Y | |
 | `actor_id` | `ulid` | N | |

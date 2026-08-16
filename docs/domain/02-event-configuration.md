@@ -30,7 +30,6 @@ erDiagram
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `evt_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `name` | `string` | Y | "AI Engineer World's Fair 2026" |
 | `slug` | `slug` | Y | unique per org; appears in public URLs |
 | `edition` | `string` | N | "2026", "Summit '27" — for grouping recurring events |

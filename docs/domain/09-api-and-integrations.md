@@ -107,7 +107,6 @@ second place for the anonymity and validation rules to be got wrong.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `key_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `name` | `string` | Y | "Marketing site", "Airtable sync" |
 | `prefix` | `string` | Y | first 8 chars, shown in the UI for identification |
 | `secret_hash` | `string` | Y | the secret is displayed once and never stored (INV-09-1) |
@@ -143,7 +142,6 @@ titles and times, not personal data, and the default should reflect that.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `whk_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | null = all events |
 | `name` | `string` | Y | |
 | `url` | `string` | Y | absolute https (INV-09-2) |
@@ -187,7 +185,6 @@ one or more capability contracts; the core calls the contract.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `itg_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `event_id` | `ref(Event)` | N | |
 | `plugin_key` | `string` | Y | `email.resend`, `email.sendgrid`, `chat.slack`, `crm.hubspot`, `calendar.google`, `analytics.ai_evaluator`, `sync.airtable` |
 | `capability` | `enum(email, sms, chat, calendar, crm, storage, video, analytics, identity, ticketing, sync)` | Y | |
@@ -375,7 +372,6 @@ system hearing its own echo, and is dropped without a write, an event, or a run 
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `smp_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `integration_id` | `ref(Integration)` | Y | must hold the `sync` capability |
 | `event_id` | `ref(Event)` | N | required for an event-scoped subject, null for an org-scoped one |
 | `subject` | `enum(proposal, session, person, speaker_profile, event_participant, sponsor, sponsorship, entitlement, placement, decision, prospect_card)` | Y | what this table mirrors. `Review` is deliberately absent — see INV-09-23 |
@@ -400,7 +396,6 @@ system hearing its own echo, and is dropped without a write, an event, or a run 
 | ExternalRecordLink field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `xrl_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `mapping_id` | `ref(SyncMapping)` | Y | |
 | `subject_type` / `subject_id` | | Y | the Podium record |
 | `external_id` | `string` | N | null until the first push succeeds |
@@ -430,7 +425,6 @@ stateDiagram-v2
 | SyncRun field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `syr_` |
-| `org_id` | `ref(Organization)` | Y | |
 | `mapping_id` | `ref(SyncMapping)` | Y | |
 | `direction` | `enum(push, pull)` | Y | |
 | `trigger` | `enum(event, cron, inbound, manual)` | Y | what started it, so a runaway loop is legible |
@@ -479,7 +473,7 @@ guess.
 | NotificationTemplate field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `ntp_` |
-| `org_id` / `event_id` | `ref(...)` | Y/N | event templates override org ones |
+| `event_id` | `ref(Event)` | N | null = the deployment-wide template; an event's own overrides it |
 | `key` | `string` | Y | `proposal.accepted`, `task.reminder`, `schedule.changed` |
 | `channel` | `enum(email, chat)` | Y | |
 | `subject` | `string` | N | |
@@ -514,6 +508,50 @@ exactly the kind of credential INV-09-3 already governs, so it follows the same 
 behind a Workers Secret, is never derived from a public or guessable configuration value (an
 `ENVIRONMENT` name, a hostname), and is never logged (INV-09-15).
 
+### Conference-first rendering and audience
+
+Every notification email shares one rendered shell — page, card, header row, body, footer —
+and on every one of them **the event or organization owns the header and the voice; Podium
+is a one-line, muted footer credit and nothing else** (12-glossary.md, "Speaker-facing email
+is sent as the event, not as the product"). That is true whether the recipient is internal to
+the organizing team or external to it: an organizer's coverage nudge and a speaker's
+acceptance letter are the same shell, not two products wearing different logos.
+
+Each `template_key` declares an **audience** — `organizers`, `reviewers`, `speakers` or
+`sponsors` — and it drives two things a recipient actually reads:
+
+- the header's own label ("Program Team", "Program Committee", "Speakers", "Sponsors"),
+  naming who the message is addressed to;
+- the footer's permission-reason line — why this person is receiving it (served on the
+  program committee, submitted a proposal, sponsors the event, and so on).
+
+`invitation.sent` is the one key whose audience is not fixed by the key alone: an
+`Invitation.kind` ([`01`](01-identity-and-access.md)) says who is actually being invited, and
+the rendered email addresses them as that — a reviewer invite reads as a committee
+invitation, a sponsor-contact invite reads as a sponsor one — falling back to the organizing
+team's own label when no more specific kind is known.
+
+The accent color used in the body's own links, its call-to-action button and the footer's
+links is a per-event theme, overriding the organization's own: `settings.branding.email_accent`
+(`Organization.settings`; `Event.settings` — "overrides of org settings, same keys",
+[`02`](02-event-configuration.md)), a hex color, default `#2a6f97`. Every other color in the
+shell is fixed, independent of the audience or the accent.
+
+The footer also carries the organization's mailing address (`Organization.postal_address`,
+[`01`](01-identity-and-access.md)) on its own line, present whenever the org has recorded one,
+and an unsubscribe link — but the unsubscribe link appears **only on a non-transactional
+message**. INV-09-10 makes that link inoperative on every transactional key, and a link that
+cannot work has no business being shown next to one that can; the permission-reason line and
+the Podium credit are unaffected and always render. A `Campaign` is never transactional
+regardless of which `template_key` it was composed from (see "Campaigns" below), so its footer
+always carries the unsubscribe link.
+
+The same non-transactional sends also carry one-click unsubscribe headers (`List-Unsubscribe`,
+`List-Unsubscribe-Post`, RFC 8058), pointing at the same signed link as the footer, so a mail
+client's own "Unsubscribe" control honours the click without opening the confirmation page. A
+transactional message carries neither header, for the same reason it carries no footer
+link — and the same reason a mail client acting on it would have no effect (INV-09-10).
+
 ### Variables and preview
 
 `body_markdown` interpolates `{{variables}}` from a declared, validated set per
@@ -544,7 +582,7 @@ person who sent it is the only one who knows.
 | Campaign field | Type | Req | Notes |
 |---|---|---|---|
 | `id` | `ulid` | Y | prefix `cmp_` |
-| `org_id` / `event_id` | `ref(...)` | Y/N | event-scoped for speaker comms, org-scoped for sourcing outreach |
+| `event_id` | `ref(Event)` | N | set for speaker comms, null for sourcing outreach |
 | `name` | `string` | Y | internal label |
 | `channel` | `enum(email, chat)` | Y | |
 | `template_id` | `ref(NotificationTemplate)` | N | null for a one-off composed message |
@@ -591,7 +629,12 @@ Design points that matter:
   apply unchanged, and one query answers "everything we ever sent this person".
 - **Sending is idempotent per `(campaign, person)`.** A retried send job never sends twice.
 - **Marketing suppression applies; transactional exemption does not.** A campaign is not a
-  decision notification, and INV-09-10's exemption is deliberately not extended to it.
+  decision notification, and INV-09-10's exemption is deliberately not extended to it — even
+  when an organizer composes it from a `NotificationTemplate` whose own key is transactional.
+  Carrying a `campaign_id` is what makes a delivery a campaign, and it forces
+  non-transactional treatment throughout: the suppression check above, and the unsubscribe
+  link in its footer ("Conference-first rendering and audience"). Both read the same
+  determination, so they cannot disagree.
 
 **`CommunicationsHistory`** is the read model over all of it: every `NotificationDelivery`
 for an event or a person, system-triggered and campaign alike, with template, subject,

@@ -551,8 +551,8 @@ function registerManagementApi(router: Router<RequestContext>): void {
     ctx.requireRead("speaker_profile.edit");
     const { limit, cursor } = pageRequest(ctx.url);
     const app = ctx.app();
-    const params: unknown[] = [ctx.orgId];
-    let sql = "SELECT * FROM person WHERE org_id = ? AND deleted_at IS NULL AND merged_into_person_id IS NULL";
+    const params: unknown[] = [];
+    let sql = "SELECT * FROM person WHERE deleted_at IS NULL AND merged_into_person_id IS NULL";
     const q = ctx.url.searchParams.get("q");
     if (q) {
       sql += " AND (lower(full_name) LIKE ? OR lower(email) LIKE ?)";
@@ -697,8 +697,8 @@ function registerManagementApi(router: Router<RequestContext>): void {
     ctx.requireRead("org.configure");
     const app = ctx.app();
     const { limit, cursor } = pageRequest(ctx.url);
-    const params: unknown[] = [ctx.orgId];
-    let sql = "SELECT * FROM role_grant WHERE org_id = ?";
+    const params: unknown[] = [];
+    let sql = "SELECT * FROM role_grant ";
     const personId = ctx.url.searchParams.get("person_id");
     if (personId) {
       sql += " AND person_id = ?";

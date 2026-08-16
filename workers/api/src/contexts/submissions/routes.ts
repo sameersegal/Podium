@@ -136,8 +136,8 @@ async function storeProposalAnswerFile(app: AppContext, proposalId: string, pers
   }
   const slotKey = `proposal:${proposalId}:${fieldKey}`;
   const prior = await app.db.raw<Row>(
-    "SELECT id, version FROM asset WHERE slot_key = ? AND org_id = ? AND deleted_at IS NULL ORDER BY version DESC LIMIT 1",
-    [slotKey, app.orgId],
+    "SELECT id, version FROM asset WHERE slot_key = ? AND deleted_at IS NULL ORDER BY version DESC LIMIT 1",
+    [slotKey],
   );
   const version = num(prior[0]?.version, 0) + 1;
   const id = newId("Asset");
@@ -146,7 +146,6 @@ async function storeProposalAnswerFile(app: AppContext, proposalId: string, pers
   await app.env.ASSETS_BUCKET.put(storageKey, buffer, { httpMetadata: { contentType: file.type || "application/octet-stream" } });
   await app.db.insert("asset", {
     id,
-    org_id: app.orgId,
     storage_key: storageKey,
     filename,
     content_type: file.type || "application/octet-stream",
@@ -731,7 +730,6 @@ function readOrganizerEditInput(input: Input): Record<string, unknown> {
 function proposalJson(row: Row, _includePii: boolean): Record<string, unknown> {
   return {
     id: str(row.id),
-    org_id: str(row.org_id),
     event_id: str(row.event_id),
     cfp_id: str(row.cfp_id),
     form_id: str(row.form_id),

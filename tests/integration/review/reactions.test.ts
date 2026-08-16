@@ -50,8 +50,8 @@ async function seed() {
     [ORG, "Review React Org", "rvreact-org", "UTC", "a@b.example", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "React Conf", "rvreact-conf", "UTC", "2028-01-01", "2028-01-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "React Conf", "rvreact-conf", "UTC", "2028-01-01", "2028-01-02", "in_person", "active", "public", "{}", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, opens_at, closes_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -63,8 +63,8 @@ async function seed() {
     [OTHER_SUBMITTER, "rvreact-other-submitter@example.com"],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, ORG, email, "Someone", "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [id, email, "Someone", "active", 0, now, now],
     );
   }
   await run(
@@ -89,9 +89,9 @@ async function seed() {
   ] as const) {
     await run(
       `INSERT OR IGNORE INTO proposal
-         (id, org_id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, ORG, EVENT, CFP, "frm_rvreact", ref, submitter, title, "An abstract.", "in_review", now, now, now, 1],
+         (id, event_id, cfp_id, form_id, reference, submitter_person_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, EVENT, CFP, "frm_rvreact", ref, submitter, title, "An abstract.", "in_review", now, now, now, 1],
     );
   }
 

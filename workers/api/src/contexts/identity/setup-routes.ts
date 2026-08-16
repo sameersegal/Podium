@@ -9,7 +9,7 @@
  * SECURITY: this runs with no principal and creates an administrator, so both
  * routes refuse — on every method — the instant an `Organization` row exists,
  * checked fresh against the database on every request via `ctx.orgId`
- * (`resolveOrgId` in `http/context.ts`, called once per request in
+ * (`resolveOrg` in `http/context.ts`, called once per request in
  * `buildContext`, never cached). The actual race-proof backstop is
  * `bootstrap_state`'s single-row primary key, claimed inside
  * `setupOrganization` before anything else is written — see the comment
@@ -43,6 +43,7 @@ interface SetupFormValues {
   org_slug?: string;
   default_timezone?: string;
   contact_email?: string;
+  postal_address?: string;
   owner_full_name?: string;
   owner_email?: string;
 }
@@ -86,6 +87,16 @@ function setupFormBody(values: SetupFormValues, error?: string | null): SafeHtml
         value: values.contact_email,
         help: "Reply-to address for platform mail.",
         attrs: 'autocomplete="email" inputmode="email"',
+      })}
+      ${field({
+        name: "postal_address",
+        label: "Mailing address",
+        type: "textarea",
+        required: true,
+        value: values.postal_address,
+        rows: 2,
+        help: "Appears in the footer of every email this deployment sends.",
+        attrs: 'autocomplete="street-address"',
       })}
       <h3>Your account</h3>
       ${field({ name: "owner_full_name", label: "Your full name", required: true, value: values.owner_full_name, attrs: 'autocomplete="name"' })}
@@ -131,6 +142,7 @@ export function registerSetupRoutes(router: Router<RequestContext>): void {
       org_slug: input.str("org_slug"),
       default_timezone: input.str("default_timezone", "UTC"),
       contact_email: input.str("contact_email"),
+      postal_address: input.str("postal_address"),
       owner_full_name: input.str("owner_full_name"),
       owner_email: input.str("owner_email"),
     };
@@ -140,6 +152,7 @@ export function registerSetupRoutes(router: Router<RequestContext>): void {
         org_slug: values.org_slug || null,
         default_timezone: values.default_timezone ?? "UTC",
         contact_email: values.contact_email ?? "",
+        postal_address: values.postal_address ?? "",
         owner_full_name: values.owner_full_name ?? "",
         owner_email: values.owner_email ?? "",
         owner_password: input.str("owner_password"),

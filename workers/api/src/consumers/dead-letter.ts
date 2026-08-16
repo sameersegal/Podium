@@ -74,11 +74,11 @@ export async function recordDeadLetter(env: Env, body: unknown, arrivedAt: strin
   });
 
   try {
-    const db = new D1Db(env.DB, "");
+    const db = new D1Db(env.DB);
     await db.rawRun(
-      `INSERT INTO dead_letter (source_queue, message_kind, event_id, event_type, org_id, body, arrived_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [sourceQueue, messageKind, eventId, eventType, orgId, JSON.stringify(body ?? null), arrivedAt],
+      `INSERT INTO dead_letter (source_queue, message_kind, event_id, event_type, body, arrived_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [sourceQueue, messageKind, eventId, eventType, JSON.stringify(body ?? null), arrivedAt],
     );
   } catch (err) {
     // Logging above already happened, so the arrival is not silent even if

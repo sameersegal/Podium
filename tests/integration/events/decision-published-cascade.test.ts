@@ -52,8 +52,8 @@ async function seed() {
     [ORG, "Decision Cascade Org", "dpcasc-org", "UTC", "a@b.example", "{}", now, now],
   );
   await run(
-    "INSERT OR IGNORE INTO event (id, org_id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    [EVENT, ORG, "Cascade Conf", "dpcasc-conf", "UTC", "2028-04-01", "2028-04-02", "in_person", "active", "public", "{}", now, now],
+    "INSERT OR IGNORE INTO event (id, name, slug, timezone, starts_on, ends_on, mode, status, visibility, settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    [EVENT, "Cascade Conf", "dpcasc-conf", "UTC", "2028-04-01", "2028-04-02", "in_person", "active", "public", "{}", now, now],
   );
   await run(
     "INSERT OR IGNORE INTO call_for_proposals (id, event_id, name, slug, opens_at, closes_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -64,8 +64,8 @@ async function seed() {
     [FORMAT, EVENT, "Talk", "talk", 30, 2, '["cfp","sponsor"]', 0, 0, "open", 0, 1],
   );
   await run(
-    "INSERT OR IGNORE INTO sponsor (id, org_id, name, slug, status, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?)",
-    [SPONSOR, ORG, "Acme", "acme-dpcasc", "active", now, now, 1],
+    "INSERT OR IGNORE INTO sponsor (id, name, slug, status, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?)",
+    [SPONSOR, "Acme", "acme-dpcasc", "active", now, now, 1],
   );
   await run(
     "INSERT OR IGNORE INTO sponsorship (id, sponsor_id, event_id, status, confirmed_at, created_at, updated_at, row_version) VALUES (?,?,?,?,?,?,?,?)",
@@ -80,15 +80,15 @@ async function seed() {
     [SPEAKER, "dpcasc-speaker@example.com", "Sasha Speaker"],
   ]) {
     await run(
-      "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-      [id, ORG, email, name, "active", 0, now, now],
+      "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+      [id, email, name, "active", 0, now, now],
     );
   }
   await run(
     `INSERT OR IGNORE INTO proposal
-       (id, org_id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, sponsor_id, entitlement_id, session_format_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [PROPOSAL, ORG, EVENT, CFP, "frm_dpcasc", "DPCASC-0001", "sponsor", SUBMITTER, SPONSOR, ENTITLEMENT, FORMAT, "A sponsor talk", "An abstract.", "accepted", now, now, now, 1],
+       (id, event_id, cfp_id, form_id, reference, origin, submitter_person_id, sponsor_id, entitlement_id, session_format_id, title, abstract, status, last_activity_at, created_at, updated_at, row_version)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [PROPOSAL, EVENT, CFP, "frm_dpcasc", "DPCASC-0001", "sponsor", SUBMITTER, SPONSOR, ENTITLEMENT, FORMAT, "A sponsor talk", "An abstract.", "accepted", now, now, now, 1],
   );
   await run(
     "INSERT INTO proposal_speaker (id, proposal_id, person_id, speaker_role, sort_order, participation_status, added_by_person_id, added_at) VALUES (?,?,?,?,?,?,?,?)",

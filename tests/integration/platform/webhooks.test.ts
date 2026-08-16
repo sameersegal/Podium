@@ -24,9 +24,9 @@ async function seed() {
     .bind(ORG, "Webhook Test Org", "webhook-test-org", "UTC", "test@example.com", "{}", now(), now())
     .run();
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO person (id, org_id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    "INSERT OR IGNORE INTO person (id, email, full_name, status, is_placeholder, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
   )
-    .bind("per_webhook_owner", ORG, "owner@example.com", "Web Hooker", "active", 0, now(), now())
+    .bind("per_webhook_owner", "owner@example.com", "Web Hooker", "active", 0, now(), now())
     .run();
 }
 
@@ -92,7 +92,7 @@ describe("webhook fan-out and delivery", () => {
       .bind(deliveryId, webhook.id, ev.id, 1, "pending", now())
       .run();
 
-    await deliverWebhook(env, { kind: "webhook", delivery_id: deliveryId, webhook_id: String(webhook.id), org_id: ORG, event_id: ev.id });
+    await deliverWebhook(env, { kind: "webhook", delivery_id: deliveryId, webhook_id: String(webhook.id), event_id: ev.id });
 
     expect(seenHeaders).not.toBeNull();
     expect(seenHeaders!.get("x-event-id")).toBe(ev.id);
@@ -113,9 +113,9 @@ describe("webhook fan-out and delivery", () => {
     // a DNS rebind could after the fact.
     const webhookId = crypto.randomUUID();
     await env.DB.prepare(
-      "INSERT INTO webhook (id, org_id, name, url, event_types, secret, include_pii, status, consecutive_failures, created_by_person_id, created_at, row_version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO webhook (id, name, url, event_types, secret, include_pii, status, consecutive_failures, created_by_person_id, created_at, row_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
     )
-      .bind(webhookId, ORG, "Rebound", "https://169.254.169.254/hooks", "[\"*\"]", "s3cr3t", 0, "active", 0, "per_webhook_owner", now(), 1)
+      .bind(webhookId, "Rebound", "https://169.254.169.254/hooks", "[\"*\"]", "s3cr3t", 0, "active", 0, "per_webhook_owner", now(), 1)
       .run();
     const ev = buildEvent({ type: "person.created", subject: { type: "person", id: "per_x" }, data: { person_id: "per_x" } }, { org_id: ORG, actor: SYSTEM_ACTOR });
     await env.DB.prepare(
@@ -131,7 +131,7 @@ describe("webhook fan-out and delivery", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
-    await deliverWebhook(env, { kind: "webhook", delivery_id: deliveryId, webhook_id: webhookId, org_id: ORG, event_id: ev.id });
+    await deliverWebhook(env, { kind: "webhook", delivery_id: deliveryId, webhook_id: webhookId, event_id: ev.id });
 
     expect(fetchSpy).not.toHaveBeenCalled();
     const delivery = await env.DB.prepare("SELECT * FROM webhook_delivery WHERE id = ?").bind(deliveryId).first<Record<string, unknown>>();
