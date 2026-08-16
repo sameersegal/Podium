@@ -310,19 +310,20 @@ context**, not any screen. The result of acting on it:
 
 | | before | after |
 |---|---|---|
-| statements across the 162-route walk | 2533 | **1235** |
+| statements across the 162-route walk | 2533 | **1229** |
 | median per action | 14 | **6** |
 | p90 · max | 25 · 68 | **15 · 37** |
 | `buildContext` baseline, paid by every request | 11 | **3** |
 
 The baseline is where most of it came from, and it was four separate mistakes:
 
-- `resolveOrgId` selected the organization's **id**, then `buildContext` selected the **row**
-  that id names. `resolveOrg` returns the row, and the id comes off it.
+- The organization's **id** was selected, and then the **row** that id names. `resolveOrg`
+  returns the row and the id comes off it — a fix `9b40968` on main reached independently
+  and at the same time, which is its own evidence that the baseline was where to look.
 - The session was looked up by token hash and the person by the id it holds — two round trips
-  for a pair that is never useful apart. One join, carrying the same org scope and
-  soft-delete exclusion `byId` would have applied. The merge pointer (INV-01-9) is followed
-  with a second statement only when it is set.
+  for a pair that is never useful apart. One join, stating the soft-delete exclusion
+  (INV-11-2) that `byId` would have applied and a `raw` read does not get. The merge pointer
+  (INV-01-9) is followed with a second statement only when it is set.
 - Grants plus the five relationship tables were six round trips before any route ran. They
   are now one row of `json_group_array` subqueries (`PRINCIPAL_FACTS_SQL`). `UNION ALL` is
   the obvious shape and does not fit: **D1's SQLite is built with

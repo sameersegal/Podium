@@ -105,10 +105,9 @@ export function registerDevRoutes(router: Router<RequestContext>): void {
    * Keeping them apart means adding a table here cannot quietly change what
    * `smoke.mjs` walks.
    *
-   * `SELECT id … LIMIT 1` per table, unscoped by org on purpose: this is a
-   * development affordance on a single-org deployment, and the tables without
-   * an `org_id` column (INV-11-1 scopes those by joining) would otherwise have
-   * to be special-cased one by one.
+   * `SELECT id … LIMIT 1` per table. Every table has an `id`, and since
+   * migration 0012 none of them has anything else to scope by, so one shape
+   * answers for all of them.
    */
   router.get("/dev/fixtures", async (req, ctx) => {
     guard(ctx);

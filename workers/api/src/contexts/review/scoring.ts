@@ -7,9 +7,12 @@
  * will be, because a drifted review count means a proposal is reviewed the
  * wrong number of times.
  *
- * The review tables carry no `org_id` of their own, so INV-11-1 is enforced by
- * resolving the owning `event` through the org-scoped repository first —
- * `requireRound` and `requireRubric` are the only doors in.
+ * The review tables hang off an `event` rather than standing alone, and
+ * `requireRound` and `requireRubric` are the only doors in: each resolves the
+ * owning `event` first, so a round id that names nothing this deployment has
+ * 404s rather than reading through. That was INV-11-1's org scoping until
+ * migration 0012 removed the column; the resolution stayed, because it is what
+ * turns a bogus id into a not-found instead of an empty result.
  */
 
 import type { AppContext } from "@podiumstack/data/context.js";
@@ -184,20 +187,20 @@ export function toReviewView(row: Row, scores: ScoreView[]): ReviewView {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Doors in — org scoping (INV-11-1)                                           */
+/* Doors in — resolve the owning event first                                   */
 /* -------------------------------------------------------------------------- */
 
-/** The round, having proved its `Event` is readable in this org. */
+/** The round, having proved the `Event` it hangs off actually exists. */
 export async function requireRound(app: AppContext, roundId: string): Promise<RoundView> {
   const row = await app.db.byId<RoundRow>("review_round", roundId);
   if (!row) throw notFound("Review round", roundId);
-  const event = await app.db.byId<Row>("event", str(row.event_id)); // INV-11-1
+  const event = await app.db.byId<Row>("event", str(row.event_id)); // 404 a round whose event is gone
   if (!event) throw notFound("Review round", roundId);
   return toRoundView(row);
 }
 
 export async function requireEvent(app: AppContext, eventId: string): Promise<Row> {
-  const event = await app.db.byId<Row>("event", eventId); // INV-11-1 + INV-11-2
+  const event = await app.db.byId<Row>("event", eventId); // INV-11-2 — a soft-deleted event is not found
   if (!event) throw notFound("Event", eventId);
   return event;
 }
@@ -208,7 +211,7 @@ export async function requireRubric(
 ): Promise<{ rubric: RubricView; criteria: CriterionView[] }> {
   const row = await app.db.byId<Row>("rubric", rubricId);
   if (!row) throw notFound("Rubric", rubricId);
-  const event = await app.db.byId<Row>("event", str(row.event_id)); // INV-11-1
+  const event = await app.db.byId<Row>("event", str(row.event_id)); // 404 a rubric whose event is gone
   if (!event) throw notFound("Rubric", rubricId);
   return { rubric: toRubricView(row), criteria: await loadCriteria(app, rubricId) };
 }
@@ -420,9 +423,9 @@ export async function decisionQueue(app: AppContext, eventId: string, statuses: 
   if (!proposals.length) return [];
   const proposalIds = proposals.map((p) => str(p.id));
 
-  // The review tables carry no `org_id` (see this file's header), so they are
-  // reached by proposal id, which the org-scoped `proposal` read above already
-  // authorised.
+  // The review tables are reached by proposal id — the `proposal` read above is
+  // what established which proposals this event has, and everything below is
+  // scoped to that set rather than queried independently.
   const [decisions, assignments, reviews] = await Promise.all([
     app.db.select<Row>("decision", { proposal_id: proposalIds }),
     app.db.select<Row>("review_assignment", { proposal_id: proposalIds }, { orderBy: "assigned_at DESC" }),
