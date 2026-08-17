@@ -29,8 +29,10 @@
      proportional 8 is a different width from a proportional 1. */
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* The rail. Its own palette, and the only thing in the product that keeps it
-     in dark mode — a rail that inverts with the page stops being a landmark. */
+  /* The rail. Its own palette: it does not invert with the theme, because a rail
+     that becomes the lightest thing on the page stops being a landmark. It is
+     the darkest plane in both themes — see the dark block for the one step it
+     takes to stay that way once the workspace is dark too. */
   --rail: #151021;
   --rail-text: #cdc7db;
   --rail-text-on: #ffffff;
@@ -58,6 +60,16 @@
   --faint: #c3bece;
   --control: #d7d4de;
   --control-hover: #b9b3c6;
+
+  /* The label on anything filled with `--ink` or a status colour — a danger
+     button, a toast. It cannot be a literal `#fff`, because those tokens swap
+     roles between the themes: in light mode `--danger` is a dark red you put
+     white on, and in dark mode it is a light salmon that is only ever text.
+     Fill with one and hardcode the other and the label disappears at exactly
+     the moment it matters, which is what a toast and a destructive button are
+     for. `--accent` is not in this set: it is a mid-blue in both themes and
+     keeps a white label in both. */
+  --on-fill: #ffffff;
 
   --accent: oklch(0.52 0.19 262);
   --accent-border: oklch(0.44 0.18 262);
@@ -112,27 +124,57 @@
 }
 
 /*
- * Dark is a complete palette, not a filter. Every token is remapped; the rail
- * is the one thing that does not move, because it is already the darkest
- * surface in the light theme and inverting it would leave the page with no
- * fixed point.
+ * Dark is a complete palette, not a filter. Every token is remapped.
+ *
+ * The planes are a ladder, and in dark mode the whole ladder has to be built
+ * rather than inherited: light mode gets its separation for free, because a
+ * near-black rail against a near-white canvas is a 15:1 step you cannot miss.
+ * The first draft of this block kept the rail at its light-mode `#151021` and
+ * put the canvas at `#131020` beside it — a perceptual lightness difference of
+ * 0.003, which is no edge at all. The rail and the page were one surface, and
+ * the navigation dissolved into the screen it was navigating.
+ *
+ * Restoring the step takes both directions, because there is almost nothing
+ * below `#151021` to move into: pure black is only 1.13:1 against it, so
+ * darkening the canvas alone cannot buy an edge. So the workspace comes up and
+ * the rail goes down, and the rungs are spaced in OKLCH lightness, which is
+ * perceptually even where a WCAG ratio is not — down here a ratio of 1.10 and a
+ * ratio of 1.00 look equally flat, and only ΔL tells them apart.
+ *
+ *   rail    L 0.152   the darkest plane, which is its job in both themes
+ *   canvas  L 0.208   ΔL 0.056 — the edge the rail is read by
+ *   surface L 0.243   ΔL 0.035 — cards lift off the page
+ *
+ * Everything above `surface` is spaced off the new surface, not the old one:
+ * hairlines, and the status washes that sit on a card. `--danger-wash` moves
+ * furthest, because at its old `oklch(0.22 …)` it had already sunk below the
+ * card it tints and the blocking row was reading as an ordinary one.
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #131020;
-    --surface: #191426;
-    --sunken: #100d1a;
-    --neutral: #221c2e;
-    --hairline: #2a2338;
-    --hairline-soft: #221c2e;
-    --track: #241d31;
+    --rail: #0e0817;
+
+    --canvas: #191524;
+    --surface: #211d2d;
+    --sunken: #130f1d;
+    --neutral: #292435;
+    --hairline: #322c40;
+    --hairline-soft: #282234;
+    --track: #2c2538;
 
     --ink: #ece9f3;
     --ink-2: #a49cb8;
-    --muted: #8a839b;
-    --faint: #4a4159;
+    /* Both lifted with the surface underneath them, to hold the ratios they
+       had against the old one: `--muted` carries small metadata and stays past
+       4.5:1, `--faint` is deliberately quiet and stays exactly as quiet. */
+    --muted: #8f899d;
+    --faint: #4f4a5d;
     --control: #3a3348;
     --control-hover: #6b6382;
+
+    /* Dark flips this one all the way over: the status colours are light here,
+       so what sits on them is the language's black. */
+    --on-fill: #151021;
 
     --accent-border: oklch(0.52 0.18 262);
     --accent-hover: oklch(0.56 0.19 262);
@@ -151,7 +193,7 @@
 
     --danger: oklch(0.74 0.15 25);
     --danger-rule: oklch(0.62 0.18 25);
-    --danger-wash: oklch(0.22 0.03 25);
+    --danger-wash: oklch(0.275 0.045 25);
     --danger-line: oklch(0.42 0.10 25);
 
     --ai: oklch(0.78 0.13 300);
@@ -813,7 +855,7 @@ button:hover, .btn:hover { background: var(--accent-hover); color: #fff; text-de
 button:disabled, .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 button.secondary, .btn.secondary { background: var(--surface); color: var(--ink); border-color: var(--control); }
 button.secondary:hover, .btn.secondary:hover { background: var(--surface); color: var(--ink); border-color: var(--control-hover); }
-button.danger, .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+button.danger, .btn.danger { background: var(--danger); border-color: var(--danger); color: var(--on-fill); }
 button.danger:hover, .btn.danger:hover { filter: brightness(.92); }
 button.ghost, .btn.ghost { background: transparent; border-color: transparent; color: var(--accent-text); }
 button.ghost:hover, .btn.ghost:hover { background: var(--accent-wash); border-color: transparent; }

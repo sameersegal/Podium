@@ -387,7 +387,11 @@
   padding: var(--sp-3);
   border-radius: var(--radius);
   background: var(--navy);
-  color: #fff;
+  /* Not `#fff`. Every one of the four fills below is a token that inverts with
+     the theme — `--navy` is `--ink`, and in dark mode `--ink` is nearly white —
+     so a hardcoded white label made the toast an empty pill in dark mode. See
+     `--on-fill` in `admin.css`. */
+  color: var(--on-fill);
   box-shadow: var(--shadow-pop);
   font-size: var(--fs-md);
 }
@@ -399,7 +403,7 @@
 .console-toast button.link {
   background: transparent;
   border: 0;
-  color: #fff;
+  color: var(--on-fill);
   text-decoration: underline;
   padding: 0;
   font: inherit;
@@ -789,7 +793,10 @@ body.console-dragging .console-grip-btn { cursor: grabbing; }
   padding: var(--sp-1) var(--sp-3);
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
-  background: #fff;
+  /* `--card`, not `#fff`: the chip sits on a card and is meant to read as flush
+     with it, carried by its border alone. The literal white did that in light
+     mode by coincidence and put a light-mode pill on a dark card in dark mode. */
+  background: var(--card);
   color: var(--muted);
   font-size: var(--fs-sm);
   font-weight: 600;
