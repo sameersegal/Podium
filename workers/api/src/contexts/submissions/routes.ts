@@ -18,6 +18,7 @@ import { fieldByKey, mappedKeys } from "@podiumstack/domain/submissions/answers.
 import { validateStep } from "@podiumstack/domain/submissions/validation.js";
 import type { Origin } from "@podiumstack/domain/event-config/types.js";
 import { flashCookie, requirePersonalAuthorship, type PersonView, type RequestContext } from "../../http/context.js";
+import { expectedVersion } from "../../http/concurrency.js";
 import { collectPrefixed, readInput, type Input } from "../../http/input.js";
 import { htmlResponse, json, redirect } from "../../http/responses.js";
 import { assertKnownFields, project, projectionFrom } from "../../http/projection.js";
@@ -600,75 +601,6 @@ function registerPortalRoutes(router: Router<RequestContext>): void {
 /* -------------------------------------------------------------------------- */
 
 function registerAdminRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/events/:eventId/proposals", async (_req, ctx, params) => {
-    const event = await loadEvent(ctx, params.eventId);
-    if (!event) throw notFound("Event", params.eventId);
-    ctx.eventId = event.id;
-    ctx.requireRead("proposal.read_any", { event_id: event.id });
-    const app = ctx.app(event.id);
-    const filters = queueFiltersFrom(ctx.url);
-    const [{ rows, next_cursor, total }, cfps, tracks, formats] = await Promise.all([
-      proposalQueue(app, event.id, filters),
-      app.db.select<Row>("call_for_proposals", { event_id: event.id }),
-      app.db.select<Row>("track", { event_id: event.id }, { orderBy: "sort_order" }),
-      app.db.select<Row>("session_format", { event_id: event.id }, { orderBy: "sort_order" }),
-    ]);
-    // INV-09-5 / INV-11-4: `Person.email` is PII, redacted without `pii:read`.
-    const includePii = ctx.includePii({ event_id: event.id });
-    const rowsForView = includePii ? rows : rows.map((r) => ({ ...r, submitter_email: "[redacted]" }));
-    const data: QueuePageData = { event, rows: rowsForView, filters, total, nextCursor: next_cursor, url: ctx.url, cfps, tracks, formats };
-    return htmlResponse(
-      adminPage(
-        ctx,
-        {
-          title: "Proposals",
-          event,
-          active: "proposals",
-          width: "wide",
-          // Several admins triaging one list, with a checkbox column and bulk
-          // actions — nudge, so nobody's selection is swapped out from under
-          // the button they were about to press.
-          live: { mode: "nudge", subjects: ["proposal", "decision"] },
-        },
-        proposalQueueView(data),
-      ),
-    );
-  });
-
-  router.get("/admin/proposals/:proposalId", async (_req, ctx, params) => {
-    const app = ctx.app();
-    const proposal = await getProposal(app, params.proposalId);
-    ctx.eventId = str(proposal.event_id);
-    ctx.requireRead("proposal.read_any", { event_id: proposal.event_id, proposal_id: proposal.id });
-    const event = await loadEvent(ctx, str(proposal.event_id));
-    if (!event) throw notFound("Event", str(proposal.event_id));
-    const includePii = ctx.includePii({ event_id: event.id });
-    const detail = await proposalDetail(app, proposal.id, { includePii, audience: "committee" });
-    const [tracks, formats] = await Promise.all([
-      app.db.select<Row>("track", { event_id: event.id }, { orderBy: "sort_order" }),
-      app.db.select<Row>("session_format", { event_id: event.id }, { orderBy: "sort_order" }),
-    ]);
-    const canEdit = ctx.canWrite("proposal.edit", { event_id: event.id, proposal_id: proposal.id });
-    const data: AdminDetailData = { detail, event, tracks, formats, canEdit, fieldErrors: [] };
-    return htmlResponse(adminPage(ctx, { title: str(proposal.title) || "Untitled proposal", event, active: "proposals", width: "wide" }, proposalAdminDetailView(data)));
-  });
-
-  router.post("/admin/proposals/:proposalId/edit", async (req, ctx, params) => {
-    const app = ctx.app();
-    const proposal = await getProposal(app, params.proposalId);
-    ctx.eventId = str(proposal.event_id);
-    ctx.requireWrite("proposal.edit", { event_id: proposal.event_id, proposal_id: proposal.id });
-    const input = await readInput(req);
-    const reason = input.str("reason");
-    if (!reason) {
-      throw validationError("An organizer edit needs a reason.", [{ field_key: "reason", message: "Say what changed and why." }]); // INV-11-5
-    }
-    const patch = readOrganizerEditInput(input);
-    await organizerEdit(app, proposal.id, patch, reason);
-    await app.flush();
-    return redirect(`/admin/proposals/${proposal.id}`, 303, OK("Saved."));
-  });
-
   router.post("/admin/proposals/:proposalId/request-changes", async (req, ctx, params) => {
     const app = ctx.app();
     const proposal = await getProposal(app, params.proposalId);
@@ -891,7 +823,7 @@ function registerManagementApi(router: Router<RequestContext>): void {
     const input = await readInput(req);
     const reason = input.str("reason", "API edit.");
     const patch = readOrganizerEditInput(input);
-    const result = await organizerEdit(app, proposal.id, patch, reason);
+    const result = await organizerEdit(app, proposal.id, patch, reason, expectedVersion(input));
     await app.flush();
     return json(proposalJson(result.proposal, ctx.includePii({ event_id: proposal.event_id })));
   });

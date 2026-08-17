@@ -268,13 +268,24 @@ describe("Program HTTP surface", () => {
     staffCookie = staff.cookie;
   });
 
-  it("renders the programme board for staff", async () => {
-    const res = await SELF.fetch(`http://localhost/admin/events/${fixtures.eventId}/sessions?nojs=1`, { headers: { cookie: staffCookie } });
-    expect(res.status).toBe(200);
-    const body = await res.text();
-    expect(body).toContain("An HTTP-Visible Talk");
-    // The program-health tiles, sponsor_session_share included.
-    expect(body).toContain("sponsor share");
+  // The programme board is the console's screen (R30) and its server-rendered
+  // twin is gone, so what there is to assert is the payload the board draws
+  // from — including the program-health figures the tiles show.
+  it("serves the programme board's sessions and health figures to staff", async () => {
+    const list = await SELF.fetch(`http://localhost/v1/sessions?event_id=${fixtures.eventId}`, {
+      headers: { cookie: staffCookie, accept: "application/json" },
+    });
+    expect(list.status).toBe(200);
+    const body = (await list.json()) as { data: { title: string }[] };
+    expect(body.data.map((s) => s.title)).toContain("An HTTP-Visible Talk");
+
+    const health = await SELF.fetch(`http://localhost/v1/events/${fixtures.eventId}/program-health`, {
+      headers: { cookie: staffCookie, accept: "application/json" },
+    });
+    expect(health.status).toBe(200);
+    const { data } = (await health.json()) as { data: Record<string, unknown> };
+    expect(data).toHaveProperty("sponsor_session_share");
+    expect(data).toHaveProperty("track_balance");
   });
 
   it("renders the session detail page", async () => {
@@ -309,7 +320,13 @@ describe("Program HTTP surface", () => {
   });
 
   it("a request with no session cookie is turned away", async () => {
-    const res = await SELF.fetch(`http://localhost/admin/events/${fixtures.eventId}/sessions`);
-    expect([401, 403]).toContain(res.status);
+    // The console owns this URL and there is no server-rendered twin behind it
+    // (R30, second amendment), so a signed-out browser is sent to sign in
+    // rather than handed a 401 it cannot act on. What matters is that the
+    // screen is not served: no boot payload, no session data.
+    const res = await SELF.fetch(`http://localhost/admin/events/${fixtures.eventId}/sessions`, { redirect: "manual" });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toContain("/login?next=");
+    expect(await res.text()).not.toContain("console-boot");
   });
 });

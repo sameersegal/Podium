@@ -125,13 +125,7 @@ import {
   type AiReviewView,
   type HumanReviewView,
 } from "./views.js";
-import {
-  overrideScorecardForm,
-  partitionQueue,
-  reviewerAssignmentView,
-  reviewerDashboardView,
-  type ReviewerQueueFilter,
-} from "./reviewer-views.js";
+import { overrideScorecardForm, type ReviewerQueueFilter } from "./reviewer-views.js";
 import {
   loadReviewerQueue,
   loadScorecard,
@@ -412,103 +406,6 @@ function railRound(rounds: ReviewerRound[], now: string): { name: string; lines:
 }
 
 function registerReviewerRoutes(router: Router<RequestContext>): void {
-  router.get("/review", async (_req, ctx) => {
-    const person = ctx.requirePerson();
-    const { rows, progressByRound, rounds, conflicts } = await loadReviewerQueue(ctx.app(), person.id, ctx.now);
-
-    const show = queueFilter(ctx.url.searchParams.get("show"));
-    const parts = partitionQueue(rows);
-    return htmlResponse(
-      reviewerPage(
-        ctx,
-        {
-          title: SHOW_TITLES[show],
-          round: railRound(rounds, ctx.now),
-          active: show,
-          counts: { queue: parts.queue.length, submitted: parts.submitted.length, declined: parts.declined.length },
-          hints: [
-            { keys: ["J", "K"], label: "move" },
-            { keys: ["↵"], label: "open" },
-          ],
-        },
-        reviewerDashboardView({ rows, progressByRound, rounds, conflicts, show, now: ctx.now }),
-      ),
-    );
-  });
-
-  router.get("/review/:assignmentId", async (_req, ctx, params) => {
-    const person = ctx.requirePerson();
-    // INV-05-18 + INV-11-7 — ownership is the guard, inside the loader.
-    const m = await loadScorecard(ctx.app(), person.id, params.assignmentId, ctx.now);
-
-    return htmlResponse(
-      reviewerPage(
-        ctx,
-        {
-          title: m.proposal.title,
-          round: railRound(
-            [{ id: m.round.id, name: m.round.name, anonymity: m.round.anonymity, closes_at: m.round.closes_at ?? null }],
-            ctx.now,
-          ),
-          active: "queue",
-          crumbs: [{ label: "Review", href: "/review" }, { label: m.round.name, href: "/review" }, { label: m.proposal.title }],
-        },
-        reviewerAssignmentView({
-          assignment: m.assignment,
-          roundName: m.round.name,
-          anonymity: m.round.anonymity,
-          proposal: m.proposal,
-          rubric: m.rubric,
-          criteria: m.criteria,
-          existing: { review: m.review, scores: m.scores, naCriterionIds: m.naCriterionIds },
-          canSeeOthers: m.canSeeOthers,
-          otherReviews: m.otherReviews,
-          aggregate: m.aggregate,
-          comments: m.comments,
-          discussionEnabled: m.round.discussion_enabled,
-          position: m.position,
-          now: ctx.now,
-        }),
-      ),
-    );
-  });
-
-  router.post("/review/:assignmentId", async (req, ctx, params) => {
-    const person = ctx.requirePerson();
-    const app = ctx.app();
-    const assignment = await requireOwnAssignment(app, person.id, params.assignmentId);
-    const round = await requireRound(app, str(assignment.round_id));
-    const { criteria } = await requireRubric(app, round.rubric_id);
-    const input = await readInput(req);
-    const draft = readReviewDraft(input, criteria);
-    if (input.str("intent", "save") === "submit") {
-      // The next one is chosen *before* the write, because submitting removes
-      // this assignment from the outstanding queue and the reviewer's place in
-      // it goes with it.
-      const queue = await outstandingQueue(app, person.id);
-      const at = queue.indexOf(params.assignmentId);
-      const next = at >= 0 ? (queue[at + 1] ?? null) : null;
-      await submitReview(app, params.assignmentId, draft);
-      await app.flush();
-      const remaining = Math.max(0, queue.length - 1);
-      return next
-        ? redirect(`/review/${next}`, 303, OK(`Review submitted. ${remaining} left in your queue.`))
-        : redirect("/review", 303, OK("Review submitted — that was the last one in your queue. Thank you."));
-    }
-    await saveReviewDraft(app, params.assignmentId, draft);
-    await app.flush();
-    return redirect(`/review/${params.assignmentId}`, 303, OK("Draft saved."));
-  });
-
-  router.post("/review/:assignmentId/decline", async (req, ctx, params) => {
-    const person = ctx.requirePerson();
-    const app = ctx.app();
-    await requireOwnAssignment(app, person.id, params.assignmentId);
-    const input = await readInput(req);
-    await declineAssignment(app, params.assignmentId, input.str("reason") as DeclineReason, input.optional("note"));
-    await app.flush();
-    return redirect("/review", 303, OK("Assignment declined."));
-  });
 }
 
 /* ========================================================================== */
@@ -574,32 +471,6 @@ function registerReviewerApi(router: Router<RequestContext>): void {
 /* ========================================================================== */
 
 function registerRoundRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/events/:eventId/review", async (_req, ctx, params) => {
-    const event = await loadEvent(ctx, params.eventId);
-    if (!event) throw notFound("Event", params.eventId);
-    ctx.eventId = event.id;
-    ctx.requireRead("decision.manage", { event_id: event.id });
-    const app = ctx.app(event.id);
-    const roundRows = await app.db.select<Row>("review_round", { event_id: event.id }, { orderBy: "sequence, created_at" });
-    const rounds = roundRows.map(toRoundView);
-    const summaries = [];
-    for (const round of rounds) {
-      const rubric = await app.db.byId<Row>("rubric", round.rubric_id);
-      const poolSize = await app.db.count("review_round_reviewer", { round_id: round.id, status: "active" });
-      const assignmentCount = await app.db.count("review_assignment", { round_id: round.id });
-      const submittedCount = await app.db.count("review_assignment", { round_id: round.id, status: "submitted" });
-      const proposalCount = (await roundScopeProposals(app, round)).length;
-      summaries.push({ round, rubricName: rubric ? str(rubric.name) : "—", poolSize, assignmentCount, submittedCount, proposalCount });
-    }
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: "Review", event, active: "review", width: "wide" },
-        roundsOverviewView({ event, rounds: summaries, canWrite: ctx.canWrite("decision.manage", { event_id: event.id }) }),
-      ),
-    );
-  });
-
   router.get("/admin/events/:eventId/review/rounds/new", async (_req, ctx, params) => {
     const event = await loadEvent(ctx, params.eventId);
     if (!event) throw notFound("Event", params.eventId);

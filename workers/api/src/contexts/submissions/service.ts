@@ -1089,6 +1089,7 @@ export async function organizerEdit(
   proposalId_: string,
   patch: Record<string, unknown>,
   reason: string,
+  expectedVersion?: number | null,
 ): Promise<{ proposal: ProposalRow; changed_fields: string[]; revision_number: number | null }> {
   const proposal = await getProposal(app, proposalId_);
   const before = promotedSnapshot(proposal);
@@ -1113,7 +1114,15 @@ export async function organizerEdit(
 
   values.updated_at = app.now();
   values.last_activity_at = app.now();
-  await app.db.update("proposal", proposalId_, values);
+  // INV-11-14 — a caller that read the proposal and sends its `row_version`
+  // back gets compare-and-set; one that omits it keeps last-write-wins, which
+  // is what every integration written against this endpoint already assumes
+  // (09, "A write may carry `row_version`"). The console always sends it.
+  if (expectedVersion !== undefined && expectedVersion !== null) {
+    await app.db.updateVersioned("proposal", proposalId_, expectedVersion, values);
+  } else {
+    await app.db.update("proposal", proposalId_, values);
+  }
 
   const updated = await getProposal(app, proposalId_);
   const revision = await writeRevision(app, updated, "organizer_edit", diffOf(before, after, changed), null);

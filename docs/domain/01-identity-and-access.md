@@ -268,6 +268,7 @@ administrative; speaking is still a relationship.
 | `custom_field_values` | `json` | N | event-specific fields; org-level ones live on `Person` |
 | `session_count` | `int` | D | non-cancelled sessions they are credited on |
 | `task_completion` | `json` | D | `{completed, waived, outstanding, overdue}` across their instances |
+| `allowed_status` | `enum(prospect, invited, confirmed, declined, withdrawn)[]` | D | the transitions the diagram below draws out of `status`, computed at read time. A surface offering a roster move reads this rather than restating the machine |
 | `added_by_person_id` | `ref(Person)` | Y | |
 | `created_at` / `updated_at` | `timestamptz` | Y | |
 

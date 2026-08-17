@@ -10,7 +10,7 @@
  */
 
 import { bool, num, parseJson, str, strOrNull, type Row } from "@podiumstack/data/db.js";
-import { DEFAULT_PROFILE_VISIBILITY, isAbsoluteHttps, normaliseEmail } from "@podiumstack/domain/identity/types.js";
+import { DEFAULT_PROFILE_VISIBILITY, isAbsoluteHttps, normaliseEmail, PARTICIPANT_TRANSITIONS } from "@podiumstack/domain/identity/types.js";
 import type { ParticipantKind, ParticipantSource, ParticipantStatus } from "@podiumstack/domain/identity/types.js";
 import { DomainError, forbidden, invariantError, notFound, validationError } from "@podiumstack/domain/shared/errors.js";
 import { redactList, redactRecord } from "@podiumstack/domain/shared/pii.js";
@@ -27,7 +27,6 @@ import {
   mergeConfirmView,
   personView,
   portalProfileView,
-  rosterView,
   teamView,
   type ScopeOption,
 } from "./views.js";
@@ -244,97 +243,6 @@ function rosterFiltersFrom(url: URL): RosterFilters {
 }
 
 function registerRosterRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/events/:eventId/roster", async (_req, ctx, params) => {
-    ctx.eventId = params.eventId;
-    const event = await loadEvent(ctx, params.eventId);
-    if (!event) throw notFound("Event", params.eventId);
-    ctx.eventId = event.id;
-    ctx.requireRead("roster.manage", { event_id: event.id });
-    const app = ctx.app(event.id);
-    const filters = rosterFiltersFrom(ctx.url);
-    const [rows, tracks] = await Promise.all([
-      eventRoster(app, event.id, filters),
-      app.db.select<Row>("track", { event_id: event.id }, { orderBy: "sort_order" }),
-    ]);
-    const includePii = ctx.includePii({ event_id: event.id });
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: `Roster · ${event.name}`, event, active: "roster", width: "wide" },
-        rosterView({
-          event,
-          rows: rows.map((r) => ({ ...r, email: includePii ? r.email : "[redacted]" })),
-          filters,
-          tracks,
-          canWrite: ctx.canWrite("roster.manage", { event_id: event.id }),
-        }),
-      ),
-    );
-  });
-
-  router.post("/admin/events/:eventId/roster", async (req, ctx, params) => {
-    ctx.eventId = params.eventId;
-    ctx.requireWrite("roster.manage", { event_id: params.eventId });
-    const input = await readInput(req);
-    const app = ctx.app(params.eventId);
-    const person = await findOrCreatePerson(app, {
-      email: input.str("email"),
-      full_name: input.str("full_name"),
-      status: "invited",
-      is_placeholder: !input.str("full_name"),
-      source: "roster",
-    });
-    await addParticipant(app, {
-      event_id: params.eventId,
-      person_id: person.id,
-      kind: (input.str("kind", "speaker") || "speaker") as ParticipantKind,
-      status: (input.str("status", "invited") || "invited") as ParticipantStatus,
-      source: "manual",
-    });
-    await app.flush();
-    return redirect(`/admin/events/${params.eventId}/roster`, 303, {
-      "set-cookie": flashCookie("ok", `${personDisplayName(person)} is on the roster.`),
-    });
-  });
-
-  router.post("/admin/events/:eventId/roster/:participantId/status", async (req, ctx, params) => {
-    ctx.eventId = params.eventId;
-    ctx.requireWrite("roster.manage", { event_id: params.eventId });
-    const input = await readInput(req);
-    const app = ctx.app(params.eventId);
-    await setParticipantStatus(app, params.participantId, input.str("status") as ParticipantStatus);
-    await app.flush();
-    return redirect(`/admin/events/${params.eventId}/roster`, 303, { "set-cookie": flashCookie("ok", "Roster status updated.") });
-  });
-
-  router.post("/admin/events/:eventId/roster/:participantId/portal-invite", async (_req, ctx, params) => {
-    ctx.eventId = params.eventId;
-    ctx.requireWrite("roster.manage", { event_id: params.eventId });
-    const app = ctx.app(params.eventId);
-    const invitation = await invitePortalAccess(app, params.participantId, ctx.env.PUBLIC_BASE_URL || ctx.url.origin);
-    await app.flush();
-    const event = await loadEvent(ctx, params.eventId);
-    // INV-01-15 again: every invitation kind offers the link on screen.
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: "Portal invitation", event, active: "roster" },
-        acceptUrlPanel(invitation.accept_url, invitation.email, `/admin/events/${params.eventId}/roster`),
-      ),
-    );
-  });
-
-  router.post("/admin/events/:eventId/roster/:participantId/note", async (req, ctx, params) => {
-    ctx.eventId = params.eventId;
-    ctx.requireWrite("person_note.manage", { event_id: params.eventId });
-    const input = await readInput(req);
-    const app = ctx.app(params.eventId);
-    const participant = await app.db.byId<Row>("event_participant", params.participantId);
-    if (!participant) throw notFound("Participant", params.participantId);
-    await addPersonNote(app, { person_id: str(participant.person_id), event_id: params.eventId, body: input.str("body") });
-    await app.flush();
-    return redirect(`/admin/events/${params.eventId}/roster`, 303, { "set-cookie": flashCookie("ok", "Note added.") });
-  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -621,6 +529,11 @@ function registerManagementApi(router: Router<RequestContext>): void {
         email: includePii ? r.email : "[redacted]",
         kind: str(r.participant.kind),
         status: str(r.participant.status),
+        // Derived (INV-11-6): where this entry may go next, straight off the
+        // state diagram in 01. The console offers exactly these and no others,
+        // so the machine has one home — a status dropdown built from the enum
+        // would drift the moment a transition is added or withdrawn.
+        allowed_status: PARTICIPANT_TRANSITIONS[str(r.participant.status) as ParticipantStatus] ?? [],
         source: str(r.participant.source),
         portal_access: str(r.participant.portal_access),
         // Derived (INV-11-6), computed at read time.
@@ -650,6 +563,52 @@ function registerManagementApi(router: Router<RequestContext>): void {
     });
     await app.flush();
     return json({ id: str(row.id), person_id: person.id }, { status: 201 });
+  });
+
+  /**
+   * The two roster writes the console needs and the management surface did not
+   * have. Both existed only as `/admin/events/:eventId/roster/...` form posts,
+   * which is why the console's Speakers screen was read-only with a link out to
+   * the server-rendered page; R30's second amendment removed that page, so the
+   * writes have to be reachable here.
+   *
+   * Neither takes an event in the path. The participant names its own event —
+   * the form posts carried one because they were nested under a roster URL, not
+   * because the write needed it — and re-deriving it from the row means the
+   * capability is checked against the event that actually owns the record
+   * rather than the one in the URL.
+   */
+  router.patch("/v1/participants/:participantId", async (req, ctx, params) => {
+    const app = ctx.app();
+    const participant = await app.db.byId<Row>("event_participant", params.participantId);
+    if (!participant) throw notFound("Participant", params.participantId);
+    ctx.eventId = str(participant.event_id);
+    ctx.requireWrite("roster.manage", { event_id: str(participant.event_id) });
+    const input = await readInput(req);
+    // `setParticipantStatus` refuses an illegal transition with `422
+    // illegal_transition` rather than writing it, so the console gets the same
+    // answer the form post did.
+    const status = input.str("status") as ParticipantStatus;
+    await setParticipantStatus(app, params.participantId, status);
+    await app.flush();
+    // Every path that returns rather than throwing leaves the row on `status`:
+    // an illegal transition is a 422 and a no-op transition is already there.
+    return json({ id: params.participantId, status });
+  });
+
+  router.post("/v1/participants/:participantId/portal-invite", async (_req, ctx, params) => {
+    const app = ctx.app();
+    const participant = await app.db.byId<Row>("event_participant", params.participantId);
+    if (!participant) throw notFound("Participant", params.participantId);
+    ctx.eventId = str(participant.event_id);
+    ctx.requireWrite("roster.manage", { event_id: str(participant.event_id) });
+    const invitation = await invitePortalAccess(app, params.participantId, ctx.env.PUBLIC_BASE_URL || ctx.url.origin);
+    await app.flush();
+    // INV-01-15 — the accept link is offered exactly once, at creation, and is
+    // never re-readable. The console shows it on screen for the same reason
+    // `acceptUrlPanel` did: an organizer sitting next to the speaker can hand
+    // it over without waiting for mail to arrive.
+    return json({ id: invitation.id, email: invitation.email, accept_url: invitation.accept_url }, { status: 201 });
   });
 
   router.get("/v1/invitations", async (_req, ctx) => {

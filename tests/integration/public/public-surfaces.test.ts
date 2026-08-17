@@ -98,21 +98,26 @@ async function signInChair(): Promise<string> {
   return `podium_session=${match[1]}`;
 }
 
+/**
+ * Get something onto the public schedule. Over `/v1`, because the HTML forms
+ * that used to do this went with the server-rendered agenda (R30, second
+ * amendment) — the writes themselves are unchanged, and nothing about what this
+ * file actually tests (the *public* surface, INV-08-13) depends on which
+ * management surface put the session there.
+ */
 async function publish(cookie: string) {
-  const place = await SELF.fetch(`http://localhost/admin/events/${EVENT}/schedule/place`, {
+  const place = await SELF.fetch(`http://localhost/v1/events/${EVENT}/placements`, {
     method: "POST",
-    body: new URLSearchParams({ session_id: SESSION, room_id: ROOM, event_day_id: DAY, start_time: "09:00" }),
-    headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
-    redirect: "manual",
+    body: JSON.stringify({ session_id: SESSION, room_id: ROOM, event_day_id: DAY, start_time: "09:00" }),
+    headers: { cookie, "content-type": "application/json", accept: "application/json" },
   });
-  expect(place.status).toBe(303);
-  const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/publications`, {
+  expect(place.status).toBe(201);
+  const res = await SELF.fetch(`http://localhost/v1/events/${EVENT}/publications`, {
     method: "POST",
-    body: new URLSearchParams({ note: "First publish" }),
-    headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
-    redirect: "manual",
+    body: JSON.stringify({ note: "First publish" }),
+    headers: { cookie, "content-type": "application/json", accept: "application/json" },
   });
-  expect(res.status).toBe(303);
+  expect(res.status).toBe(201);
 }
 
 describe("public event surfaces — anonymous and complete (INV-08-13)", () => {

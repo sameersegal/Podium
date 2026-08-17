@@ -511,40 +511,6 @@ export function registerEventConfigRoutes(router: Router<RequestContext>): void 
 /* -------------------------------------------------------------------------- */
 
 function registerAdminEventRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/events", async (_req, ctx) => {
-    ctx.requireRead("config.manage");
-    const app = ctx.app();
-    const events = await app.db.select<Row>("event", {}, { orderBy: "starts_on DESC, id DESC" });
-    const rows: SafeHtml[] = [];
-    for (const e of events) {
-      const cfps = await app.db.count("call_for_proposals", { event_id: str(e.id) });
-      rows.push(html`<tr>
-        <td><a href="/admin/events/${str(e.id)}"><strong>${str(e.name)}</strong></a><br><span class="mono small muted">${str(e.slug)}</span></td>
-        <td>${str(e.starts_on)} → ${str(e.ends_on)}<br><span class="small muted mono">${str(e.timezone)}</span></td>
-        <td>${badge(str(e.status))}</td>
-        <td>${humanise(str(e.mode))}</td>
-        <td>${badge(str(e.visibility), str(e.visibility) === "public" ? "ok" : "")}</td>
-        <td>${cfps}</td>
-        <td class="right"><a class="btn secondary small" href="/admin/events/${str(e.id)}/setup">Setup</a>
-          ${ctx.canWrite("event.configure")
-            ? html` <a class="btn secondary small" href="/admin/events/new?from=${str(e.id)}">Duplicate</a>`
-            : raw("")}</td>
-      </tr>`);
-    }
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: "Events", active: "events", width: "wide" },
-        html`${pageHead(
-            "Events",
-            "Every edition you run. An event holds its own days, tracks, formats, rooms and calls for proposals.",
-            ctx.canWrite("event.configure") ? html`<a class="btn" href="/admin/events/new">New event</a>` : raw(""),
-          )}
-          ${table(["Event", "Dates", "Status", "Mode", "Visibility", "CFPs", ""], rows, "No events yet. Create the first one.")}`,
-      ),
-    );
-  });
-
   router.get("/admin/events/new", async (req, ctx) => {
     ctx.requireWrite("event.configure");
     const app = ctx.app();
@@ -634,88 +600,6 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
     return redirect(`/admin/events/${str(event.id)}/setup`, 303, OK(created + next));
   });
 
-  router.get("/admin/events/:eventId", async (_req, ctx, params) => {
-    ctx.requireRead("config.manage", { event_id: params.eventId });
-    const { row, ref } = await loadEventFor(ctx, params.eventId);
-    const app = ctx.app(ref.id);
-    const check = await activationCheck(app, ref.id);
-    const [cfps, tracks, venue] = await Promise.all([
-      app.db.select<Row>("call_for_proposals", { event_id: ref.id }, { orderBy: "created_at" }),
-      app.db.count("track", { event_id: ref.id }),
-      app.db.first<Row>("venue", { event_id: ref.id }),
-    ]);
-    // Provenance only (INV-02-15): a source that has since been removed leaves
-    // a dangling id, which is why this is a lookup and not a join.
-    const clonedFrom = row.cloned_from_event_id ? await app.db.byId<Row>("event", str(row.cloned_from_event_id)) : null;
-    const canWrite = ctx.canWrite("event.configure", { event_id: ref.id });
-
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: ref.name, event: ref, active: "overview", width: "wide" },
-        html`${pageHead(
-            ref.name,
-            str(row.tagline) || "Overview and settings.",
-            html`${badge(ref.status)}
-              ${canWrite ? html`<a class="btn secondary" href="/admin/events/new?from=${ref.id}">Duplicate</a>` : raw("")}
-              ${canWrite && ref.status === "draft" ? actionForm(`/admin/events/${ref.id}/activate`, "Activate event", { className: "" }) : raw("")}
-              ${canWrite && ref.status === "active" ? actionForm(`/admin/events/${ref.id}/archive`, "Archive event", { confirm: "Archive this event? Its calls for proposals close." }) : raw("")}
-              ${canWrite && ref.status === "archived" ? actionForm(`/admin/events/${ref.id}/activate`, "Unarchive", { hidden: { reason: "Unarchived from the event overview." } }) : raw("")}`,
-          )}
-          ${clonedFrom
-            ? html`<p class="muted small">
-                Configuration copied from <a href="/admin/events/${str(clonedFrom.id)}">${str(clonedFrom.name)}</a>.
-              </p>`
-            : raw("")}
-          <div class="stats">
-            ${stat("days", check.day_count, `/admin/events/${ref.id}/setup`)}
-            ${stat("tracks", tracks, `/admin/events/${ref.id}/setup`)}
-            ${stat("formats", check.session_format_count, `/admin/events/${ref.id}/setup`)}
-            ${stat("rooms", check.room_count, `/admin/events/${ref.id}/setup`)}
-            ${stat("calls for proposals", cfps.length, `/admin/events/${ref.id}/cfps`)}
-          </div>
-          ${ref.status === "draft"
-            ? card(
-                check.ready
-                  ? html`<p class="notice ok">Configuration is complete — this event can go active.</p>
-                      ${canWrite ? actionForm(`/admin/events/${ref.id}/activate`, "Activate event", { className: "" }) : raw("")}`
-                  : html`<p class="notice warn">
-                        Before this event can go active it needs ${check.blockers.join(", ")}.
-                      </p>
-                      <p><a class="btn secondary" href="/admin/events/${ref.id}/setup">Go to setup</a></p>`,
-                "Readiness",
-              )
-            : raw("")}
-          ${card(
-            html`<form method="post" action="/admin/events/${ref.id}" class="stack">
-              ${versionField(row)}
-              ${field({ name: "name", label: "Name", required: true, value: str(row.name) })}
-              ${field({ name: "edition", label: "Edition", value: str(row.edition) })}
-              ${field({ name: "tagline", label: "Tagline", value: str(row.tagline) })}
-              ${field({ name: "description", label: "Description", type: "textarea", rows: 5, value: str(row.description), help: "Markdown." })}
-              ${field({ name: "timezone", label: "Timezone", required: true, value: str(row.timezone), help: "Every time shown for this event is rendered here." })}
-              ${field({ name: "starts_on", label: "First day", type: "date", required: true, value: str(row.starts_on) })}
-              ${field({ name: "ends_on", label: "Last day", type: "date", required: true, value: str(row.ends_on) })}
-              ${field({ name: "mode", label: "Mode", type: "select", required: true, value: str(row.mode), options: opts(EVENT_MODE) })}
-              ${field({ name: "website_url", label: "Website", type: "url", value: str(row.website_url) })}
-              ${field({
-                name: "visibility",
-                label: "Visibility",
-                type: "select",
-                required: true,
-                value: str(row.visibility),
-                options: opts(EVENT_VISIBILITY),
-                help: "A public call for proposals needs an active, public event.",
-              })}
-              ${field({ name: "venue_id", label: "Venue", type: "select", value: str(row.venue_id), options: venue ? [{ value: str(venue.id), label: str(venue.name) }] : [] })}
-              ${canWrite ? html`<button type="submit">Save settings</button>` : html`<p class="muted small">You have read-only access to this event's configuration.</p>`}
-            </form>`,
-            "Settings",
-          )}`,
-      ),
-    );
-  });
-
   router.post("/admin/events/:eventId", async (req, ctx, params) => {
     ctx.requireWrite("event.configure", { event_id: params.eventId });
     const input = await readInput(req);
@@ -779,48 +663,6 @@ function registerAdminEventRoutes(router: Router<RequestContext>): void {
 /* -------------------------------------------------------------------------- */
 
 function registerAdminSetupRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/events/:eventId/setup", async (_req, ctx, params) => {
-    ctx.requireRead("config.manage", { event_id: params.eventId });
-    const { row, ref } = await loadEventFor(ctx, params.eventId);
-    const app = ctx.app(ref.id);
-    const canWrite = ctx.canWrite("config.manage", { event_id: ref.id });
-    const [days, tracks, formats, venue] = await Promise.all([
-      app.db.select<Row>("event_day", { event_id: ref.id }, { orderBy: "sort_order, date" }),
-      app.db.select<Row>("track", { event_id: ref.id }, { orderBy: "sort_order, name" }),
-      app.db.select<Row>("session_format", { event_id: ref.id }, { orderBy: "sort_order, name" }),
-      app.db.first<Row>("venue", { event_id: ref.id }),
-    ]);
-    const rooms = venue ? await app.db.select<Row>("room", { venue_id: str(venue.id) }, { orderBy: "sort_order, name" }) : [];
-    const check = await activationCheck(app, ref.id);
-
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: "Setup", event: ref, active: "setup", width: "wide" },
-        html`${pageHead("Setup", "Days, tracks, session formats, the venue and its rooms. Everything a call for proposals and the schedule need.")}
-          ${check.ready
-            ? raw("")
-            : html`<p class="notice warn">Still missing before this event can go active: ${check.blockers.join(", ")}.</p>`}
-          ${canWrite && !check.ready
-            ? card(
-                html`<p>
-                    Rather than filling these in one at a time, start from the standard setup: days across the event's
-                    dates, a track to rename, the usual session formats, a venue with three rooms, a call for proposals
-                    with its form already published, review rubrics and the speaker checklist. Anything already here is
-                    left alone, and everything it writes is an ordinary row you can change or delete.
-                  </p>
-                  ${actionForm(`/admin/events/${ref.id}/blueprint`, "Apply the standard setup", { className: "" })}`,
-                "Start from the standard setup",
-              )
-            : raw("")}
-          ${daysSection(ref, row, days, canWrite)}
-          ${tracksSection(ref, tracks, canWrite)}
-          ${formatsSection(ref, formats, canWrite)}
-          ${venueSection(ref, venue, rooms, tracks, canWrite)}`,
-      ),
-    );
-  });
-
   /**
    * The same blueprint the create form applies, for an event that was created
    * empty — or created before this existed. Idempotent by design: it fills the
@@ -1225,52 +1067,6 @@ function venueSection(ev: EventRef, venue: Row | null, rooms: Row[], tracks: Row
 /* -------------------------------------------------------------------------- */
 
 function registerAdminCfpRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/events/:eventId/cfps", async (_req, ctx, params) => {
-    ctx.requireRead("cfp.configure", { event_id: params.eventId });
-    const { row, ref } = await loadEventFor(ctx, params.eventId);
-    const app = ctx.app(ref.id);
-    const canWrite = ctx.canWrite("cfp.configure", { event_id: ref.id });
-    const cfps = await app.db.select<Row>("call_for_proposals", { event_id: ref.id }, { orderBy: "opens_at, id" });
-    const base = str(ctx.env.PUBLIC_BASE_URL) || ctx.url.origin;
-
-    const rows: SafeHtml[] = [];
-    for (const c of cfps) {
-      const status = await derivedCfpStatus(app, c, row);
-      const count = await proposalCount(app, str(c.id));
-      const published = await loadPublishedForm(app, str(c.id));
-      const publicUrl = `${base}/e/${str(row.slug)}/cfp/${str(c.slug)}`;
-      rows.push(html`<tr>
-        <td><a href="/admin/cfps/${str(c.id)}"><strong>${str(c.name)}</strong></a><br><span class="mono small muted">${str(c.slug)}</span></td>
-        <td>${badge(status)}<br><span class="small muted">${badge(str(c.audience))}</span></td>
-        <td class="small">${when(str(c.opens_at), ref.timezone)}<br>→ ${when(str(c.closes_at), ref.timezone)}</td>
-        <td>${count}</td>
-        <td>${published ? html`v${published.version} ${badge("published", "ok")}` : badge("no published form", "warn")}</td>
-        <td>${copyableUrl(publicUrl, str(c.id))}</td>
-        <td class="right">
-          <a class="btn secondary small" href="/admin/cfps/${str(c.id)}/form">Form builder</a>
-          ${canWrite && !c.published_at ? actionForm(`/admin/cfps/${str(c.id)}/publish`, "Publish call", { className: "" }) : raw("")}
-          ${canWrite && status === "open" ? actionForm(`/admin/cfps/${str(c.id)}/close`, "Close now", { confirm: "Close this call now?" }) : raw("")}
-        </td>
-      </tr>`);
-    }
-
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: "Calls for proposals", event: ref, active: "cfp", width: "wide" },
-        html`${pageHead(
-            "Calls for proposals",
-            "An event may run several at once — a main call, a workshops call with its own deadline, and a sponsor intake that opens later.",
-            canWrite ? html`<a class="btn" href="/admin/events/${ref.id}/cfps/new">New call</a>` : raw(""),
-          )}
-          ${str(row.status) !== "active" || str(row.visibility) !== "public"
-            ? html`<p class="notice warn">Public call pages need an <strong>active</strong>, <strong>public</strong> event. This event is ${str(row.status)} and ${str(row.visibility)}.</p>`
-            : raw("")}
-          ${table(["Call", "Status", "Window", "Proposals", "Form", "Public link", ""], rows, "No calls for proposals yet.")}`,
-      ),
-    );
-  });
-
   router.get("/admin/events/:eventId/cfps/new", async (_req, ctx, params) => {
     ctx.requireWrite("cfp.configure", { event_id: params.eventId });
     const { ref } = await loadEventFor(ctx, params.eventId);
@@ -1513,59 +1309,6 @@ function copyableUrl(url: string, id: string): SafeHtml {
 /* -------------------------------------------------------------------------- */
 
 function registerAdminFormRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/cfps/:cfpId/form", async (_req, ctx, params) => {
-    const { cfp, event, ref } = await loadCfpFor(ctx, params.cfpId);
-    ctx.requireRead("cfp.configure", { event_id: ref.id });
-    const app = ctx.app(ref.id);
-    const canWrite = ctx.canWrite("cfp.configure", { event_id: ref.id });
-    const spec = await builderForm(app, params.cfpId);
-    const versions = await listFormVersions(app, params.cfpId);
-    const [tracks, formats] = await Promise.all([cfpTrackOptions(app, params.cfpId, true), cfpFormatOptions(app, params.cfpId, true)]);
-
-    if (!spec) {
-      return htmlResponse(
-        adminPage(ctx, { title: "Form builder", event: ref, active: "cfp" }, card(empty("This call has no form yet."))),
-      );
-    }
-
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: "Form builder", event: ref, active: "cfp", width: "wide" },
-        html`${pageHead(
-            `${str(cfp.name)} — submission form`,
-            "Steps, fields, conditional visibility and what each answer becomes on the proposal. A published form is versioned, not edited in place.",
-            html`${badge(spec.status)} <span class="badge">version ${spec.version}</span>
-              <a class="btn secondary" href="/admin/cfps/${params.cfpId}/form/preview">Preview the public form</a>
-              ${canWrite && spec.status === "draft"
-                ? actionForm(`/admin/cfps/${params.cfpId}/form/publish`, "Publish this version", { className: "", hidden: { form_id: spec.id } })
-                : raw("")}
-              ${canWrite && spec.status === "published"
-                ? actionForm(`/admin/cfps/${params.cfpId}/form/new-version`, "New draft version", {})
-                : raw("")}`,
-          )}
-          ${spec.status === "published"
-            ? html`<p class="notice">This version is live. Cosmetic edits — label, help text, order — apply in place; anything else creates a new draft version automatically.</p>`
-            : raw("")}
-          ${versionList(versions, spec.id)}
-          ${joinHtml(spec.steps.map((step, i) => stepCard(params.cfpId, spec, step, i, tracks, formats, canWrite)))}
-          ${canWrite
-            ? card(
-                html`<form method="post" action="/admin/cfps/${params.cfpId}/form/steps" class="inline-grid">
-                  <input type="hidden" name="form_id" value="${spec.id}">
-                  ${field({ name: "title", label: "Step title", required: true, placeholder: "Sponsorship details" })}
-                  ${field({ name: "key", label: "Key", help: "Stable across versions. Derived from the title if blank." })}
-                  ${field({ name: "description", label: "Description", type: "textarea", rows: 2 })}
-                  ${field({ name: "is_optional", label: "Submitters may skip this step", type: "checkbox" })}
-                  <button type="submit">Add step</button>
-                </form>`,
-                "Add a step",
-              )
-            : raw("")}`,
-      ),
-    );
-  });
-
   router.get("/admin/cfps/:cfpId/form/preview", async (_req, ctx, params) => {
     const { cfp, ref } = await loadCfpFor(ctx, params.cfpId);
     ctx.requireRead("cfp.configure", { event_id: ref.id });

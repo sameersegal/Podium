@@ -456,26 +456,10 @@ describe("admin proposal queue — PII redaction (INV-09-5 / INV-11-4)", () => {
     );
   });
 
-  it("an owner (pii.read) sees the submitter's email in the queue", async () => {
-    const cookie = await signIn(OWNER_EMAIL, OWNER_PASSWORD);
-    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/proposals?nojs=1`, withCookie(cookie));
-    expect(res.status).toBe(200);
-    const body = await res.text();
-    expect(body).toContain(OTHER_SPEAKER_EMAIL);
-  });
-
-  it("a reviewer (no pii.read) sees the email redacted", async () => {
-    const cookie = await signIn(REVIEWER_EMAIL, REVIEWER_PASSWORD);
-    const res = await SELF.fetch(`http://localhost/admin/events/${EVENT}/proposals?nojs=1`, withCookie(cookie));
-    expect(res.status).toBe(200);
-    const body = await res.text();
-    expect(body).not.toContain(OTHER_SPEAKER_EMAIL);
-    expect(body).toContain("[redacted]");
-  });
-
   /**
-   * The same invariant on the surface the admin console reads (R30). The board
-   * offers a "Submitter email" column, so the list endpoint decides — the
+   * INV-11-4 on the proposal board. The board is the console's screen and its
+   * server-rendered twin is gone (R30, second amendment), so the list endpoint
+   * is the only place this can be decided — which is the right place: the
    * client is never handed the address and told not to draw it.
    */
   it("withholds the address from /v1/proposals for a reader without pii.read", async () => {

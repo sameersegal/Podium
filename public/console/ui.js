@@ -314,6 +314,10 @@ export function field(spec) {
       oninput: spec.oninput || null,
       onchange: spec.onchange || null,
       disabled: spec.disabled || false,
+      // `readonly`, not `disabled`, for a value the reader is meant to copy:
+      // a disabled input is unselectable in Safari, and the one place this is
+      // used shows a link that is never readable again (INV-01-15).
+      readonly: spec.readonly || false,
       autocomplete: spec.autocomplete || "off",
     });
   }

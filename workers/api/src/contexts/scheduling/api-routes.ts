@@ -214,12 +214,14 @@ export function registerSchedulingApiRoutes(router: Router<RequestContext>): voi
     const eventId = await eventOfConflict(ctx, params.conflictId);
     ctx.requireWrite("schedule.place", { event_id: eventId });
     const input = await readInput(req);
-    const reason = input.str("reason");
-    if (!reason) {
-      throw validationError("Acknowledging a conflict needs a reason.", [{ field_key: "reason", message: "Required." }]);
-    }
+    // No pre-check on `reason`: `acknowledgeConflict` refuses a blank one with
+    // `invariantError("INV-11-5", …)`, and a `validationError` in front of it
+    // shadowed that with an untyped 422 — the one thing 09 says an error here
+    // must not be ("Errors are typed, naming the invariant where one was
+    // violated"). The deleted HTML form reached the service directly and got
+    // the named error; this route now does too.
     const app = ctx.app(eventId);
-    const view = await acknowledgeConflict(app, params.conflictId, reason);
+    const view = await acknowledgeConflict(app, params.conflictId, input.str("reason"));
     await app.flush();
     return json({ data: view });
   });

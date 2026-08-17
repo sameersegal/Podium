@@ -52,7 +52,6 @@ import {
   loadBoard,
   newSessionFormView,
   portalSessionDetailView,
-  programBoardView,
   sessionDetailView,
 } from "./views.js";
 
@@ -106,22 +105,6 @@ const transferTaskInstances = transferInstances;
 /* -------------------------------------------------------------------------- */
 
 function registerBoardRoutes(router: Router<RequestContext>): void {
-  router.get("/admin/events/:eventId/sessions", async (_req, ctx, params) => {
-    const event = await requireEvent(ctx, params.eventId);
-    ctx.requireRead("session.manage", { event_id: event.id });
-    const app = ctx.app(event.id);
-    const filters = boardFiltersFrom(ctx.url);
-    const { rows, health, tracks, formats } = await loadBoard(app, event.id, filters);
-    const canWrite = ctx.canWrite("session.manage", { event_id: event.id });
-    return htmlResponse(
-      adminPage(
-        ctx,
-        { title: `Sessions · ${event.name}`, event, active: "sessions", width: "wide" },
-        programBoardView({ event, rows, filters, health, tracks, formats, canWrite }),
-      ),
-    );
-  });
-
   router.get("/admin/events/:eventId/sessions/new", async (_req, ctx, params) => {
     const event = await requireEvent(ctx, params.eventId);
     ctx.requireWrite("session.manage", { event_id: event.id });
@@ -497,6 +480,27 @@ function sessionJson(row: Row, extra: Record<string, unknown> = {}): Record<stri
 }
 
 function registerManagementApi(router: Router<RequestContext>): void {
+  /**
+   * The programme board's health figures — format mix, track balance, sponsor
+   * session share, and the four counts that say what is not ready.
+   *
+   * These were computed only by the server-rendered board at
+   * `/admin/events/:eventId/sessions`, so deleting that page (R30, second
+   * amendment) would have deleted the numbers with it. They are a read the
+   * console's Sessions screen needs, and every other figure that screen shows
+   * already comes from `/v1`, so this is where they belong.
+   *
+   * Separate from `GET /v1/sessions` on purpose: the list is paginated and the
+   * board pages through it, while these are whole-event aggregates that must
+   * not change as the reader scrolls.
+   */
+  router.get("/v1/events/:eventId/program-health", async (_req, ctx, params) => {
+    ctx.requireRead("session.manage", { event_id: params.eventId });
+    ctx.eventId = params.eventId;
+    const { health } = await loadBoard(ctx.app(params.eventId), params.eventId, boardFiltersFrom(ctx.url));
+    return json({ data: health });
+  });
+
   router.get("/v1/sessions", async (_req, ctx) => {
     const eventId = ctx.url.searchParams.get("event_id");
     ctx.requireRead("session.manage", { event_id: eventId });

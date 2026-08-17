@@ -1,7 +1,7 @@
 /**
  * The event dashboard — a cross-context read model.
  *
- * It sits in `surfaces/` beside `admin-home.ts` for the same reason that one
+ * It sits in `surfaces/` beside `console.ts` for the same reason that one
  * does: an organizer's "what needs me today" spans submissions, review,
  * program, onboarding, scheduling and sponsorship, and a read that spans six
  * contexts belongs to none of them. Nothing here writes, and nothing here is

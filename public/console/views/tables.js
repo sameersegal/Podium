@@ -12,11 +12,11 @@
  * decided those would be a table renderer nobody could make read well.
  */
 
-import { h, cx } from "../kit.js";
+import { h, cx, redraw } from "../kit.js";
 import { api, unwrap } from "../api.js";
-import { can, canWrite, resource, reload, toast, reportError } from "../store.js";
+import { can, canWrite, resource, reload, toast, reportError, openDrawer, closeDrawer } from "../store.js";
 import { setChrome } from "../chrome.js";
-import { badge, button, card, empty, formatDate, formatDateTime, humanise, notice, pageHead, pluralise, relativeDays, stat, stats } from "../ui.js";
+import { badge, button, card, empty, field, formatDate, formatDateTime, humanise, notice, pageHead, pluralise, relativeDays, stat, stats } from "../ui.js";
 
 /* -------------------------------------------------------------------------- */
 /* Shared shape                                                                */
@@ -105,7 +105,14 @@ export function events() {
 export function sessions(params) {
   setChrome({ section: "sessions", title: "Sessions" });
   const key = "sessions:" + params.eventId;
-  return collection(key, () => api.get("/v1/sessions?event_id=" + params.eventId + "&limit=200").then(unwrap), (list) => {
+  return collection(
+    key,
+    () =>
+      Promise.all([
+        api.get("/v1/sessions?event_id=" + params.eventId + "&limit=200").then(unwrap),
+        api.get("/v1/events/" + params.eventId + "/program-health").then(unwrap),
+      ]).then(([list, health]) => ({ list, health })),
+    ({ list, health }) => {
     const byStatus = countBy(list, (s) => s.status);
     return h(
       "div",
@@ -116,6 +123,7 @@ export function sessions(params) {
           stat(humanise(s), byStatus[s] || 0, null, { key: s, tone: s === "pending_confirmation" && byStatus[s] ? "warn" : null }),
         ),
       ),
+      programHealth(health, params.eventId),
       table(
         ["Session", "Status", "Content", "Track", "Format", "Speakers"],
         list.map((s) =>
@@ -146,7 +154,60 @@ export function sessions(params) {
         "No sessions yet. They appear here once decisions are published.",
       ),
     );
-  });
+    },
+  );
+}
+
+/**
+ * The programme-health tiles, which used to be the server-rendered board's and
+ * would have been deleted with it (R30, second amendment).
+ *
+ * Four counts that each name something not ready, and the sponsor share. The
+ * share is here rather than on the sponsorship screen because this is where
+ * somebody would notice it is too high — "how much of my programme did I sell"
+ * is a question about the programme.
+ */
+function programHealth(health, eventId) {
+  if (!health) return null;
+  const share = health.sponsor_session_share?.overall;
+  const pct = share && share.total ? Math.round((share.sponsored / share.total) * 100) : 0;
+  return card(
+    h(
+      "div",
+      null,
+      stats([
+        stat("unconfirmed speakers", health.unconfirmed_speakers, null, { key: "us", tone: health.unconfirmed_speakers ? "warn" : null }),
+        stat("onboarding at risk", health.onboarding_at_risk, "/admin/events/" + eventId + "/onboarding", {
+          key: "oar",
+          tone: health.onboarding_at_risk ? "warn" : null,
+        }),
+        stat("unplaced confirmed", health.unplaced_confirmed, "/admin/events/" + eventId + "/schedule", {
+          key: "up",
+          tone: health.unplaced_confirmed ? "warn" : null,
+        }),
+        // A session that cannot reach the public is the one worth an alarm:
+        // every other number here is work in progress, this one is a hold.
+        stat("unpublishable", health.unpublishable, null, { key: "unp", tone: health.unpublishable ? "err" : null }),
+        stat("sponsor share", pct + "%", null, { key: "ss" }),
+      ]),
+      health.track_balance?.length
+        ? table(
+            ["Track", { label: "Confirmed", num: true }, { label: "Target", num: true }],
+            health.track_balance.map((t) =>
+              h(
+                "tr",
+                { key: t.track_id },
+                h("td", null, t.name),
+                h("td", { class: "num" }, t.confirmed),
+                h("td", { class: "num" }, t.target == null ? dash() : t.target),
+              ),
+            ),
+            "No tracks to balance.",
+          )
+        : null,
+    ),
+    "Programme health",
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -211,10 +272,94 @@ export function cfps(params) {
  * without. Four collections on one screen because they are read together: "does
  * this event have what it needs" is one question, not four.
  */
+/**
+ * One drawer, four collections.
+ *
+ * Days, tracks, formats and rooms differ only in their fields and their two
+ * URLs — create is `POST` under the event, update and delete are `PATCH` and
+ * `DELETE` on the record itself. Writing that four times produced four places
+ * to get the reload key or the error handling subtly different, which is what
+ * the server-rendered page this replaced actually suffered from.
+ *
+ * `spec.fields(draft, set)` returns the vnodes; everything else is here.
+ */
+function configEditor(spec) {
+  const { title, createUrl, itemUrl, reloadKey, record, fields, initial } = spec;
+  const draft = Object.assign({}, initial, record || {});
+  let saving = false;
+
+  const set = (name, transform) => (e) => {
+    const raw = e && e.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e;
+    draft[name] = transform ? transform(raw) : raw;
+  };
+
+  openDrawer(record ? "Edit " + title : "Add " + title, () => {
+    const save = async () => {
+      if (saving) return;
+      saving = true;
+      try {
+        if (record) await api.patch(itemUrl(record.id), draft);
+        else await api.post(createUrl, draft);
+        toast("ok", record ? humanise(title) + " saved." : humanise(title) + " added.");
+        closeDrawer();
+        reload(reloadKey);
+      } catch (err) {
+        reportError(err);
+      } finally {
+        saving = false;
+      }
+    };
+
+    return h(
+      "div",
+      { class: "stack" },
+      fields(draft, set),
+      h(
+        "div",
+        { class: "console-drawer-actions" },
+        button(saving ? "Saving…" : "Save", save, { variant: "primary", disabled: saving, busy: saving }),
+        button("Cancel", closeDrawer, { variant: "secondary" }),
+      ),
+    );
+  });
+}
+
+/**
+ * Delete behind a confirmation.
+ *
+ * `window.confirm` rather than a bespoke modal: this is the one destructive
+ * action on the screen, the browser's dialog cannot be missed, and a modal
+ * built for four call sites is a component nobody maintains. A room is
+ * *archived* rather than removed (INV-02-10) and the wording says so, because
+ * "Delete" over a room that then reappears in a published snapshot is a lie.
+ */
+async function removeConfig(label, itemUrl, id, reloadKey) {
+  if (!window.confirm("Remove " + label + "? Anything already referring to it keeps working.")) return;
+  try {
+    await api.del(itemUrl(id));
+    toast("ok", humanise(label) + " removed.");
+    reload(reloadKey);
+  } catch (err) {
+    reportError(err);
+  }
+}
+
+/** The two actions every configuration row carries, or nothing if read-only. */
+function rowActions(canEdit, onEdit, onRemove) {
+  if (!canEdit) return null;
+  return h(
+    "td",
+    { class: "actions" },
+    button("Edit", onEdit, { variant: "secondary", size: "small" }),
+    button("Remove", onRemove, { variant: "secondary", size: "small" }),
+  );
+}
+
 export function setup(params) {
   setChrome({ section: "setup", title: "Setup" });
   const key = "setup:" + params.eventId;
   const base = "/v1/events/" + params.eventId;
+  const canEdit = canWrite("config.manage");
   return collection(
     key,
     () =>
@@ -229,11 +374,7 @@ export function setup(params) {
       h(
         "div",
         null,
-        pageHead(
-          "Setup",
-          "Days, tracks, formats and rooms. An event needs these before it can go active.",
-          h("a", { class: "btn secondary", href: "/admin/events/" + params.eventId + "/setup?nojs=1" }, "Edit configuration"),
-        ),
+        pageHead("Setup", "Days, tracks, formats and rooms. An event needs these before it can go active."),
         d.readiness.ready
           ? notice("Configuration is complete — this event can go active.", "ok")
           : notice("Before this event can go active it needs " + d.readiness.blockers.join(", ") + ".", "warn"),
@@ -245,15 +386,29 @@ export function setup(params) {
         ]),
         card(
           table(
-            ["Day", "Date", "Public"],
-            d.days.map((x) => h("tr", { key: x.id }, h("td", null, x.label || dash()), h("td", null, formatDate(x.date)), h("td", null, x.is_public ? "Yes" : "No"))),
+            canEdit ? ["Day", "Date", "Public", ""] : ["Day", "Date", "Public"],
+            d.days.map((x) =>
+              h(
+                "tr",
+                { key: x.id },
+                h("td", null, x.label || dash()),
+                h("td", null, formatDate(x.date)),
+                h("td", null, x.is_public ? "Yes" : "No"),
+                rowActions(
+                  canEdit,
+                  () => editDay(params.eventId, key, x),
+                  () => removeConfig("this day", (id) => "/v1/days/" + id, x.id, key),
+                ),
+              ),
+            ),
             "No days yet.",
           ),
           "Days",
+          { actions: canEdit ? button("Add a day", () => editDay(params.eventId, key, null), { variant: "secondary", size: "small" }) : null },
         ),
         card(
           table(
-            ["Track", "Target sessions", "Public"],
+            canEdit ? ["Track", "Target sessions", "Public", ""] : ["Track", "Target sessions", "Public"],
             d.tracks.map((x) =>
               h(
                 "tr",
@@ -261,15 +416,23 @@ export function setup(params) {
                 h("td", null, h("span", { class: "swatch", style: { background: x.color || "#ccc" } }), x.name),
                 h("td", null, x.target_session_count ?? dash()),
                 h("td", null, x.is_public ? "Yes" : "No"),
+                rowActions(
+                  canEdit,
+                  () => editTrack(params.eventId, key, x),
+                  () => removeConfig("this track", (id) => "/v1/tracks/" + id, x.id, key),
+                ),
               ),
             ),
             "No tracks yet.",
           ),
           "Tracks",
+          { actions: canEdit ? button("Add a track", () => editTrack(params.eventId, key, null), { variant: "secondary", size: "small" }) : null },
         ),
         card(
           table(
-            ["Format", { label: "Default length", num: true }, "Review", "Origins"],
+            canEdit
+              ? ["Format", { label: "Default length", num: true }, "Review", "Origins", ""]
+              : ["Format", { label: "Default length", num: true }, "Review", "Origins"],
             d.formats.map((x) =>
               h(
                 "tr",
@@ -278,24 +441,169 @@ export function setup(params) {
                 h("td", { class: "num" }, (x.default_duration_minutes ?? 0) + " min"),
                 h("td", null, x.requires_review ? "Reviewed" : h("span", { class: "muted" }, "Not reviewed")),
                 h("td", null, (x.eligible_origins || []).map(humanise).join(", ") || dash()),
+                rowActions(
+                  canEdit,
+                  () => editFormat(params.eventId, key, x),
+                  () => removeConfig("this format", (id) => "/v1/formats/" + id, x.id, key),
+                ),
               ),
             ),
             "No session formats yet.",
           ),
           "Session formats",
+          { actions: canEdit ? button("Add a format", () => editFormat(params.eventId, key, null), { variant: "secondary", size: "small" }) : null },
         ),
         card(
           table(
-            ["Room", { label: "Capacity", num: true }, "Public"],
+            canEdit ? ["Room", { label: "Capacity", num: true }, "Public", ""] : ["Room", { label: "Capacity", num: true }, "Public"],
             d.rooms.map((x) =>
-              h("tr", { key: x.id }, h("td", null, x.name), h("td", { class: "num" }, x.capacity ?? dash()), h("td", null, x.is_public ? "Yes" : "No")),
+              h(
+                "tr",
+                { key: x.id },
+                h("td", null, x.name),
+                h("td", { class: "num" }, x.capacity ?? dash()),
+                h("td", null, x.is_public ? "Yes" : "No"),
+                rowActions(
+                  canEdit,
+                  () => editRoom(params.eventId, key, x, d.tracks),
+                  // INV-02-10 — configuration a published snapshot may already
+                  // name is archived, never deleted.
+                  () => removeConfig("this room", (id) => "/v1/rooms/" + id, x.id, key),
+                ),
+              ),
             ),
             "No rooms yet.",
           ),
           "Rooms",
+          { actions: canEdit ? button("Add a room", () => editRoom(params.eventId, key, null, d.tracks), { variant: "secondary", size: "small" }) : null },
         ),
       ),
   );
+}
+
+/* The four field sets. Each names only what the `/v1` route actually reads. */
+
+function editDay(eventId, key, record) {
+  configEditor({
+    title: "day",
+    createUrl: "/v1/events/" + eventId + "/days",
+    itemUrl: (id) => "/v1/days/" + id,
+    reloadKey: key,
+    record: record && { id: record.id, date: record.date, label: record.label || "", is_public: record.is_public },
+    initial: { date: "", label: "", is_public: true },
+    fields: (draft, set) => [
+      field({ name: "date", label: "Date", type: "date", required: true, value: draft.date, onchange: set("date") }),
+      field({ name: "label", label: "Label", help: "“Day one”, “Workshops”. Optional.", value: draft.label, oninput: set("label") }),
+      field({ name: "is_public", label: "Show on the public schedule", type: "checkbox", value: draft.is_public, onchange: set("is_public") }),
+    ],
+  });
+}
+
+function editTrack(eventId, key, record) {
+  configEditor({
+    title: "track",
+    createUrl: "/v1/events/" + eventId + "/tracks",
+    itemUrl: (id) => "/v1/tracks/" + id,
+    reloadKey: key,
+    record: record && {
+      id: record.id,
+      name: record.name,
+      color: record.color || "",
+      description: record.description || "",
+      target_session_count: record.target_session_count ?? "",
+      is_public: record.is_public,
+    },
+    initial: { name: "", color: "", description: "", target_session_count: "", is_public: true },
+    fields: (draft, set) => [
+      field({ name: "name", label: "Name", required: true, value: draft.name, oninput: set("name") }),
+      field({ name: "color", label: "Colour", type: "color", value: draft.color || "#cccccc", onchange: set("color") }),
+      field({ name: "description", label: "Description", type: "textarea", rows: 3, value: draft.description, oninput: set("description") }),
+      field({
+        name: "target_session_count",
+        label: "Target sessions",
+        type: "number",
+        help: "What the programme is aiming for in this track. Optional.",
+        value: draft.target_session_count,
+        oninput: set("target_session_count", (v) => (v === "" ? null : Number(v))),
+      }),
+      field({ name: "is_public", label: "Show on the public schedule", type: "checkbox", value: draft.is_public, onchange: set("is_public") }),
+    ],
+  });
+}
+
+function editFormat(eventId, key, record) {
+  configEditor({
+    title: "format",
+    createUrl: "/v1/events/" + eventId + "/formats",
+    itemUrl: (id) => "/v1/formats/" + id,
+    reloadKey: key,
+    record: record && {
+      id: record.id,
+      name: record.name,
+      default_duration_minutes: record.default_duration_minutes ?? 30,
+      max_speakers: record.max_speakers ?? 1,
+      eligible_origins: record.eligible_origins || [],
+      requires_review: record.requires_review,
+      is_public: record.is_public,
+    },
+    initial: { name: "", default_duration_minutes: 30, max_speakers: 1, eligible_origins: ["cfp"], requires_review: true, is_public: true },
+    fields: (draft, set) => [
+      field({ name: "name", label: "Name", required: true, value: draft.name, oninput: set("name") }),
+      field({
+        name: "default_duration_minutes",
+        label: "Default length (minutes)",
+        type: "number",
+        required: true,
+        value: draft.default_duration_minutes,
+        oninput: set("default_duration_minutes", (v) => Number(v)),
+      }),
+      field({ name: "max_speakers", label: "Maximum speakers", type: "number", value: draft.max_speakers, oninput: set("max_speakers", (v) => Number(v)) }),
+      field({
+        name: "eligible_origins",
+        label: "Where a session of this format may come from",
+        type: "multi_select",
+        help: "A format no origin can reach cannot be proposed or invited.",
+        value: draft.eligible_origins,
+        options: ["cfp", "invited", "sponsored", "internal"].map((v) => ({ value: v, label: humanise(v) })),
+        onchange: set("eligible_origins"),
+      }),
+      field({ name: "requires_review", label: "Goes through review", type: "checkbox", value: draft.requires_review, onchange: set("requires_review") }),
+      field({ name: "is_public", label: "Show on the public schedule", type: "checkbox", value: draft.is_public, onchange: set("is_public") }),
+    ],
+  });
+}
+
+function editRoom(eventId, key, record, tracks) {
+  configEditor({
+    title: "room",
+    createUrl: "/v1/events/" + eventId + "/rooms",
+    itemUrl: (id) => "/v1/rooms/" + id,
+    reloadKey: key,
+    record: record && {
+      id: record.id,
+      name: record.name,
+      capacity: record.capacity ?? "",
+      floor: record.floor || "",
+      default_track_id: record.default_track_id || "",
+      is_public: record.is_public,
+    },
+    initial: { name: "", capacity: "", floor: "", default_track_id: "", is_public: true },
+    fields: (draft, set) => [
+      field({ name: "name", label: "Name", required: true, value: draft.name, oninput: set("name") }),
+      field({ name: "capacity", label: "Capacity", type: "number", value: draft.capacity, oninput: set("capacity", (v) => (v === "" ? null : Number(v))) }),
+      field({ name: "floor", label: "Floor", value: draft.floor, oninput: set("floor") }),
+      field({
+        name: "default_track_id",
+        label: "Default track",
+        type: "select",
+        help: "Used when placing a session that has no track of its own.",
+        value: draft.default_track_id,
+        options: [{ value: "", label: "None" }].concat((tracks || []).map((t) => ({ value: t.id, label: t.name }))),
+        onchange: set("default_track_id"),
+      }),
+      field({ name: "is_public", label: "Show on the public schedule", type: "checkbox", value: draft.is_public, onchange: set("is_public") }),
+    ],
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -355,6 +663,8 @@ export function review(params) {
 export function roster(params) {
   setChrome({ section: "roster", title: "Speakers" });
   const key = "roster:" + params.eventId;
+  const canRoster = canWrite("roster.manage");
+  const canNote = canWrite("person_note.manage");
   return collection(key, () => api.get("/v1/participants?event_id=" + params.eventId + "&limit=200").then(unwrap), (list) => {
     const outstanding = list.reduce((n, p) => n + (p.task_completion?.outstanding || 0), 0);
     return h(
@@ -363,19 +673,16 @@ export function roster(params) {
       pageHead(
         "Speakers",
         "Everyone taking part in this event, and what each of them still owes.",
-        // Adding someone, changing a status, and inviting to the portal are
-        // small per-row writes on one already-working page, not worth a
-        // second implementation (the pattern "Edit configuration" already
-        // uses below for event setup). Without this link the list was
-        // read-only with no way back to any of the three.
-        h("a", { class: "btn secondary", href: "/admin/events/" + params.eventId + "/roster?nojs=1" }, "Manage roster"),
+        canRoster ? button("Add someone", () => addParticipant(params.eventId, key), { variant: "secondary", size: "small" }) : null,
       ),
       stats([
         stat("participants", list.length, null, { key: "p" }),
         stat("outstanding tasks", outstanding, "/admin/events/" + params.eventId + "/onboarding", { key: "o", tone: outstanding ? "warn" : null }),
       ]),
       table(
-        ["Person", "Kind", "Status", "Portal", { label: "Sessions", num: true }, "Tasks"],
+        canRoster
+          ? ["Person", "Kind", "Status", "Portal", { label: "Sessions", num: true }, "Tasks", ""]
+          : ["Person", "Kind", "Status", "Portal", { label: "Sessions", num: true }, "Tasks"],
         list.map((p) =>
           h(
             "tr",
@@ -403,9 +710,225 @@ export function roster(params) {
                   )
                 : dash(),
             ),
+            canRoster
+              ? h(
+                  "td",
+                  { class: "actions" },
+                  // `allowed_status` is the server's, off the state diagram in
+                  // 01 — an entry with nowhere to go offers nothing rather than
+                  // a dropdown that 422s.
+                  (p.allowed_status || []).length
+                    ? button("Move", () => moveStatus(p, key), { variant: "secondary", size: "small" })
+                    : null,
+                  p.portal_access === "none"
+                    ? button("Invite to portal", () => invitePortal(p, key), { variant: "secondary", size: "small" })
+                    : null,
+                  canNote ? button("Note", () => addNote(p, params.eventId), { variant: "secondary", size: "small" }) : null,
+                )
+              : null,
           ),
         ),
         "Nobody is taking part yet.",
+      ),
+    );
+  });
+}
+
+function addParticipant(eventId, key) {
+  const draft = { event_id: eventId, full_name: "", email: "", kind: "speaker", status: "invited" };
+  let saving = false;
+  openDrawer("Add someone to the roster", () => {
+    const set = (name) => (e) => {
+      draft[name] = e.target.value;
+    };
+    const save = async () => {
+      if (saving) return;
+      saving = true;
+      try {
+        await api.post("/v1/participants", draft);
+        toast("ok", (draft.full_name || draft.email) + " is on the roster.");
+        closeDrawer();
+        reload(key);
+      } catch (err) {
+        reportError(err);
+      } finally {
+        saving = false;
+      }
+    };
+    return h(
+      "div",
+      { class: "stack" },
+      field({ name: "full_name", label: "Name", value: draft.full_name, oninput: set("full_name") }),
+      field({
+        name: "email",
+        label: "Email",
+        type: "email",
+        required: true,
+        help: "An existing person with this address is reused rather than duplicated (INV-01-11).",
+        value: draft.email,
+        oninput: set("email"),
+      }),
+      field({
+        name: "kind",
+        label: "Taking part as",
+        type: "select",
+        value: draft.kind,
+        onchange: set("kind"),
+        options: ["speaker", "sponsor_contact", "staff", "reviewer", "prospect", "other"].map((v) => ({ value: v, label: humanise(v) })),
+      }),
+      field({
+        name: "status",
+        label: "Starting status",
+        type: "select",
+        value: draft.status,
+        onchange: set("status"),
+        options: ["prospect", "invited", "confirmed"].map((v) => ({ value: v, label: humanise(v) })),
+      }),
+      h(
+        "div",
+        { class: "console-drawer-actions" },
+        button(saving ? "Adding…" : "Add", save, { variant: "primary", disabled: saving, busy: saving }),
+        button("Cancel", closeDrawer, { variant: "secondary" }),
+      ),
+    );
+  });
+}
+
+function moveStatus(participant, key) {
+  const allowed = participant.allowed_status || [];
+  let to = allowed[0];
+  let saving = false;
+  openDrawer("Move " + participant.full_name, () => {
+    const save = async () => {
+      if (saving) return;
+      saving = true;
+      try {
+        await api.patch("/v1/participants/" + participant.id, { status: to });
+        toast("ok", participant.full_name + " is now " + humanise(to).toLowerCase() + ".");
+        closeDrawer();
+        reload(key);
+      } catch (err) {
+        reportError(err);
+      } finally {
+        saving = false;
+      }
+    };
+    return h(
+      "div",
+      { class: "stack" },
+      h("p", { class: "muted" }, "Currently ", h("strong", null, humanise(participant.status)), "."),
+      field({
+        name: "status",
+        label: "Move to",
+        type: "radio",
+        value: to,
+        onchange: (e) => {
+          to = e.target.value;
+        },
+        options: allowed.map((v) => ({ value: v, label: humanise(v) })),
+      }),
+      h(
+        "div",
+        { class: "console-drawer-actions" },
+        button(saving ? "Moving…" : "Move", save, { variant: "primary", disabled: saving, busy: saving }),
+        button("Cancel", closeDrawer, { variant: "secondary" }),
+      ),
+    );
+  });
+}
+
+/**
+ * INV-01-15 — the accept link is shown once, here, and is never re-readable.
+ * The drawer stays open holding it, because closing it on success would throw
+ * away the only copy of something the organizer may need to paste into a chat.
+ */
+function invitePortal(participant, key) {
+  let state = { phase: "confirm", invitation: null };
+  openDrawer("Invite " + participant.full_name + " to the portal", () => {
+    if (state.phase === "done") {
+      return h(
+        "div",
+        { class: "stack" },
+        notice("Invitation sent to " + state.invitation.email + ".", "ok"),
+        field({
+          name: "accept_url",
+          label: "Their link",
+          help: "Shown once and never again — copy it now if you want to send it yourself.",
+          value: state.invitation.accept_url,
+          readonly: true,
+        }),
+        h("div", { class: "console-drawer-actions" }, button("Done", closeDrawer, { variant: "primary" })),
+      );
+    }
+    const send = async () => {
+      if (state.phase === "sending") return;
+      state = { phase: "sending", invitation: null };
+      redraw();
+      try {
+        const invitation = await api.post("/v1/participants/" + participant.id + "/portal-invite");
+        state = { phase: "done", invitation };
+        reload(key);
+      } catch (err) {
+        state = { phase: "confirm", invitation: null };
+        reportError(err);
+      }
+      redraw();
+    };
+    return h(
+      "div",
+      { class: "stack" },
+      h("p", null, "This emails them a link to their speaker portal, where they can see their sessions and what they still owe."),
+      h(
+        "div",
+        { class: "console-drawer-actions" },
+        button(state.phase === "sending" ? "Sending…" : "Send the invitation", send, {
+          variant: "primary",
+          disabled: state.phase === "sending",
+          busy: state.phase === "sending",
+        }),
+        button("Cancel", closeDrawer, { variant: "secondary" }),
+      ),
+    );
+  });
+}
+
+function addNote(participant, eventId) {
+  let body = "";
+  let saving = false;
+  openDrawer("A note about " + participant.full_name, () => {
+    const save = async () => {
+      if (saving || !body.trim()) return;
+      saving = true;
+      try {
+        await api.post("/v1/people/" + participant.person_id + "/notes", { body, event_id: eventId });
+        toast("ok", "Note added.");
+        closeDrawer();
+      } catch (err) {
+        reportError(err);
+      } finally {
+        saving = false;
+      }
+    };
+    return h(
+      "div",
+      { class: "stack" },
+      field({
+        name: "body",
+        label: "Note",
+        type: "textarea",
+        rows: 5,
+        required: true,
+        help: "Visible to staff on this event, never to the speaker.",
+        value: body,
+        oninput: (e) => {
+          body = e.target.value;
+        },
+      }),
+      h(
+        "div",
+        { class: "console-drawer-actions" },
+        button(saving ? "Saving…" : "Add the note", save, { variant: "primary", disabled: saving, busy: saving }),
+        button("Cancel", closeDrawer, { variant: "secondary" }),
       ),
     );
   });

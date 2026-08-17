@@ -22,20 +22,26 @@
  * the same list on the client side and the two must agree — a path the server
  * boots and the client cannot match renders an empty shell.
  *
- * ## Why the server-rendered page is still reachable
+ * ## There is no server-rendered twin any more
  *
- * `?nojs=1` falls through to it. R30 puts the console on the far side of
- * INV-08-13 — the applicant side must render with scripts blocked, the console
- * need not — but "need not" is not "must not", and a console that has replaced
- * a working page with a blank one when a script fails to load has removed a
- * capability rather than added one. The `<noscript>` says so and links there.
+ * There used to be one behind `?nojs=1`, and R30's second amendment removed
+ * both it and the flag. The guarantee it was defending — that the console never
+ * replaces a working page with a blank one — is now met by the console owning
+ * the writes rather than linking out to a page that held them, which is what
+ * `?nojs=1` had quietly become: not a fallback anybody reached with scripts
+ * blocked, but the only route to four forms the console had never grown.
+ *
+ * Two consequences live in this file. `consoleDocument` answers the signed-out,
+ * missing and forbidden cases itself instead of declining to a twin that would
+ * have (see its docblock), and the `<noscript>` states the requirement plainly
+ * instead of offering a link that no longer resolves to anything different.
  */
 
 import { str, type Row } from "@podiumstack/data/db.js";
 import type { Capability } from "@podiumstack/domain/shared/authorization.js";
-import { notFound } from "@podiumstack/domain/shared/errors.js";
+import { forbidden, notFound } from "@podiumstack/domain/shared/errors.js";
 import type { RequestContext } from "../http/context.js";
-import { htmlResponse, json } from "../http/responses.js";
+import { htmlResponse, json, redirect } from "../http/responses.js";
 import type { Router } from "../http/router.js";
 import { escapeHtml } from "../ui/html.js";
 import { loadRailCounts } from "../ui/rail-counts.js";
@@ -45,9 +51,21 @@ import { eventDashboard } from "./dashboard.js";
 
 /**
  * Path patterns the console renders, in the same `:name` syntax the server
- * router uses. Each names the capability that gates it, so a person without it
- * gets the server-rendered page (which will refuse them properly) rather than a
- * console that boots and then 403s on its first fetch.
+ * router uses. Each names the capability that gates it — and since the
+ * server-rendered twins were removed, that capability *is* the gate rather than
+ * a guess about whether booting is worthwhile.
+ *
+ * Each one is the capability **this screen's own first read requires**, which is
+ * the only definition that cannot go wrong in either direction: gate it looser
+ * and the console boots and 403s on its first fetch, gate it tighter and a
+ * reader who could have read the screen is refused it. Two were looser than
+ * their read (`roster` wanted `session.manage` against a `/v1/participants`
+ * that requires `roster.manage`; `onboarding` wanted `task.define` against a
+ * `/v1/tasks` that requires `task.complete`) and both booted an empty console
+ * for the wrong reader. Copying the deleted page's capability instead would
+ * have made the other two *tighter* than their reads — the old publications
+ * page demanded `schedule.publish` because it carried the publish form, and the
+ * list behind it only ever needed `schedule.read_published`.
  *
  * `surface` says which of the two consoles a path belongs to. `admin` is the
  * organizer's, railed by the event's workflow; `reviewer` is `/review`, railed
@@ -75,8 +93,8 @@ const CONSOLE_PATHS: { segments: string[]; capability?: Capability; surface?: "a
   { segments: ["admin", "events", ":eventId", "cfps"], capability: "cfp.configure" },
   { segments: ["admin", "events", ":eventId", "sessions"], capability: "session.manage" },
   { segments: ["admin", "events", ":eventId", "review"], capability: "review.read" },
-  { segments: ["admin", "events", ":eventId", "roster"], capability: "session.manage" },
-  { segments: ["admin", "events", ":eventId", "onboarding"], capability: "task.define" },
+  { segments: ["admin", "events", ":eventId", "roster"], capability: "roster.manage" },
+  { segments: ["admin", "events", ":eventId", "onboarding"], capability: "task.complete" },
   { segments: ["admin", "events", ":eventId", "publications"], capability: "schedule.read_published" },
   { segments: ["admin", "cfps", ":cfpId", "form"], capability: "cfp.configure" },
   { segments: ["admin", "proposals", ":proposalId"], capability: "proposal.read_any" },
@@ -279,25 +297,58 @@ async function bootPayload(
 }
 
 /**
- * The boot document. Returns `null` when this request is not the console's, so
- * the caller falls through to the ordinary router and the server-rendered page
- * answers.
+ * The boot document. Returns `null` only when the path is not the console's, so
+ * the caller falls through to the ordinary router.
+ *
+ * Everything else it answers itself, which is the change R30's second amendment
+ * made. While `?nojs=1` existed each of these cases could decline and let a
+ * server-rendered twin produce the right status: a missing event 404'd there, a
+ * reader without the capability was refused there, and a signed-out visitor was
+ * redirected to sign in there. Those twins are gone, so declining now produces a
+ * bare 404 for every one of them. Each is therefore handled here, and the
+ * capability on each `CONSOLE_PATHS` entry has stopped being a hint about
+ * whether booting is worthwhile and become the gate itself — which is why they
+ * are now exactly the capability the deleted page required, not a near-miss.
  */
 export async function consoleDocument(req: Request, ctx: RequestContext): Promise<Response | null> {
   if (req.method !== "GET") return null;
   const url = new URL(req.url);
-  if (url.searchParams.has("nojs")) return null;
-  if (!ctx.person) return null; // sign-in is server-rendered; so is the redirect to it
   const accept = req.headers.get("accept") ?? "";
   if (accept && !accept.includes("text/html") && accept !== "*/*") return null;
 
   const hit = matchConsolePath(url.pathname);
   if (!hit) return null;
 
+  // Signed out. `/login` is server-rendered and stays that way — a sign-in form
+  // that needs the console to boot cannot be reached by anybody whose session
+  // has expired.
+  if (!ctx.person) return redirect(`/login?next=${encodeURIComponent(url.pathname + url.search)}`);
+
   const { event: ev, missing } = await eventForMatch(ctx, hit);
-  if (missing) return null; // no such event or call — let the server page 404 properly
+  if (missing) {
+    // INV-05-18 — an assignment that is not this reader's is *denied*, and so
+    // is one that does not exist: answering 404 for the invented id and 403 for
+    // the real one would tell a reviewer which of their colleagues' assignment
+    // ids are real. The deleted server-rendered route refused both the same
+    // way and this keeps that. An admin path has no such reason to conceal, so
+    // a missing event there is still a 404.
+    if (hit.surface === "reviewer") throw forbidden("That assignment is not yours.");
+    throw notFound("Event", url.pathname);
+  }
   if (ev) ctx.eventId = ev.id;
-  if (hit.capability && !ctx.canRead(hit.capability, ev ? { event_id: ev.id } : undefined)) return null;
+
+  // Somebody signed in but staff nowhere lands on `/admin` by following an old
+  // link or a bookmark. Their work is in the portal, and a 403 would tell them
+  // nothing about where to go.
+  if (hit.segments.length === 1 && hit.segments[0] === "admin" && !ctx.isStaff({ event_id: ev?.id })) {
+    return redirect("/portal");
+  }
+
+  // `requireRead` rather than `canRead`: it throws the typed 403 the router's
+  // error handler renders, naming the capability. Returning `null` here used to
+  // be how a person without it reached the page that refused them properly;
+  // now this *is* that refusal.
+  if (hit.capability) ctx.requireRead(hit.capability, ev ? { event_id: ev.id } : undefined);
 
   const boot = await bootPayload(ctx, ev, hit.surface);
   return htmlResponse(shell(ev, boot, url, hit.surface));
@@ -339,8 +390,10 @@ ${CONSOLE_MODULES.map((m) => `  <link rel="modulepreload" href="${m}">`).join("\
   <noscript>
     <div class="card">
       <h1>${surface === "reviewer" ? "This screen needs JavaScript" : "The admin console needs JavaScript"}</h1>
-      <p class="lede">This screen is the client-rendered console. The server-rendered version of it is still here.</p>
-      <p><a href="${escapeHtml(url.pathname)}?nojs=1">Open the server-rendered page</a></p>
+      <p class="lede">This screen is client-rendered and there is no server-rendered version of it (R30).</p>
+      <p>Everything a speaker or an attendee needs works without scripts — the
+      public schedule, the embeds and <a href="/portal">the speaker portal</a> —
+      and that is what INV-08-13 protects.</p>
     </div>
   </noscript>
 </body>

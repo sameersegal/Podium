@@ -5,13 +5,15 @@ import { hashPassword } from "@podiumstack/domain/identity/credentials.js";
 /**
  * The reviewer surface, client-rendered (R30).
  *
- * `/review` and `/review/:assignmentId` are now the console's, sharing their
- * URLs with the server-rendered pages `reviewer-surface.test.ts` drives. Both
- * halves have to hold the same rules, and each has its own way of losing them:
- * the HTML one by rendering something it should not, this one by *sending*
- * something it should not and hiding it in the client.
+ * `/review` and `/review/:assignmentId` are the console's, and since R30's
+ * second amendment they are *only* the console's — the server-rendered pages
+ * that used to answer `?nojs=1` are gone, and `reviewer-surface.test.ts` with
+ * them. This file absorbed what that one uniquely held: the queue's shape, and
+ * where an assignment sits in it.
  *
- * So what is asserted here is the payload, not the markup:
+ * What is asserted here is the payload, not the markup, because the payload is
+ * how this surface loses a rule — by *sending* something it should not and
+ * hiding it in the client:
  *
  * - a reviewer sees exactly their own assignments, and asking for another's by
  *   id is denied rather than empty (INV-05-18);
@@ -227,13 +229,6 @@ describe("the reviewer surface, client-rendered (R30)", () => {
     expect(boot.reviewer.rounds.map((r: any) => r.name)).toEqual(["Screening"]);
   });
 
-  it("still serves the server-rendered page for ?nojs=1", async () => {
-    const cookie = await signIn();
-    const res = await SELF.fetch("http://localhost/review?nojs=1", { headers: { cookie, accept: "text/html" } });
-    const html = await res.text();
-    expect(html).not.toContain('id="console-boot"');
-    expect(html).toContain("REVCON-0001");
-  });
 
   it("boots the console for an assignment the reader holds", async () => {
     const cookie = await signIn();
@@ -265,6 +260,24 @@ describe("the reviewer surface, client-rendered (R30)", () => {
     // Counted, never listed — the subject of a conflict is a person.
     expect(data.conflicts).toBe(1);
     expect(JSON.stringify(data)).not.toContain(CONFLICTED_PERSON);
+  });
+
+  /**
+   * From `reviewer-surface.test.ts`, which drove the deleted server-rendered
+   * pages. The behaviour it proved — "1 of 2 outstanding", and a link straight
+   * to the next one — is the console's to render now, but the *data* it renders
+   * from is still the server's to get right, and that is what is asserted here.
+   * Without `position.next` the console has nothing to hand a reviewer working
+   * a queue of seventeen, which is the whole reason this surface was ported.
+   */
+  it("says where an assignment sits in the outstanding queue, and what comes next", async () => {
+    const cookie = await signIn();
+    const res = await SELF.fetch(`http://localhost/v1/me/assignments/${ASSIGNMENT_A}`, {
+      headers: { cookie, accept: "application/json" },
+    });
+    expect(res.status).toBe(200);
+    const { data } = (await res.json()) as any;
+    expect(data.position).toEqual({ index: 0, total: 2, previous: null, next: ASSIGNMENT_B });
   });
 
   it("denies another reviewer's assignment by id, rather than answering an empty scorecard", async () => {

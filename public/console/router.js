@@ -119,14 +119,6 @@ export function start() {
     if (!a || a.target === "_blank" || a.hasAttribute("download") || a.dataset.native === "true") return;
     const url = new URL(a.getAttribute("href"), window.location.origin);
     if (url.origin !== window.location.origin) return;
-    // `match()` compares pathname only, so a link back to a console-owned path
-    // with `?nojs=1` attached — every "the write form stays server-rendered"
-    // escape hatch in the app — still matched and got swallowed into a
-    // same-document re-render that silently dropped the query string. The
-    // server's own `consoleDocument` already treats `?nojs=1` as "not mine"
-    // (surfaces/console.ts); the client has to agree, or none of those links
-    // ever reach the page they say they link to.
-    if (url.searchParams.get("nojs") === "1") return; // explicit escape hatch — let the browser navigate
     if (!match(url.pathname)) return; // server-rendered — let the browser do it
     ev.preventDefault();
     navigate(url.href);

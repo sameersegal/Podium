@@ -3,17 +3,17 @@
  *
  * The console's entry point and the screen its busiest list links into. Both
  * are read-first: what an organizer does here is look, decide, and go
- * somewhere. The writes that belong to a proposal — requesting changes,
- * withdrawing, recording a decision — stay on the server-rendered screen for
- * now and are linked, not hidden; a form that round-trips `row_version` and
- * refuses a stale write (INV-11-14) is not worth reimplementing badly.
+ * somewhere. The one write that lives here is the organizer edit, ported from
+ * the server-rendered screen when R30's second amendment removed it; the rest
+ * of a proposal's writes — requesting changes, withdrawing, recording a
+ * decision — are their own screens and are linked, not hidden.
  */
 
 import { h, cx } from "../kit.js";
 import { api, unwrap } from "../api.js";
-import { boot, can, resource, reload } from "../store.js";
+import { boot, can, canWrite, resource, reload, openDrawer, closeDrawer, toast, reportError } from "../store.js";
 import { setChrome } from "../chrome.js";
-import { badge, button, card, empty, formatDate, formatDateTime, humanise, notice, pageHead, plural, relativeDays, spell } from "../ui.js";
+import { badge, button, card, empty, field, formatDate, formatDateTime, humanise, notice, pageHead, plural, relativeDays, spell } from "../ui.js";
 
 const dash = () => h("span", { class: "muted" }, "—");
 
@@ -360,9 +360,7 @@ export function proposalDetail(params) {
       h("span", { class: "muted" }, p.reference),
       h("span", { class: "spacer" }),
       p.session_id ? h("a", { class: "btn secondary small", href: "/admin/sessions/" + p.session_id }, "Its session") : null,
-      // The writes stay on the server-rendered screen, which already
-      // round-trips `row_version` and refuses a stale edit (INV-11-14).
-      h("a", { class: "btn secondary small", href: "/admin/proposals/" + p.id + "?nojs=1" }, "Edit"),
+      canWrite("proposal.edit") ? button("Edit", () => openProposalEdit(p, key), { variant: "secondary", size: "small" }) : null,
       can("decision.manage") ? h("a", { class: "btn secondary small", href: "/admin/proposals/" + p.id + "/decision" }, "Decision") : null,
     ),
     pageHead(
@@ -487,5 +485,132 @@ function answersCard(p) {
         { key: s.key },
       ),
     ),
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* The organizer edit                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Editing somebody else's submission, which is why this drawer is not the same
+ * shape as the rest of the console's forms.
+ *
+ * Two rules ride on it and both are visible in the UI rather than only in the
+ * request. **INV-11-5** — an organizer edit of submitter-owned content carries
+ * a reason, and the reason is what the audit log and the speaker's revision
+ * history will show, so it is a required field and the save button says so.
+ * **INV-11-14** — the `row_version` this drawer read goes back with the write,
+ * so an edit made against a copy another organizer has since changed is refused
+ * rather than silently overwriting them.
+ */
+function openProposalEdit(proposal, reloadKey) {
+  const draft = {};
+  let reason = "";
+  let saving = false;
+  const optionsKey = "proposal-options:" + proposal.event_id;
+
+  openDrawer(
+    "Edit this proposal",
+    () => {
+      const opts = resource(optionsKey, () =>
+        Promise.all([
+          api.get("/v1/events/" + proposal.event_id + "/tracks").then(unwrap),
+          api.get("/v1/events/" + proposal.event_id + "/formats").then(unwrap),
+        ]).then(([tracks, formats]) => ({ tracks, formats })),
+      );
+      if (opts.error) return notice(opts.error.message, "err");
+      if (!opts.data) return h("p", { class: "muted" }, "Loading…");
+
+      const value = (name) => (name in draft ? draft[name] : proposal[name] == null ? "" : proposal[name]);
+      const set = (name) => (e) => {
+        draft[name] = e.target.value;
+      };
+
+      const save = async () => {
+        if (saving) return;
+        if (!reason.trim()) {
+          toast("err", "Say what changed and why — the speaker sees this on their revision history.");
+          return;
+        }
+        if (!Object.keys(draft).length) {
+          toast("err", "Nothing has changed yet.");
+          return;
+        }
+        saving = true;
+        try {
+          await api.patch(
+            "/v1/proposals/" + proposal.id,
+            Object.assign({ reason, row_version: proposal.row_version }, draft),
+          );
+          toast("ok", "Saved.");
+          closeDrawer();
+          reload(reloadKey);
+        } catch (err) {
+          if (err.code === "version_conflict") {
+            toast("err", "Someone else changed this proposal while you had it open. Close this and reopen it to see their version.");
+            reload(reloadKey);
+          } else {
+            reportError(err);
+          }
+        } finally {
+          saving = false;
+        }
+      };
+
+      return h(
+        "div",
+        { class: "stack" },
+        field({ name: "title", label: "Title", required: true, value: value("title"), oninput: set("title") }),
+        field({ name: "abstract", label: "Abstract", type: "textarea", rows: 6, value: value("abstract"), oninput: set("abstract") }),
+        h(
+          "div",
+          { class: "console-row-2" },
+          field({
+            name: "assigned_track_id",
+            label: "Track",
+            type: "select",
+            help: "The track the programme assigns, which may differ from the one the speaker asked for.",
+            value: value("assigned_track_id"),
+            onchange: set("assigned_track_id"),
+            options: [{ value: "", label: "Unassigned" }].concat(opts.data.tracks.map((t) => ({ value: t.id, label: t.name }))),
+          }),
+          field({
+            name: "session_format_id",
+            label: "Format",
+            type: "select",
+            value: value("session_format_id"),
+            onchange: set("session_format_id"),
+            options: [{ value: "", label: "None" }].concat(opts.data.formats.map((f) => ({ value: f.id, label: f.name }))),
+          }),
+        ),
+        field({
+          name: "requested_duration_minutes",
+          label: "Duration (minutes)",
+          type: "number",
+          value: value("requested_duration_minutes"),
+          oninput: set("requested_duration_minutes"),
+        }),
+        field({
+          name: "reason",
+          label: "Why are you changing this?",
+          type: "textarea",
+          rows: 3,
+          required: true,
+          help: "INV-11-5 — recorded against the edit and shown to the speaker. Not optional.",
+          value: reason,
+          oninput: (e) => {
+            reason = e.target.value;
+          },
+        }),
+        h(
+          "div",
+          { class: "console-drawer-actions" },
+          button(saving ? "Saving…" : "Save the edit", save, { variant: "primary", disabled: saving, busy: saving }),
+          button("Cancel", closeDrawer, { variant: "secondary" }),
+        ),
+      );
+    },
+    { wide: true },
   );
 }

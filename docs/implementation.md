@@ -402,13 +402,13 @@ workflow, flies no event bar or event switcher, and omits ⌘K (`reviewerPage` p
 `search: false` for the same reason — a palette over three destinations is a menu pretending
 to be a search box).
 
-The server-rendered pages are still registered and still answer `?nojs=1`, which is what R30's
+The server-rendered pages are **gone**, along with `?nojs=1` (R30, amended again). R30's
 original argument for keeping this surface server-rendered — reviewers are on tablets and
-phones — actually needed. The two are one read model apart, not two:
+phones — was an argument about degradation, and a flag nobody can be told about was not
+answering it. What is left is one read model and one renderer:
 
 ```
 contexts/review/reviewer-model.ts   loads the queue and the scorecard, once
-  → reviewer-views.ts               renders them as HTML
   → GET /v1/me/assignments[/:id]    sends them as JSON  (09, "The reviewer's own queue")
 public/console/views/reviewer.js    renders that JSON
 ```
@@ -472,12 +472,19 @@ public/console/views/       one file per screen (`reviewer.js` is the other surf
 public/console.css          only what the console added; app.css is still the shared artifact
 ```
 
-**It shares URLs with the screens it is replacing.** `consoleDocument` runs before the router
-in `index.ts` and takes a request only when the path is in `CONSOLE_PATHS`, the caller is a
-signed-in person with the capability, and `?nojs=1` is absent. Anything else falls through to
-the server-rendered page, which is still registered and still works. So the port is
-incremental rather than a flag day, `<noscript>` has somewhere to point, and
-`tests/integration/foundation/concurrency.test.ts` still drives the real HTML forms.
+**It shares URLs with the screens it has not replaced yet.** `consoleDocument` runs before the
+router in `index.ts` and takes a request when the path is in `CONSOLE_PATHS`; anything else
+falls through to the server-rendered page, which is still registered and still works. So the
+port is still incremental rather than a flag day.
+
+What it no longer does is decline a path it owns. There is no twin behind those URLs any
+more, so declining would produce a bare 404 — which means `consoleDocument` answers the
+signed-out case (redirect to `/login?next=`), the not-staff-anywhere case on `/admin`
+(redirect to `/portal`), the missing-entity case (404 by name) and the forbidden case
+(`requireRead`, so the typed 403 names the capability) itself. Each `CONSOLE_PATHS` entry
+therefore names **the capability its own first read requires**, which is the only definition
+that is wrong in neither direction; see the entry's docblock for the two that were looser
+than their read and the one that copying the deleted page would have made tighter.
 
 **Ported so far — seventeen screens.** Fifteen are the organizer's daily loop end to end:
 `/admin`, the event dashboard, the proposal board and a proposal, the agenda grid, the form
@@ -486,11 +493,19 @@ lists. The other two are the reviewer's, `/review` and `/review/:assignmentId` �
 client under a different rail, described above. Navigating between any of them is
 same-document.
 
-**Still server-rendered, deliberately:** the write-heavy detail forms — a session, a call's
-settings, a decision, a round's assignments, and the organization-wide settings screens.
-Each already round-trips `row_version` and refuses a stale write (INV-11-14), and a form
-reimplemented badly is worse than a form that reloads. The console links to them rather than
-hiding them.
+**Still server-rendered, deliberately:** the write-heavy detail forms the console does not
+own a URL for — a session, a call's settings, a decision, a round's assignments, the time-slot
+editor and the organization-wide settings screens. Each round-trips `row_version` and refuses
+a stale write (INV-11-14), and a form reimplemented badly is worse than a form that reloads.
+The console links to them rather than hiding them.
+
+The four that *were* on a console-owned URL are now the console's own, because they had to be:
+`?nojs=1` was the only way to reach them and the flag is gone. Event setup (days, tracks,
+formats, rooms) and the roster (add, move status, invite to the portal, note) are drawers on
+their list screens; the organizer edit is a drawer on the proposal, carrying the required
+reason (INV-11-5) and the `row_version` that `PATCH /v1/proposals/:id` now honours; and the
+assisted-placement review is a drawer on the agenda that shows the proposal, what it would
+break and what it could not place before anything is applied (INV-08-15).
 
 `public/console/app.js` and `surfaces/console.ts` each hold the route list and the two have
 to agree — a path the server boots and the client cannot match renders an empty shell. Each
@@ -500,13 +515,15 @@ and not by a matrix row, which is exactly what the server-rendered `/review` doe
 console harder than the page it shares a URL with would hand two readers of the same link two
 different products.
 
-**Testing a ported path.** An integration test asserting server-rendered HTML for a URL the
-console owns must ask for `?nojs=1`, or it will assert against the boot document. That is not
-a workaround: the server-rendered page is still the fallback and still has to work, so the
-test is exercising something real. Where the console reaches the same guarantee by a
-different route — conflicts in a placement's response, compare-and-set on a `PATCH`, PII
-withheld from a list endpoint — assert **both**, because each surface has its own way of
-losing it.
+**Testing a ported path.** There is no HTML to assert against for a URL the console owns —
+a `GET` returns the boot document, and there is no flag that changes that. So the test asserts
+the payload the screen draws from: conflicts on the grid read, `pending_changes` on the
+publications read, PII withheld from a list endpoint, `position` on a scorecard. That is where
+these guarantees can actually be lost now, because the client cannot restore something the
+server declined to send. Where a form is *still* server-rendered, keep driving the real HTML
+(`tests/integration/foundation/concurrency.test.ts` does, for the calls and sessions whose
+forms survive) — but read its `row_version` from `/v1` when the page that used to render it
+is gone.
 
 **Ids are not a presentation.** Several `/v1` list endpoints grew display names beside their
 ids (`track_name`, `speaker_names`, `assignee_name`). The entity shape is right for an

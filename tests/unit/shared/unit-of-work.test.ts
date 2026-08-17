@@ -23,12 +23,11 @@ const ROOT = new URL("../../../workers/api/src", import.meta.url).pathname;
 const EXEMPT: Record<string, string> = {
   "POST /logout": "ends a session; raises no domain event",
   "POST /admin/people/:personId/merge-lookup": "resolves a person and redirects to the confirmation screen; writes nothing",
-  "POST /admin/events/:eventId/schedule/place": "delegates to the schedule Durable Object, which flushes inside the critical section",
-  "POST /admin/events/:eventId/schedule/move": "delegates to the schedule Durable Object, which flushes inside the critical section",
-  // The console's half of the same two writes (R30). Both open a context only
-  // to read the day, the event's timezone and the session's duration, so that
-  // a grid can send a wall clock and let the server resolve it; the write
-  // itself goes the same way as the HTML one.
+  // R30's second amendment deleted the HTML forms these two used to have; only
+  // the console's half is left. Both open a context only to read the day, the
+  // event's timezone and the session's duration, so that a grid can send a wall
+  // clock and let the server resolve it — the write itself goes to the schedule
+  // Durable Object, which flushes inside the critical section.
   "POST /v1/events/:eventId/placements": "reads the day and the session, then delegates to the schedule Durable Object, which flushes inside the critical section",
   "PATCH /v1/placements/:placementId": "reads the placement's current window, then delegates to the schedule Durable Object, which flushes inside the critical section",
   "PUT /files/upload": "the presigned upload callback stamps size and checksum; the asset's events were raised when it was created",

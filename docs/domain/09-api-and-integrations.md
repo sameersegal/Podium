@@ -101,6 +101,22 @@ Writing the review is not here: `POST /v1/reviews` already takes both the draft 
 submission from a signed-in person, and a second write path for the same act would be a
 second place for the anonymity and validation rules to be got wrong.
 
+### Roster writes on the management surface
+
+Adding somebody to a roster was already here (`POST /v1/participants`); moving their status
+and inviting them to the portal were not — they existed only as form posts nested under
+`/admin/events/:eventId/roster/...`. R30's second amendment removed that page, so the two
+writes it carried belong on the surface every other roster operation already uses.
+
+| Endpoint | Scope | Notes |
+|---|---|---|
+| `PATCH /v1/participants/:participantId` | `speakers:write` | `status` only. An illegal move is refused with `422 illegal_transition` naming `from` and `to`, the same answer the state machine in [`01`](01-identity-and-access.md) gives every other caller |
+| `POST /v1/participants/:participantId/portal-invite` | `speakers:write` | Returns `accept_url` **once** (INV-01-15). It is never re-readable, here or anywhere, so a caller that drops the response has to issue a new invitation |
+
+Neither takes an event in its path. The participant names its own event, so the capability is
+checked against the event that owns the record rather than one supplied by the caller — the
+nesting in the old form URLs was a property of where the form lived, not of the write.
+
 ## ApiKey
 
 <!-- entity: ApiKey -->

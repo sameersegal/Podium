@@ -89,11 +89,12 @@ async function signIn(): Promise<string> {
  * The version the screen actually rendered — the whole point is not to read it
  * from the database.
  *
- * `?nojs=1` where the admin console (R30) owns the URL: the console serves a
- * boot document there, and the server-rendered form these tests drive is the
- * fallback behind it. The console's own compare-and-set is covered separately,
- * over `/v1`, at the foot of this file — INV-11-14 has to hold on both surfaces
- * and each has its own way of losing the version.
+ * Only the forms that are still server-rendered can be read this way. R30's
+ * second amendment deleted the console-owned pages and the `?nojs=1` flag that
+ * reached them, so the event-settings case below takes its version from `/v1`
+ * instead and still drives the real HTML `POST`, which survives. The console's
+ * own compare-and-set is covered separately at the foot of this file — INV-11-14
+ * has to hold on both surfaces and each has its own way of losing the version.
  */
 async function renderedVersion(cookie: string, path: string): Promise<string> {
   const res = await SELF.fetch(`http://localhost${path}`, { headers: { cookie } });
@@ -102,6 +103,15 @@ async function renderedVersion(cookie: string, path: string): Promise<string> {
   const match = /name="row_version" value="(\d+)"/.exec(html);
   if (!match) throw new Error(`${path} rendered no row_version field — INV-11-14 cannot hold for that form`);
   return match[1];
+}
+
+/** The same version, read as the console reads it. */
+async function apiVersion(cookie: string, path: string): Promise<string> {
+  const res = await SELF.fetch(`http://localhost${path}`, { headers: { cookie, accept: "application/json" } });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { row_version?: number };
+  if (body.row_version === undefined) throw new Error(`${path} returned no row_version — INV-11-14 cannot hold for that write`);
+  return String(body.row_version);
 }
 
 function post(cookie: string, path: string, body: Record<string, string>): Promise<Response> {
@@ -138,7 +148,7 @@ describe("compare-and-set on aggregate roots (INV-11-14)", () => {
   });
 
   it("refuses the second of two event edits made against the same version, and keeps the first", async () => {
-    const version = await renderedVersion(cookie, `/admin/events/${EVENT}?nojs=1`);
+    const version = await apiVersion(cookie, `/v1/events/${EVENT}`);
     const settings = {
       row_version: version,
       name: "Concurrency Conf",

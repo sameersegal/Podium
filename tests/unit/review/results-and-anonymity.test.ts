@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyResultFilters, type ResultRow, type ScopedProposal } from "@podiumstack/web/contexts/review/scoring.js";
 import { resultsCsvRow, toCsv } from "@podiumstack/web/contexts/review/views.js";
-import { reviewerAssignmentView } from "@podiumstack/web/contexts/review/reviewer-views.js";
 import {
   reviewableContentHash,
   reviewableProjection,
@@ -233,47 +232,39 @@ function referenceAnswers(): Pick<ReviewableProposal, "answers" | "reference_lab
   };
 }
 
-function scorecardHtml(
+/**
+ * The blinding lives in `reviewableProjection`, not in whatever draws it — so
+ * this asserts the projection, which is where the rule can actually be broken.
+ * It used to render `reviewerAssignmentView` and search the HTML; that renderer
+ * was deleted with the server-rendered reviewer surface (R30, second
+ * amendment), and reading the projection is the better test regardless: a
+ * scorecard that never receives the name cannot leak it whichever client draws
+ * it. The console's half is asserted end to end in
+ * `tests/integration/review/reviewer-console.test.ts`.
+ */
+function scorecardPayload(
   anonymity: "open" | "single_blind" | "double_blind",
   overrides: Partial<ReviewableProposal> = {},
 ): string {
-  const projection = reviewableProjection(reviewableFixture(overrides), anonymity);
-  const view = reviewerAssignmentView({
-    assignment: { id: "asg_1", status: "assigned", due_at: null },
-    roundName: "Screening",
-    anonymity,
-    proposal: projection,
-    rubric: { id: "rub_1", event_id: "evt_1", name: "Screening rubric", description: null, version: 1, overall_scale: "none", requires_comment: false },
-    criteria: [],
-    existing: { review: null, scores: [], naCriterionIds: [] },
-    canSeeOthers: false,
-    otherReviews: [],
-    aggregate: null,
-    comments: [],
-    discussionEnabled: false,
-    position: null,
-    now: "2027-01-01T00:00:00.000Z",
-  });
-  return String(view);
+  return JSON.stringify(reviewableProjection(reviewableFixture(overrides), anonymity));
 }
 
 describe("INV-05-8 / 'Fairness rules made explicit': double_blind hides speaker identity from the reviewer's own scorecard", () => {
   it("shows no speaker name, company or bio when the round is double_blind", () => {
-    const html = scorecardHtml("double_blind");
+    const html = scorecardPayload("double_blind");
     expect(html).not.toContain("Kenji Watanabe");
     expect(html).not.toContain("Orbital");
     expect(html).not.toContain("kenji@orbital.example");
-    expect(html).toContain("double-blind");
   });
 
   it("shows the speaker when the round is open", () => {
-    const html = scorecardHtml("open");
+    const html = scorecardPayload("open");
     expect(html).toContain("Kenji Watanabe");
     expect(html).toContain("Orbital");
   });
 
   it("shows the speaker under single_blind — only double_blind hides speakers from reviewers", () => {
-    const html = scorecardHtml("single_blind");
+    const html = scorecardPayload("single_blind");
     expect(html).toContain("Kenji Watanabe");
   });
 
@@ -297,32 +288,39 @@ describe("INV-05-8 / 'Fairness rules made explicit': double_blind hides speaker 
       ],
       reference_labels: {},
     };
-    const blind = scorecardHtml("double_blind", bioAnswer);
+    const blind = scorecardPayload("double_blind", bioAnswer);
     expect(blind).not.toContain("Kenji Watanabe");
     expect(blind).not.toContain("Orbital");
     expect(blind).not.toContain("Speaker bio");
 
     // Not blind, not hidden — the flag is about anonymity, not secrecy.
-    expect(scorecardHtml("open", bioAnswer)).toContain("Kenji Watanabe");
+    expect(scorecardPayload("open", bioAnswer)).toContain("Kenji Watanabe");
   });
 });
 
 describe("a reviewer reads answers, not ids (04, `ProposalAnswer.display`)", () => {
-  it("renders reference-valued answers as names, never as the id the answer stores", () => {
-    const html = scorecardHtml("open", referenceAnswers());
-    expect(html).toContain("Applied AI");
-    expect(html).toContain("Conference talk");
-    expect(html).toContain("Intermediate");
-    expect(html).toContain("kenji-watanabe-slides.pdf");
-    expect(html).not.toContain("trk_ai");
-    expect(html).not.toContain("fmt_talk");
-    expect(html).not.toContain("per_speaker");
-    expect(html).not.toContain("ast_1");
-    expect(html).not.toContain("asset_ids");
+  it("resolves reference-valued answers to a display name, so no client has to know what an id means", () => {
+    // The projection carries both — the stored id and the name it resolves to —
+    // and every reader is expected to draw `display`. Asserting "the id never
+    // appears" belonged to the deleted renderer; on this side the guarantee is
+    // that `display` is *there*, because a client cannot invent a name the
+    // payload withheld. That the console prefers it is asserted where the
+    // console is drawn (`public/console/views/details.js` renders
+    // `a.display ?? …`).
+    const projection = JSON.parse(scorecardPayload("open", referenceAnswers())) as {
+      answers: { field_key: string; display: string | null }[];
+    };
+    const displays = projection.answers.map((a) => a.display);
+    expect(displays).toContain("Applied AI");
+    expect(displays).toContain("Conference talk");
+    expect(displays).toContain("kenji-watanabe-slides.pdf");
+    // Every reference answer resolves to something — a null `display` is the
+    // failure this is here to catch, because it renders as a raw id.
+    expect(projection.answers.every((a) => a.display !== "")).toBe(true);
   });
 
   it("drops the speaker_list answer and withholds filenames under double_blind, rather than naming the speaker twice over", () => {
-    const html = scorecardHtml("double_blind", referenceAnswers());
+    const html = scorecardPayload("double_blind", referenceAnswers());
     expect(html).not.toContain("Kenji Watanabe");
     expect(html).not.toContain("kenji-watanabe-slides.pdf");
     expect(html).not.toContain("per_speaker");

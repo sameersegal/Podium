@@ -24,10 +24,10 @@
 
 import { h, cx, redraw } from "../kit.js";
 import { api, unwrap } from "../api.js";
-import { canWrite, resource, reload, put, toast, reportError } from "../store.js";
+import { canWrite, resource, reload, put, toast, reportError, openDrawer, closeDrawer } from "../store.js";
 import { onChange } from "../live.js";
 import { setChrome } from "../chrome.js";
-import { badge, button, card, empty, humanise, icons, notice, pageHead, pluralise } from "../ui.js";
+import { badge, button, card, empty, field, humanise, icons, notice, pageHead, pluralise } from "../ui.js";
 
 /** Pixels per minute. 1.4 puts a 30-minute talk at a readable 42px. */
 const PPM = 1.4;
@@ -107,35 +107,174 @@ function head(ctx) {
       d.pending_count > 0
         ? h("a", { class: "btn secondary", href: "/admin/events/" + ctx.eventId + "/publications" }, d.pending_count + " unpublished")
         : null,
-      ctx.writable ? button("Suggest placements", () => autoPlace(ctx), { variant: "secondary" }) : null,
+      // The time-slot editor is still server-rendered and this is its only way
+      // in — it used to be linked from the server-rendered builder, which R30's
+      // second amendment deleted. A screen with no route to it is the defect
+      // the taste walks keep finding, so the link moved here with the grid.
+      ctx.writable ? h("a", { class: "btn secondary", href: "/admin/events/" + ctx.eventId + "/schedule/slots" }, "Time slots") : null,
+      ctx.writable ? button("Suggest placements", () => openAutoPlace(ctx), { variant: "secondary" }) : null,
     ),
   );
 }
 
-async function autoPlace(ctx) {
-  if (ui.busy) return;
-  ui.busy = true;
-  redraw();
-  try {
-    // INV-08-15 — a run proposes; nothing is placed until it is applied. The
-    // proposal is reviewed on the server-rendered screen, which already shows
-    // the rationale per row.
-    await api.post("/v1/events/" + ctx.eventId + "/auto-place", { strategy: "greedy_fill" });
-    toast("ok", "Placements suggested. Review the rationale before accepting them.", {
-      action: {
-        label: "Review",
-        onclick: () => {
-          window.location.href = "/admin/events/" + ctx.eventId + "/schedule?nojs=1";
-        },
-      },
-      duration: 9000,
-    });
-  } catch (err) {
-    reportError(err);
-  } finally {
-    ui.busy = false;
+/* -------------------------------------------------------------------------- */
+/* Assisted placement                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * INV-08-15 in one drawer: a run **proposes**, and nothing is placed until
+ * somebody applies it.
+ *
+ * That invariant is the whole reason this is two steps rather than a button
+ * that rearranges the grid. The drawer therefore never writes on open — it
+ * shows what would happen, what it would break, and what it could not place at
+ * all, and only then offers Accept. Applying takes the *session ids*, so
+ * accepting one row at a time and accepting all are the same call with a
+ * different list, and anything placed by hand in between is reported as skipped
+ * rather than overwritten.
+ */
+function openAutoPlace(ctx) {
+  let strategy = "greedy_fill";
+  let run = null;
+  let busy = false;
+
+  const propose = async () => {
+    if (busy) return;
+    busy = true;
     redraw();
-  }
+    try {
+      const res = await api.post("/v1/events/" + ctx.eventId + "/auto-place", { strategy });
+      run = unwrap(res);
+    } catch (err) {
+      reportError(err);
+    } finally {
+      busy = false;
+      redraw();
+    }
+  };
+
+  const apply = async (sessionIds) => {
+    if (busy || !run) return;
+    busy = true;
+    redraw();
+    try {
+      const res = await api.post("/v1/auto-place-runs/" + run.run_id + "/apply", sessionIds ? { session_ids: sessionIds } : {});
+      const result = unwrap(res) || {};
+      const placed = result.placed ?? (sessionIds ? sessionIds.length : 0);
+      const skipped = (result.skipped || []).length;
+      toast("ok", placed + " " + pluralise(placed, "session") + " placed" + (skipped ? ", " + skipped + " skipped — already placed by hand." : "."));
+      // Re-read the run rather than trusting what was drawn: `proposed` drops
+      // whatever has been applied, so the list shrinks to exactly what is left.
+      run = unwrap(await api.get("/v1/auto-place-runs/" + run.run_id));
+      reload(ctx.key);
+      if (!run.proposed.length) closeDrawer();
+    } catch (err) {
+      reportError(err);
+    } finally {
+      busy = false;
+      redraw();
+    }
+  };
+
+  openDrawer(
+    "Assisted placement",
+    () => {
+      if (!run) {
+        return h(
+          "div",
+          { class: "stack" },
+          h("p", null, "This proposes a set of placements for everything still unplaced. Nothing moves until you accept it."),
+          field({
+            name: "strategy",
+            label: "Strategy",
+            type: "select",
+            value: strategy,
+            onchange: (e) => {
+              strategy = e.target.value;
+            },
+            options: [
+              { value: "greedy_fill", label: "Greedy fill — pack the earliest free slot" },
+              { value: "balance_tracks", label: "Balance tracks — spread each track across the days" },
+              { value: "respect_preferences", label: "Respect preferences — honour speaker availability first" },
+            ],
+          }),
+          h(
+            "div",
+            { class: "console-drawer-actions" },
+            button(busy ? "Working…" : "Suggest placements", propose, { variant: "primary", disabled: busy, busy }),
+            button("Cancel", closeDrawer, { variant: "secondary" }),
+          ),
+        );
+      }
+
+      // The event's zone, never the browser's (11, "Time"). `wallMinutes` is
+      // the same converter the grid itself lays out with.
+      const tz = ctx.data.event.timezone;
+      return h(
+        "div",
+        { class: "stack" },
+        run.conflicts_introduced.length
+          ? notice(
+              "This proposal would introduce: " +
+                run.conflicts_introduced.map((c) => humanise(c.code) + " (" + c.severity + ")").join(", ") +
+                ".",
+              "warn",
+            )
+          : notice("This proposal introduces no new conflicts.", "ok"),
+        run.proposed.length
+          ? h(
+              "div",
+              { class: "table-wrap" },
+              h(
+                "table",
+                null,
+                h("thead", null, h("tr", null, h("th", null, "Session"), h("th", null, "Where"), h("th", null, "Why"), h("th", null, ""))),
+                h(
+                  "tbody",
+                  null,
+                  run.proposed.map((p) =>
+                    h(
+                      "tr",
+                      { key: p.session_id },
+                      h("td", null, h("strong", null, p.session.title)),
+                      h(
+                        "td",
+                        null,
+                        p.room_name + ", " + p.day_label,
+                        h("div", { class: "small muted" }, clockOf(wallMinutes(p.starts_at, tz)) + "–" + clockOf(wallMinutes(p.ends_at, tz))),
+                      ),
+                      h("td", { class: "small muted" }, p.rationale),
+                      h("td", { class: "right" }, button("Accept", () => apply([p.session_id]), { variant: "secondary", size: "small", disabled: busy })),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : h("p", { class: "empty" }, "Nothing left to accept from this suggestion."),
+        run.unplaceable.length
+          ? h(
+              "div",
+              null,
+              h("h3", null, "Could not be placed"),
+              h(
+                "ul",
+                null,
+                run.unplaceable.map((u) => h("li", { key: u.session_id }, h("strong", null, u.session.title), " — ", u.reason)),
+              ),
+            )
+          : null,
+        h(
+          "div",
+          { class: "console-drawer-actions" },
+          run.proposed.length
+            ? button(busy ? "Applying…" : "Accept all " + run.proposed.length, () => apply(null), { variant: "primary", disabled: busy, busy })
+            : null,
+          button("Done", closeDrawer, { variant: "secondary" }),
+        ),
+      );
+    },
+    { wide: true },
+  );
 }
 
 function dayBar(ctx) {

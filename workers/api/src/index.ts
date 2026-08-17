@@ -64,11 +64,13 @@ export default {
         if (replay) return await withSecurityHeaders(req, replay);
       }
 
-      // R30's admin console. It answers before the router because it shares
-      // its URLs with the server-rendered screens it is replacing: the console
-      // takes the request, and `?nojs=1` — or a person without the capability,
-      // or an event that does not exist — declines it and falls through to the
-      // page that has always answered.
+      // R30's admin console. It answers before the router because it still
+      // shares URLs with the server-rendered screens it has not replaced yet:
+      // it takes a request whose path it owns and declines every other, which
+      // is now the only reason it declines. Since R30's second amendment there
+      // is no server-rendered twin behind a path it owns, so the signed-out,
+      // missing and forbidden cases are answered in `consoleDocument` rather
+      // than handed to a page that no longer exists.
       const consoleRes = await consoleDocument(req, ctx);
       if (consoleRes) return await withSecurityHeaders(req, withQueryCount(consoleRes, ctx));
 

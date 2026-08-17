@@ -136,7 +136,7 @@ describe("the D1 budget per request (implementer.md, G)", () => {
     // building a payload it discards. Three rounds and three calls are seeded
     // above precisely so a reintroduced per-round or per-call loop shows up
     // here as a jump, not as a rounding error.
-    expect(await queriesFor("/admin?nojs=1", cookie)).toBeLessThanOrEqual(40);
+    expect(await queriesFor("/admin", cookie)).toBeLessThanOrEqual(40);
   });
 
   it("the console's Today read is no more expensive than the screen it feeds", async () => {
