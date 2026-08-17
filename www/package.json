@@ -15,11 +15,11 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
-    "astro": "^7.2.0",
+    "astro": "^7.2.2",
     "playwright": "^1.62.1",
-    "wrangler": "^4.120.1"
+    "wrangler": "^4.123.0"
   },
   "dependencies": {
-    "posthog-js": "^1.416.0"
+    "posthog-js": "^1.417.0"
   }
 }
