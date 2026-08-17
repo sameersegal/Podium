@@ -39,6 +39,12 @@ star in eight of them, and one finding under nearly all of it — the product co
 did not do. Read it after a report, never instead of one; the reports are the evidence and it is
 only the arithmetic.
 
+Those ~110 findings grouped by *the change that fixes them* rather than by the walk that found
+them are in [**The ten walks, grouped into work**](2026-08-17-fix-groups.md) — twelve groups, four
+of them load-bearing. That file is a triage of the evidence and can be wrong where a report
+cannot; it exists because the rule above ("read them as evidence, not as a backlog") means somebody
+has to make that call somewhere, and this is where.
+
 What is waiting to be walked, and in what order, is [`scenarios.md`](scenarios.md) — ten roles
 paired with the business objective each one is responsible for, derived from the functional
 rubric in `../killmysaas-evals` and asking the question that rubric does not: not whether the
