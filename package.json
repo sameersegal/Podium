@@ -44,6 +44,6 @@
     "wrangler": "^4.120.1"
   },
   "dependencies": {
-    "@noble/hashes": "^2.3.0"
+    "@noble/hashes": "^2.4.0"
   }
 }
