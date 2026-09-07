@@ -36,9 +36,9 @@
     "deploy": "npm run deploy:config && wrangler deploy -c wrangler.production.jsonc"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.21.0",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^5.20260810.1",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "wrangler": "^4.120.1"
